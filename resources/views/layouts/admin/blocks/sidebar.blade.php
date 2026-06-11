@@ -97,8 +97,8 @@
                         <span>Hệ thống & Cài đặt</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Quản lý tài khoản Admin/User</a></li>
-                        <li><a href="#">Phân quyền</a></li>
+                        <li><a href="{{ route('admin.users.index') }}">Quản lý tài khoản Admin/User</a></li>
+                        <li><a href="{{ route('admin.roles') }}">Phân quyền</a></li>
                         <li><a href="#">Cập nhật đơn giá điện</a></li>
                         <li><a href="#">Cập nhật đơn giá nước</a></li>
                         <li><a href="#">Cập nhật đơn giá internet</a></li>
