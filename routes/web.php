@@ -1,20 +1,8 @@
 <?php
-
 <<<<<<< Updated upstream
-use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
-
-Route::get('/admin', function () {
-    return view('layouts.admin.home');
-});
-
-Route::get('/client', function () {
-    return view('layouts.client.home');
-});
 =======
+>>>>>>> Stashed changes
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\UtilityController; 
@@ -75,4 +63,3 @@ Route::middleware('auth')->group(function () {
         return view('layouts.client.home');
     })->name('client.home');
 });
->>>>>>> Stashed changes

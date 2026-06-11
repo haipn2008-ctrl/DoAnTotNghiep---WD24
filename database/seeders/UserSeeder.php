@@ -16,8 +16,6 @@ class UserSeeder extends Seeder
             'password' => Hash::make('123456'),
             'role_id' => 1
         ]);
-<<<<<<< Updated upstream
-=======
 
         User::create([
             'name' => 'Admin 2',
@@ -116,6 +114,5 @@ class UserSeeder extends Seeder
             'password' => Hash::make('123456'),
             'role_id' => 2
         ]);
->>>>>>> Stashed changes
     }
 }
