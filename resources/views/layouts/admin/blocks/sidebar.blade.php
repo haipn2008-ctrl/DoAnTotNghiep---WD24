@@ -1,10 +1,8 @@
-<!-- ========== Left Sidebar Start ========== -->
 <div class="vertical-menu">
     <div class="h-100" data-simplebar>
         <div id="sidebar-menu">
             <ul class="metismenu list-unstyled" id="side-menu">
                 <li class="menu-title">Stay Master</li>
-
                 <li>
                     <a class="has-arrow" href="javascript: void(0);">
                         <i data-feather="home"></i>
@@ -60,8 +58,8 @@
                         <span>Điện nước & Dịch vụ</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Nhập chỉ số điện/nước</a></li>
-                        <li><a href="#">Kiểm tra chỉ số</a></li>
+                        <li><a href="{{ route('admin.utilities.create') }}">Nhập chỉ số điện/nước</a></li>
+                        <li><a href="{{ route('admin.utilities.index') }}">Kiểm tra chỉ số</a></li>
                     </ul>
                 </li>
 
@@ -97,8 +95,13 @@
                         <span>Hệ thống & Cài đặt</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
+<<<<<<< Updated upstream
                         <li><a href="#">Quản lý tài khoản Admin/User</a></li>
                         <li><a href="#">Phân quyền</a></li>
+=======
+                        <li><a href="{{ route('admin.users.index') }}">Quản lý tài khoản Admin/User</a></li>
+                        <li><a href="{{ route('admin.roles') }}">Phân quyền</a></li>
+>>>>>>> Stashed changes
                         <li><a href="#">Cập nhật đơn giá điện</a></li>
                         <li><a href="#">Cập nhật đơn giá nước</a></li>
                         <li><a href="#">Cập nhật đơn giá internet</a></li>
@@ -109,4 +112,3 @@
         </div>
     </div>
 </div>
-<!-- Left Sidebar End -->
