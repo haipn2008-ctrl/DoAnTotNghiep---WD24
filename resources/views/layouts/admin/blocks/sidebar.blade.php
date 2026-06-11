@@ -3,6 +3,7 @@
         <div id="sidebar-menu">
             <ul class="metismenu list-unstyled" id="side-menu">
                 <li class="menu-title">Stay Master</li>
+
                 <li>
                     <a class="has-arrow" href="javascript: void(0);">
                         <i data-feather="home"></i>
