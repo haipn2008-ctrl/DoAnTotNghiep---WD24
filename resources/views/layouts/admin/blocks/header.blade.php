@@ -2,11 +2,7 @@
     <div class="navbar-header">
         <div class="d-flex">
             <div class="navbar-brand-box">
-<<<<<<< HEAD
-                <a class="logo logo-dark" href="#">
-=======
                 <a class="logo logo-dark" href="{{ route('admin.home') }}">
->>>>>>> phungthequan
                     <span class="logo-sm">
                         <img alt="Logo" height="24" src="{{ asset('assets/images/logo-sm.svg') }}">
                     </span>
@@ -16,11 +12,7 @@
                     </span>
                 </a>
 
-<<<<<<< HEAD
-                <a class="logo logo-light" href="#">
-=======
                 <a class="logo logo-light" href="{{ route('admin.home') }}">
->>>>>>> phungthequan
                     <span class="logo-sm">
                         <img alt="Logo" height="24" src="{{ asset('assets/images/logo-sm.svg') }}">
                     </span>
@@ -57,12 +49,6 @@
                         Tài khoản
                     </a>
                     <div class="dropdown-divider"></div>
-<<<<<<< HEAD
-                    <a class="dropdown-item text-danger" href="#">
-                        <i class="mdi mdi-logout font-size-16 align-middle me-1"></i>
-                        Đăng xuất
-                    </a>
-=======
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <button type="submit" class="dropdown-item text-danger">
@@ -70,7 +56,6 @@
                             Đăng xuất
                         </button>
                     </form>
->>>>>>> phungthequan
                 </div>
             </div>
         </div>

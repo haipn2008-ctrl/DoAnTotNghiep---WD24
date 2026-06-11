@@ -20,6 +20,6 @@ class Room extends Model
 
     public function utilityRecords()
     {
-        return $this->hasMany(UtilityRecord::class);
+        return $this->hasMany(UtilityReading::class);
     }
 }
