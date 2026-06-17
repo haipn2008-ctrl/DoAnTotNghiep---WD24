@@ -29,7 +29,7 @@ class UtilityController extends Controller
 
             $readings[] = [
                 'room_id' => $room->id,
-                'room_name' => $room->room_code, 
+                'room_name' => $room->room_code,
                 'electricity_old' => $lastReading ? $lastReading->electricity_new : 0,
                 'water_old' => $lastReading ? $lastReading->water_new : 0,
             ];

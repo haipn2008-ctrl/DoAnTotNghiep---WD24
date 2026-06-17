@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\UtilityController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Admin\UtilityController; 
 use App\Models\Role;
 use Illuminate\Support\Facades\Route;
 
@@ -27,10 +29,13 @@ Route::middleware('auth')->group(function () {
     // Nhóm route dành riêng cho Admin
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::resource('users', UserController::class)->except(['show']);
-
-        // --- CÁC ROUTE CHỨC NĂNG ĐIỆN NƯỚC CỦA BẠN (Đã được bảo vệ bởi middleware auth) ---
-        Route::get('/utilities/create', [UtilityController::class, 'create'])->name('utilities.create'); 
-        Route::post('/utilities/store', [UtilityController::class, 'store'])->name('utilities.store');   
+        // Chức năng thêm phòng
+        Route::resource('rooms', RoomController::class);
+        // Chức năng thêm sửa xoá khách thuê
+        Route::resource('tenants', TenantController::class);
+         // --- CÁC ROUTE CHỨC NĂNG ĐIỆN NƯỚC CỦA BẠN (Đã được bảo vệ bởi middleware auth) ---
+        Route::get('/utilities/create', [UtilityController::class, 'create'])->name('utilities.create');
+        Route::post('/utilities/store', [UtilityController::class, 'store'])->name('utilities.store');
         Route::get('/utilities', [UtilityController::class, 'index'])->name('utilities.index');
         // ----------------------------------------------------------------------------------
 
