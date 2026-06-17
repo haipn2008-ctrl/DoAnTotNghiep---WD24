@@ -23,9 +23,12 @@
                         <span>Quản lý Phòng</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Danh sách phòng</a></li>
-                        <li><a href="#">Thêm phòng mới</a></li>
-                        <li><a href="#">Tìm kiếm phòng</a></li>
+                        <li> <a href="{{ route('admin.rooms.index') }}" class="nav-link">
+                                <span>Danh sách phòng</span>
+                            </a></li>
+                        <li> <a href="{{ route('admin.rooms.create') }}" class="nav-link">
+                                <span>Thêm phòng mới</span>
+                            </a></li>
                     </ul>
                 </li>
 
@@ -35,8 +38,12 @@
                         <span>Khách thuê</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Danh sách khách thuê</a></li>
-                        <li><a href="#">Thêm khách thuê</a></li>
+                        <li> <a href="{{ route('admin.tenants.index') }}" class="nav-link">
+                                <span>Danh sách khách thuê</span>
+                            </a></li>
+                        <li> <a href="{{ route('admin.tenants.create') }}" class="nav-link">
+                                <span>Thêm khách thuê</span>
+                            </a></li>
                     </ul>
                 </li>
 
