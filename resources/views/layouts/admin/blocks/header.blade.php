@@ -4,20 +4,20 @@
             <div class="navbar-brand-box">
                 <a class="logo logo-dark" href="{{ route('admin.home') }}">
                     <span class="logo-sm">
-                        <img alt="Logo" height="24" src="{{ asset('assets/images/logo-sm.svg') }}">
+                        <img alt="Logo" height="20" src="{{ asset('assets/images/logo-sm.svg') }}">
                     </span>
                     <span class="logo-lg">
-                        <img alt="Logo" height="24" src="{{ asset('assets/images/logo-sm.svg') }}">
-                        <span class="logo-txt">Quản lý Phòng Trọ</span>
+                        <img alt="Logo" height="20" src="{{ asset('assets/images/logo-sm.svg') }}">
+                        <span class="logo-txt">Quản lý Phòng Trọ </span>
                     </span>
                 </a>
 
                 <a class="logo logo-light" href="{{ route('admin.home') }}">
                     <span class="logo-sm">
-                        <img alt="Logo" height="24" src="{{ asset('assets/images/logo-sm.svg') }}">
+                        <img alt="Logo" height="20" src="{{ asset('assets/images/logo-sm.svg') }}">
                     </span>
                     <span class="logo-lg">
-                        <img alt="Logo" height="24" src="{{ asset('assets/images/logo-sm.svg') }}">
+                        <img alt="Logo" height="20" src="{{ asset('assets/images/logo-sm.svg') }}">
                         <span class="logo-txt">Quản lý Phòng Trọ</span>
                     </span>
                 </a>
