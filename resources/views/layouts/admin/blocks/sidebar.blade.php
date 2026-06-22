@@ -10,10 +10,10 @@
                         <span>Tổng quan</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Biểu đồ doanh thu tháng/năm</a></li>
-                        <li><a href="#">Thống kê tổng doanh thu</a></li>
-                        <li><a href="#">Thống kê số phòng</a></li>
-                        <li><a href="#">Tỷ lệ lấp đầy</a></li>
+                        <li><a href="{{ route('admin.overview.revenue-chart') }}">Biểu đồ doanh thu tháng/năm</a></li>
+                        <li><a href="{{ route('admin.overview.revenue-stats') }}">Thống kê tổng doanh thu</a></li>
+                        <li><a href="{{ route('admin.overview.room-stats') }}">Thống kê số phòng</a></li>
+                        <li><a href="{{ route('admin.overview.fill-rate') }}">Tỷ lệ lấp đầy</a></li>
                     </ul>
                 </li>
 
