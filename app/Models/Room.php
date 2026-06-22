@@ -11,6 +11,7 @@ class Room extends Model
         'price',
         'area',
         'status'
+        
     ];
 
     public function contracts()
