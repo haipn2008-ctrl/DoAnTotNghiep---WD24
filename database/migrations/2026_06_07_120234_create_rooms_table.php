@@ -12,13 +12,30 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('rooms', function (Blueprint $table) {
+
             $table->id();
 
             $table->string('room_code')->unique();
 
+            $table->integer('floor');
+
+            $table->enum('room_type', [
+                'standard',
+                'vip'
+            ])->default('standard');
+
             $table->decimal('price', 12, 2);
 
-            $table->float('area');
+            $table->decimal('area', 8, 2);
+
+            $table->integer('max_people')
+                ->default(4);
+
+            $table->string('thumbnail')
+                ->nullable();
+
+            $table->text('description')
+                ->nullable();
 
             $table->enum('status', [
                 'available',

@@ -18,10 +18,6 @@ class Invoice extends Model
         return $this->belongsTo(Contract::class);
     }
 
-    public function details()
-    {
-        return $this->hasMany(InvoiceDetail::class);
-    }
 
     public function payments()
     {

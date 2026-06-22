@@ -15,10 +15,30 @@ return new class extends Migration
             $table->id();
 
             $table->string('full_name');
-            $table->string('cccd')->unique();
+
+            $table->date('date_of_birth')
+                ->nullable();
+            $table->enum('gender', [
+                'male',
+                'female',
+                'other'
+            ])->nullable();
+            $table->string('cccd')
+                ->unique();
+
+            $table->date('cccd_issue_date')
+                ->nullable();
+
+            $table->string('cccd_issue_place')
+                ->nullable();
+
             $table->string('phone');
-            $table->string('email')->nullable();
-            $table->text('address')->nullable();
+
+            $table->string('email')
+                ->nullable();
+
+            $table->text('address')
+                ->nullable();
 
             $table->timestamps();
         });

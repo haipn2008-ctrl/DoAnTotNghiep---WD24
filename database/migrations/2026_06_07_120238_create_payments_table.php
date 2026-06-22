@@ -12,16 +12,39 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('payments', function (Blueprint $table) {
+
             $table->id();
 
             $table->foreignId('invoice_id')
-                ->constrained('invoices');
+                ->constrained()
+                ->cascadeOnDelete();
 
             $table->decimal('amount_paid', 12, 2);
 
             $table->date('payment_date');
 
-            $table->text('note')->nullable();
+            $table->enum('payment_method', [
+                'cash',
+                'bank_transfer',
+                'qr'
+            ])->default('cash');
+
+            $table->string('transaction_code')
+                ->nullable();
+
+            $table->enum('status', [
+                'pending',
+                'success',
+                'failed'
+            ])->default('success');
+
+            $table->foreignId('confirmed_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            $table->text('note')
+                ->nullable();
 
             $table->timestamps();
         });

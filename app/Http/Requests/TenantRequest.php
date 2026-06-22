@@ -14,17 +14,21 @@ class TenantRequest extends FormRequest
     public function rules(): array
     {
         return [
-
             'full_name' => 'required|max:255',
 
+            'date_of_birth' => 'nullable|date',
+
             'cccd' => 'required|max:12',
+
+            'cccd_issue_date' => 'nullable|date',
+
+            'cccd_issue_place' => 'nullable|max:255',
 
             'phone' => 'required|max:15',
 
             'email' => 'nullable|email',
 
             'address' => 'nullable|max:255',
-
         ];
     }
 }
