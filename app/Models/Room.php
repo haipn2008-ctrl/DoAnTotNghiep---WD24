@@ -14,9 +14,10 @@ class Room extends Model
         'price',
         'area',
         'max_people',
+        'current_people',
+        'thumbnail',
         'description',
-        'status'
-        
+        'status',
     ];
 
     public function contracts()

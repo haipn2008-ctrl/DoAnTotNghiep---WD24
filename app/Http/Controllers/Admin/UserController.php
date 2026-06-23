@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UserRequest;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -47,20 +48,20 @@ class UserController extends Controller
         return view('admin.users.create', compact('roles'));
     }
 
-    public function store(Request $request)
+    public function store(UserRequest $request)
     {
         $this->adminOnly();
 
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6',
-            'role_id' => 'required|exists:roles,id',
-        ]);
+        User::create(
+            $request->validated()
+        );
 
-        User::create($data);
-
-        return redirect()->route('admin.users.index')->with('success', 'Tạo tài khoản thành công.');
+        return redirect()
+            ->route('admin.users.index')
+            ->with(
+                'success',
+                'Tạo tài khoản thành công.'
+            );
     }
 
     public function edit(User $user)
@@ -72,16 +73,13 @@ class UserController extends Controller
         return view('admin.users.edit', compact('user', 'roles'));
     }
 
-    public function update(Request $request, User $user)
-    {
+    public function update(
+        UserRequest $request,
+        User $user
+    ) {
         $this->adminOnly();
 
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => 'nullable|string|min:6',
-            'role_id' => 'required|exists:roles,id',
-        ]);
+        $data = $request->validated();
 
         if (empty($data['password'])) {
             unset($data['password']);
@@ -89,7 +87,12 @@ class UserController extends Controller
 
         $user->update($data);
 
-        return redirect()->route('admin.users.index')->with('success', 'Cập nhật tài khoản thành công.');
+        return redirect()
+            ->route('admin.users.index')
+            ->with(
+                'success',
+                'Cập nhật tài khoản thành công.'
+            );
     }
 
     public function destroy(User $user)

@@ -30,30 +30,51 @@ Route::middleware('auth')->group(function () {
 
     // Nhóm route dành riêng cho Admin
     Route::prefix('admin')->name('admin.')->group(function () {
+
         Route::resource('users', UserController::class)->except(['show']);
+
         // Chức năng thêm phòng
         Route::resource('rooms', RoomController::class);
+
         // Chức năng thêm sửa xoá khách thuê
         Route::resource('tenants', TenantController::class);
+
         // Quản lý hợp đồng thuê phòng
         Route::resource('contracts', ContractController::class);
-        // In hợp đồng
-        Route::get('contracts/{id}/print',[ContractController::class, 'print'])->name('contracts.print');
-        // Kết thúc hợp đồng
-        Route::post('contracts/{id}/end',[ContractController::class, 'end'])->name('contracts.end');
 
-         // --- CÁC ROUTE CHỨC NĂNG ĐIỆN NƯỚC CỦA BẠN (Đã được bảo vệ bởi middleware auth) ---
-        Route::get('/utilities/create', [UtilityController::class, 'create'])->name('utilities.create');
-        Route::post('/utilities/store', [UtilityController::class, 'store'])->name('utilities.store');
-        Route::get('/utilities', [UtilityController::class, 'index'])->name('utilities.index');
-        // ----------------------------------------------------------------------------------
+        // In hợp đồng
+        Route::get('contracts/{id}/print', [ContractController::class, 'print'])
+            ->name('contracts.print');
+
+        // Kết thúc hợp đồng
+        Route::post('contracts/{id}/end', [ContractController::class, 'end'])
+            ->name('contracts.end');
+
+        // Chức năng điện nước
+        Route::get('/utilities/create', [UtilityController::class, 'create'])
+            ->name('utilities.create');
+
+        Route::post('/utilities/store', [UtilityController::class, 'store'])
+            ->name('utilities.store');
+
+        Route::get('/utilities', [UtilityController::class, 'index'])
+            ->name('utilities.index');
 
         // Tổng Quan Dashboard
-        Route::get('/overview', [OverviewController::class, 'index'])->name('overview');
-        Route::get('/overview/revenue-chart', [OverviewController::class, 'revenueChart'])->name('overview.revenue-chart');
-        Route::get('/overview/revenue-stats', [OverviewController::class, 'revenueStats'])->name('overview.revenue-stats');
-        Route::get('/overview/room-stats', [OverviewController::class, 'roomStats'])->name('overview.room-stats');
-        Route::get('/overview/fill-rate', [OverviewController::class, 'fillRate'])->name('overview.fill-rate');
+        Route::get('/overview', [OverviewController::class, 'index'])
+            ->name('overview');
+
+        Route::get('/overview/revenue-chart', [OverviewController::class, 'revenueChart'])
+            ->name('overview.revenue-chart');
+
+        Route::get('/overview/revenue-stats', [OverviewController::class, 'revenueStats'])
+            ->name('overview.revenue-stats');
+
+        Route::get('/overview/room-stats', [OverviewController::class, 'roomStats'])
+            ->name('overview.room-stats');
+
+        Route::get('/overview/fill-rate', [OverviewController::class, 'fillRate'])
+            ->name('overview.fill-rate');
 
         Route::get('/roles', function () {
             $user = auth()->user();
@@ -63,6 +84,7 @@ Route::middleware('auth')->group(function () {
             }
 
             $roles = Role::all();
+
             return view('admin.roles.index', compact('roles'));
         })->name('roles');
 
