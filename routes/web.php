@@ -33,7 +33,7 @@ Route::middleware('auth')->group(function () {
         Route::resource('rooms', RoomController::class);
         // Chức năng thêm sửa xoá khách thuê
         Route::resource('tenants', TenantController::class);
-         // --- CÁC ROUTE CHỨC NĂNG ĐIỆN NƯỚC CỦA BẠN (Đã được bảo vệ bởi middleware auth) ---
+        // --- CÁC ROUTE CHỨC NĂNG ĐIỆN NƯỚC CỦA BẠN (Đã được bảo vệ bởi middleware auth) ---
         Route::get('/utilities/create', [UtilityController::class, 'create'])->name('utilities.create');
         Route::post('/utilities/store', [UtilityController::class, 'store'])->name('utilities.store');
         Route::get('/utilities', [UtilityController::class, 'index'])->name('utilities.index');

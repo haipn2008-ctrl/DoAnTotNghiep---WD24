@@ -14,7 +14,10 @@ class TenantController extends Controller
      */
     public function index()
     {
-        $tenants = Tenant::latest()
+        $tenants = Tenant::with([
+            'contracts.room'
+        ])
+            ->latest()
             ->paginate(10);
 
         return view(
@@ -43,12 +46,12 @@ class TenantController extends Controller
             ->with('success', 'Thêm khách thuê thành công');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Tenant $tenant)
     {
-        //
+        return view(
+            'admin.tenants.show',
+            compact('tenant')
+        );
     }
 
     /**
@@ -66,6 +69,7 @@ class TenantController extends Controller
         TenantRequest $request,
         Tenant $tenant
     ) {
+
         $tenant->update(
             $request->validated()
         );
@@ -74,7 +78,6 @@ class TenantController extends Controller
             ->route('admin.tenants.index')
             ->with('success', 'Cập nhật thành công');
     }
-
     /**
      * Remove the specified resource from storage.
      */
