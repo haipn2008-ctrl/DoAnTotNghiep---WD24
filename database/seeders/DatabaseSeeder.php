@@ -18,8 +18,15 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             UserSeeder::class,
+
+            // Data hệ thống
             SettingSeeder::class,
             AmenitySeeder::class,
+
+            // Data phòng trọ
+            RoomSeeder::class,
+            ContractSeeder::class,
+            InvoiceSeeder::class,
         ]);
     }
 }

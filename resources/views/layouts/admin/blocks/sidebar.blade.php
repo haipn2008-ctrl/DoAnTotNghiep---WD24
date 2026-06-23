@@ -10,10 +10,10 @@
                         <span>Tổng quan</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Biểu đồ doanh thu tháng/năm</a></li>
-                        <li><a href="#">Thống kê tổng doanh thu</a></li>
-                        <li><a href="#">Thống kê số phòng</a></li>
-                        <li><a href="#">Tỷ lệ lấp đầy</a></li>
+                        <li><a href="{{ route('admin.overview.revenue-chart') }}">Biểu đồ doanh thu tháng/năm</a></li>
+                        <li><a href="{{ route('admin.overview.revenue-stats') }}">Thống kê tổng doanh thu</a></li>
+                        <li><a href="{{ route('admin.overview.room-stats') }}">Thống kê số phòng</a></li>
+                        <li><a href="{{ route('admin.overview.fill-rate') }}">Tỷ lệ lấp đầy</a></li>
                     </ul>
                 </li>
 
@@ -52,11 +52,27 @@
                         <i data-feather="file-text"></i>
                         <span>Hợp đồng</span>
                     </a>
-                    <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Tạo hợp đồng thuê</a></li>
-                        <li><a href="#">Danh sách hợp đồng</a></li>
-                        <li><a href="#">Gia hạn hợp đồng</a></li>
-                        <li><a href="#">Kết thúc hợp đồng</a></li>
+                     <ul aria-expanded="false" class="sub-menu">
+                        <li>
+                            <a href="{{ route('admin.contracts.create') }}">
+                                Tạo hợp đồng thuê
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('admin.contracts.index') }}">
+                                Danh sách hợp đồng
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#">
+                                Gia hạn hợp đồng
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#">
+                                Kết thúc hợp đồng
+                            </a>
+                        </li>
                     </ul>
                 </li>
 

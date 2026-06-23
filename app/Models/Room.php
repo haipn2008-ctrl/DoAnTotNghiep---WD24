@@ -16,6 +16,7 @@ class Room extends Model
         'max_people',
         'description',
         'status'
+        
     ];
 
     public function contracts()
