@@ -13,7 +13,23 @@
             </div>
 
             <div class="card-body p-4">
+                @if ($errors->any())
 
+    <div class="alert alert-danger">
+
+        <ul class="mb-0">
+
+            @foreach ($errors->all() as $error)
+
+                <li>{{ $error }}</li>
+
+            @endforeach
+
+        </ul>
+
+    </div>
+
+@endif
                 <form action="{{ route('admin.rooms.store') }}" method="POST" enctype="multipart/form-data">
 
                     @csrf
@@ -61,29 +77,37 @@
 
                     <div class="row">
 
+                                                <div class="col-md-6">
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-secondary">
+                                    Diện tích (m²)
+                                </label>
+
+                                <input type="number" step="0.01" name="area" class="form-control" value="{{ old('area') }}">
+                            </div>
+
+                        </div>
                         <div class="col-md-6">
 
                             <div class="mb-3">
                                 <label class="form-label fw-bold text-secondary">
-                                    Loại phòng
+                                    Giá thuê (VNĐ)
                                 </label>
 
-                                <select name="room_type" class="form-select">
-
-                                    <option value="standard">
-                                        Thường
-                                    </option>
-
-                                    <option value="vip">
-                                        VIP
-                                    </option>
-
-                                </select>
+                                <input type="number" name="price" class="form-control" value="{{ old('price') }}">
                             </div>
 
                         </div>
 
-                        <div class="col-md-6">
+
+
+                    </div>
+
+                    <div class="row">
+
+
+                          <div class="col-md-6">
 
                             <div class="mb-3">
                                 <label class="form-label fw-bold text-secondary">
@@ -108,67 +132,69 @@
                             </div>
 
                         </div>
+                       <div class="col-md-6">
+
+    <div class="mb-3">
+
+        <label class="form-label fw-bold text-secondary">
+            Số người (Tối đa 4 người)
+        </label>
+
+        <input
+            type="number"
+            name="current_people"
+            class="form-control"
+            value="{{ old('current_people', 0) }}">
+
+        @error('current_people')
+
+            <small class="text-danger d-block mt-1">
+                {{ $message }}
+            </small>
+
+        @enderror
+
+    </div>
+
+</div>
 
                     </div>
+<div class="col-md-12">
 
-                    <div class="row">
+    <div class="mb-3">
 
-                        <div class="col-md-6">
+        <label class="form-label fw-bold text-secondary">
+            Tiện ích phòng
+        </label>
 
-                            <div class="mb-3">
-                                <label class="form-label fw-bold text-secondary">
-                                    Giá thuê (VNĐ)
-                                </label>
+        <div class="row">
 
-                                <input type="number" name="price" class="form-control" value="{{ old('price') }}">
-                            </div>
+            @foreach($amenities as $amenity)
 
-                        </div>
+                <div class="col-md-3 mb-2">
 
-                        <div class="col-md-6">
+                    <label class="border rounded p-2 w-100">
 
-                            <div class="mb-3">
-                                <label class="form-label fw-bold text-secondary">
-                                    Diện tích (m²)
-                                </label>
+                        <input
+                            type="checkbox"
+                            name="amenities[]"
+                            value="{{ $amenity->id }}"
+                            {{ in_array($amenity->id, old('amenities', [])) ? 'checked' : '' }}
+                        >
 
-                                <input type="number" step="0.01" name="area" class="form-control" value="{{ old('area') }}">
-                            </div>
+                        {{ $amenity->name }}
 
-                        </div>
+                    </label>
 
-                    </div>
+                </div>
 
-                    <div class="row">
+            @endforeach
 
-                        <div class="col-md-6">
+        </div>
 
-                            <div class="mb-3">
-                                <label class="form-label fw-bold text-secondary">
-                                    Số người tối đa
-                                </label>
+    </div>
 
-                                <input type="number" name="max_people" class="form-control"
-                                    value="{{ old('max_people', 4) }}">
-                            </div>
-
-                        </div>
-
-                        <div class="col-md-6">
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold text-secondary">
-                                    Số người hiện tại
-                                </label>
-
-                                <input type="number" name="current_people" class="form-control"
-                                    value="{{ old('current_people', 0) }}">
-                            </div>
-
-                        </div>
-
-                    </div>
-
+</div>
                     <div class="mb-3">
 
                         <label class="form-label fw-bold text-secondary">

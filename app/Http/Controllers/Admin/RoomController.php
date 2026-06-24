@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Room;
 use App\Http\Requests\RoomRequest;
+use App\Models\Amenity;
+use App\Models\Room;
+use Illuminate\Http\Request;
 
 class RoomController extends Controller
 {
@@ -14,9 +15,8 @@ class RoomController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Room::query();
+        $query = Room::with('amenities');
 
-        // Tìm theo mã phòng
         if ($request->room_code) {
             $query->where(
                 'room_code',
@@ -25,9 +25,11 @@ class RoomController extends Controller
             );
         }
 
-        // Tìm theo trạng thái
         if ($request->status) {
-            $query->where('status', $request->status);
+            $query->where(
+                'status',
+                $request->status
+            );
         }
 
         $rooms = $query
@@ -44,7 +46,12 @@ class RoomController extends Controller
      */
     public function create()
     {
-        return view('admin.rooms.create');
+        $amenities = Amenity::all();
+
+        return view(
+            'admin.rooms.create',
+            compact('amenities')
+        );
     }
 
     /**
@@ -52,19 +59,40 @@ class RoomController extends Controller
      */
     public function store(RoomRequest $request)
     {
-        Room::create($request->validated());
+
+        $data = $request->validated();
+
+        if ($request->hasFile('image')) {
+
+            $data['thumbnail'] = $request
+                ->file('image')
+                ->store('rooms', 'public');
+        }
+
+        $room = Room::create($data);
+
+        $room->amenities()->sync(
+            $request->amenities ?? []
+        );
 
         return redirect()
             ->route('admin.rooms.index')
-            ->with('success', 'Thêm phòng thành công');
+            ->with(
+                'success',
+                'Thêm phòng thành công'
+            );
     }
-
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Room $room)
     {
-        //
+        $room->load('amenities');
+
+        return view(
+            'admin.rooms.show',
+            compact('room')
+        );
     }
 
     /**
@@ -72,27 +100,53 @@ class RoomController extends Controller
      */
     public function edit(Room $room)
     {
-        return view('admin.rooms.edit', compact('room'));
+        $room->load('amenities');
+
+        $amenities = Amenity::all();
+
+        return view(
+            'admin.rooms.edit',
+            compact(
+                'room',
+                'amenities'
+            )
+        );
     }
 
-    public function update(RoomRequest $request, Room $room)
-    {
-        $room->update($request->validated());
+    public function update(
+        RoomRequest $request,
+        Room $room
+    ) {
+
+        $room->update(
+            $request->validated()
+        );
+
+        $room->amenities()->sync(
+            $request->amenities ?? []
+        );
 
         return redirect()
             ->route('admin.rooms.index')
-            ->with('success', 'Cập nhật phòng thành công');
+            ->with(
+                'success',
+                'Cập nhật phòng thành công'
+            );
     }
 
     public function destroy(Room $room)
     {
-        if ($room->contracts()->exists()) {
+        $hasActiveContract = $room->contracts()
+            ->where('status', 'active')
+            ->exists();
+
+        if ($hasActiveContract) {
 
             return redirect()
                 ->route('admin.rooms.index')
                 ->with(
                     'error',
-                    'Không thể xóa phòng vì đã có hợp đồng'
+                    'Không thể xóa phòng đang có người thuê'
                 );
         }
 

@@ -10,7 +10,6 @@ class Room extends Model
     protected $fillable = [
         'room_code',
         'floor',
-        'room_type',
         'price',
         'area',
         'max_people',
@@ -33,16 +32,9 @@ class Room extends Model
     public function amenities()
     {
         return $this->belongsToMany(
-            Amenity::class
+            Amenity::class,
+            'amenity_room'
+
         );
-    }
-    // Lấy phòng
-    public function getRoomTypeTextAttribute()
-    {
-        return match ($this->room_type) {
-            'standard' => 'Phòng thường',
-            'vip' => 'Phòng VIP',
-            default => 'Không xác định'
-        };
     }
 }

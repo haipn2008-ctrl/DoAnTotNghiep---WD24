@@ -19,14 +19,34 @@
         </div>
 
         @if(session('success'))
+
             <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm">
+
+                <i class="fas fa-check-circle me-2"></i>
+
                 {{ session('success') }}
 
                 <button type="button" class="btn-close" data-bs-dismiss="alert">
                 </button>
+
             </div>
+
         @endif
 
+        @if(session('error'))
+
+            <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm">
+
+                <i class="fas fa-exclamation-triangle me-2"></i>
+
+                {{ session('error') }}
+
+                <button type="button" class="btn-close" data-bs-dismiss="alert">
+                </button>
+
+            </div>
+
+        @endif
         <div class="card border-0 shadow-sm mb-4">
 
             <div class="card-body bg-light">
@@ -103,13 +123,11 @@
 
                                 <th>Tầng</th>
 
-                                <th>Loại phòng</th>
-
                                 <th>Giá thuê</th>
 
                                 <th>Diện tích</th>
 
-                                <th>Sức chứa</th>
+                                <th>Số người hiện tại</th>
 
                                 <th>Trạng thái</th>
 
@@ -156,24 +174,6 @@
                                         Tầng {{ $room->floor }}
                                     </td>
 
-                                    <td>
-
-                                        @if($room->room_type == 'vip')
-
-                                            <span class="badge bg-primary">
-                                                VIP
-                                            </span>
-
-                                        @else
-
-                                            <span class="badge bg-secondary">
-                                                Thường
-                                            </span>
-
-                                        @endif
-
-                                    </td>
-
                                     <td class="text-danger fw-bold">
                                         {{ number_format($room->price) }} VNĐ
                                     </td>
@@ -183,7 +183,7 @@
                                     </td>
 
                                     <td>
-                                        {{ $room->max_people }} người
+                                        {{ $room->current_people }} người
                                     </td>
 
                                     <td>
@@ -230,7 +230,9 @@
 
                                             <button type="submit" class="btn btn-danger btn-sm"
                                                 onclick="return confirm('Bạn có chắc muốn xóa phòng này?')">
+
                                                 <i class="fas fa-trash"></i>
+
                                             </button>
 
                                         </form>

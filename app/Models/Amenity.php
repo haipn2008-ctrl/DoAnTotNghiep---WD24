@@ -8,13 +8,14 @@ class Amenity extends Model
 {
     protected $fillable = [
         'name',
-        'description'
+        'description',
     ];
 
     public function rooms()
     {
         return $this->belongsToMany(
-            Room::class
+            Room::class,
+            'amenity_room'
         );
     }
 }

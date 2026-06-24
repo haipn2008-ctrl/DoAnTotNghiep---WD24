@@ -16,11 +16,6 @@ return new class extends Migration
 
             $table->integer('floor');
 
-            $table->enum('room_type', [
-                'standard',
-                'vip'
-            ])->default('standard');
-
             $table->decimal('price', 12, 2);
 
             $table->decimal('area', 8, 2);

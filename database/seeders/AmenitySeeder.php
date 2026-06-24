@@ -23,8 +23,6 @@ class AmenitySeeder extends Seeder
 
             'Ban công',
 
-            'Camera an ninh',
-
             'Bãi đỗ xe',
 
             'Thang máy',
@@ -32,7 +30,7 @@ class AmenitySeeder extends Seeder
 
         foreach ($amenities as $item) {
 
-            Amenity::create([
+            Amenity::firstOrCreate([
                 'name' => $item
             ]);
         }

@@ -32,35 +32,46 @@ class ContractSeeder extends Seeder
 
         if ($rooms->count() > 0 && $tenantModels->count() > 0) {
             $contractData = [
+
                 [
+                    'contract_code' => 'HD001',
                     'room_id' => 1,
                     'tenant_id' => 1,
+
+                    'monthly_rent' => 3500000,
+                    'deposit_amount' => 5000000,
+                    'number_of_people' => 2,
+
+                    'signed_at' => '2025-12-25',
                     'start_date' => '2026-01-01',
                     'end_date' => '2026-12-31',
-                    'deposit_amount' => 5000000,
-                    'status' => 'active'
+
+                    'status' => 'active',
                 ],
+
                 [
+                    'contract_code' => 'HD002',
                     'room_id' => 2,
                     'tenant_id' => 2,
+
+                    'monthly_rent' => 4500000,
+                    'deposit_amount' => 6000000,
+                    'number_of_people' => 3,
+
+                    'signed_at' => '2025-01-25',
                     'start_date' => '2025-02-01',
                     'end_date' => '2026-01-31',
-                    'deposit_amount' => 6000000,
-                    'status' => 'active'
+
+                    'status' => 'active',
                 ],
-                [
-                    'room_id' => 1,
-                    'tenant_id' => 3,
-                    'start_date' => '2024-01-01',
-                    'end_date' => '2024-12-31',
-                    'deposit_amount' => 5000000,
-                    'status' => 'expired'
-                ],
+
             ];
 
             foreach ($contractData as $data) {
                 Contract::updateOrCreate(
-                    ['room_id' => $data['room_id'], 'tenant_id' => $data['tenant_id'], 'start_date' => $data['start_date']],
+                    [
+                        'contract_code' => $data['contract_code']
+                    ],
                     $data
                 );
             }

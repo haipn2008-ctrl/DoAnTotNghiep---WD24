@@ -30,14 +30,6 @@ class RoomRequest extends FormRequest
                 'between:1,5'
             ],
 
-            'room_type' => [
-                'required',
-                Rule::in([
-                    'standard',
-                    'vip'
-                ])
-            ],
-
             'price' => [
                 'required',
                 'numeric',
@@ -50,16 +42,10 @@ class RoomRequest extends FormRequest
                 'min:1'
             ],
 
-            'max_people' => [
-                'required',
-                'integer',
-                'min:1',
-                'max:10'
-            ],
             'current_people' => [
                 'required',
                 'integer',
-                'min:0'
+                'between:0,4'
             ],
 
             'status' => [
@@ -82,6 +68,14 @@ class RoomRequest extends FormRequest
                 'nullable',
                 'string'
             ],
+            'amenities' => [
+                'nullable',
+                'array'
+            ],
+
+            'amenities.*' => [
+                'exists:amenities,id'
+            ],
         ];
     }
 
@@ -95,8 +89,6 @@ class RoomRequest extends FormRequest
             'floor.required' => 'Vui lòng chọn tầng',
             'floor.between' => 'Tầng phải từ 1 đến 5',
 
-            'room_type.required' => 'Vui lòng chọn loại phòng',
-
             'price.required' => 'Giá thuê không được bỏ trống',
             'price.numeric' => 'Giá thuê phải là số',
 
@@ -107,6 +99,8 @@ class RoomRequest extends FormRequest
             'current_people.required' => 'Vui lòng nhập số người hiện tại',
             'current_people.integer' => 'Số người hiện tại phải là số nguyên',
             'current_people.min' => 'Số người hiện tại không được nhỏ hơn 0',
+            'current_people.between' =>
+            'Số người phải từ 0 đến 4',
 
             'status.required' => 'Vui lòng chọn trạng thái',
 

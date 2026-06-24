@@ -9,7 +9,9 @@ class Tenant extends Model
     protected $fillable = [
 
         'full_name',
+
         'date_of_birth',
+        'gender',
 
         'cccd',
         'cccd_issue_date',
