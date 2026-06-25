@@ -42,6 +42,10 @@ Route::middleware('auth')->group(function () {
         Route::resource('rooms', RoomController::class);
 
         // Chức năng thêm sửa xoá khách thuê
+        Route::get('tenants/export', [TenantController::class, 'exportForm'])
+            ->name('tenants.export');
+        Route::get('tenants/export/download', [TenantController::class, 'export'])
+            ->name('tenants.export.download');
         Route::resource('tenants', TenantController::class);
 
         // Quản lý hợp đồng thuê phòng
