@@ -41,6 +41,74 @@ class RoomController extends Controller
             compact('rooms')
         );
     }
+
+    public function exportForm()
+    {
+        $rooms = Room::with('amenities')
+            ->latest()
+            ->paginate(10);
+
+        return view('admin.rooms.export', compact('rooms'));
+    }
+
+    public function export()
+    {
+        $rooms = Room::with('amenities')
+            ->latest()
+            ->get();
+
+        $filename = 'danh_sach_phong_' . now()->format('Ymd_His') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $columns = [
+            'Mã phòng',
+            'Tầng',
+            'Giá thuê',
+            'Diện tích (m²)',
+            'Số người hiện tại',
+            'Trạng thái',
+            'Tiện ích',
+        ];
+
+        $callback = function () use ($rooms, $columns) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, $columns);
+
+            foreach ($rooms as $room) {
+                $status = match ($room->status) {
+                    'available' => 'Trống',
+                    'occupied' => 'Đang thuê',
+                    'maintenance' => 'Bảo trì',
+                    default => ucfirst($room->status),
+                };
+
+                $amenities = $room->amenities
+                    ->pluck('name')
+                    ->filter()
+                    ->implode(', ');
+
+                fputcsv($file, [
+                    $room->room_code,
+                    $room->floor,
+                    number_format($room->price),
+                    $room->area,
+                    $room->current_people,
+                    $status,
+                    $amenities,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
     /**
      * Show the form for creating a new resource.
      */

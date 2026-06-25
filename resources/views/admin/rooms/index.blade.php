@@ -10,11 +10,19 @@
                 Danh sách phòng
             </h2>
 
-            <a href="{{ route('admin.rooms.create') }}" class="btn text-white px-3 py-2 shadow-sm"
-                style="background-color:#4e73df;">
-                <i class="fas fa-plus-circle me-1"></i>
-                Thêm phòng mới
-            </a>
+            <div class="d-flex gap-2">
+                <a href="{{ route('admin.rooms.export', request()->only(['room_code', 'status'])) }}"
+                    class="btn btn-success px-3 py-2 shadow-sm">
+                    <i class="fas fa-file-csv me-1"></i>
+                    Xuất danh sách
+                </a>
+
+                <a href="{{ route('admin.rooms.create') }}" class="btn text-white px-3 py-2 shadow-sm"
+                    style="background-color:#4e73df;">
+                    <i class="fas fa-plus-circle me-1"></i>
+                    Thêm phòng mới
+                </a>
+            </div>
 
         </div>
 

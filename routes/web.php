@@ -35,6 +35,10 @@ Route::middleware('auth')->group(function () {
         Route::resource('users', UserController::class)->except(['show']);
 
         // Chức năng thêm phòng
+        Route::get('rooms/export', [RoomController::class, 'exportForm'])
+            ->name('rooms.export');
+        Route::get('rooms/export/download', [RoomController::class, 'export'])
+            ->name('rooms.export.download');
         Route::resource('rooms', RoomController::class);
 
         // Chức năng thêm sửa xoá khách thuê
