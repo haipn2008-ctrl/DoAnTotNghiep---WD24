@@ -121,10 +121,10 @@
                     <ul aria-expanded="false" class="sub-menu">
                         <li><a href="{{ route('admin.users.index') }}">Quản lý tài khoản Admin/User</a></li>
                         <li><a href="{{ route('admin.roles') }}">Phân quyền</a></li>
-                        <li><a href="#">Cập nhật đơn giá điện</a></li>
-                        <li><a href="#">Cập nhật đơn giá nước</a></li>
-                        <li><a href="#">Cập nhật đơn giá internet</a></li>
-                        <li><a href="#">Cập nhật đơn giá dịch vụ</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'electricity']) }}">Cập nhật đơn giá điện</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'water']) }}">Cập nhật đơn giá nước</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'internet']) }}">Cập nhật đơn giá internet</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'service']) }}">Cập nhật đơn giá dịch vụ</a></li>
                     </ul>
                 </li>
             </ul>

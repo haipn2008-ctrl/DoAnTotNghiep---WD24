@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
+use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\ContractController;
@@ -75,6 +76,14 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/overview/fill-rate', [OverviewController::class, 'fillRate'])
             ->name('overview.fill-rate');
+
+        Route::get('/settings/{type}', [SettingController::class, 'edit'])
+            ->where('type', 'electricity|water|internet|service')
+            ->name('settings.edit');
+
+        Route::put('/settings/{type}', [SettingController::class, 'update'])
+            ->where('type', 'electricity|water|internet|service')
+            ->name('settings.update');
 
         Route::get('/roles', function () {
             $user = auth()->user();
