@@ -45,10 +45,21 @@
                             Đang thuê
                         </option>
 
-                        <option value="ended"
-                            {{ request('status') == 'ended' ? 'selected' : '' }}>
+                        <option value="terminated"
+                            {{ request('status') == 'terminated' ? 'selected' : '' }}>
                             Đã kết thúc
                         </option>
+
+                        <option value="expired"
+                            {{ request('status') == 'expired' ? 'selected' : '' }}>
+                            Đã hết hạn
+                        </option>
+
+                        <option value="pending"
+                            {{ request('status') == 'pending' ? 'selected' : '' }}>
+                            Chờ xử lý
+                        </option>
+
 
                     </select>
                 </div>
@@ -74,7 +85,7 @@
         <div class="table-responsive">
             <table class="table table-hover align-middle">
 
-                <thead class="table-dark">
+                <thead class="table-primary">
                     <tr>
                         <th>STT</th>
                         <th>Mã HĐ</th>
@@ -124,9 +135,19 @@
                             <span class="badge bg-success">
                                 Đang thuê
                             </span>
-                        @elseif($contract->status == 'ended')
+                        @elseif($contract->status == 'terminated')
                             <span class="badge bg-danger">
                                 Đã kết thúc
+                            </span>
+
+                        @elseif($contract->status == 'expired')
+                            <span class="badge bg-warning text-dark">
+                                Hết hạn
+                            </span>
+
+                        @elseif($contract->status == 'pending')
+                            <span class="badge bg-secondary">
+                                Chờ xử lý
                             </span>
                         @else
                             <span class="badge bg-secondary">

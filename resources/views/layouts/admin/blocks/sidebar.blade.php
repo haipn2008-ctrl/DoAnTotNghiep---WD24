@@ -64,12 +64,12 @@
                             </a>
                         </li>
                         <li>
-                            <a href="#">
+                            <a href="{{ route('admin.contracts.extend.list') }}">
                                 Gia hạn hợp đồng
                             </a>
                         </li>
                         <li>
-                            <a href="#">
+                            <a href="{{ route('admin.contracts.end.list') }}">
                                 Kết thúc hợp đồng
                             </a>
                         </li>
