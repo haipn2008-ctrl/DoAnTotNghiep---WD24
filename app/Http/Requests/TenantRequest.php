@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Override;
 
 class TenantRequest extends FormRequest
 {
@@ -17,7 +18,10 @@ class TenantRequest extends FormRequest
         $tenantId = $this->route('tenant')?->id;
 
         return [
-
+            'user_id' => [
+                'required',
+                'exists:users,id'
+            ],
             'full_name' => 'required|max:255',
 
             'date_of_birth' => 'nullable|date',
@@ -44,6 +48,14 @@ class TenantRequest extends FormRequest
             ],
 
             'address' => 'nullable|max:500',
+        ];
+    }
+    #[Override]
+    public function messages()
+    {
+        return [
+            'user_id.required' => 'Vui lòng chọn tài khoản đăng nhập.',
+            'user_id.exists' => 'Tài khoản không tồn tại.',
         ];
     }
 }

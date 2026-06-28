@@ -25,7 +25,38 @@
                     @method('PUT')
 
                     <div class="row">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                Tài khoản đăng nhập
+                            </label>
 
+                            <select name="user_id" class="form-select">
+
+                                <option value="">
+                                    -- Chọn tài khoản --
+                                </option>
+
+                                @foreach($users as $user)
+
+                                                        <option value="{{ $user->id }}" {{
+                                    old('user_id', $tenant->user_id) == $user->id
+                                    ? 'selected'
+                                    : ''
+                                            }}>
+                                                            {{ $user->name }}
+                                                            ({{ $user->email }})
+                                                        </option>
+
+                                @endforeach
+
+                            </select>
+
+                            @error('user_id')
+                                <small class="text-danger">
+                                    {{ $message }}
+                                </small>
+                            @enderror
+                        </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">
                                 Họ và tên

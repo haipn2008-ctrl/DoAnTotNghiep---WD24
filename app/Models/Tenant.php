@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
 class Tenant extends Model
 {
     protected $fillable = [
+
+        'user_id',
 
         'full_name',
 
@@ -26,5 +29,10 @@ class Tenant extends Model
     public function contracts()
     {
         return $this->hasMany(Contract::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

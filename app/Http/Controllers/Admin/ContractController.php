@@ -84,7 +84,7 @@ class ContractController extends Controller
     }
     /**
      * Lưu hợp đồng
-     */ 
+     */
     public function store(Request $request)
     {
         $request->validate([

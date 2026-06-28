@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TenantRequest;
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class TenantController extends Controller
@@ -15,6 +16,7 @@ class TenantController extends Controller
     public function index()
     {
         $tenants = Tenant::with([
+            'user',
             'contracts.room'
         ])
             ->latest()
@@ -37,7 +39,10 @@ class TenantController extends Controller
 
     public function export()
     {
-        $tenants = Tenant::with(['contracts.room'])
+        $tenants = Tenant::with([
+            'user',
+            'contracts.room'
+        ])
             ->latest()
             ->get();
 
@@ -95,7 +100,14 @@ class TenantController extends Controller
      */
     public function create()
     {
-        return view('admin.tenants.create');
+        $users = User::where('role_id', 2)
+            ->doesntHave('tenant')
+            ->get();
+
+        return view(
+            'admin.tenants.create',
+            compact('users')
+        );
     }
 
     /**
@@ -123,9 +135,18 @@ class TenantController extends Controller
      */
     public function edit(Tenant $tenant)
     {
+        $users = User::where(function ($query) {
+            $query->where('role_id', 2)
+                ->whereDoesntHave('tenant');
+        })
+            ->orWhere('id', $tenant->user_id)
+            ->get();
         return view(
             'admin.tenants.edit',
-            compact('tenant')
+            compact(
+                'tenant',
+                'users'
+            )
         );
     }
 
@@ -133,10 +154,7 @@ class TenantController extends Controller
         TenantRequest $request,
         Tenant $tenant
     ) {
-
-        $tenant->update(
-            $request->validated()
-        );
+        $tenant->update($request->validated());
 
         return redirect()
             ->route('admin.tenants.index')
