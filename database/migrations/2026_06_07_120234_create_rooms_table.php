@@ -6,19 +6,33 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('rooms', function (Blueprint $table) {
+
             $table->id();
 
             $table->string('room_code')->unique();
 
+            $table->integer('floor');
+
             $table->decimal('price', 12, 2);
 
-            $table->float('area');
+            $table->decimal('area', 8, 2);
+
+            // Số người tối đa
+            $table->integer('max_people')
+                ->default(4);
+
+            // Số người hiện tại
+            $table->integer('current_people')
+                ->default(0);
+
+            $table->string('thumbnail')
+                ->nullable();
+
+            $table->text('description')
+                ->nullable();
 
             $table->enum('status', [
                 'available',
@@ -30,9 +44,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('rooms');

@@ -10,10 +10,10 @@
                         <span>Tổng quan</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Biểu đồ doanh thu tháng/năm</a></li>
-                        <li><a href="#">Thống kê tổng doanh thu</a></li>
-                        <li><a href="#">Thống kê số phòng</a></li>
-                        <li><a href="#">Tỷ lệ lấp đầy</a></li>
+                        <li><a href="{{ route('admin.overview.revenue-chart') }}">Biểu đồ doanh thu tháng/năm</a></li>
+                        <li><a href="{{ route('admin.overview.revenue-stats') }}">Thống kê tổng doanh thu</a></li>
+                        <li><a href="{{ route('admin.overview.room-stats') }}">Thống kê số phòng</a></li>
+                        <li><a href="{{ route('admin.overview.fill-rate') }}">Tỷ lệ lấp đầy</a></li>
                     </ul>
                 </li>
 
@@ -23,9 +23,12 @@
                         <span>Quản lý Phòng</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Danh sách phòng</a></li>
-                        <li><a href="#">Thêm phòng mới</a></li>
-                        <li><a href="#">Tìm kiếm phòng</a></li>
+                        <li> <a href="{{ route('admin.rooms.index') }}" class="nav-link">
+                                <span>Danh sách phòng</span>
+                            </a></li>
+                        <li> <a href="{{ route('admin.rooms.create') }}" class="nav-link">
+                                <span>Thêm phòng mới</span>
+                            </a></li>
                     </ul>
                 </li>
 
@@ -35,8 +38,12 @@
                         <span>Khách thuê</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Danh sách khách thuê</a></li>
-                        <li><a href="#">Thêm khách thuê</a></li>
+                        <li> <a href="{{ route('admin.tenants.index') }}" class="nav-link">
+                                <span>Danh sách khách thuê</span>
+                            </a></li>
+                        <li> <a href="{{ route('admin.tenants.create') }}" class="nav-link">
+                                <span>Thêm khách thuê</span>
+                            </a></li>
                     </ul>
                 </li>
 
@@ -45,11 +52,27 @@
                         <i data-feather="file-text"></i>
                         <span>Hợp đồng</span>
                     </a>
-                    <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Tạo hợp đồng thuê</a></li>
-                        <li><a href="#">Danh sách hợp đồng</a></li>
-                        <li><a href="#">Gia hạn hợp đồng</a></li>
-                        <li><a href="#">Kết thúc hợp đồng</a></li>
+                     <ul aria-expanded="false" class="sub-menu">
+                        <li>
+                            <a href="{{ route('admin.contracts.create') }}">
+                                Tạo hợp đồng thuê
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('admin.contracts.index') }}">
+                                Danh sách hợp đồng
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('admin.contracts.extend.list') }}">
+                                Gia hạn hợp đồng
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('admin.contracts.end.list') }}">
+                                Kết thúc hợp đồng
+                            </a>
+                        </li>
                     </ul>
                 </li>
 
@@ -83,8 +106,8 @@
                         <span>Báo cáo & Xuất file</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Xuất danh sách phòng</a></li>
-                        <li><a href="#">Xuất danh sách khách thuê</a></li>
+                        <li><a href="{{ route('admin.rooms.export') }}">Xuất danh sách phòng</a></li>
+                        <li><a href="{{ route('admin.tenants.export') }}">Xuất danh sách khách thuê</a></li>
                         <li><a href="#">Xuất danh sách hóa đơn</a></li>
                         <li><a href="#">Xuất danh sách thanh toán</a></li>
                     </ul>
@@ -98,10 +121,10 @@
                     <ul aria-expanded="false" class="sub-menu">
                         <li><a href="{{ route('admin.users.index') }}">Quản lý tài khoản Admin/User</a></li>
                         <li><a href="{{ route('admin.roles') }}">Phân quyền</a></li>
-                        <li><a href="#">Cập nhật đơn giá điện</a></li>
-                        <li><a href="#">Cập nhật đơn giá nước</a></li>
-                        <li><a href="#">Cập nhật đơn giá internet</a></li>
-                        <li><a href="#">Cập nhật đơn giá dịch vụ</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'electricity']) }}">Cập nhật đơn giá điện</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'water']) }}">Cập nhật đơn giá nước</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'internet']) }}">Cập nhật đơn giá internet</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'service']) }}">Cập nhật đơn giá dịch vụ</a></li>
                     </ul>
                 </li>
             </ul>

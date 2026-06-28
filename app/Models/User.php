@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -13,8 +14,9 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
-        'password',
-        'role_id'
+        'phone',
+        'role_id',
+        'password'
     ];
 
     protected $hidden = [
@@ -33,5 +35,9 @@ class User extends Authenticatable
     public function role()
     {
         return $this->belongsTo(Role::class);
+    }
+    public function tenant()
+    {
+        return $this->hasOne(Tenant::class);
     }
 }

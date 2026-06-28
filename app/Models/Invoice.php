@@ -8,7 +8,16 @@ class Invoice extends Model
 {
     protected $fillable = [
         'contract_id',
+        'utility_reading_id',
+        'month',
+        'year',
         'invoice_date',
+        'due_date',
+        'room_fee',
+        'electricity_fee',
+        'water_fee',
+        'internet_fee',
+        'service_fee',
         'total_amount',
         'status'
     ];
@@ -18,9 +27,9 @@ class Invoice extends Model
         return $this->belongsTo(Contract::class);
     }
 
-    public function details()
+    public function utilityReading()
     {
-        return $this->hasMany(InvoiceDetail::class);
+        return $this->belongsTo(UtilityReading::class);
     }
 
     public function payments()

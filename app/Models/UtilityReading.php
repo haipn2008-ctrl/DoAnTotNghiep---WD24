@@ -17,6 +17,11 @@ class UtilityReading extends Model
     {
         return $this->belongsTo(Room::class);
     }
+
+    public function invoice()
+    {
+        return $this->hasOne(Invoice::class);
+    }
     
     // Hàm phụ trợ tính số lượng tiêu thụ
     public function getElectricityUsageAttribute() {

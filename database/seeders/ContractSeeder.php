@@ -60,7 +60,7 @@ class ContractSeeder extends Seeder
 
                     'signed_at' => '2025-01-25',
                     'start_date' => '2026-04-01',
-                    'end_date' => '2026-01-31',
+                    'end_date' => '2027-03-31',
 
                     'status' => 'active',
                 ],

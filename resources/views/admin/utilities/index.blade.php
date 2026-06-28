@@ -30,6 +30,13 @@
             </div>
         </div>
 
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
         {{-- Giữ nguyên phần thống kê của index vì nó cần thiết cho trang tổng quan --}}
         <div class="row">
             <div class="col-xl-4 col-md-4">
@@ -67,6 +74,47 @@
         </div>
 
         <div class="row mt-3">
+            <div class="col-xl-4 col-md-4">
+                <div class="card card-h-100">
+                    <div class="card-body">
+                        <span class="text-muted mb-2 lh-1 d-block text-truncate">Tiền điện</span>
+                        <small class="text-muted d-block mb-2">
+                            {{ number_format($setting->electric_price, 0, ',', '.') }} VNĐ/kWh
+                        </small>
+                        <h4 class="mb-1 text-primary">
+                            {{ number_format($totalElectricityFee, 0, ',', '.') }} <span class="font-size-16 text-muted">VNĐ</span>
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4 col-md-4">
+                <div class="card card-h-100">
+                    <div class="card-body">
+                        <span class="text-muted mb-2 lh-1 d-block text-truncate">Tiền nước</span>
+                        <small class="text-muted d-block mb-2">
+                            {{ number_format($setting->water_price, 0, ',', '.') }} VNĐ/Khối
+                        </small>
+                        <h4 class="mb-1 text-info">
+                            {{ number_format($totalWaterFee, 0, ',', '.') }} <span class="font-size-16 text-muted">VNĐ</span>
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4 col-md-4">
+                <div class="card card-h-100">
+                    <div class="card-body">
+                        <span class="text-muted mb-3 lh-1 d-block text-truncate">Tổng tiền điện nước</span>
+                        <h4 class="mb-1 text-success">
+                            {{ number_format($totalUtilityFee, 0, ',', '.') }} <span class="font-size-16 text-muted">VNĐ</span>
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header bg-white">
@@ -83,9 +131,12 @@
                                         <th class="text-center" style="width: 12%">Số Điện Cũ</th>
                                         <th class="text-center" style="width: 12%">Số Điện Mới</th>
                                         <th class="text-center" style="width: 18%">Dùng (kWh)</th>
+                                        <th class="text-end" style="width: 14%">Tiền Điện</th>
                                         <th class="text-center" style="width: 12%">Số Nước Cũ</th>
                                         <th class="text-center" style="width: 12%">Số Nước Mới</th>
                                         <th class="text-center" style="width: 18%">Dùng (Khối)</th>
+                                        <th class="text-end" style="width: 14%">Tiền Nước</th>
+                                        <th class="text-end" style="width: 14%">Tổng Đ/N</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -93,6 +144,9 @@
                                         @php
                                             $dienDung = $item->electricity_new - $item->electricity_old;
                                             $nuocDung = $item->water_new - $item->water_old;
+                                            $tienDien = $dienDung * $setting->electric_price;
+                                            $tienNuoc = $nuocDung * $setting->water_price;
+                                            $tongDienNuoc = $tienDien + $tienNuoc;
                                             $activeContract = $item->room ? $item->room->contracts->first() : null;
                                             $startDate = $activeContract && $activeContract->start_date
                                                 ? \Carbon\Carbon::parse($activeContract->start_date)->format('d/m/Y')
@@ -116,6 +170,9 @@
                                             <td class="text-center align-middle">
                                                 <span class="text-success fw-bold">Dùng: {{ $dienDung }}</span>
                                             </td>
+                                            <td class="text-end align-middle text-primary fw-bold">
+                                                {{ number_format($tienDien, 0, ',', '.') }} VNĐ
+                                            </td>
 
                                             {{-- Đồng bộ UI nước --}}
                                             <td class="text-center align-middle">{{ $item->water_old }}</td>
@@ -125,10 +182,16 @@
                                             <td class="text-center align-middle">
                                                 <span class="text-success fw-bold">Dùng: {{ $nuocDung }}</span>
                                             </td>
+                                            <td class="text-end align-middle text-info fw-bold">
+                                                {{ number_format($tienNuoc, 0, ',', '.') }} VNĐ
+                                            </td>
+                                            <td class="text-end align-middle text-success fw-bold">
+                                                {{ number_format($tongDienNuoc, 0, ',', '.') }} VNĐ
+                                            </td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted py-5">
+                                            <td colspan="10" class="text-center text-muted py-5">
                                                 <div class="mb-3">
                                                     <i class="mdi mdi-text-box-search-outline" style="font-size: 3rem;"></i>
                                                 </div>
