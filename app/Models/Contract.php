@@ -7,12 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class Contract extends Model
 {
     protected $fillable = [
+        'contract_code',
         'room_id',
         'tenant_id',
         'start_date',
         'end_date',
+        'monthly_rent',
         'deposit_amount',
-        'status'
+        'status',
+        'extend_reason',
+        'extend_note',
     ];
 
     public function room()
