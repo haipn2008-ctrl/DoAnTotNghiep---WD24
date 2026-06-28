@@ -15,7 +15,18 @@ class UtilityController extends Controller
         $month = $request->input('month', Carbon::now()->month);
         $year = $request->input('year', Carbon::now()->year);
 
-        $rooms = Room::where('status', 'occupied')->get();
+        $billingPeriodEnd = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+
+        // 1. Dùng 'with' để lấy kèm theo Hợp đồng đang active (tránh N+1 query)
+        $rooms = Room::with(['contracts' => function ($query) {
+            $query->where('status', 'active');
+        }])
+            ->where('status', 'occupied')
+            ->whereHas('contracts', function ($query) use ($billingPeriodEnd) {
+                $query->where('status', 'active')
+                    ->whereDate('start_date', '<=', $billingPeriodEnd);
+            })
+            ->get();
 
         $readings = [];
         foreach ($rooms as $room) {
@@ -27,9 +38,14 @@ class UtilityController extends Controller
                 ->where('year', $lastYear)
                 ->first();
 
+            // 2. Lấy ngày bắt đầu của hợp đồng hiện tại
+            $activeContract = $room->contracts->first();
+            $startDate = $activeContract ? Carbon::parse($activeContract->start_date)->format('d/m/Y') : 'N/A';
+
             $readings[] = [
                 'room_id' => $room->id,
-                'room_name' => $room->room_code, 
+                'room_name' => $room->room_code,
+                'start_date' => $startDate, // Gắn thêm ngày bắt đầu thuê vào mảng
                 'electricity_old' => $lastReading ? $lastReading->electricity_new : 0,
                 'water_old' => $lastReading ? $lastReading->water_new : 0,
             ];
@@ -78,11 +94,26 @@ class UtilityController extends Controller
         $month = $request->input('month', Carbon::now()->month);
         $year = $request->input('year', Carbon::now()->year);
 
-        // 1. Lấy danh sách các phòng đang cho thuê (để biết tổng số phòng cần chốt)
-        $totalRooms = Room::where('status', 'occupied')->count();
+        // Lấy ngày cuối cùng của kỳ chốt số
+        $billingPeriodEnd = Carbon::createFromDate($year, $month, 1)->endOfMonth();
 
-        // 2. Lấy dữ liệu chốt số của tháng hiện tại
-        $readings = UtilityReading::with('room')
+        // 1. Lấy danh sách các phòng đang cho thuê có hợp đồng active tính đến kỳ chốt
+        // Đồng bộ logic với hàm create để Tiến độ chốt số (A/B phòng) chính xác tuyệt đối
+        $totalRooms = Room::where('status', 'occupied')
+            ->whereHas('contracts', function ($query) use ($billingPeriodEnd) {
+                $query->where('status', 'active')
+                    ->whereDate('start_date', '<=', $billingPeriodEnd);
+            })
+            ->count();
+
+        // 2. Lấy dữ liệu chốt số của tháng hiện tại kèm hợp đồng active để hiển thị ngày thuê
+        $readings = UtilityReading::with([
+            'room.contracts' => function ($query) use ($billingPeriodEnd) {
+                $query->where('status', 'active')
+                    ->whereDate('start_date', '<=', $billingPeriodEnd)
+                    ->orderByDesc('start_date');
+            },
+        ])
             ->where('month', $month)
             ->where('year', $year)
             ->get();
