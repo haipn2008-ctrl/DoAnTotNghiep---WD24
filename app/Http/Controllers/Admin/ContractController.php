@@ -84,7 +84,7 @@ class ContractController extends Controller
     }
     /**
      * Lưu hợp đồng
-     */ 
+     */
     public function store(Request $request)
     {
         $request->validate([
@@ -100,38 +100,32 @@ class ContractController extends Controller
             return back()->with('error', 'Không tìm thấy phòng');
         }
 
-        // ❌ check phòng
         if ($room->status !== 'available') {
             return back()->with('error', 'Phòng đang có người thuê');
         }
 
-        // ❌ check contract active (QUAN TRỌNG)
         $exists = Contract::where('room_id', $request->room_id)
-            ->where('status', 'active')
+            ->whereIn('status', ['pending', 'active'])
             ->exists();
 
         if ($exists) {
-            return back()->with('error', 'Phòng này đã có hợp đồng đang hoạt động');
+            return back()->with('error', 'Phòng này đã có hợp đồng đang hoạt động hoặc đang chờ ký');
         }
 
-        // tạo hợp đồng
         Contract::create([
+            'contract_code' => 'HD' . str_pad(Contract::count() + 1, 3, '0', STR_PAD_LEFT),
             'room_id' => $request->room_id,
             'tenant_id' => $request->tenant_id,
             'start_date' => $request->start_date,
             'end_date' => $request->end_date,
+            'monthly_rent' => $room->price,
             'deposit_amount' => $request->deposit_amount ?? 0,
-            'status' => 'active'
-        ]);
-
-        // 🔥 UPDATE ĐÚNG: phòng phải thành RENTED
-        $room->update([
-            'status' => 'available'
+            'status' => 'pending',
         ]);
 
         return redirect()
             ->route('admin.contracts.index')
-            ->with('success', 'Tạo hợp đồng thành công');
+            ->with('success', 'Tạo hợp đồng thành công. Đang chờ khách thuê ký hợp đồng.');
     }
     /**
      * Chi tiết hợp đồng
@@ -180,40 +174,35 @@ class ContractController extends Controller
             );
     }
 
-    public function end($id)
+    public function end(Request $request,$id)
     {
         $contract = Contract::findOrFail($id);
 
-
-        // kiểm tra hợp đồng
-        if ($contract->status == 'ended') {
-            return back()->with(
-                'error',
-                'Hợp đồng đã kết thúc'
-            );
-        }
-
-
-        // cập nhật hợp đồng
         $contract->update([
-            'status' => 'ended'
+
+            'status'=>'terminated',
+
+            'actual_end_date'=>$request->actual_end_date,
+
+            'termination_reason'=>$request->termination_reason,
+
+            'termination_note'=>$request->termination_note,
+
         ]);
 
-
-        // trả phòng về trống
         $room = Room::find($contract->room_id);
 
-        if ($room) {
-            $room->update([
-                'status' => 'empty'
-            ]);
-        }
+        $room->update([
 
+            'status'=>'available',
 
-        return back()->with(
-            'success',
-            'Kết thúc hợp đồng thành công'
-        );
+            'current_people'=>0,
+
+        ]);
+
+        return redirect()
+            ->route('admin.contracts.end.list')
+            ->with('success','Kết thúc hợp đồng thành công');
     }
     public function print($id)
     {
@@ -227,4 +216,123 @@ class ContractController extends Controller
             compact('contract')
         );
     }
+    public function endList(Request $request)
+    {
+        $query = Contract::with(['room','tenant'])
+            ->where('status','active');
+            if ($request->filled('keyword')) {
+
+            $keyword = $request->keyword;
+
+            $query->where(function ($q) use ($keyword) {
+
+                // tìm theo mã hợp đồng
+                $q->where('contract_code', 'like', "%{$keyword}%")
+
+                // tìm theo người thuê
+                ->orWhereHas('tenant', function ($tenant) use ($keyword) {
+
+                    $tenant->where('full_name', 'like', "%{$keyword}%");
+
+                })
+
+                // tìm theo phòng
+                ->orWhereHas('room', function ($room) use ($keyword) {
+
+                    $room->where('room_code', 'like', "%{$keyword}%");
+
+                });
+
+            });
+
+        }
+        $contracts = $query
+                ->orderBy('end_date')
+                ->get();
+
+        return view('admin.contracts.end', compact('contracts'));
+    }
+    public function endForm($id)
+    {
+        $contract = Contract::with([
+            'room',
+            'tenant'
+        ])->findOrFail($id);
+
+        return view(
+            'admin.contracts.end-form',
+            compact('contract')
+        );
+    }
+    public function extendList(Request $request)
+    {
+        $query = Contract::with(['room', 'tenant'])
+            ->where('status', 'active');
+
+        // Tìm kiếm
+        if ($request->filled('keyword')) {
+
+            $keyword = $request->keyword;
+
+            $query->where(function ($q) use ($keyword) {
+
+                // Mã hợp đồng
+                $q->where('contract_code', 'like', "%{$keyword}%")
+
+                // Người thuê
+                ->orWhereHas('tenant', function ($tenant) use ($keyword) {
+
+                    $tenant->where('full_name', 'like', "%{$keyword}%")
+                        ->orWhere('phone', 'like', "%{$keyword}%")
+                        ->orWhere('cccd', 'like', "%{$keyword}%");
+
+                })
+
+                // Phòng
+                ->orWhereHas('room', function ($room) use ($keyword) {
+
+                    $room->where('room_code', 'like', "%{$keyword}%");
+
+                });
+
+            });
+        }
+
+        $contracts = $query
+            ->orderBy('end_date')
+            ->get();
+
+        return view('admin.contracts.extend', compact('contracts'));
+    }
+    public function extendForm($id)
+    {
+        $contract = Contract::with(['room','tenant'])
+            ->findOrFail($id);
+
+        return view(
+            'admin.contracts.extend-form',
+            compact('contract')
+        );
+    }
+    public function extend(Request $request, $id)
+    {
+        $request->validate([
+            'new_end_date' => 'required|date',
+            'extend_reason' => 'required',
+            'extend_note' => 'nullable',
+        ]);
+
+        $contract = Contract::findOrFail($id);
+
+        $contract->update([
+            'end_date' => $request->new_end_date,
+            'extend_reason' => $request->extend_reason,
+            'extend_note' => $request->extend_note,
+        ]);
+
+        return redirect()
+            ->route('admin.contracts.extend.list')
+            ->with('success', 'Gia hạn hợp đồng thành công.');
+    }
+
 }
