@@ -147,11 +147,11 @@ p{
 </div>
 <p class="contract-info">
 Hôm nay ngày
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('d') }}</strong>
+<span class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('d') }}</span>
 tháng
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('m') }}</strong>
+<span class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('m') }}</span>
 năm
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('Y') }}</strong>;
+<span class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('Y') }}</span>;
 tại địa chỉ:
 <span class="line mini">
     Cầu Giấy - Hà Nội
@@ -169,37 +169,37 @@ Chúng tôi gồm:
 
 <p>
 Ông/bà:
-<strong class="line medium">Nguyễn Văn A</strong>
+<span class="line medium">Nguyễn Văn A</span>
 
 &nbsp;&nbsp;&nbsp;&nbsp;
 
 Sinh ngày:
-<strong class="line mini">08/01/2005</strong>
+<span class="line mini">08/01/2005</span>
 </p>
 
 <p>
 Nơi đăng ký hộ khẩu:
-<strong class="line Large">Cầu Giấy - Hà Nội</strong>
+<span class="line Large">Cầu Giấy - Hà Nội</span>
 </p>
 
 <p>
 Số CMND/CCCD:
-<strong class="line short">012345678999</strong>
+<span class="line short">012345678999</span>
 
 &nbsp;&nbsp;&nbsp;&nbsp;
 
 cấp ngày:
-<strong class="line mini">01/01/2023</strong>
+<span class="line mini">01/01/2023</span>
 </p>
 
 <p>
 tại:
-<strong class="line ExtraLarge">Cục CSQLHC về TTXH</strong>
+<span class="line ExtraLarge">Cục CSQLHC về TTXH</span>
 </p>
 
 <p>
 Số điện thoại:
-<strong class="line Large">0865819798</strong>
+<span class="line Large">0865819798</span>
 </p>
 <p>
 2. Bên thuê phòng trọ (Bên B):
@@ -214,7 +214,11 @@ Số điện thoại:
 &nbsp;&nbsp;&nbsp;&nbsp;
 
 Sinh ngày:
-<span class="line mini"></span>
+<span class="line mini">
+    {{ $contract->tenant->date_of_birth
+        ? \Carbon\Carbon::parse($contract->tenant->date_of_birth)->format('d/m/Y')
+        : '' }}
+</span>
 </p>
 
 <p>
@@ -233,13 +237,19 @@ Số CMND/CCCD:
 
 &nbsp;&nbsp;&nbsp;&nbsp;
 
-cấp ngày 
-<span class="line mini"></span>
+cấp ngày
+<span class="line mini">
+{{ $contract->tenant->cccd_issue_date
+    ? \Carbon\Carbon::parse($contract->tenant->cccd_issue_date)->format('d/m/Y')
+    : '' }}
+</span>
 
 </p>
 <p>
 tại:
-<span  class="line ExtraLarge"></span>
+<span class="line ExtraLarge">
+{{ $contract->tenant->cccd_issue_place ?? '' }}
+</span>
 </p>
 <p>
 Số điện thoại:
