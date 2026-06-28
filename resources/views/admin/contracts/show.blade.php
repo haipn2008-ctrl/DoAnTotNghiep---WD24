@@ -40,19 +40,29 @@
                 <p>
                     <strong>Trạng thái:</strong>
 
-                    @if($contract->status == 'active')
+                    @if($contract->status == 'pending')
+                        <span class="badge bg-warning text-dark">
+                            Chờ khách ký
+                        </span>
+
+                    @elseif($contract->status == 'active')
                         <span class="badge bg-success">
                             Đang thuê
                         </span>
 
-                    @elseif($contract->status == 'ended' || $contract->status == 'ended')
+                    @elseif($contract->status == 'terminated')
                         <span class="badge bg-danger">
                             Đã kết thúc
                         </span>
 
+                    @elseif($contract->status == 'expired')
+                        <span class="badge bg-secondary">
+                            Hết hạn
+                        </span>
+
                     @else
                         <span class="badge bg-secondary">
-                            {{ $contract->status }}
+                            {{ ucfirst($contract->status) }}
                         </span>
                     @endif
                 </p>
@@ -68,6 +78,10 @@
                 <p>
                     <strong>Mã phòng:</strong>
                     {{ $contract->room->room_code ?? '---' }}
+                </p>
+                <p>
+                    <strong>Tầng:</strong>
+                    {{ $contract->room->floor ?? '---' }}
                 </p>
                 <p>
                     <strong>Diện tích:</strong>
@@ -89,10 +103,27 @@
             {{ $contract->tenant->full_name ?? '---' }}
         </p>
         <p>
+            <strong>Ngày sinh:</strong>
+            {{ $contract->tenant->date_of_birth
+                ? \Carbon\Carbon::parse($contract->tenant->date_of_birth)->format('d/m/Y')
+                : '---' }}
+        </p>
+        <p>
             <strong>CCCD:</strong>
             {{ $contract->tenant->cccd ?? '---' }}
         </p>
 
+        <p>
+            <strong>Ngày cấp:</strong>
+            {{ $contract->tenant->cccd_issue_date
+                ? \Carbon\Carbon::parse($contract->tenant->cccd_issue_date)->format('d/m/Y')
+                : '---' }}
+        </p>
+
+        <p>
+            <strong>Nơi cấp:</strong>
+            {{ $contract->tenant->cccd_issue_place ?? '---' }}
+        </p>
         <p>
             <strong>Địa chỉ:</strong>
             {{ $contract->tenant->address ?? '---' }}
