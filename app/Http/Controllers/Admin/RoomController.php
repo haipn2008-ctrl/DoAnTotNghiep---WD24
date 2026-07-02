@@ -181,14 +181,18 @@ class RoomController extends Controller
         );
     }
 
-    public function update(
-        RoomRequest $request,
-        Room $room
-    ) {
+    public function update(RoomRequest $request, Room $room)
+    {
+        $data = $request->validated();
 
-        $room->update(
-            $request->validated()
-        );
+        if ($request->hasFile('image')) {
+
+            $data['thumbnail'] = $request
+                ->file('image')
+                ->store('rooms', 'public');
+        }
+
+        $room->update($data);
 
         $room->amenities()->sync(
             $request->amenities ?? []

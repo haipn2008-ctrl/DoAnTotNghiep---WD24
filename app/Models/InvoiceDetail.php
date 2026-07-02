@@ -4,21 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Payment extends Model
+class InvoiceDetail extends Model
 {
     protected $fillable = [
 
         'invoice_id',
 
-        'amount_paid',
+        'service_type',
 
-        'payment_date',
+        'service_name',
 
-        'payment_method',
+        'quantity',
 
-        'status',
+        'unit_price',
 
-        'transaction_code',
+        'amount',
+
+        'utility_reading_id',
 
         'note',
 
@@ -33,5 +35,10 @@ class Payment extends Model
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    public function utilityReading()
+    {
+        return $this->belongsTo(UtilityReading::class);
     }
 }

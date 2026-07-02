@@ -7,23 +7,62 @@ use Illuminate\Database\Eloquent\Model;
 class UtilityReading extends Model
 {
     protected $fillable = [
-        'room_id', 'month', 'year', 
-        'electricity_old', 'electricity_new', 
-        'water_old', 'water_new', 'status'
+
+        'room_id',
+
+        'month',
+        'year',
+
+        'record_date',
+
+        'electricity_old',
+        'electricity_new',
+
+        'water_old',
+        'water_new',
+
+        'electricity_image',
+        'water_image',
+
+        'status',
+
+        'note',
+
     ];
 
-    // Lấy thông tin phòng tương ứng
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
+    // Phòng được ghi chỉ số
     public function room()
     {
         return $this->belongsTo(Room::class);
     }
-    
-    // Hàm phụ trợ tính số lượng tiêu thụ
-    public function getElectricityUsageAttribute() {
-        return $this->electricity_new - $this->electricity_old;
+
+    // Một lần ghi chỉ số có thể sinh nhiều dòng chi tiết hóa đơn
+    public function invoiceDetails()
+    {
+        return $this->hasMany(InvoiceDetail::class);
     }
 
-    public function getWaterUsageAttribute() {
-        return $this->water_new - $this->water_old;
+    /*
+    |--------------------------------------------------------------------------
+    | Accessors
+    |--------------------------------------------------------------------------
+    */
+
+    // Số điện tiêu thụ
+    public function getElectricityUsageAttribute()
+    {
+        return max(0, $this->electricity_new - $this->electricity_old);
+    }
+
+    // Số nước tiêu thụ
+    public function getWaterUsageAttribute()
+    {
+        return max(0, $this->water_new - $this->water_old);
     }
 }

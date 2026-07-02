@@ -158,7 +158,6 @@
                                     </td>
 
                                     <td>
-
                                         @if($room->thumbnail)
 
                                             <img src="{{ asset('storage/' . $room->thumbnail) }}" width="70" height="70"
@@ -171,9 +170,7 @@
                                             </span>
 
                                         @endif
-
                                     </td>
-
                                     <td class="fw-bold">
                                         {{ $room->room_code }}
                                     </td>

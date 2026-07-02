@@ -6,61 +6,54 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('invoices', function (Blueprint $table) {
 
             $table->id();
 
+            // Hợp đồng
             $table->foreignId('contract_id')
                 ->constrained()
-                ->cascadeOnUpdate();
+                ->cascadeOnUpdate()
+                ->cascadeOnDelete();
 
-            $table->foreignId('utility_reading_id')
-                ->nullable()
-                ->constrained('utility_readings')
-                ->nullOnDelete();
+            // Mã hóa đơn
+            $table->string('invoice_code')
+                ->unique();
 
-            $table->integer('month');
+            // Loại hóa đơn
+            $table->enum('type', [
+                'room',
+                'utility'
+            ]);
 
-            $table->integer('year');
+            // Kỳ hóa đơn
+            $table->unsignedTinyInteger('month');
 
+            $table->unsignedSmallInteger('year');
+
+            // Ngày lập
             $table->date('invoice_date');
 
+            // Hạn thanh toán
             $table->date('due_date');
 
-            $table->decimal('room_fee', 12, 2);
-
-            $table->decimal('electricity_fee', 12, 2)
-                ->default(0);
-
-            $table->decimal('water_fee', 12, 2)
-                ->default(0);
-
-            $table->decimal('internet_fee', 12, 2)
-                ->default(0);
-
-            $table->decimal('service_fee', 12, 2)
-                ->default(0);
-
+            // Tổng tiền
             $table->decimal('total_amount', 12, 2);
 
+            // Trạng thái
             $table->enum('status', [
                 'unpaid',
                 'partial',
-                'paid'
+                'paid',
+                'overdue'
             ])->default('unpaid');
 
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('invoices');
