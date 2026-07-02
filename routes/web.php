@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\ContractController;
+use App\Http\Controllers\Admin\InvoiceController;
 //Client routes
 use App\Http\Controllers\Client\ContractController as ClientContractController;
 
@@ -101,6 +102,25 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/utilities', [UtilityController::class, 'index'])
             ->name('utilities.index');
+
+        // Quản lý hóa đơn và công nợ
+        Route::get('/invoices/generate', [InvoiceController::class, 'generateForm'])
+            ->name('invoices.generate');
+
+        Route::post('/invoices/generate', [InvoiceController::class, 'generate'])
+            ->name('invoices.generate.store');
+
+        Route::get('/invoices/payments', [InvoiceController::class, 'payments'])
+            ->name('invoices.payments');
+
+        Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
+            ->name('invoices.payments.store');
+
+        Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
+            ->name('invoices.print');
+
+        Route::resource('invoices', InvoiceController::class)
+            ->except(['create', 'store']);
 
         // Tổng Quan Dashboard
         Route::get('/overview', [OverviewController::class, 'index'])

@@ -97,6 +97,54 @@
 
         <!-- Revenue Details -->
         <div class="row mt-4">
+            <div class="col-xl-4 col-md-6">
+                <div class="card card-h-100">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-7">
+                                <span class="text-muted mb-3 d-block">Tổng Doanh Thu</span>
+                                <h4 class="mb-0">{{ number_format($totalRevenue, 0, ',', '.') }} VNĐ</h4>
+                            </div>
+                            <div class="col-5 text-end">
+                                <i class="mdi mdi-cash-multiple" style="font-size: 32px; color: #5156be;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <div class="card card-h-100">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-7">
+                                <span class="text-muted mb-3 d-block">Tổng Phải Thu</span>
+                                <h4 class="mb-0">{{ number_format($totalBilled, 0, ',', '.') }} VNĐ</h4>
+                            </div>
+                            <div class="col-5 text-end">
+                                <i class="mdi mdi-file-document-outline" style="font-size: 32px; color: #ffc107;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <div class="card card-h-100">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-7">
+                                <span class="text-muted mb-3 d-block">Tổng Công Nợ</span>
+                                <h4 class="mb-0">{{ number_format($totalReceivable, 0, ',', '.') }} VNĐ</h4>
+                            </div>
+                            <div class="col-5 text-end">
+                                <i class="mdi mdi-alert-circle-outline" style="font-size: 32px; color: #ef5350;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
@@ -113,8 +161,20 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>Tổng Doanh Thu</td>
+                                        <td>Tổng Doanh Thu Đã Thanh Toán</td>
                                         <td class="text-right"><strong>{{ number_format($totalRevenue, 0, ',', '.') }} VNĐ</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Tổng Phải Thu</td>
+                                        <td class="text-right">{{ number_format($totalBilled, 0, ',', '.') }} VNĐ</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Tổng Công Nợ</td>
+                                        <td class="text-right">{{ number_format($totalReceivable, 0, ',', '.') }} VNĐ</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Tỷ Lệ Thu Tiền</td>
+                                        <td class="text-right">{{ $collectionRate }}%</td>
                                     </tr>
                                     <tr>
                                         <td>Doanh Thu Tháng Này</td>

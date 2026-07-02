@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Room;
 use App\Models\Contract;
 use Carbon\Carbon;
@@ -20,23 +21,26 @@ class OverviewController extends Controller
             return redirect()->route('dashboard');
         }
 
-        // Tổng doanh thu
-        $totalRevenue = Invoice::where('status', 'paid')->sum('total_amount');
+        $currentYear = now()->year;
+        $previousYear = $currentYear - 1;
 
-        // Doanh thu theo tháng (2025 & 2026)
-        $monthlyRevenue2025 = [];
-        $monthlyRevenue2026 = [];
+        // Tổng doanh thu thực nhận từ thanh toán thành công
+        $totalRevenue = Payment::where('status', 'success')->sum('amount_paid');
+
+        // Doanh thu theo tháng cho năm hiện tại và năm trước đó từ các khoản thanh toán thực tế
+        $monthlyRevenuePreviousYear = [];
+        $monthlyRevenueCurrentYear = [];
 
         for ($month = 1; $month <= 12; $month++) {
-            $monthlyRevenue2025[] = Invoice::where('status', 'paid')
-                ->whereYear('invoice_date', 2025)
-                ->whereMonth('invoice_date', $month)
-                ->sum('total_amount') ?? 0;
+            $monthlyRevenuePreviousYear[] = Payment::where('status', 'success')
+                ->whereYear('payment_date', $previousYear)
+                ->whereMonth('payment_date', $month)
+                ->sum('amount_paid');
 
-            $monthlyRevenue2026[] = Invoice::where('status', 'paid')
-                ->whereYear('invoice_date', 2026)
-                ->whereMonth('invoice_date', $month)
-                ->sum('total_amount') ?? 0;
+            $monthlyRevenueCurrentYear[] = Payment::where('status', 'success')
+                ->whereYear('payment_date', $currentYear)
+                ->whereMonth('payment_date', $month)
+                ->sum('amount_paid');
         }
 
 
@@ -56,24 +60,37 @@ class OverviewController extends Controller
         $paidInvoices = Invoice::where('status', 'paid')->count();
         $partialInvoices = Invoice::where('status', 'partial')->count();
 
-        // Doanh thu hôm nay
-        $todayRevenue = Invoice::where('status', 'paid')
-            ->whereDate('invoice_date', date('Y-m-d'))
-            ->sum('total_amount') ?? 0;
+        // Doanh thu hôm nay và tháng này từ thanh toán thực tế
+        $todayRevenue = Payment::where('status', 'success')
+            ->whereDate('payment_date', now()->toDateString())
+            ->sum('amount_paid') ?? 0;
 
-        // Doanh thu tháng này
-        $monthRevenue = Invoice::where('status', 'paid')
-            ->whereYear('invoice_date', date('Y'))
-            ->whereMonth('invoice_date', date('m'))
-            ->sum('total_amount') ?? 0;
+        $monthRevenue = Payment::where('status', 'success')
+            ->whereYear('payment_date', now()->year)
+            ->whereMonth('payment_date', now()->month)
+            ->sum('amount_paid') ?? 0;
+
+        $totalBilled = Invoice::sum('total_amount');
+        $totalReceivable = Invoice::get()->sum(function ($invoice) {
+            return $invoice->balance_amount;
+        });
+
+        $collectionRate = $totalBilled > 0
+            ? round(($totalRevenue / $totalBilled) * 100, 1)
+            : 0;
 
         // Contracts hoạt động
         $activeContracts = Contract::where('status', 'active')->count();
 
         return view('admin.overview.index', [
             'totalRevenue' => $totalRevenue,
-            'monthlyRevenue2025' => $monthlyRevenue2025,
-            'monthlyRevenue2026' => $monthlyRevenue2026,
+            'totalBilled' => $totalBilled,
+            'totalReceivable' => $totalReceivable,
+            'collectionRate' => $collectionRate,
+            'currentYear' => $currentYear,
+            'previousYear' => $previousYear,
+            'monthlyRevenuePreviousYear' => $monthlyRevenuePreviousYear,
+            'monthlyRevenueCurrentYear' => $monthlyRevenueCurrentYear,
 
             'totalRooms' => $totalRooms,
             'occupiedRooms' => $occupiedRooms,
@@ -99,15 +116,25 @@ class OverviewController extends Controller
             return redirect()->route('dashboard');
         }
 
+        $currentYear = date('Y');
         $monthlyRevenue = [];
         for ($month = 1; $month <= 12; $month++) {
-            $monthlyRevenue[] = Invoice::where('status', 'paid')
-                ->whereYear('invoice_date', date('Y'))
-                ->whereMonth('invoice_date', $month)
-                ->sum('total_amount') ?? 0;
+            $monthlyRevenue[] = (float) Payment::where('status', 'success')
+                ->whereYear('payment_date', $currentYear)
+                ->whereMonth('payment_date', $month)
+                ->sum('amount_paid');
         }
 
-        return view('admin.overview.revenue-chart', compact('monthlyRevenue'));
+        $yearLabels = [];
+        $yearlyRevenue = [];
+        for ($year = $currentYear - 4; $year <= $currentYear; $year++) {
+            $yearLabels[] = $year;
+            $yearlyRevenue[] = (float) Payment::where('status', 'success')
+                ->whereYear('payment_date', $year)
+                ->sum('amount_paid');
+        }
+
+        return view('admin.overview.revenue-chart', compact('monthlyRevenue', 'yearLabels', 'yearlyRevenue', 'currentYear'));
     }
 
     public function revenueStats()
@@ -118,17 +145,25 @@ class OverviewController extends Controller
             return redirect()->route('dashboard');
         }
 
-        $totalRevenue = Invoice::where('status', 'paid')->sum('total_amount');
-        $todayRevenue = Invoice::where('status', 'paid')
-            ->whereDate('invoice_date', date('Y-m-d'))
-            ->sum('total_amount') ?? 0;
+        $totalRevenue = Payment::where('status', 'success')->sum('amount_paid');
+        $todayRevenue = Payment::where('status', 'success')
+            ->whereDate('payment_date', date('Y-m-d'))
+            ->sum('amount_paid') ?? 0;
 
-        $monthRevenue = Invoice::where('status', 'paid')
-            ->whereYear('invoice_date', date('Y'))
-            ->whereMonth('invoice_date', date('m'))
-            ->sum('total_amount') ?? 0;
+        $monthRevenue = Payment::where('status', 'success')
+            ->whereYear('payment_date', date('Y'))
+            ->whereMonth('payment_date', date('m'))
+            ->sum('amount_paid') ?? 0;
 
-        return view('admin.overview.revenue-stats', compact('totalRevenue', 'todayRevenue', 'monthRevenue'));
+        $totalBilled = Invoice::sum('total_amount');
+        $totalReceivable = Invoice::get()->sum(function ($invoice) {
+            return $invoice->balance_amount;
+        });
+        $collectionRate = $totalBilled > 0
+            ? round(($totalRevenue / $totalBilled) * 100, 1)
+            : 0;
+
+        return view('admin.overview.revenue-stats', compact('totalRevenue', 'todayRevenue', 'monthRevenue', 'totalBilled', 'totalReceivable', 'collectionRate'));
     }
 
     public function roomStats()

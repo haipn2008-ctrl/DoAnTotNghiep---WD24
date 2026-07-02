@@ -100,10 +100,10 @@
                         <div class="row align-items-center">
                             <div class="col-6">
                                 <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Hóa Đơn Chưa Thanh Toán
+                                    Tổng Công Nợ
                                 </span>
                                 <h4 class="mb-3">
-                                    {{ $unpaidInvoices }}
+                                    {{ number_format($totalReceivable, 0, ',', '.') }} đ
                                 </h4>
                             </div>
                             <div class="col-6">
@@ -135,7 +135,7 @@
             <div class="col-lg-5">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Tỷ Lệ Trạng Thái Phòng</h5>
+                        <h5 class="card-title mb-0">Doanh Thu Theo Tháng - Năm {{ $previousYear }} & {{ $currentYear }}</h5>
                     </div>
                     <div class="card-body">
                         <div id="room-status-chart" style="height: 350px;"></div>
@@ -236,20 +236,12 @@
             // 1. Biểu đồ cột - Doanh Thu Theo Tháng
             var monthlyOptions = {
                 series: [{
-                    name: 'Doanh Thu 2025',
-                    data: [
-                        @for($month = 0; $month < 12; $month++)
-                            {{ $monthlyRevenue2025[$month] ?? 0 }}{{ $month < 11 ? ',' : '' }}
-                        @endfor
-                    ]
+                    name: 'Doanh Thu {{ $previousYear }}',
+                    data: @json($monthlyRevenuePreviousYear)
                 },
                 {
-                    name: 'Doanh Thu 2026',
-                    data: [
-                        @for($month = 0; $month < 12; $month++)
-                            {{ $monthlyRevenue2026[$month] ?? 0 }}{{ $month < 11 ? ',' : '' }}
-                        @endfor
-                    ]
+                    name: 'Doanh Thu {{ $currentYear }}',
+                    data: @json($monthlyRevenueCurrentYear)
                 }],
                 chart: {
                     type: 'column',
@@ -262,7 +254,7 @@
                         columnWidth: '70%'
                     }
                 },
-                colors: ['#5156be'],
+                colors: ['#5156be', '#00bfa5'],
                 xaxis: {
                     categories: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12']
                 },

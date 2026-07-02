@@ -28,13 +28,31 @@
 
         <!-- Monthly Revenue Chart -->
         <div class="row">
-            <div class="col-12">
+            <div class="col-xl-6">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Doanh Thu Theo Tháng (Năm {{ date('Y') }})</h5>
+                        <h5 class="card-title mb-0">Doanh Thu Theo Tháng (Năm {{ $currentYear }})</h5>
                     </div>
                     <div class="card-body">
+                        @php
+                            $currentMonthIndex = now()->month - 1;
+                            $currentMonthRevenue = $monthlyRevenue[$currentMonthIndex] ?? 0;
+                        @endphp
+                        <div class="mb-3">
+                            <h6>Doanh thu tháng {{ now()->month }}:</h6>
+                            <h3>{{ number_format($currentMonthRevenue, 0, ',', '.') }} đ</h3>
+                        </div>
                         <div id="monthlyRevenueChart"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Doanh Thu Theo Năm</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="yearlyRevenueChart"></div>
                     </div>
                 </div>
             </div>
@@ -51,10 +69,10 @@
                         show: true
                     }
                 },
+                colors: ['#5156be'],
                 plotOptions: {
                     column: {
-                        columnWidth: '60%',
-                        colors: ['#5156be']
+                        columnWidth: '60%'
                     }
                 },
                 series: [{
@@ -74,7 +92,10 @@
                     }
                 },
                 dataLabels: {
-                    enabled: false
+                    enabled: true,
+                    formatter: function (val) {
+                        return '₫ ' + Number(val).toLocaleString('vi-VN');
+                    }
                 },
                 stroke: {
                     show: true,
@@ -91,8 +112,36 @@
                 }
             };
 
-            var chart = new ApexCharts(document.querySelector("#monthlyRevenueChart"), options);
-            chart.render();
+            var monthlyChart = new ApexCharts(document.querySelector("#monthlyRevenueChart"), options);
+            monthlyChart.render();
+
+            var yearlyOptions = {
+                chart: {
+                    type: 'line',
+                    height: 350,
+                    toolbar: { show: true }
+                },
+                series: [{
+                    name: 'Doanh Thu (VNĐ)',
+                    data: @json($yearlyRevenue)
+                }],
+                xaxis: {
+                    categories: @json($yearLabels),
+                    title: { text: 'Năm' }
+                },
+                yaxis: {
+                    title: { text: 'Doanh Thu (VNĐ)' }
+                },
+                stroke: { curve: 'smooth' },
+                dataLabels: { enabled: false },
+                tooltip: {
+                    theme: 'light',
+                    y: { formatter: function (val) { return '₫ ' + Number(val).toLocaleString('vi-VN'); } }
+                }
+            };
+
+            var yearlyChart = new ApexCharts(document.querySelector("#yearlyRevenueChart"), yearlyOptions);
+            yearlyChart.render();
         </script>
     @endpush
 @endsection
