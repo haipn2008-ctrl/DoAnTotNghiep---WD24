@@ -58,6 +58,7 @@ class InvoiceSeeder extends Seeder
                             'year' => 2026,
                         ],
                         [
+                            'room_id' => $contract->room_id,
                             'utility_reading_id' => $utilityReading?->id,
                             'invoice_date' => $billingDate->copy()->endOfMonth()->toDateString(),
                             'due_date' => $billingDate->copy()->endOfMonth()->addDays(7)->toDateString(),

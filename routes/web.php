@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\OverviewController;
+use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\ContractController;
 //Client routes
@@ -92,6 +93,21 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/utilities', [UtilityController::class, 'index'])
             ->name('utilities.index');
+
+        Route::get('/invoices', [InvoiceController::class, 'index'])
+            ->name('invoices.index');
+
+        Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
+            ->name('invoices.generate');
+
+        Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
+            ->name('invoices.preview');
+
+        Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
+            ->name('invoices.issue');
+
+        Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])
+            ->name('invoices.show');
 
         // Tổng Quan Dashboard
         Route::get('/overview', [OverviewController::class, 'index'])

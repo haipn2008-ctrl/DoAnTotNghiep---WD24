@@ -11,5 +11,9 @@ class Setting extends Model
         'water_price',
         'internet_fee',
         'service_fee',
+        'parking_fee',
+        'invoice_day',
+        'payment_due_days',
+        'is_active',
     ];
 }

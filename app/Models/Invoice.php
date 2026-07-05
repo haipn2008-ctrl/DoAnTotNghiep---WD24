@@ -8,6 +8,7 @@ class Invoice extends Model
 {
     protected $fillable = [
         'contract_id',
+        'room_id',
         'utility_reading_id',
         'month',
         'year',
@@ -27,9 +28,19 @@ class Invoice extends Model
         return $this->belongsTo(Contract::class);
     }
 
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
+    }
+
     public function utilityReading()
     {
         return $this->belongsTo(UtilityReading::class);
+    }
+
+    public function details()
+    {
+        return $this->hasMany(InvoiceDetail::class)->orderBy('sort_order');
     }
 
     public function payments()

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Contract;
-use App\Models\Invoice;
 use App\Models\Room;
 use App\Models\Setting;
 use App\Models\UtilityReading;
@@ -76,21 +75,8 @@ class UtilityController extends Controller
             'readings.*.water_new' => 'required|numeric|gte:readings.*.water_old',
         ]);
 
-        $setting = Setting::firstOrCreate([], [
-            'electric_price' => 0,
-            'water_price' => 0,
-            'internet_fee' => 0,
-            'service_fee' => 0,
-        ]);
-
-        $billingPeriodStart = Carbon::createFromDate($data['year'], $data['month'], 1)->startOfMonth();
-        $billingPeriodEnd = $billingPeriodStart->copy()->endOfMonth();
-        $invoiceDate = $billingPeriodEnd->toDateString();
-        $dueDate = $billingPeriodEnd->copy()->addDays(7)->toDateString();
-        $skippedInvoices = 0;
-
         foreach ($data['readings'] as $readingData) {
-            $reading = UtilityReading::updateOrCreate(
+            UtilityReading::updateOrCreate(
                 [
                     'room_id' => $readingData['room_id'],
                     'month' => $data['month'],
@@ -101,55 +87,13 @@ class UtilityController extends Controller
                     'electricity_new' => $readingData['electricity_new'],
                     'water_old' => $readingData['water_old'],
                     'water_new' => $readingData['water_new'],
+                    'status' => 'confirmed',
                 ]
             );
 
-            $contract = Contract::where('room_id', $readingData['room_id'])
-                ->where('status', 'active')
-                ->whereDate('start_date', '<=', $billingPeriodEnd)
-                ->whereDate('end_date', '>=', $billingPeriodStart)
-                ->orderByDesc('start_date')
-                ->first();
-
-            if (!$contract) {
-                $skippedInvoices++;
-                continue;
-            }
-
-            $electricityUsage = $readingData['electricity_new'] - $readingData['electricity_old'];
-            $waterUsage = $readingData['water_new'] - $readingData['water_old'];
-            $electricityFee = $electricityUsage * $setting->electric_price;
-            $waterFee = $waterUsage * $setting->water_price;
-            $roomFee = $contract->monthly_rent;
-            $totalAmount = $roomFee + $electricityFee + $waterFee + $setting->internet_fee + $setting->service_fee;
-
-            $invoice = Invoice::firstOrNew([
-                'contract_id' => $contract->id,
-                'month' => $data['month'],
-                'year' => $data['year'],
-            ]);
-
-            $invoice->fill([
-                'utility_reading_id' => $reading->id,
-                'invoice_date' => $invoiceDate,
-                'due_date' => $dueDate,
-                'room_fee' => $roomFee,
-                'electricity_fee' => $electricityFee,
-                'water_fee' => $waterFee,
-                'internet_fee' => $setting->internet_fee,
-                'service_fee' => $setting->service_fee,
-                'total_amount' => $totalAmount,
-                'status' => $invoice->exists ? $invoice->status : 'unpaid',
-            ]);
-
-            $invoice->save();
         }
 
-        $message = 'Đã lưu chỉ số và tính tiền điện/nước thành công!';
-
-        if ($skippedInvoices > 0) {
-            $message .= " Có {$skippedInvoices} phòng chưa tạo được hóa đơn vì không tìm thấy hợp đồng active.";
-        }
+        $message = 'Đã lưu và chốt chỉ số điện/nước thành công. Bạn có thể sang màn hình Sinh hóa đơn để phát hành hóa đơn.';
 
         return redirect()
             ->route('admin.utilities.index', ['month' => $data['month'], 'year' => $data['year']])

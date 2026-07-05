@@ -31,6 +31,7 @@ class UtilityReadingSeeder extends Seeder
                 'electricity_new' => 1200,
                 'water_old'       => 0,
                 'water_new'       => 150,
+                'status'          => 'confirmed',
                 'created_at'      => clone $now,
                 'updated_at'      => clone $now,
             ],
@@ -43,6 +44,7 @@ class UtilityReadingSeeder extends Seeder
                 'electricity_new' => 1350, // Dùng 150 kWh
                 'water_old'       => 150,
                 'water_new'       => 162,  // Dùng 12 Khối
+                'status'          => 'confirmed',
                 'created_at'      => clone $now,
                 'updated_at'      => clone $now,
             ],
@@ -60,6 +62,7 @@ class UtilityReadingSeeder extends Seeder
                 'electricity_new' => 3000,
                 'water_old'       => 0,
                 'water_new'       => 400,
+                'status'          => 'confirmed',
                 'created_at'      => clone $now,
                 'updated_at'      => clone $now,
             ],
@@ -72,6 +75,7 @@ class UtilityReadingSeeder extends Seeder
                 'electricity_new' => 3180, // Dùng 180 kWh
                 'water_old'       => 400,
                 'water_new'       => 415,  // Dùng 15 Khối
+                'status'          => 'confirmed',
                 'created_at'      => clone $now,
                 'updated_at'      => clone $now,
             ],
@@ -84,6 +88,7 @@ class UtilityReadingSeeder extends Seeder
                 'electricity_new' => 3400, // Dùng 220 kWh
                 'water_old'       => 415,
                 'water_new'       => 432,  // Dùng 17 Khối
+                'status'          => 'confirmed',
                 'created_at'      => clone $now,
                 'updated_at'      => clone $now,
             ],
@@ -96,6 +101,7 @@ class UtilityReadingSeeder extends Seeder
                 'electricity_new' => 3650, // Dùng 250 kWh
                 'water_old'       => 432,
                 'water_new'       => 450,  // Dùng 18 Khối
+                'status'          => 'confirmed',
                 'created_at'      => clone $now,
                 'updated_at'      => clone $now,
             ],
