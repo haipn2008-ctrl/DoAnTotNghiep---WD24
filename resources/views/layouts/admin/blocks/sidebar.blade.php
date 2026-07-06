@@ -93,8 +93,8 @@
                         <span>Hóa đơn & Công nợ</span>
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
-                        <li><a href="#">Sinh hóa đơn</a></li>
-                        <li><a href="#">Danh sách hóa đơn</a></li>
+                        <li><a href="{{ route('admin.invoices.generate') }}">Sinh hóa đơn</a></li>
+                        <li><a href="{{ route('admin.invoices.index') }}">Danh sách hóa đơn</a></li>
                         <li><a href="#">Thanh toán hóa đơn</a></li>
                         <li><a href="#">Theo dõi công nợ</a></li>
                     </ul>

@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Contract;
 use App\Models\Room;
+use App\Models\Setting;
 use App\Models\UtilityReading;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class UtilityController extends Controller
 {
@@ -15,7 +18,23 @@ class UtilityController extends Controller
         $month = $request->input('month', Carbon::now()->month);
         $year = $request->input('year', Carbon::now()->year);
 
-        $rooms = Room::where('status', 'occupied')->get();
+        $billingPeriodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $billingPeriodEnd = $billingPeriodStart->copy()->endOfMonth();
+
+        // 1. Dùng 'with' để lấy kèm theo Hợp đồng đang active (tránh N+1 query)
+        $rooms = Room::with(['contracts' => function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
+            $query->where('status', 'active')
+                ->whereDate('start_date', '<=', $billingPeriodEnd)
+                ->whereDate('end_date', '>=', $billingPeriodStart)
+                ->orderByDesc('start_date');
+        }])
+            ->where('status', 'occupied')
+            ->whereHas('contracts', function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
+                $query->where('status', 'active')
+                    ->whereDate('start_date', '<=', $billingPeriodEnd)
+                    ->whereDate('end_date', '>=', $billingPeriodStart);
+            })
+            ->get();
 
         $readings = [];
         foreach ($rooms as $room) {
@@ -27,9 +46,14 @@ class UtilityController extends Controller
                 ->where('year', $lastYear)
                 ->first();
 
+            // 2. Lấy ngày bắt đầu của hợp đồng hiện tại
+            $activeContract = $room->contracts->first();
+            $startDate = $activeContract ? Carbon::parse($activeContract->start_date)->format('d/m/Y') : 'N/A';
+
             $readings[] = [
                 'room_id' => $room->id,
                 'room_name' => $room->room_code,
+                'start_date' => $startDate, // Gắn thêm ngày bắt đầu thuê vào mảng
                 'electricity_old' => $lastReading ? $lastReading->electricity_new : 0,
                 'water_old' => $lastReading ? $lastReading->water_new : 0,
             ];
@@ -48,27 +72,55 @@ class UtilityController extends Controller
             'readings.*.room_id' => 'required|exists:rooms,id',
             'readings.*.electricity_old' => 'required|numeric',
             'readings.*.electricity_new' => 'required|numeric|gte:readings.*.electricity_old',
+            'readings.*.electricity_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
             'readings.*.water_old' => 'required|numeric',
             'readings.*.water_new' => 'required|numeric|gte:readings.*.water_old',
+            'readings.*.water_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
-        foreach ($data['readings'] as $readingData) {
-            UtilityReading::updateOrCreate(
-                [
-                    'room_id' => $readingData['room_id'],
-                    'month' => $data['month'],
-                    'year' => $data['year']
-                ],
-                [
-                    'electricity_old' => $readingData['electricity_old'],
-                    'electricity_new' => $readingData['electricity_new'],
-                    'water_old' => $readingData['water_old'],
-                    'water_new' => $readingData['water_new'],
-                ]
-            );
+        foreach ($data['readings'] as $index => $readingData) {
+            $reading = UtilityReading::firstOrNew([
+                'room_id' => $readingData['room_id'],
+                'month' => $data['month'],
+                'year' => $data['year']
+            ]);
+
+            $payload = [
+                'electricity_old' => $readingData['electricity_old'],
+                'electricity_new' => $readingData['electricity_new'],
+                'water_old' => $readingData['water_old'],
+                'water_new' => $readingData['water_new'],
+                'status' => 'confirmed',
+            ];
+
+            $electricityImage = $request->file("readings.{$index}.electricity_image");
+            if ($electricityImage) {
+                if ($reading->electricity_image) {
+                    Storage::disk('public')->delete($reading->electricity_image);
+                }
+
+                $payload['electricity_image'] = $electricityImage->store('utility-readings/electricity', 'public');
+            }
+
+            $waterImage = $request->file("readings.{$index}.water_image");
+            if ($waterImage) {
+                if ($reading->water_image) {
+                    Storage::disk('public')->delete($reading->water_image);
+                }
+
+                $payload['water_image'] = $waterImage->store('utility-readings/water', 'public');
+            }
+
+            $reading->fill($payload);
+            $reading->save();
+
         }
 
-        return redirect()->route('admin.utilities.index')->with('success', 'Đã lưu chỉ số thành công!');
+        $message = 'Đã lưu và chốt chỉ số điện/nước thành công. Bạn có thể sang màn hình Sinh hóa đơn để phát hành hóa đơn.';
+
+        return redirect()
+            ->route('admin.utilities.index', ['month' => $data['month'], 'year' => $data['year']])
+            ->with('success', $message);
     }
 
     // Màn hình 2: KIỂM TRA CHỈ SỐ
@@ -78,11 +130,29 @@ class UtilityController extends Controller
         $month = $request->input('month', Carbon::now()->month);
         $year = $request->input('year', Carbon::now()->year);
 
-        // 1. Lấy danh sách các phòng đang cho thuê (để biết tổng số phòng cần chốt)
-        $totalRooms = Room::where('status', 'occupied')->count();
+        // Lấy ngày cuối cùng của kỳ chốt số
+        $billingPeriodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $billingPeriodEnd = $billingPeriodStart->copy()->endOfMonth();
 
-        // 2. Lấy dữ liệu chốt số của tháng hiện tại
-        $readings = UtilityReading::with('room')
+        // 1. Lấy danh sách các phòng đang cho thuê có hợp đồng active tính đến kỳ chốt
+        // Đồng bộ logic với hàm create để Tiến độ chốt số (A/B phòng) chính xác tuyệt đối
+        $totalRooms = Room::where('status', 'occupied')
+            ->whereHas('contracts', function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
+                $query->where('status', 'active')
+                    ->whereDate('start_date', '<=', $billingPeriodEnd)
+                    ->whereDate('end_date', '>=', $billingPeriodStart);
+            })
+            ->count();
+
+        // 2. Lấy dữ liệu chốt số của tháng hiện tại kèm hợp đồng active để hiển thị ngày thuê
+        $readings = UtilityReading::with([
+            'room.contracts' => function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
+                $query->where('status', 'active')
+                    ->whereDate('start_date', '<=', $billingPeriodEnd)
+                    ->whereDate('end_date', '>=', $billingPeriodStart)
+                    ->orderByDesc('start_date');
+            },
+        ])
             ->where('month', $month)
             ->where('year', $year)
             ->get();
@@ -99,6 +169,17 @@ class UtilityController extends Controller
             return $reading->water_new - $reading->water_old;
         });
 
+        $setting = Setting::firstOrCreate([], [
+            'electric_price' => 0,
+            'water_price' => 0,
+            'internet_fee' => 0,
+            'service_fee' => 0,
+        ]);
+
+        $totalElectricityFee = $totalElectricity * $setting->electric_price;
+        $totalWaterFee = $totalWater * $setting->water_price;
+        $totalUtilityFee = $totalElectricityFee + $totalWaterFee;
+
         // Truyền tất cả dữ liệu thật sang View
         return view('admin.utilities.index', compact(
             'month',
@@ -107,6 +188,10 @@ class UtilityController extends Controller
             'roomsRead',
             'totalElectricity',
             'totalWater',
+            'totalElectricityFee',
+            'totalWaterFee',
+            'totalUtilityFee',
+            'setting',
             'readings'
         ));
     }

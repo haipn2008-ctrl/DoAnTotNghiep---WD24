@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\OverviewController;
+use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\ContractController;
 //Client routes
@@ -60,9 +61,9 @@ Route::middleware('auth')->group(function () {
         // Xử lý kết thúc hợp đồng
         Route::post('contracts/{id}/end', [ContractController::class, 'end'])
             ->name('contracts.end');
-            
+
         // Form kết thúc hợp đồng
-        Route::get('contracts/{id}/end-form',[ContractController::class,'endForm'])->name('contracts.end.form');   
+        Route::get('contracts/{id}/end-form',[ContractController::class,'endForm'])->name('contracts.end.form');
 
         // Danh sách gia hạn hợp đồng
         Route::get('contracts/extend', [ContractController::class, 'extendList'])
@@ -74,17 +75,8 @@ Route::middleware('auth')->group(function () {
 
         // Xử lý gia hạn
         Route::post('contracts/{id}/extend', [ContractController::class, 'extend'])
-            ->name('contracts.extend');// Danh sách gia hạn hợp đồng
-        Route::get('contracts/extend', [ContractController::class, 'extendList'])
-            ->name('contracts.extend.list');
-
-        // Form gia hạn
-        Route::get('contracts/{id}/extend-form', [ContractController::class, 'extendForm'])
-            ->name('contracts.extend.form');
-
-        // Xử lý gia hạn
-        Route::post('contracts/{id}/extend', [ContractController::class, 'extend'])
             ->name('contracts.extend');
+
         // In hợp đồng
         Route::get('contracts/{id}/print', [ContractController::class, 'print'])
             ->name('contracts.print');
@@ -101,6 +93,21 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/utilities', [UtilityController::class, 'index'])
             ->name('utilities.index');
+
+        Route::get('/invoices', [InvoiceController::class, 'index'])
+            ->name('invoices.index');
+
+        Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
+            ->name('invoices.generate');
+
+        Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
+            ->name('invoices.preview');
+
+        Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
+            ->name('invoices.issue');
+
+        Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])
+            ->name('invoices.show');
 
         // Tổng Quan Dashboard
         Route::get('/overview', [OverviewController::class, 'index'])

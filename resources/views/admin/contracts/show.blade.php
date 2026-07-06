@@ -146,7 +146,7 @@
         <h5 class="mb-3 text-primary">
             Thông tin tài chính
         </h5>
-        
+
         <p>
             <strong>Tiền thuê/tháng:</strong>
             {{ number_format($contract->room->price ?? 0, 0, ',', '.') }} VNĐ

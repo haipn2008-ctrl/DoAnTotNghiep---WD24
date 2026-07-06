@@ -38,10 +38,10 @@
                             <div class="col-md-6">
                                 <h6 class="text-muted mb-3">Tỷ Lệ Sử Dụng Phòng</h6>
                                 <div class="progress" style="height: 25px;">
-                                    <div class="progress-bar bg-success" role="progressbar" 
-                                         style="width: {{ $occupiedPercent }}%;" 
-                                         aria-valuenow="{{ $occupiedPercent }}" 
-                                         aria-valuemin="0" 
+                                    <div class="progress-bar bg-success" role="progressbar"
+                                         style="width: {{ $occupiedPercent }}%;"
+                                         aria-valuenow="{{ $occupiedPercent }}"
+                                         aria-valuemin="0"
                                          aria-valuemax="100">
                                         {{ $occupiedPercent }}%
                                     </div>
@@ -51,10 +51,10 @@
                             <div class="col-md-6">
                                 <h6 class="text-muted mb-3">Tỷ Lệ Phòng Còn Trống</h6>
                                 <div class="progress" style="height: 25px;">
-                                    <div class="progress-bar bg-warning" role="progressbar" 
-                                         style="width: {{ $availablePercent }}%;" 
-                                         aria-valuenow="{{ $availablePercent }}" 
-                                         aria-valuemin="0" 
+                                    <div class="progress-bar bg-warning" role="progressbar"
+                                         style="width: {{ $availablePercent }}%;"
+                                         aria-valuenow="{{ $availablePercent }}"
+                                         aria-valuemin="0"
                                          aria-valuemax="100">
                                         {{ $availablePercent }}%
                                     </div>
@@ -67,10 +67,10 @@
                             <div class="col-md-6">
                                 <h6 class="text-muted mb-3">Tỷ Lệ Phòng Bảo Trì</h6>
                                 <div class="progress" style="height: 25px;">
-                                    <div class="progress-bar bg-danger" role="progressbar" 
-                                         style="width: {{ $maintenancePercent }}%;" 
-                                         aria-valuenow="{{ $maintenancePercent }}" 
-                                         aria-valuemin="0" 
+                                    <div class="progress-bar bg-danger" role="progressbar"
+                                         style="width: {{ $maintenancePercent }}%;"
+                                         aria-valuenow="{{ $maintenancePercent }}"
+                                         aria-valuemin="0"
                                          aria-valuemax="100">
                                         {{ $maintenancePercent }}%
                                     </div>

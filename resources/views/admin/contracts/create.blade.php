@@ -21,7 +21,7 @@
                     {{ session('success') }}
                 </div>
             @endif
-            <form action="{{ route('admin.contracts.store') }}" 
+            <form action="{{ route('admin.contracts.store') }}"
                   method="POST">
                 @csrf
                 <div class="row">
@@ -31,7 +31,7 @@
                         <label class="form-label">
                             🏠 Phòng thuê
                         </label>
-                        <select name="room_id" 
+                        <select name="room_id"
                                 class="form-select">
                             <option value="">
                                 -- Chọn phòng --

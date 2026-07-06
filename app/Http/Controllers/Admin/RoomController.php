@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RoomRequest;
 use App\Models\Amenity;
+use App\Models\Contract;
 use App\Models\Room;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,7 @@ class RoomController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Room::with('amenities');
+        $query = Room::query()->with('amenities');
 
         if ($request->room_code) {
             $query->where(
@@ -42,6 +43,9 @@ class RoomController extends Controller
         );
     }
 
+    /**
+     * Form xuất CSV
+     */
     public function exportForm()
     {
         $rooms = Room::with('amenities')
@@ -51,6 +55,9 @@ class RoomController extends Controller
         return view('admin.rooms.export', compact('rooms'));
     }
 
+    /**
+     * Xuất CSV
+     */
     public function export()
     {
         $rooms = Room::with('amenities')
@@ -75,15 +82,23 @@ class RoomController extends Controller
         ];
 
         $callback = function () use ($rooms, $columns) {
+
             $file = fopen('php://output', 'w');
+
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
             fputcsv($file, $columns);
 
             foreach ($rooms as $room) {
+
                 $status = match ($room->status) {
-                    'available' => 'Trống',
-                    'occupied' => 'Đang thuê',
-                    'maintenance' => 'Bảo trì',
+
+                    Room::STATUS_AVAILABLE => 'Trống',
+
+                    Room::STATUS_OCCUPIED => 'Đang thuê',
+
+                    Room::STATUS_MAINTENANCE => 'Bảo trì',
+
                     default => ucfirst($room->status),
                 };
 
@@ -93,13 +108,21 @@ class RoomController extends Controller
                     ->implode(', ');
 
                 fputcsv($file, [
+
                     $room->room_code,
+
                     $room->floor,
+
                     number_format($room->price),
+
                     $room->area,
+
                     $room->current_people,
+
                     $status,
+
                     $amenities,
+
                 ]);
             }
 
@@ -110,7 +133,7 @@ class RoomController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Form tạo phòng
      */
     public function create()
     {
@@ -123,11 +146,10 @@ class RoomController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Lưu phòng
      */
     public function store(RoomRequest $request)
     {
-
         $data = $request->validated();
 
         if ($request->hasFile('image')) {
@@ -140,7 +162,7 @@ class RoomController extends Controller
         $room = Room::create($data);
 
         $room->amenities()->sync(
-            $request->amenities ?? []
+            $request->input('amenities', [])
         );
 
         return redirect()
@@ -150,8 +172,9 @@ class RoomController extends Controller
                 'Thêm phòng thành công'
             );
     }
+
     /**
-     * Display the specified resource.
+     * Chi tiết phòng
      */
     public function show(Room $room)
     {
@@ -164,7 +187,7 @@ class RoomController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Form sửa phòng
      */
     public function edit(Room $room)
     {
@@ -181,6 +204,9 @@ class RoomController extends Controller
         );
     }
 
+    /**
+     * Cập nhật phòng
+     */
     public function update(RoomRequest $request, Room $room)
     {
         $data = $request->validated();
@@ -195,7 +221,7 @@ class RoomController extends Controller
         $room->update($data);
 
         $room->amenities()->sync(
-            $request->amenities ?? []
+            $request->input('amenities', [])
         );
 
         return redirect()
@@ -206,10 +232,13 @@ class RoomController extends Controller
             );
     }
 
+    /**
+     * Xóa phòng
+     */
     public function destroy(Room $room)
     {
         $hasActiveContract = $room->contracts()
-            ->where('status', 'active')
+            ->where('status', Contract::STATUS_ACTIVE)
             ->exists();
 
         if ($hasActiveContract) {
