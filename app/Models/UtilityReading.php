@@ -9,7 +9,10 @@ class UtilityReading extends Model
     protected $fillable = [
         'room_id', 'month', 'year', 
         'electricity_old', 'electricity_new', 
-        'water_old', 'water_new', 'status'
+        'electricity_image',
+        'water_old', 'water_new',
+        'water_image',
+        'status'
     ];
 
     // Lấy thông tin phòng tương ứng

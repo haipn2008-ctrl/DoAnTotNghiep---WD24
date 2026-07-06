@@ -50,7 +50,7 @@
                     </div>
                     <div class="card-body px-0 pt-0">
 
-                        <form action="{{ route('admin.utilities.store') }}" method="POST">
+                        <form action="{{ route('admin.utilities.store') }}" method="POST" enctype="multipart/form-data">
                             @csrf
                             <input type="hidden" name="month" value="{{ $month }}">
                             <input type="hidden" name="year" value="{{ $year }}">
@@ -62,8 +62,10 @@
                                             <th style="width: 15%">Tên Phòng</th>
                                             <th class="text-center" style="width: 15%">Số Điện Cũ</th>
                                             <th class="text-center" style="width: 20%">Số Điện Mới</th>
+                                            <th class="text-center" style="width: 14%">Ảnh điện</th>
                                             <th class="text-center" style="width: 15%">Số Nước Cũ</th>
                                             <th class="text-center" style="width: 20%">Số Nước Mới</th>
+                                            <th class="text-center" style="width: 14%">Ảnh nước</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -95,6 +97,11 @@
                                                         required>
                                                     <small class="elec-usage mt-1 d-block" style="height: 18px;"></small>
                                                 </td>
+                                                <td class="text-center align-middle">
+                                                    <input type="file" class="form-control form-control-sm"
+                                                        name="readings[{{ $index }}][electricity_image]"
+                                                        accept="image/jpeg,image/png,image/webp">
+                                                </td>
 
                                                 <td class="text-center align-middle">
                                                     <input type="number"
@@ -108,6 +115,11 @@
                                                         name="readings[{{ $index }}][water_new]"
                                                         min="{{ $item['water_old'] }}" placeholder="Nhập số..." required>
                                                     <small class="water-usage mt-1 d-block" style="height: 18px;"></small>
+                                                </td>
+                                                <td class="text-center align-middle">
+                                                    <input type="file" class="form-control form-control-sm"
+                                                        name="readings[{{ $index }}][water_image]"
+                                                        accept="image/jpeg,image/png,image/webp">
                                                 </td>
                                             </tr>
                                         @empty

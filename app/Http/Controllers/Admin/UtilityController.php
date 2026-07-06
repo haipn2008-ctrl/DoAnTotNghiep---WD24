@@ -9,6 +9,7 @@ use App\Models\Room;
 use App\Models\Setting;
 use App\Models\UtilityReading;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class UtilityController extends Controller
 {
@@ -71,25 +72,47 @@ class UtilityController extends Controller
             'readings.*.room_id' => 'required|exists:rooms,id',
             'readings.*.electricity_old' => 'required|numeric',
             'readings.*.electricity_new' => 'required|numeric|gte:readings.*.electricity_old',
+            'readings.*.electricity_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
             'readings.*.water_old' => 'required|numeric',
             'readings.*.water_new' => 'required|numeric|gte:readings.*.water_old',
+            'readings.*.water_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
-        foreach ($data['readings'] as $readingData) {
-            UtilityReading::updateOrCreate(
-                [
-                    'room_id' => $readingData['room_id'],
-                    'month' => $data['month'],
-                    'year' => $data['year']
-                ],
-                [
-                    'electricity_old' => $readingData['electricity_old'],
-                    'electricity_new' => $readingData['electricity_new'],
-                    'water_old' => $readingData['water_old'],
-                    'water_new' => $readingData['water_new'],
-                    'status' => 'confirmed',
-                ]
-            );
+        foreach ($data['readings'] as $index => $readingData) {
+            $reading = UtilityReading::firstOrNew([
+                'room_id' => $readingData['room_id'],
+                'month' => $data['month'],
+                'year' => $data['year']
+            ]);
+
+            $payload = [
+                'electricity_old' => $readingData['electricity_old'],
+                'electricity_new' => $readingData['electricity_new'],
+                'water_old' => $readingData['water_old'],
+                'water_new' => $readingData['water_new'],
+                'status' => 'confirmed',
+            ];
+
+            $electricityImage = $request->file("readings.{$index}.electricity_image");
+            if ($electricityImage) {
+                if ($reading->electricity_image) {
+                    Storage::disk('public')->delete($reading->electricity_image);
+                }
+
+                $payload['electricity_image'] = $electricityImage->store('utility-readings/electricity', 'public');
+            }
+
+            $waterImage = $request->file("readings.{$index}.water_image");
+            if ($waterImage) {
+                if ($reading->water_image) {
+                    Storage::disk('public')->delete($reading->water_image);
+                }
+
+                $payload['water_image'] = $waterImage->store('utility-readings/water', 'public');
+            }
+
+            $reading->fill($payload);
+            $reading->save();
 
         }
 

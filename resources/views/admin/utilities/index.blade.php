@@ -130,10 +130,12 @@
                                         <th style="width: 15%">Tên Phòng</th>
                                         <th class="text-center" style="width: 12%">Số Điện Cũ</th>
                                         <th class="text-center" style="width: 12%">Số Điện Mới</th>
+                                        <th class="text-center" style="width: 12%">Ảnh điện</th>
                                         <th class="text-center" style="width: 18%">Dùng (kWh)</th>
                                         <th class="text-end" style="width: 14%">Tiền Điện</th>
                                         <th class="text-center" style="width: 12%">Số Nước Cũ</th>
                                         <th class="text-center" style="width: 12%">Số Nước Mới</th>
+                                        <th class="text-center" style="width: 12%">Ảnh nước</th>
                                         <th class="text-center" style="width: 18%">Dùng (Khối)</th>
                                         <th class="text-end" style="width: 14%">Tiền Nước</th>
                                         <th class="text-end" style="width: 14%">Tổng Đ/N</th>
@@ -168,6 +170,18 @@
                                                 {{ $item->electricity_new }}
                                             </td>
                                             <td class="text-center align-middle">
+                                                @if($item->electricity_image)
+                                                    <a href="{{ asset('storage/' . $item->electricity_image) }}" target="_blank">
+                                                        <img src="{{ asset('storage/' . $item->electricity_image) }}"
+                                                            alt="Ảnh đồng hồ điện"
+                                                            class="img-thumbnail"
+                                                            style="width: 70px; height: 70px; object-fit: cover;">
+                                                    </a>
+                                                @else
+                                                    <span class="text-muted">Chưa có</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-center align-middle">
                                                 <span class="text-success fw-bold">Dùng: {{ $dienDung }}</span>
                                             </td>
                                             <td class="text-end align-middle text-primary fw-bold">
@@ -178,6 +192,18 @@
                                             <td class="text-center align-middle">{{ $item->water_old }}</td>
                                             <td class="text-center align-middle text-info fw-bold fs-6">
                                                 {{ $item->water_new }}
+                                            </td>
+                                            <td class="text-center align-middle">
+                                                @if($item->water_image)
+                                                    <a href="{{ asset('storage/' . $item->water_image) }}" target="_blank">
+                                                        <img src="{{ asset('storage/' . $item->water_image) }}"
+                                                            alt="Ảnh đồng hồ nước"
+                                                            class="img-thumbnail"
+                                                            style="width: 70px; height: 70px; object-fit: cover;">
+                                                    </a>
+                                                @else
+                                                    <span class="text-muted">Chưa có</span>
+                                                @endif
                                             </td>
                                             <td class="text-center align-middle">
                                                 <span class="text-success fw-bold">Dùng: {{ $nuocDung }}</span>
@@ -191,7 +217,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="10" class="text-center text-muted py-5">
+                                            <td colspan="12" class="text-center text-muted py-5">
                                                 <div class="mb-3">
                                                     <i class="mdi mdi-text-box-search-outline" style="font-size: 3rem;"></i>
                                                 </div>
