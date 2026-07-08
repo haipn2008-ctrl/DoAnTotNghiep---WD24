@@ -6,214 +6,537 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Payment;
-use App\Models\Room;
-use App\Models\Setting;
-use App\Models\UtilityReading;
+use App\Services\InvoiceGenerator;
+use Carbon\Carbon;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
 {
+    /**
+     * Danh sách hóa đơn
+     */
     public function index(Request $request)
     {
-        $query = Invoice::with(['contract.room', 'contract.tenant', 'payments']);
+        $month = $request->filled('month')
+            ? (int) $request->month
+            : null;
 
-        if ($request->filled('month')) {
-            $month = (int) $request->month;
-            $query->where(function ($q) use ($month) {
-                $q->where('month', $month)
-                  ->orWhereRaw('MONTH(invoice_date) = ?', [$month]);
+        $year = $request->filled('year')
+            ? (int) $request->year
+            : null;
+
+        $status = $request->status;
+
+        $keyword = trim($request->keyword ?? '');
+
+        $query = Invoice::with([
+            'contract.tenant',
+            'room',
+            'payments',
+        ])
+            ->withSum([
+                'payments as paid_amount' => function ($q) {
+                    $q->success();
+                }
+            ], 'amount_paid')
+            ->latest('invoice_date')
+            ->latest('id');
+
+        if ($month) {
+            $query->where('month', $month);
+        }
+
+        if ($year) {
+            $query->where('year', $year);
+        }
+
+        if (in_array($status, [
+            Invoice::STATUS_UNPAID,
+            Invoice::STATUS_PARTIAL,
+            Invoice::STATUS_PAID,
+        ])) {
+            $query->where('status', $status);
+        }
+
+        if ($keyword != '') {
+
+            $query->where(function ($q) use ($keyword) {
+
+                $q->whereHas('room', function ($room) use ($keyword) {
+
+                    $room->where('room_code', 'like', "%{$keyword}%");
+                })
+
+                    ->orWhereHas('contract', function ($contract) use ($keyword) {
+
+                        $contract->where('contract_code', 'like', "%{$keyword}%")
+
+                            ->orWhereHas('tenant', function ($tenant) use ($keyword) {
+
+                                $tenant->where('full_name', 'like', "%{$keyword}%")
+                                    ->orWhere('phone', 'like', "%{$keyword}%");
+                            });
+                    });
             });
         }
 
-        if ($request->filled('year')) {
-            $year = (int) $request->year;
-            $query->where(function ($q) use ($year) {
-                $q->where('year', $year)
-                  ->orWhereRaw('YEAR(invoice_date) = ?', [$year]);
-            });
+        $invoices = $query
+            ->paginate(15)
+            ->withQueryString();
+
+        $summaryQuery = Invoice::query();
+
+        if ($month) {
+            $summaryQuery->where('month', $month);
         }
 
-        if ($request->filled('room_id')) {
-            $query->whereHas('contract.room', function ($q) use ($request) {
-                $q->where('id', $request->room_id);
-            });
+        if ($year) {
+            $summaryQuery->where('year', $year);
         }
 
-        if ($request->filled('tenant_id')) {
-            $query->whereHas('contract.tenant', function ($q) use ($request) {
-                $q->where('id', $request->tenant_id);
-            });
+        $summary = [
+
+            'count' => (clone $summaryQuery)->count(),
+
+            'total_amount' => (clone $summaryQuery)
+                ->sum('total_amount'),
+
+            'unpaid' => (clone $summaryQuery)
+                ->where('status', Invoice::STATUS_UNPAID)
+                ->count(),
+
+            'partial' => (clone $summaryQuery)
+                ->where('status', Invoice::STATUS_PARTIAL)
+                ->count(),
+
+            'paid' => (clone $summaryQuery)
+                ->where('status', Invoice::STATUS_PAID)
+                ->count(),
+
+        ];
+
+        return view(
+            'admin.invoices.index',
+            compact(
+                'invoices',
+                'month',
+                'year',
+                'status',
+                'keyword',
+                'summary'
+            )
+        );
+    }
+    /**
+     * Chi tiết hóa đơn
+     */
+    public function show(Invoice $invoice)
+    {
+        $invoice->load([
+            'contract.tenant',
+            'room',
+            'utilityReading',
+            'details',
+            'payments',
+        ]);
+
+        $paidAmount = $invoice->payments()
+            ->success()
+            ->sum('amount_paid');
+
+        $remainingAmount = max(
+            0,
+            $invoice->total_amount - $paidAmount
+        );
+
+        return view(
+            'admin.invoices.show',
+            compact(
+                'invoice',
+                'paidAmount',
+                'remainingAmount'
+            )
+        );
+    }
+
+    /**
+     * Form sinh hóa đơn
+     */
+    public function generate(Request $request)
+    {
+        $month = (int) $request->input(
+            'month',
+            now()->month
+        );
+
+        $year = (int) $request->input(
+            'year',
+            now()->year
+        );
+
+        // danh sách năm để hiển thị combobox
+        $years = range(
+            now()->year - 2,
+            now()->year + 2
+        );
+
+        $periodStart = Carbon::create(
+            $year,
+            $month,
+            1
+        )->startOfMonth();
+
+        $periodEnd = $periodStart
+            ->copy()
+            ->endOfMonth();
+
+        $contracts = Contract::with([
+            'room',
+            'tenant'
+        ])
+            ->where('status', 'active')
+            ->whereDate(
+                'start_date',
+                '<=',
+                $periodEnd
+            )
+            ->whereDate(
+                'end_date',
+                '>=',
+                $periodStart
+            )
+            ->orderBy('room_id')
+            ->get();
+
+        $issuedRoomIds = Invoice::where(
+            'month',
+            $month
+        )
+            ->where(
+                'year',
+                $year
+            )
+            ->pluck('room_id')
+            ->toArray();
+
+        return view(
+            'admin.invoices.generate',
+            compact(
+                'contracts',
+                'month',
+                'year',
+                'years',
+                'issuedRoomIds'
+            )
+        );
+    }
+    /**
+     * Xem trước hóa đơn
+     */
+    public function preview(
+        Request $request,
+        Contract $contract,
+        InvoiceGenerator $generator
+    ): JsonResponse {
+
+        $data = $request->validate([
+            'month' => 'required|integer|min:1|max:12',
+            'year'  => 'required|integer|min:2000|max:2100',
+        ]);
+
+        try {
+
+            $preview = $generator->preview(
+                $contract,
+                (int) $data['month'],
+                (int) $data['year']
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $preview,
+            ]);
+        } catch (ValidationException $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first(),
+            ], 422);
         }
+    }
+
+    /**
+     * Phát hành hóa đơn
+     */
+    public function issue(
+        Request $request,
+        Contract $contract,
+        InvoiceGenerator $generator
+    ): JsonResponse {
+
+        $data = $request->validate([
+            'month' => 'required|integer|min:1|max:12',
+            'year'  => 'required|integer|min:2000|max:2100',
+        ]);
+
+        try {
+
+            $invoice = $generator->issue(
+                $contract,
+                (int) $data['month'],
+                (int) $data['year']
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sinh hóa đơn thành công.',
+                'invoice_id' => $invoice->id,
+            ]);
+        } catch (ValidationException $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first(),
+            ], 422);
+        } catch (QueryException $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Hóa đơn đã tồn tại hoặc dữ liệu không hợp lệ.',
+            ], 422);
+        }
+    }
+    /**
+     * Form sửa hóa đơn
+     */
+    public function edit(Invoice $invoice)
+    {
+        $invoice->load([
+            'contract.room',
+            'contract.tenant',
+            'details',
+            'payments',
+        ]);
+
+        return view(
+            'admin.invoices.edit',
+            compact('invoice')
+        );
+    }
+
+    /**
+     * Cập nhật hóa đơn
+     */
+    public function update(
+        Request $request,
+        Invoice $invoice
+    ) {
+
+        $data = $request->validate([
+
+            'status' => 'required|in:'
+                . Invoice::STATUS_UNPAID . ','
+                . Invoice::STATUS_PARTIAL . ','
+                . Invoice::STATUS_PAID,
+
+        ]);
+
+        $invoice->update([
+            'status' => $data['status'],
+        ]);
+
+        return redirect()
+            ->route(
+                'admin.invoices.show',
+                $invoice
+            )
+            ->with(
+                'success',
+                'Cập nhật trạng thái hóa đơn thành công.'
+            );
+    }
+
+    /**
+     * Xóa hóa đơn
+     */
+    public function destroy(Invoice $invoice)
+    {
+        if ($invoice->payments()->exists()) {
+
+            return redirect()
+                ->route('admin.invoices.index')
+                ->with(
+                    'error',
+                    'Không thể xóa hóa đơn đã phát sinh thanh toán.'
+                );
+        }
+
+        DB::transaction(function () use ($invoice) {
+
+            $invoice->details()->delete();
+
+            $invoice->delete();
+        });
+
+        return redirect()
+            ->route('admin.invoices.index')
+            ->with(
+                'success',
+                'Đã xóa hóa đơn thành công.'
+            );
+    }
+    /**
+     * Danh sách thanh toán
+     */
+    public function payments(Request $request)
+    {
+        $query = Payment::with([
+            'invoice.contract.tenant',
+            'invoice.room',
+            'confirmer',
+        ])->latest('payment_date');
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        $invoices = $query->latest('invoice_date')->paginate(15);
-        $rooms = Room::orderBy('room_code')->get();
-        $contracts = Contract::with(['room', 'tenant'])->get();
-
-        return view('admin.invoices.index', compact('invoices', 'rooms', 'contracts'));
-    }
-
-    public function show(Invoice $invoice)
-    {
-        $invoice->load(['contract.room', 'contract.tenant', 'payments']);
-
-        return view('admin.invoices.show', compact('invoice'));
-    }
-
-    public function edit(Invoice $invoice)
-    {
-        $invoice->load(['contract.room', 'contract.tenant']);
-
-        return view('admin.invoices.edit', compact('invoice'));
-    }
-
-    public function update(Request $request, Invoice $invoice)
-    {
-        $data = $request->validate([
-            'status' => 'required|in:unpaid,partial,paid',
-            'note' => 'nullable|string',
-        ]);
-
-        $invoice->update($data);
-
-        return redirect()->route('admin.invoices.index')->with('success', 'Cập nhật hóa đơn thành công');
-    }
-
-    public function destroy(Invoice $invoice)
-    {
-        if ($invoice->effective_status !== 'unpaid') {
-            return back()->with('error', 'Chỉ có thể xóa hóa đơn chưa thanh toán');
+        if ($request->filled('method')) {
+            $query->where(
+                'payment_method',
+                $request->method
+            );
         }
 
-        $invoice->payments()->delete();
-        $invoice->delete();
+        if ($request->filled('keyword')) {
 
-        return redirect()->route('admin.invoices.index')->with('success', 'Xóa hóa đơn thành công');
-    }
+            $keyword = trim($request->keyword);
 
-    public function generateForm()
-    {
-        $contracts = Contract::with(['room', 'tenant'])->where('status', 'active')->get();
-        $months = range(1, 12);
-        $years = [now()->year, now()->year + 1];
+            $query->where(function ($q) use ($keyword) {
 
-        return view('admin.invoices.generate', compact('contracts', 'months', 'years'));
-    }
+                $q->where('transaction_code', 'like', "%{$keyword}%")
 
-    public function generate(Request $request)
-    {
-        $request->validate([
-            'month' => 'required|integer|min:1|max:12',
-            'year' => 'required|integer',
-            'contract_id' => 'nullable|exists:contracts,id',
-        ]);
+                    ->orWhereHas('invoice.room', function ($room) use ($keyword) {
 
-        $contracts = $request->filled('contract_id')
-            ? Contract::where('id', $request->contract_id)->where('status', 'active')->get()
-            : Contract::where('status', 'active')->get();
+                        $room->where(
+                            'room_code',
+                            'like',
+                            "%{$keyword}%"
+                        );
+                    })
 
-        $setting = Setting::first();
-        $created = 0;
+                    ->orWhereHas('invoice.contract', function ($contract) use ($keyword) {
 
-        foreach ($contracts as $contract) {
-            $exists = Invoice::where('contract_id', $contract->id)
-                ->where('month', $request->month)
-                ->where('year', $request->year)
-                ->exists();
+                        $contract->where(
+                            'contract_code',
+                            'like',
+                            "%{$keyword}%"
+                        );
+                    })
 
-            if ($exists) {
-                continue;
-            }
+                    ->orWhereHas('invoice.contract.tenant', function ($tenant) use ($keyword) {
 
-            $utilityReading = UtilityReading::where('room_id', $contract->room_id)
-                ->where('month', $request->month)
-                ->where('year', $request->year)
-                ->where('status', 'confirmed')
-                ->first();
-
-            $roomFee = (float) $contract->monthly_rent;
-            $electricityFee = 0;
-            $waterFee = 0;
-            $internetFee = $setting?->internet_fee ?? 0;
-            $serviceFee = $setting?->service_fee ?? 0;
-
-            if ($utilityReading) {
-                $electricityFee = ($utilityReading->electricity_usage ?? 0) * ($setting?->electric_price ?? 0);
-                $waterFee = ($utilityReading->water_usage ?? 0) * ($setting?->water_price ?? 0);
-            }
-
-            $totalAmount = $roomFee + $electricityFee + $waterFee + $internetFee + $serviceFee;
-
-            Invoice::create([
-                'contract_id' => $contract->id,
-                'utility_reading_id' => $utilityReading?->id,
-                'month' => $request->month,
-                'year' => $request->year,
-                'invoice_date' => now()->format('Y-m-d'),
-                'due_date' => now()->addDays(7)->format('Y-m-d'),
-                'room_fee' => $roomFee,
-                'electricity_fee' => $electricityFee,
-                'water_fee' => $waterFee,
-                'internet_fee' => $internetFee,
-                'service_fee' => $serviceFee,
-                'total_amount' => $totalAmount,
-                'status' => 'unpaid',
-            ]);
-
-            $created++;
+                        $tenant->where(
+                            'full_name',
+                            'like',
+                            "%{$keyword}%"
+                        );
+                    });
+            });
         }
 
-        return redirect()->route('admin.invoices.index', ['month' => $request->month, 'year' => $request->year])
-            ->with('success', 'Đã sinh ' . $created . ' hóa đơn cho kỳ ' . $request->month . '/' . $request->year);
+        $payments = $query
+            ->paginate(15)
+            ->withQueryString();
+
+        return view(
+            'admin.invoices.payments',
+            compact('payments')
+        );
     }
 
-    public function payments(Request $request)
-    {
-        $invoices = Invoice::with(['contract.room', 'contract.tenant'])
-            ->whereIn('status', ['unpaid', 'partial'])
-            ->latest('invoice_date')
-            ->paginate(15);
+    /**
+     * Ghi nhận thanh toán
+     */
+    public function storePayment(
+        Request $request,
+        Invoice $invoice
+    ) {
 
-        return view('admin.invoices.payments', compact('invoices'));
-    }
-
-    public function storePayment(Request $request, Invoice $invoice)
-    {
         $data = $request->validate([
-            'amount_paid' => 'required|numeric|min:0.01',
+
+            'amount_paid' => 'required|numeric|min:1',
+
             'payment_date' => 'required|date',
-            'payment_method' => 'required|in:cash,bank_transfer,qr',
-            'transaction_code' => 'nullable|string|max:100',
+
+            'payment_method' => 'required|in:'
+                . Payment::METHOD_CASH . ','
+                . Payment::METHOD_BANK_TRANSFER . ','
+                . Payment::METHOD_QR,
+
+            'transaction_code' => 'nullable|max:255',
+
             'note' => 'nullable|string',
+
         ]);
 
-        $payment = Payment::create([
+        Payment::create([
+
             'invoice_id' => $invoice->id,
+
             'amount_paid' => $data['amount_paid'],
+
             'payment_date' => $data['payment_date'],
+
             'payment_method' => $data['payment_method'],
-            'transaction_code' => $data['transaction_code'] ?? null,
-            'status' => 'success',
+
+            'transaction_code' => $data['transaction_code'],
+
+            'status' => Payment::STATUS_SUCCESS,
+
             'confirmed_by' => auth()->id(),
-            'note' => $data['note'] ?? null,
+
+            'note' => $data['note'],
+
         ]);
 
-        $paidAmount = $invoice->payments()->sum('amount_paid');
-        $invoice->total_amount = (float) $invoice->total_amount;
-        $invoice->status = $paidAmount >= $invoice->total_amount ? 'paid' : 'partial';
-        $invoice->save();
+        $invoice->refreshStatus();
 
-        return redirect()->route('admin.invoices.show', $invoice->id)->with('success', 'Đã ghi nhận thanh toán thành công');
+        return redirect()
+            ->route(
+                'admin.invoices.show',
+                $invoice
+            )
+            ->with(
+                'success',
+                'Thanh toán thành công.'
+            );
     }
 
+    /**
+     * In hóa đơn
+     */
     public function print(Invoice $invoice)
     {
-        $invoice->load(['contract.room', 'contract.tenant', 'payments']);
+        $invoice->load([
 
-        return view('admin.invoices.print', compact('invoice'));
+            'contract.tenant',
+
+            'room',
+
+            'utilityReading',
+
+            'details',
+
+            'payments',
+
+        ]);
+
+        return view(
+            'admin.invoices.print',
+            compact('invoice')
+        );
     }
 }

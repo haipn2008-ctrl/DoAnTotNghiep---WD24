@@ -3,185 +3,539 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Room;
-use App\Models\Contract;
+use App\Models\Role;
+use App\Services\InvoiceGenerator;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
-class OverviewController extends Controller
+class InvoiceController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $user = auth()->user();
+        $month = $request->filled('month')
+            ? (int) $request->month
+            : null;
 
-        // Chỉ cho phép admin
-        if ($user->role_id !== 1) {
-            return redirect()->route('dashboard');
+        $year = $request->filled('year')
+            ? (int) $request->year
+            : null;
+
+        $status = $request->status;
+
+        $keyword = trim((string) $request->keyword);
+
+        $query = Invoice::with([
+            'contract.tenant',
+            'room',
+            'payments',
+        ])
+            ->withSum([
+                'payments as paid_amount' => function ($q) {
+                    $q->success();
+                }
+            ], 'amount_paid')
+            ->latest('invoice_date')
+            ->latest('id');
+
+        if ($month) {
+            $query->where('month', $month);
         }
 
-        $currentYear = now()->year;
-        $previousYear = $currentYear - 1;
-
-        // Tổng doanh thu thực nhận từ thanh toán thành công
-        $totalRevenue = Payment::where('status', 'success')->sum('amount_paid');
-
-        // Doanh thu theo tháng cho năm hiện tại và năm trước đó từ các khoản thanh toán thực tế
-        $monthlyRevenuePreviousYear = [];
-        $monthlyRevenueCurrentYear = [];
-
-        for ($month = 1; $month <= 12; $month++) {
-            $monthlyRevenuePreviousYear[] = Payment::where('status', 'success')
-                ->whereYear('payment_date', $previousYear)
-                ->whereMonth('payment_date', $month)
-                ->sum('amount_paid');
-
-            $monthlyRevenueCurrentYear[] = Payment::where('status', 'success')
-                ->whereYear('payment_date', $currentYear)
-                ->whereMonth('payment_date', $month)
-                ->sum('amount_paid');
+        if ($year) {
+            $query->where('year', $year);
         }
 
+        if (in_array($status, [
+            Invoice::STATUS_UNPAID,
+            Invoice::STATUS_PARTIAL,
+            Invoice::STATUS_PAID,
+        ])) {
 
-        // Tổng phòng
-        $totalRooms = Room::count();
-        $occupiedRooms = Room::where('status', 'occupied')->count();
-        $availableRooms = Room::where('status', 'available')->count();
-        $maintenanceRooms = Room::where('status', 'maintenance')->count();
+            $query->where('status', $status);
+        }
 
-        // Tỷ lệ phòng (%)
-        $occupiedPercent = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
-        $availablePercent = $totalRooms > 0 ? round(($availableRooms / $totalRooms) * 100, 1) : 0;
-        $maintenancePercent = $totalRooms > 0 ? round(($maintenanceRooms / $totalRooms) * 100, 1) : 0;
+        if ($keyword !== '') {
 
-        // Hóa đơn chưa thanh toán
-        $unpaidInvoices = Invoice::where('status', 'unpaid')->count();
-        $paidInvoices = Invoice::where('status', 'paid')->count();
-        $partialInvoices = Invoice::where('status', 'partial')->count();
+            $query->where(function ($q) use ($keyword) {
 
-        // Doanh thu hôm nay và tháng này từ thanh toán thực tế
-        $todayRevenue = Payment::where('status', 'success')
-            ->whereDate('payment_date', now()->toDateString())
-            ->sum('amount_paid') ?? 0;
+                $q->where('invoice_code', 'like', "%{$keyword}%")
 
-        $monthRevenue = Payment::where('status', 'success')
-            ->whereYear('payment_date', now()->year)
-            ->whereMonth('payment_date', now()->month)
-            ->sum('amount_paid') ?? 0;
+                    ->orWhereHas('room', function ($room) use ($keyword) {
 
-        $totalBilled = Invoice::sum('total_amount');
-        $totalReceivable = Invoice::get()->sum(function ($invoice) {
-            return $invoice->balance_amount;
-        });
+                        $room->where(
+                            'room_code',
+                            'like',
+                            "%{$keyword}%"
+                        );
+                    })
 
-        $collectionRate = $totalBilled > 0
-            ? round(($totalRevenue / $totalBilled) * 100, 1)
-            : 0;
+                    ->orWhereHas('contract', function ($contract) use ($keyword) {
 
-        // Contracts hoạt động
-        $activeContracts = Contract::where('status', 'active')->count();
+                        $contract->where(
+                            'contract_code',
+                            'like',
+                            "%{$keyword}%"
+                        )
 
-        return view('admin.overview.index', [
-            'totalRevenue' => $totalRevenue,
-            'totalBilled' => $totalBilled,
-            'totalReceivable' => $totalReceivable,
-            'collectionRate' => $collectionRate,
-            'currentYear' => $currentYear,
-            'previousYear' => $previousYear,
-            'monthlyRevenuePreviousYear' => $monthlyRevenuePreviousYear,
-            'monthlyRevenueCurrentYear' => $monthlyRevenueCurrentYear,
+                            ->orWhereHas('tenant', function ($tenant) use ($keyword) {
 
-            'totalRooms' => $totalRooms,
-            'occupiedRooms' => $occupiedRooms,
-            'availableRooms' => $availableRooms,
-            'maintenanceRooms' => $maintenanceRooms,
-            'occupiedPercent' => $occupiedPercent,
-            'availablePercent' => $availablePercent,
-            'maintenancePercent' => $maintenancePercent,
-            'unpaidInvoices' => $unpaidInvoices,
-            'paidInvoices' => $paidInvoices,
-            'partialInvoices' => $partialInvoices,
-            'todayRevenue' => $todayRevenue,
-            'monthRevenue' => $monthRevenue,
-            'activeContracts' => $activeContracts,
+                                $tenant->where(
+                                    'full_name',
+                                    'like',
+                                    "%{$keyword}%"
+                                )
+
+                                    ->orWhere(
+                                        'phone',
+                                        'like',
+                                        "%{$keyword}%"
+                                    );
+                            });
+                    });
+            });
+        }
+
+        $invoices = $query
+            ->paginate(15)
+            ->withQueryString();
+
+        $summaryQuery = Invoice::query();
+
+        if ($month) {
+            $summaryQuery->where('month', $month);
+        }
+
+        if ($year) {
+            $summaryQuery->where('year', $year);
+        }
+
+        $summary = [
+
+            'count' => (clone $summaryQuery)->count(),
+
+            'total_amount' => (clone $summaryQuery)
+                ->sum('total_amount'),
+
+            'unpaid' => (clone $summaryQuery)
+                ->where(
+                    'status',
+                    Invoice::STATUS_UNPAID
+                )->count(),
+
+            'partial' => (clone $summaryQuery)
+                ->where(
+                    'status',
+                    Invoice::STATUS_PARTIAL
+                )->count(),
+
+            'paid' => (clone $summaryQuery)
+                ->where(
+                    'status',
+                    Invoice::STATUS_PAID
+                )->count(),
+        ];
+
+        return view(
+            'admin.invoices.index',
+            compact(
+                'invoices',
+                'month',
+                'year',
+                'status',
+                'keyword',
+                'summary'
+            )
+        );
+    }
+    public function show(Invoice $invoice)
+    {
+        $invoice->load([
+            'contract.tenant',
+            'room',
+            'utilityReading',
+            'details',
+            'payments',
+        ]);
+
+        $paidAmount = $invoice->payments
+            ->where('status', Payment::STATUS_SUCCESS)
+            ->sum('amount_paid');
+
+        $remainingAmount = max(
+            0,
+            $invoice->total_amount - $paidAmount
+        );
+
+        return view(
+            'admin.invoices.show',
+            compact(
+                'invoice',
+                'paidAmount',
+                'remainingAmount'
+            )
+        );
+    }
+
+    /**
+     * Form sinh hóa đơn
+     */
+    public function generate(Request $request)
+    {
+        $month = (int) $request->input(
+            'month',
+            Carbon::now()->month
+        );
+
+        $year = (int) $request->input(
+            'year',
+            Carbon::now()->year
+        );
+
+        $periodStart = Carbon::createFromDate(
+            $year,
+            $month,
+            1
+        )->startOfMonth();
+
+        $periodEnd = $periodStart
+            ->copy()
+            ->endOfMonth();
+
+        $contracts = Contract::with([
+            'room',
+            'tenant',
+        ])
+            ->active()
+            ->whereDate(
+                'start_date',
+                '<=',
+                $periodEnd
+            )
+            ->whereDate(
+                'end_date',
+                '>=',
+                $periodStart
+            )
+            ->orderBy('room_id')
+            ->get();
+
+        $issuedRoomIds = Invoice::where(
+            'month',
+            $month
+        )
+            ->where(
+                'year',
+                $year
+            )
+            ->whereNotNull('room_id')
+            ->pluck('room_id')
+            ->all();
+
+        return view(
+            'admin.invoices.generate',
+            compact(
+                'contracts',
+                'month',
+                'year',
+                'issuedRoomIds'
+            )
+        );
+    }
+
+    /**
+     * Preview hóa đơn trước khi phát hành
+     */
+    public function preview(
+        Request $request,
+        Contract $contract,
+        InvoiceGenerator $generator
+    ): JsonResponse {
+
+        $data = $request->validate([
+            'month' => 'required|integer|min:1|max:12',
+            'year'  => 'required|integer|min:2000|max:2100',
+        ]);
+
+        try {
+
+            $preview = $generator->preview(
+                $contract,
+                (int) $data['month'],
+                (int) $data['year']
+            );
+        } catch (ValidationException $e) {
+
+            return response()->json([
+                'message' => collect(
+                    $e->errors()
+                )->flatten()->first(),
+            ], 422);
+        }
+
+        return response()->json([
+
+            'contract_id' => $preview['contract']->id,
+
+            'contract_code' => $preview['contract']->contract_code,
+
+            'room_code' => $preview['room']->room_code,
+
+            'tenant_name' =>
+            $preview['tenant']->full_name
+                ?? $preview['tenant']->name
+                ?? 'N/A',
+
+            'month' => $preview['month'],
+
+            'year' => $preview['year'],
+
+            'invoice_date' => $preview['invoice_date'],
+
+            'due_date' => $preview['due_date'],
+
+            'total_amount' => $preview['total_amount'],
+
+            'lines' => $preview['lines'],
+        ]);
+    }
+    /**
+     * Phát hành hóa đơn
+     */
+    public function issue(
+        Request $request,
+        Contract $contract,
+        InvoiceGenerator $generator
+    ): JsonResponse {
+
+        $data = $request->validate([
+            'month' => 'required|integer|min:1|max:12',
+            'year'  => 'required|integer|min:2000|max:2100',
+        ]);
+
+        try {
+
+            $invoice = $generator->issue(
+                $contract,
+                (int) $data['month'],
+                (int) $data['year']
+            );
+        } catch (ValidationException $e) {
+
+            return response()->json([
+                'message' => collect(
+                    $e->errors()
+                )->flatten()->first(),
+            ], 422);
+        } catch (QueryException $e) {
+
+            return response()->json([
+                'message' => 'Hóa đơn tháng này đã tồn tại hoặc dữ liệu không hợp lệ.',
+            ], 422);
+        }
+
+        return response()->json([
+            'message'      => 'Đã phát hành hóa đơn thành công.',
+            'invoice_id'   => $invoice->id,
+            'total_amount' => $invoice->total_amount,
         ]);
     }
 
-    public function revenueChart()
+    /**
+     * Danh sách hóa đơn cần thanh toán
+     */
+    public function payments()
     {
-        $user = auth()->user();
+        $invoices = Invoice::with([
+            'contract.room',
+            'contract.tenant',
+        ])
+            ->whereIn('status', [
+                Invoice::STATUS_UNPAID,
+                Invoice::STATUS_PARTIAL,
+            ])
+            ->latest('invoice_date')
+            ->paginate(15);
 
-        if ($user->role_id !== 1) {
-            return redirect()->route('dashboard');
-        }
-
-        $currentYear = date('Y');
-        $monthlyRevenue = [];
-        for ($month = 1; $month <= 12; $month++) {
-            $monthlyRevenue[] = (float) Payment::where('status', 'success')
-                ->whereYear('payment_date', $currentYear)
-                ->whereMonth('payment_date', $month)
-                ->sum('amount_paid');
-        }
-
-        $yearLabels = [];
-        $yearlyRevenue = [];
-        for ($year = $currentYear - 4; $year <= $currentYear; $year++) {
-            $yearLabels[] = $year;
-            $yearlyRevenue[] = (float) Payment::where('status', 'success')
-                ->whereYear('payment_date', $year)
-                ->sum('amount_paid');
-        }
-
-        return view('admin.overview.revenue-chart', compact('monthlyRevenue', 'yearLabels', 'yearlyRevenue', 'currentYear'));
+        return view(
+            'admin.invoices.payments',
+            compact('invoices')
+        );
     }
 
-    public function revenueStats()
-    {
-        $user = auth()->user();
+    /**
+     * Ghi nhận thanh toán
+     */
+    public function storePayment(
+        Request $request,
+        Invoice $invoice
+    ) {
 
-        if ($user->role_id !== 1) {
-            return redirect()->route('dashboard');
-        }
+        $data = $request->validate([
+            'amount_paid'      => 'required|numeric|min:0.01',
+            'payment_date'     => 'required|date',
+            'payment_method'   => 'required|in:cash,bank_transfer,qr',
+            'transaction_code' => 'nullable|string|max:100',
+            'note'             => 'nullable|string',
+        ]);
 
-        $totalRevenue = Payment::where('status', 'success')->sum('amount_paid');
-        $todayRevenue = Payment::where('status', 'success')
-            ->whereDate('payment_date', date('Y-m-d'))
-            ->sum('amount_paid') ?? 0;
+        DB::transaction(function () use (
+            $invoice,
+            $data
+        ) {
 
-        $monthRevenue = Payment::where('status', 'success')
-            ->whereYear('payment_date', date('Y'))
-            ->whereMonth('payment_date', date('m'))
-            ->sum('amount_paid') ?? 0;
+            Payment::create([
 
-        $totalBilled = Invoice::sum('total_amount');
-        $totalReceivable = Invoice::get()->sum(function ($invoice) {
-            return $invoice->balance_amount;
+                'invoice_id' => $invoice->id,
+
+                'amount_paid' => $data['amount_paid'],
+
+                'payment_date' => $data['payment_date'],
+
+                'payment_method' => $data['payment_method'],
+
+                'transaction_code' => $data['transaction_code'] ?? null,
+
+                'status' => Payment::STATUS_SUCCESS,
+
+                'confirmed_by' => auth()->id(),
+
+                'note' => $data['note'] ?? null,
+            ]);
+
+            $paidAmount = $invoice->payments()
+                ->success()
+                ->sum('amount_paid');
+
+            if ($paidAmount >= $invoice->total_amount) {
+
+                $invoice->status = Invoice::STATUS_PAID;
+            } elseif ($paidAmount > 0) {
+
+                $invoice->status = Invoice::STATUS_PARTIAL;
+            } else {
+
+                $invoice->status = Invoice::STATUS_UNPAID;
+            }
+
+            $invoice->save();
         });
-        $collectionRate = $totalBilled > 0
-            ? round(($totalRevenue / $totalBilled) * 100, 1)
-            : 0;
 
-        return view('admin.overview.revenue-stats', compact('totalRevenue', 'todayRevenue', 'monthRevenue', 'totalBilled', 'totalReceivable', 'collectionRate'));
+        return redirect()
+            ->route(
+                'admin.invoices.show',
+                $invoice
+            )
+            ->with(
+                'success',
+                'Đã ghi nhận thanh toán thành công.'
+            );
+    }
+    /**
+     * In hóa đơn
+     */
+    public function print(Invoice $invoice)
+    {
+        $invoice->load([
+            'contract.room',
+            'contract.tenant',
+            'utilityReading',
+            'details',
+            'payments',
+        ]);
+
+        return view(
+            'admin.invoices.print',
+            compact('invoice')
+        );
     }
 
-    public function roomStats()
+    /**
+     * Form sửa hóa đơn
+     */
+    public function edit(Invoice $invoice)
     {
-        $user = auth()->user();
+        $invoice->load([
+            'contract.room',
+            'contract.tenant',
+            'utilityReading',
+            'details',
+        ]);
 
-        if ($user->role_id !== 1) {
-            return redirect()->route('dashboard');
+        return view(
+            'admin.invoices.edit',
+            compact('invoice')
+        );
+    }
+
+    /**
+     * Cập nhật hóa đơn
+     */
+    public function update(
+        Request $request,
+        Invoice $invoice
+    ) {
+
+        $data = $request->validate([
+
+            'status' => 'required|in:'
+                . Invoice::STATUS_UNPAID . ','
+                . Invoice::STATUS_PARTIAL . ','
+                . Invoice::STATUS_PAID,
+
+            'due_date' => 'nullable|date',
+        ]);
+
+        $invoice->update($data);
+
+        return redirect()
+            ->route(
+                'admin.invoices.show',
+                $invoice
+            )
+            ->with(
+                'success',
+                'Cập nhật hóa đơn thành công.'
+            );
+    }
+
+    /**
+     * Xóa hóa đơn
+     */
+    public function destroy(Invoice $invoice)
+    {
+        if (!$invoice->isUnpaid()) {
+
+            return redirect()
+                ->route('admin.invoices.index')
+                ->with(
+                    'error',
+                    'Chỉ được xóa hóa đơn chưa thanh toán.'
+                );
         }
 
-        $totalRooms = Room::count();
-        $occupiedRooms = Room::where('status', 'occupied')->count();
-        $availableRooms = Room::where('status', 'available')->count();
-        $maintenanceRooms = Room::where('status', 'maintenance')->count();
+        DB::transaction(function () use ($invoice) {
 
-        return view('admin.overview.room-stats', compact('totalRooms', 'occupiedRooms', 'availableRooms', 'maintenanceRooms'));
+            $invoice->details()->delete();
+
+            $invoice->payments()->delete();
+
+            $invoice->delete();
+        });
+
+        return redirect()
+            ->route('admin.invoices.index')
+            ->with(
+                'success',
+                'Đã xóa hóa đơn thành công.'
+            );
     }
-
     public function fillRate()
     {
         $user = auth()->user();
@@ -191,14 +545,36 @@ class OverviewController extends Controller
         }
 
         $totalRooms = Room::count();
-        $occupiedRooms = Room::where('status', 'occupied')->count();
-        $availableRooms = Room::where('status', 'available')->count();
-        $maintenanceRooms = Room::where('status', 'maintenance')->count();
 
-        $occupiedPercent = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
-        $availablePercent = $totalRooms > 0 ? round(($availableRooms / $totalRooms) * 100, 1) : 0;
-        $maintenancePercent = $totalRooms > 0 ? round(($maintenanceRooms / $totalRooms) * 100, 1) : 0;
+        $occupiedRooms = Room::occupied()->count();
 
-        return view('admin.overview.fill-rate', compact('occupiedPercent', 'availablePercent', 'maintenancePercent', 'totalRooms', 'occupiedRooms', 'availableRooms', 'maintenanceRooms'));
+        $availableRooms = Room::available()->count();
+
+        $maintenanceRooms = Room::maintenance()->count();
+
+        $occupiedPercent = $totalRooms > 0
+            ? round(($occupiedRooms / $totalRooms) * 100, 1)
+            : 0;
+
+        $availablePercent = $totalRooms > 0
+            ? round(($availableRooms / $totalRooms) * 100, 1)
+            : 0;
+
+        $maintenancePercent = $totalRooms > 0
+            ? round(($maintenanceRooms / $totalRooms) * 100, 1)
+            : 0;
+
+        return view(
+            'admin.overview.fill-rate',
+            compact(
+                'occupiedPercent',
+                'availablePercent',
+                'maintenancePercent',
+                'totalRooms',
+                'occupiedRooms',
+                'availableRooms',
+                'maintenanceRooms'
+            )
+        );
     }
 }

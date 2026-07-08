@@ -43,7 +43,7 @@ class ContractSeeder extends Seeder
                     'number_of_people' => 2,
 
                     'signed_at' => '2025-12-25',
-                    'start_date' => '2026-01-01',
+                    'start_date' => '2026-06-01',
                     'end_date' => '2026-12-31',
 
                     'status' => 'active',
@@ -59,8 +59,8 @@ class ContractSeeder extends Seeder
                     'number_of_people' => 3,
 
                     'signed_at' => '2025-01-25',
-                    'start_date' => '2025-02-01',
-                    'end_date' => '2026-01-31',
+                    'start_date' => '2026-04-01',
+                    'end_date' => '2027-03-31',
 
                     'status' => 'active',
                 ],

@@ -6,61 +6,115 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('invoices', function (Blueprint $table) {
 
             $table->id();
 
+            /*
+            |--------------------------------------------------------------------------
+            | Quan hệ
+            |--------------------------------------------------------------------------
+            */
+
             $table->foreignId('contract_id')
                 ->constrained()
-                ->cascadeOnUpdate();
+                ->cascadeOnUpdate()
+                ->cascadeOnDelete();
+
+            $table->foreignId('room_id')
+                ->constrained()
+                ->cascadeOnUpdate()
+                ->cascadeOnDelete();
 
             $table->foreignId('utility_reading_id')
                 ->nullable()
-                ->constrained('utility_readings')
+                ->constrained()
                 ->nullOnDelete();
 
-            $table->integer('month');
+            /*
+            |--------------------------------------------------------------------------
+            | Thông tin hóa đơn
+            |--------------------------------------------------------------------------
+            */
 
-            $table->integer('year');
+            // Mã hóa đơn
+            $table->string('invoice_code')->unique();
+
+            // Loại hóa đơn
+            $table->enum('type', [
+                'room',
+                'utility',
+            ])->default('room');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Kỳ hóa đơn
+            |--------------------------------------------------------------------------
+            */
+
+            $table->unsignedTinyInteger('month');
+
+            $table->unsignedSmallInteger('year');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Ngày lập
+            |--------------------------------------------------------------------------
+            */
 
             $table->date('invoice_date');
 
             $table->date('due_date');
 
-            $table->decimal('room_fee', 12, 2);
+            /*
+            |--------------------------------------------------------------------------
+            | Các khoản phí
+            |--------------------------------------------------------------------------
+            */
 
-            $table->decimal('electricity_fee', 12, 2)
-                ->default(0);
+            $table->decimal('room_fee', 12, 2)->default(0);
 
-            $table->decimal('water_fee', 12, 2)
-                ->default(0);
+            $table->decimal('electricity_fee', 12, 2)->default(0);
 
-            $table->decimal('internet_fee', 12, 2)
-                ->default(0);
+            $table->decimal('water_fee', 12, 2)->default(0);
 
-            $table->decimal('service_fee', 12, 2)
-                ->default(0);
+            $table->decimal('internet_fee', 12, 2)->default(0);
 
-            $table->decimal('total_amount', 12, 2);
+            $table->decimal('service_fee', 12, 2)->default(0);
+
+            $table->decimal('total_amount', 12, 2)->default(0);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Trạng thái
+            |--------------------------------------------------------------------------
+            */
 
             $table->enum('status', [
                 'unpaid',
                 'partial',
-                'paid'
+                'paid',
             ])->default('unpaid');
 
             $table->timestamps();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Constraint
+            |--------------------------------------------------------------------------
+            */
+
+            // Một phòng chỉ có một hóa đơn trong một tháng
+            $table->unique([
+                'room_id',
+                'month',
+                'year',
+            ]);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('invoices');

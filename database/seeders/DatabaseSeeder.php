@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             TenantSeeder::class,
 
             ContractSeeder::class,
+            UtilityReadingSeeder::class,
         ]);
     }
 }

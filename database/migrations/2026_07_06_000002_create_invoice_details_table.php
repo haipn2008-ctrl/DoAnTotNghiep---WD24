@@ -6,12 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('utility_readings', function (Blueprint $table) {
+        Schema::create('invoice_details', function (Blueprint $table) {
 
             $table->id();
 
@@ -21,74 +18,88 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
-            $table->foreignId('contract_id')
+            $table->foreignId('invoice_id')
                 ->constrained()
-                ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->foreignId('room_id')
+            $table->foreignId('utility_reading_id')
+                ->nullable()
                 ->constrained()
-                ->cascadeOnUpdate()
-                ->cascadeOnDelete();
+                ->nullOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Kỳ ghi điện nước
+            | Loại chi phí
             |--------------------------------------------------------------------------
             */
 
-            $table->unsignedTinyInteger('month');
-
-            $table->unsignedSmallInteger('year');
-
-            $table->date('record_date');
+            $table->enum('type', [
+                'room',
+                'electricity',
+                'water',
+                'internet',
+                'service',
+                'parking',
+                'discount',
+                'penalty',
+                'other',
+            ]);
 
             /*
             |--------------------------------------------------------------------------
-            | Chỉ số điện
+            | Tên khoản thu
             |--------------------------------------------------------------------------
             */
 
-            $table->integer('electric_old')
-                ->default(0);
+            $table->string('name');
 
-            $table->integer('electric_new')
-                ->default(0);
+            /*
+            |--------------------------------------------------------------------------
+            | Số lượng
+            |--------------------------------------------------------------------------
+            */
 
-            $table->decimal('electric_unit_price', 12, 2)
-                ->default(0);
+            $table->decimal('quantity', 12, 2)
+                ->default(1);
 
-            $table->string('electricity_image')
+            /*
+            |--------------------------------------------------------------------------
+            | Đơn vị
+            |--------------------------------------------------------------------------
+            */
+
+            $table->string('unit', 30)
                 ->nullable();
 
             /*
             |--------------------------------------------------------------------------
-            | Chỉ số nước
+            | Đơn giá
             |--------------------------------------------------------------------------
             */
 
-            $table->integer('water_old')
+            $table->decimal('unit_price', 12, 2)
                 ->default(0);
-
-            $table->integer('water_new')
-                ->default(0);
-
-            $table->decimal('water_unit_price', 12, 2)
-                ->default(0);
-
-            $table->string('water_image')
-                ->nullable();
 
             /*
             |--------------------------------------------------------------------------
-            | Trạng thái
+            | Thành tiền
             |--------------------------------------------------------------------------
             */
 
-            $table->enum('status', [
-                'draft',
-                'confirmed'
-            ])->default('draft');
+            $table->decimal('amount', 12, 2)
+                ->default(0);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Chỉ số điện nước
+            |--------------------------------------------------------------------------
+            */
+
+            $table->integer('old_index')
+                ->nullable();
+
+            $table->integer('new_index')
+                ->nullable();
 
             /*
             |--------------------------------------------------------------------------
@@ -101,14 +112,12 @@ return new class extends Migration
 
             /*
             |--------------------------------------------------------------------------
-            | Người nhập
+            | Thứ tự hiển thị
             |--------------------------------------------------------------------------
             */
 
-            $table->foreignId('recorded_by')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
+            $table->unsignedInteger('sort_order')
+                ->default(0);
 
             $table->timestamps();
 
@@ -118,29 +127,13 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
-            $table->index(['room_id', 'month', 'year']);
-            $table->index(['contract_id', 'month', 'year']);
-            $table->index('status');
-
-            /*
-            |--------------------------------------------------------------------------
-            | Mỗi phòng chỉ có 1 lần chốt điện nước / tháng
-            |--------------------------------------------------------------------------
-            */
-
-            $table->unique([
-                'room_id',
-                'month',
-                'year'
-            ]);
+            $table->index('type');
+            $table->index('sort_order');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('utility_readings');
+        Schema::dropIfExists('invoice_details');
     }
 };

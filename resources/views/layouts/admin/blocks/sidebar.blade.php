@@ -52,7 +52,7 @@
                         <i data-feather="file-text"></i>
                         <span>Hợp đồng</span>
                     </a>
-                     <ul aria-expanded="false" class="sub-menu">
+                    <ul aria-expanded="false" class="sub-menu">
                         <li>
                             <a href="{{ route('admin.contracts.create') }}">
                                 Tạo hợp đồng thuê
@@ -96,7 +96,10 @@
                         <li><a href="{{ route('admin.invoices.generate') }}">Sinh hóa đơn</a></li>
                         <li><a href="{{ route('admin.invoices.index') }}">Danh sách hóa đơn</a></li>
                         <li><a href="{{ route('admin.invoices.payments') }}">Ghi nhận thanh toán</a></li>
-                        <li><a href="{{ route('admin.invoices.index', ['status' => 'unpaid']) }}">Theo dõi công nợ</a></li>
+                        <li><a href="{{ route('admin.invoices.index', ['status' => 'unpaid']) }}">Theo dõi công nợ</a>
+                        </li>
+                        <li><a href="#">Thanh toán hóa đơn</a></li>
+                        <li><a href="#">Theo dõi công nợ</a></li>
                     </ul>
                 </li>
 
@@ -121,10 +124,14 @@
                     <ul aria-expanded="false" class="sub-menu">
                         <li><a href="{{ route('admin.users.index') }}">Quản lý tài khoản Admin/User</a></li>
                         <li><a href="{{ route('admin.roles') }}">Phân quyền</a></li>
-                        <li><a href="{{ route('admin.settings.edit', ['type' => 'electricity']) }}">Cập nhật đơn giá điện</a></li>
-                        <li><a href="{{ route('admin.settings.edit', ['type' => 'water']) }}">Cập nhật đơn giá nước</a></li>
-                        <li><a href="{{ route('admin.settings.edit', ['type' => 'internet']) }}">Cập nhật đơn giá internet</a></li>
-                        <li><a href="{{ route('admin.settings.edit', ['type' => 'service']) }}">Cập nhật đơn giá dịch vụ</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'electricity']) }}">Cập nhật đơn giá
+                                điện</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'water']) }}">Cập nhật đơn giá nước</a>
+                        </li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'internet']) }}">Cập nhật đơn giá
+                                internet</a></li>
+                        <li><a href="{{ route('admin.settings.edit', ['type' => 'service']) }}">Cập nhật đơn giá dịch
+                                vụ</a></li>
                     </ul>
                 </li>
             </ul>
