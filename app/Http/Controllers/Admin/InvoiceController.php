@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Services\InvoiceGenerator;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -69,7 +70,6 @@ class InvoiceController extends Controller
 
                     $room->where('room_code', 'like', "%{$keyword}%");
                 })
-
                     ->orWhereHas('contract', function ($contract) use ($keyword) {
 
                         $contract->where('contract_code', 'like', "%{$keyword}%")
@@ -208,10 +208,10 @@ class InvoiceController extends Controller
                 '>=',
                 $periodStart
             )
-            ->orderBy('room_id')
+            ->orderBy('id')
             ->get();
 
-        $issuedRoomIds = Invoice::where(
+        $issuedContractIds = Invoice::where(
             'month',
             $month
         )
@@ -219,7 +219,7 @@ class InvoiceController extends Controller
                 'year',
                 $year
             )
-            ->pluck('room_id')
+            ->pluck('contract_id')
             ->toArray();
 
         return view(
@@ -229,7 +229,7 @@ class InvoiceController extends Controller
                 'month',
                 'year',
                 'years',
-                'issuedRoomIds'
+                'issuedContractIds'
             )
         );
     }
@@ -406,7 +406,7 @@ class InvoiceController extends Controller
         if ($request->filled('method')) {
             $query->where(
                 'payment_method',
-                $request->method
+                $request->input('method')
             );
         }
 

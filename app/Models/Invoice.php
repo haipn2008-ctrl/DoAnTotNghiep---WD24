@@ -28,8 +28,6 @@ class Invoice extends Model
 
         'contract_id',
 
-        'room_id',
-
         'utility_reading_id',
 
         'month',
@@ -106,7 +104,7 @@ class Invoice extends Model
     public function details()
     {
         return $this->hasMany(InvoiceDetail::class)
-            ->orderBy('sort_order');
+            ->orderBy('id');
     }
 
     public function payments()
@@ -196,6 +194,14 @@ class Invoice extends Model
     public function isUnpaid()
     {
         return $this->status === self::STATUS_UNPAID;
+    }
+
+    /**
+     * Hóa đơn có thể nhận thêm thanh toán không
+     */
+    public function canPay(): bool
+    {
+        return $this->status !== self::STATUS_PAID;
     }
 
     public function isOverdue()

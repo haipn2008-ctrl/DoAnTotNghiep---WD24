@@ -58,7 +58,7 @@ class InvoiceGenerator
         */
 
         if (
-            Invoice::where('room_id', $contract->room_id)
+            Invoice::where('contract_id', $contract->id)
                 ->where('month', $month)
                 ->where('year', $year)
                 ->exists()
@@ -184,11 +184,14 @@ class InvoiceGenerator
 
                 'sort_order' => 3,
             ],
-                    /*
-        |--------------------------------------------------------------------------
-        | Internet
-        |--------------------------------------------------------------------------
-        */
+
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Internet
+    |--------------------------------------------------------------------------
+    */
 
         if (($setting->internet_fee ?? 0) > 0) {
 
@@ -384,8 +387,6 @@ class InvoiceGenerator
 
                 'contract_id' => $preview['contract']->id,
 
-                'room_id' => $preview['room']->id,
-
                 'utility_reading_id' => $preview['reading']->id,
 
                 'month' => $month,
@@ -419,7 +420,10 @@ class InvoiceGenerator
 
             foreach ($preview['details'] as $detail) {
 
-                $invoice->details()->create($detail);
+                $invoice->details()->create([
+                    'item_name' => $detail['name'],
+                    'amount'    => $detail['amount'],
+                ]);
             }
 
             /*

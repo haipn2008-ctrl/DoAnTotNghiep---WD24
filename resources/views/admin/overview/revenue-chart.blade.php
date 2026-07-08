@@ -63,7 +63,7 @@
         <script>
             var options = {
                 chart: {
-                    type: 'column',
+                    type: 'bar',
                     height: 350,
                     toolbar: {
                         show: true
@@ -71,7 +71,7 @@
                 },
                 colors: ['#5156be'],
                 plotOptions: {
-                    column: {
+                    bar: {
                         columnWidth: '60%'
                     }
                 },

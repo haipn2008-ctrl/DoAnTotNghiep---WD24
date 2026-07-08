@@ -135,8 +135,8 @@
                                 @php
 
                                     $issued = in_array(
-                                        $contract->room_id,
-                                        $issuedRoomIds
+                                        $contract->id,
+                                        $issuedContractIds
                                     );
 
                                 @endphp

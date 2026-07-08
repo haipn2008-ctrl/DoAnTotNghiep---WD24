@@ -177,7 +177,9 @@
 
                                         @if($invoice->canPay())
 
-                                            <a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-warning btn-sm">
+                                            <a href="{{ route('admin.invoices.show', $invoice) }}#payment-form"
+                                               class="btn btn-warning btn-sm"
+                                               title="Ghi nhận thanh toán">
 
                                                 <i class="mdi mdi-cash"></i>
 

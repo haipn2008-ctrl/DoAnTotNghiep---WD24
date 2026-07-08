@@ -28,41 +28,12 @@ class InvoiceDetail extends Model
      * Các trường được phép gán dữ liệu.
      */
     protected $fillable = [
-
         'invoice_id',
-
-        'utility_reading_id',
-
-        'type',
-
-        'name',
-
-        'quantity',
-
-        'unit',
-
-        'unit_price',
-
+        'item_name',
         'amount',
-
-        'old_index',
-
-        'new_index',
-
-        'note',
-
-        'sort_order',
     ];
 
-    /**
-     * Ép kiểu dữ liệu.
-     */
     protected $casts = [
-
-        'quantity' => 'decimal:2',
-
-        'unit_price' => 'decimal:2',
-
         'amount' => 'decimal:2',
     ];
 

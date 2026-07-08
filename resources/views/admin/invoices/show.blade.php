@@ -94,22 +94,6 @@
 
                                     <th>Khoản thu</th>
 
-                                    <th class="text-center">
-                                        Chỉ số cũ
-                                    </th>
-
-                                    <th class="text-center">
-                                        Chỉ số mới
-                                    </th>
-
-                                    <th class="text-center">
-                                        Số lượng
-                                    </th>
-
-                                    <th class="text-end">
-                                        Đơn giá
-                                    </th>
-
                                     <th class="text-end">
                                         Thành tiền
                                     </th>
@@ -125,61 +109,12 @@
                                     <tr>
 
                                         <td>
-
-                                            <strong>
-
-                                                {{ $detail->name }}
-
-                                            </strong>
-
-                                            @if($detail->note)
-
-                                                <br>
-
-                                                <small class="text-muted">
-
-                                                    {{ $detail->note }}
-
-                                                </small>
-
-                                            @endif
-
-                                        </td>
-
-                                        <td class="text-center">
-
-                                            {{ $detail->old_index ?? '-' }}
-
-                                        </td>
-
-                                        <td class="text-center">
-
-                                            {{ $detail->new_index ?? '-' }}
-
-                                        </td>
-
-                                        <td class="text-center">
-
-                                            {{ number_format($detail->quantity,2) }}
-
-                                            {{ $detail->unit }}
-
-                                        </td>
-
-                                        <td class="text-end">
-
-                                            {{ number_format($detail->unit_price,0,',','.') }}
-
-                                            VNĐ
-
+                                            <strong>{{ $detail->item_name }}</strong>
                                         </td>
 
                                         <td class="text-end fw-bold">
-
-                                            {{ number_format($detail->amount,0,',','.') }}
-
+                                            {{ number_format($detail->amount, 0, ',', '.') }}
                                             VNĐ
-
                                         </td>
 
                                     </tr>
@@ -192,8 +127,7 @@
 
                                 <tr>
 
-                                    <th colspan="5"
-                                        class="text-end">
+                                    <th class="text-end">
 
                                         Tổng cộng
 
@@ -378,7 +312,7 @@
 
         </div>
 
-        <div class="col-lg-4">
+        <div class="col-lg-4" id="payment-form">
 
             <div class="card">
 

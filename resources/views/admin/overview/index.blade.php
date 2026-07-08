@@ -244,12 +244,12 @@
                     data: @json($monthlyRevenueCurrentYear)
                 }],
                 chart: {
-                    type: 'column',
+                    type: 'bar',
                     height: 350,
                     toolbar: { show: false }
                 },
                 plotOptions: {
-                    column: {
+                    bar: {
                         dataLabels: { enabled: false },
                         columnWidth: '70%'
                     }
