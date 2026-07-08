@@ -11,82 +11,99 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('utility_readings', function (Blueprint $table) {
+        Schema::create('invoice_details', function (Blueprint $table) {
 
             $table->id();
 
             /*
             |--------------------------------------------------------------------------
-            | Hợp đồng & Phòng
+            | Hóa đơn
             |--------------------------------------------------------------------------
             */
 
-            $table->foreignId('contract_id')
+            $table->foreignId('invoice_id')
                 ->constrained()
-                ->cascadeOnUpdate()
-                ->cascadeOnDelete();
-
-            $table->foreignId('room_id')
-                ->constrained()
-                ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Kỳ ghi điện nước
+            | Liên kết tới kỳ ghi điện nước (nếu có)
             |--------------------------------------------------------------------------
             */
 
-            $table->unsignedTinyInteger('month');
-
-            $table->unsignedSmallInteger('year');
-
-            $table->date('record_date');
+            $table->foreignId('utility_reading_id')
+                ->nullable()
+                ->constrained()
+                ->nullOnDelete();
 
             /*
             |--------------------------------------------------------------------------
-            | Điện
+            | Loại chi phí
             |--------------------------------------------------------------------------
             */
 
-            $table->integer('electric_old')
-                ->default(0);
+            $table->enum('type', [
+                'room',
+                'electric',
+                'water',
+                'internet',
+                'service',
+                'other'
+            ]);
 
-            $table->integer('electric_new');
+            /*
+            |--------------------------------------------------------------------------
+            | Tên hiển thị
+            |--------------------------------------------------------------------------
+            */
 
-            $table->decimal('electric_unit_price', 12, 2);
+            $table->string('name');
 
-            // Ảnh công tơ điện
-            $table->string('electricity_image')
+            /*
+            |--------------------------------------------------------------------------
+            | Số lượng
+            |--------------------------------------------------------------------------
+            */
+
+            $table->decimal('quantity', 12, 2)
+                ->default(1);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Đơn vị
+            |--------------------------------------------------------------------------
+            */
+
+            $table->string('unit', 30)
                 ->nullable();
 
             /*
             |--------------------------------------------------------------------------
-            | Nước
+            | Đơn giá
             |--------------------------------------------------------------------------
             */
 
-            $table->integer('water_old')
-                ->default(0);
-
-            $table->integer('water_new');
-
-            $table->decimal('water_unit_price', 12, 2);
-
-            // Ảnh công tơ nước
-            $table->string('water_image')
-                ->nullable();
+            $table->decimal('unit_price', 12, 2);
 
             /*
             |--------------------------------------------------------------------------
-            | Trạng thái
+            | Thành tiền
             |--------------------------------------------------------------------------
             */
 
-            $table->enum('status', [
-                'draft',
-                'confirmed'
-            ])->default('draft');
+            $table->decimal('amount', 12, 2);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Chỉ số cũ / mới (điện nước)
+            |--------------------------------------------------------------------------
+            */
+
+            $table->integer('old_index')
+                ->nullable();
+
+            $table->integer('new_index')
+                ->nullable();
 
             /*
             |--------------------------------------------------------------------------
@@ -99,29 +116,14 @@ return new class extends Migration
 
             /*
             |--------------------------------------------------------------------------
-            | Người nhập
+            | Thứ tự hiển thị khi in hóa đơn
             |--------------------------------------------------------------------------
             */
 
-            $table->foreignId('recorded_by')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
+            $table->unsignedInteger('sort_order')
+                ->default(0);
 
             $table->timestamps();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Ràng buộc
-            |--------------------------------------------------------------------------
-            | Một hợp đồng chỉ có một bản ghi điện nước trong một tháng.
-            */
-
-            $table->unique([
-                'contract_id',
-                'month',
-                'year'
-            ]);
         });
     }
 
@@ -130,6 +132,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('utility_readings');
+        Schema::dropIfExists('invoice_details');
     }
 };
