@@ -12,7 +12,11 @@ use App\Http\Controllers\Admin\ContractController;
 //Client routes
 use App\Http\Controllers\Client\ContractController as ClientContractController;
 
+use App\Models\Contract;
+use App\Models\Invoice;
 use App\Models\Role;
+use App\Models\Room;
+use App\Models\Tenant;
 use Illuminate\Support\Facades\Route;
 
 // Tự động chuyển hướng về trang dashboard để kiểm tra đăng nhập
@@ -152,19 +156,74 @@ Route::middleware('auth')->group(function () {
                 return redirect()->route('dashboard');
             }
 
-            return view('layouts.admin.home');
+            $currentMonth = now()->month;
+            $currentYear = now()->year;
+
+            $stats = [
+                'total_rooms' => Room::count(),
+                'available_rooms' => Room::where('status', 'available')->count(),
+                'occupied_rooms' => Room::where('status', 'occupied')->count(),
+                'maintenance_rooms' => Room::where('status', 'maintenance')->count(),
+                'total_tenants' => Tenant::count(),
+                'active_contracts' => Contract::where('status', 'active')->count(),
+                'unpaid_invoices' => Invoice::whereIn('status', ['unpaid', 'partial'])->count(),
+                'monthly_revenue' => Invoice::where('status', 'paid')
+                    ->where('month', $currentMonth)
+                    ->where('year', $currentYear)
+                    ->sum('total_amount'),
+            ];
+
+            $recentInvoices = Invoice::with(['room', 'contract.tenant'])
+                ->latest()
+                ->take(5)
+                ->get();
+
+            $recentContracts = Contract::with(['room', 'tenant'])
+                ->latest()
+                ->take(5)
+                ->get();
+
+            return view('layouts.admin.home', compact('stats', 'recentInvoices', 'recentContracts'));
         })->name('home');
     });
 
     // Nhóm route dành cho Client (Người dùng thường)
     Route::get('/client', function () {
-        $user = auth()->user();
+        $user = auth()->user()->load([
+            'tenant.contracts.room',
+            'tenant.contracts.invoices.room',
+        ]);
 
         if ($user->role_id !== 2) {
             return redirect()->route('dashboard');
         }
 
-        return view('layouts.client.home');
+        $tenant = $user->tenant;
+        $activeContract = $tenant?->contracts
+            ->where('status', 'active')
+            ->sortByDesc('start_date')
+            ->first();
+
+        $invoices = $tenant
+            ? Invoice::with(['room', 'contract'])
+                ->whereHas('contract', function ($query) use ($tenant) {
+                    $query->where('tenant_id', $tenant->id);
+                })
+                ->latest()
+                ->get()
+            : collect();
+
+        $recentInvoice = $invoices->first();
+        $openInvoices = $invoices->whereIn('status', ['unpaid', 'partial']);
+        $supportRequests = 0;
+
+        return view('layouts.client.home', compact(
+            'tenant',
+            'activeContract',
+            'recentInvoice',
+            'openInvoices',
+            'supportRequests'
+        ));
     })->name('client.home');
 
     // Route::prefix('client')

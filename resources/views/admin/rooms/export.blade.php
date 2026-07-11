@@ -1,95 +1,95 @@
-@extends('layouts.admin.home')
+@extends('layouts.admin.index')
+
+@section('title', 'Xuất danh sách phòng | Quản lý phòng trọ')
+@section('page_title', 'Xuất danh sách phòng')
+
+@php
+    $statusOptions = [
+        'available' => ['label' => 'Trống', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'occupied' => ['label' => 'Đang thuê', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
+        'maintenance' => ['label' => 'Bảo trì', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
+    ];
+@endphp
 
 @section('content')
-    <div class="container-fluid mt-4">
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                    <h4 class="mb-sm-0 font-size-18">Xuất danh sách phòng</h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('admin.rooms.index') }}">Phòng</a></li>
-                            <li class="breadcrumb-item active">Xuất danh sách phòng</li>
-                        </ol>
-                    </div>
-                </div>
+    <div class="space-y-6">
+        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+            <div>
+                <p class="text-sm font-medium text-slate-500">Báo cáo phòng</p>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Xuất danh sách phòng</h2>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('admin.rooms.export.download', request()->only(['room_code', 'status'])) }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
+                    <i class="bx bx-download text-lg"></i>
+                    Tải CSV
+                </a>
+                <a href="{{ route('admin.rooms.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    <i class="bx bx-arrow-back text-lg"></i>
+                    Danh sách phòng
+                </a>
             </div>
         </div>
 
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body bg-light">
-                <div class="row">
-                    <div class="col-md-8 align-self-center">
-                        <p class="mb-0">
-                            Trang xuất danh sách phòng chỉ dùng để tải file CSV toàn bộ phòng hiện tại.
-                        </p>
-                    </div>
-                    <div class="col-md-4 d-flex justify-content-end gap-2">
-                        <a href="{{ route('admin.rooms.export.download') }}" class="btn btn-success px-4 py-2">
-                            <i class="fas fa-file-csv me-1"></i> Xuất file CSV
-                        </a>
-                        <a href="{{ route('admin.rooms.index') }}" class="btn btn-outline-secondary px-4 py-2">
-                            Quay lại danh sách phòng
-                        </a>
-                    </div>
+        <section class="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+            <div class="flex gap-3">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-600 ring-1 ring-emerald-200">
+                    <i class="bx bx-file text-xl"></i>
+                </span>
+                <div>
+                    <h3 class="font-semibold text-emerald-950">File CSV danh sách phòng</h3>
+                    <p class="mt-1 text-sm leading-6 text-emerald-800">
+                        File tải xuống gồm mã phòng, tầng, giá thuê, diện tích, số người, trạng thái và tiện ích.
+                    </p>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div class="row">
-            <div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead class="text-white" style="background-color:#4e73df;">
-                                    <tr>
-                                        <th>STT</th>
-                                        <th>Mã phòng</th>
-                                        <th>Tầng</th>
-                                        <th>Giá thuê</th>
-                                        <th>Diện tích</th>
-                                        <th>Số người</th>
-                                        <th>Trạng thái</th>
-                                        <th>Tiện ích</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse($rooms as $room)
-                                        <tr>
-                                            <td>{{ $loop->iteration }}</td>
-                                            <td>{{ $room->room_code }}</td>
-                                            <td>{{ $room->floor }}</td>
-                                            <td>{{ number_format($room->price) }} VNĐ</td>
-                                            <td>{{ $room->area }} m²</td>
-                                            <td>{{ $room->current_people }} người</td>
-                                            <td>
-                                                @if($room->status == 'available')
-                                                    <span class="badge bg-success">Trống</span>
-                                                @elseif($room->status == 'occupied')
-                                                    <span class="badge bg-danger">Đang thuê</span>
-                                                @else
-                                                    <span class="badge bg-warning text-dark">Bảo trì</span>
-                                                @endif
-                                            </td>
-                                            <td>{{ $room->amenities->pluck('name')->join(', ') }}</td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="8" class="text-center py-4">Không có phòng để xuất</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h3 class="font-semibold text-slate-950">Dữ liệu xem trước</h3>
+                <p class="text-sm text-slate-500">Hiển thị {{ $rooms->count() }} phòng trên trang này.</p>
             </div>
-        </div>
 
-        <div class="mt-4 d-flex justify-content-end">
-            {{ $rooms->links() }}
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                        <tr>
+                            <th class="px-5 py-3">Mã phòng</th>
+                            <th class="px-5 py-3">Tầng</th>
+                            <th class="px-5 py-3">Giá thuê</th>
+                            <th class="px-5 py-3">Diện tích</th>
+                            <th class="px-5 py-3">Số người</th>
+                            <th class="px-5 py-3">Trạng thái</th>
+                            <th class="px-5 py-3">Tiện ích</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @forelse ($rooms as $room)
+                            @php($status = $statusOptions[$room->status] ?? ['label' => ucfirst($room->status), 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                            <tr class="hover:bg-slate-50/70">
+                                <td class="px-5 py-4 font-semibold text-slate-950">{{ $room->room_code }}</td>
+                                <td class="px-5 py-4 text-slate-600">Tầng {{ $room->floor }}</td>
+                                <td class="px-5 py-4 font-semibold text-slate-950">{{ number_format($room->price, 0, ',', '.') }}đ</td>
+                                <td class="px-5 py-4 text-slate-600">{{ $room->area }} m²</td>
+                                <td class="px-5 py-4 text-slate-600">{{ $room->current_people }}/{{ $room->max_people ?? 4 }} người</td>
+                                <td class="px-5 py-4">
+                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span>
+                                </td>
+                                <td class="px-5 py-4 text-slate-600">{{ $room->amenities->pluck('name')->join(', ') ?: 'Không có' }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="px-5 py-10 text-center text-slate-500">Không có phòng để xuất.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="flex justify-end">
+            {{ $rooms->withQueryString()->links() }}
         </div>
     </div>
 @endsection

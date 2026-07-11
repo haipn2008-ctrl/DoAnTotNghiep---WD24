@@ -10,30 +10,9 @@ use Illuminate\Http\Request;
 
 class RoomController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
-        $query = Room::with('amenities');
-
-        if ($request->room_code) {
-            $query->where(
-                'room_code',
-                'like',
-                '%' . $request->room_code . '%'
-            );
-        }
-
-        if ($request->status) {
-            $query->where(
-                'status',
-                $request->status
-            );
-        }
-
-        $rooms = $query
-            ->latest()
+        $rooms = $this->roomQuery($request)
             ->paginate(10);
 
         return view(
@@ -42,19 +21,17 @@ class RoomController extends Controller
         );
     }
 
-    public function exportForm()
+    public function exportForm(Request $request)
     {
-        $rooms = Room::with('amenities')
-            ->latest()
+        $rooms = $this->roomQuery($request)
             ->paginate(10);
 
         return view('admin.rooms.export', compact('rooms'));
     }
 
-    public function export()
+    public function export(Request $request)
     {
-        $rooms = Room::with('amenities')
-            ->latest()
+        $rooms = $this->roomQuery($request)
             ->get();
 
         $filename = 'danh_sach_phong_' . now()->format('Ymd_His') . '.csv';
@@ -109,9 +86,6 @@ class RoomController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         $amenities = Amenity::all();
@@ -122,20 +96,17 @@ class RoomController extends Controller
         );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(RoomRequest $request)
     {
-
         $data = $request->validated();
 
         if ($request->hasFile('image')) {
-
             $data['thumbnail'] = $request
                 ->file('image')
                 ->store('rooms', 'public');
         }
+
+        unset($data['image']);
 
         $room = Room::create($data);
 
@@ -145,14 +116,9 @@ class RoomController extends Controller
 
         return redirect()
             ->route('admin.rooms.index')
-            ->with(
-                'success',
-                'Thêm phòng thành công'
-            );
+            ->with('success', 'Thêm phòng thành công');
     }
-    /**
-     * Display the specified resource.
-     */
+
     public function show(Room $room)
     {
         $room->load('amenities');
@@ -163,9 +129,6 @@ class RoomController extends Controller
         );
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Room $room)
     {
         $room->load('amenities');
@@ -174,21 +137,23 @@ class RoomController extends Controller
 
         return view(
             'admin.rooms.edit',
-            compact(
-                'room',
-                'amenities'
-            )
+            compact('room', 'amenities')
         );
     }
 
-    public function update(
-        RoomRequest $request,
-        Room $room
-    ) {
+    public function update(RoomRequest $request, Room $room)
+    {
+        $data = $request->validated();
 
-        $room->update(
-            $request->validated()
-        );
+        if ($request->hasFile('image')) {
+            $data['thumbnail'] = $request
+                ->file('image')
+                ->store('rooms', 'public');
+        }
+
+        unset($data['image']);
+
+        $room->update($data);
 
         $room->amenities()->sync(
             $request->amenities ?? []
@@ -196,10 +161,7 @@ class RoomController extends Controller
 
         return redirect()
             ->route('admin.rooms.index')
-            ->with(
-                'success',
-                'Cập nhật phòng thành công'
-            );
+            ->with('success', 'Cập nhật phòng thành công');
     }
 
     public function destroy(Room $room)
@@ -209,22 +171,37 @@ class RoomController extends Controller
             ->exists();
 
         if ($hasActiveContract) {
-
             return redirect()
                 ->route('admin.rooms.index')
-                ->with(
-                    'error',
-                    'Không thể xóa phòng đang có người thuê'
-                );
+                ->with('error', 'Không thể xóa phòng đang có người thuê');
         }
 
         $room->delete();
 
         return redirect()
             ->route('admin.rooms.index')
-            ->with(
-                'success',
-                'Xóa phòng thành công'
+            ->with('success', 'Xóa phòng thành công');
+    }
+
+    private function roomQuery(Request $request)
+    {
+        $query = Room::with('amenities');
+
+        if ($request->room_code) {
+            $query->where(
+                'room_code',
+                'like',
+                '%' . $request->room_code . '%'
             );
+        }
+
+        if ($request->status) {
+            $query->where(
+                'status',
+                $request->status
+            );
+        }
+
+        return $query->latest();
     }
 }

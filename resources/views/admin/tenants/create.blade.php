@@ -1,199 +1,22 @@
-@extends('layouts.admin.home')
+@extends('layouts.admin.index')
+
+@section('title', 'Thêm khách thuê | Quản lý phòng trọ')
+@section('page_title', 'Thêm khách thuê')
 
 @section('content')
-
-    <div class="container mt-4">
-        <div class="card border-0 shadow-sm custom-card">
-            <div class="card-header text-white" style="background-color: #4e73df;">
-                <h5 class="mb-0 text-white fw-bold">
-                    Thêm khách thuê mới
-                </h5>
+    <div class="space-y-6">
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+                <p class="text-sm font-medium text-slate-500">Quản lý khách thuê</p>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Thêm khách thuê</h2>
             </div>
 
-            <div class="card-body p-4">
-                <form action="{{ route('admin.tenants.store') }}" method="POST">
-                    @csrf
-
-                    <div class="row">
-                        <div class="mb-3">
-                            <label class="form-label fw-bold text-secondary">
-                                Tài khoản đăng nhập
-                            </label>
-
-                            <select name="user_id" class="form-select">
-
-                                <option value="">
-                                    -- Chọn tài khoản --
-                                </option>
-
-                                @foreach($users as $user)
-
-                                    <option value="{{ $user->id }}" {{ old('user_id') == $user->id ? 'selected' : '' }}>
-                                        {{ $user->name }}
-                                        ({{ $user->email }})
-                                    </option>
-
-                                @endforeach
-
-                            </select>
-
-                            @error('user_id')
-                                <small class="text-danger">
-                                    {{ $message }}
-                                </small>
-                            @enderror
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold text-secondary">
-                                Họ và tên
-                            </label>
-
-                            <input type="text" name="full_name" class="form-control" placeholder="Nguyễn Văn A"
-                                value="{{ old('full_name') }}">
-
-                            @error('full_name')
-                                <small class="text-danger d-block mt-1">
-                                    {{ $message }}
-                                </small>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-6 T">
-                            <label class="form-label fw-bold text-secondary">
-                                Ngày sinh
-                            </label>
-
-                            <input type="date" name="date_of_birth" class="form-control" value="{{ old('date_of_birth') }}">
-
-                            @error('date_of_birth')
-                                <small class="text-danger d-block mt-1">
-                                    {{ $message }}
-                                </small>
-                            @enderror
-                        </div>
-
-                    </div>
-
-                    <div class="row">
-
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold text-secondary">
-                                CCCD
-                            </label>
-
-                            <input type="text" name="cccd" class="form-control" placeholder="012345678901"
-                                value="{{ old('cccd') }}">
-
-                            @error('cccd')
-                                <small class="text-danger d-block mt-1">
-                                    {{ $message }}
-                                </small>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold text-secondary">
-                                Ngày cấp CCCD
-                            </label>
-
-                            <input type="date" name="cccd_issue_date" class="form-control"
-                                value="{{ old('cccd_issue_date') }}">
-
-                            @error('cccd_issue_date')
-                                <small class="text-danger d-block mt-1">
-                                    {{ $message }}
-                                </small>
-                            @enderror
-                        </div>
-
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-secondary">
-                            Nơi cấp CCCD
-                        </label>
-
-                        <input type="text" name="cccd_issue_place" class="form-control"
-                            placeholder="Cục Cảnh sát QLHC về TTXH" value="{{ old('cccd_issue_place') }}">
-
-                        @error('cccd_issue_place')
-                            <small class="text-danger d-block mt-1">
-                                {{ $message }}
-                            </small>
-                        @enderror
-                    </div>
-
-                    <div class="row">
-
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold text-secondary">
-                                Số điện thoại
-                            </label>
-
-                            <input type="text" name="phone" class="form-control" placeholder="0366xxxxxx"
-                                value="{{ old('phone') }}">
-
-                            @error('phone')
-                                <small class="text-danger d-block mt-1">
-                                    {{ $message }}
-                                </small>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold text-secondary">
-                                Email
-                            </label>
-
-                            <input type="email" name="email" class="form-control" placeholder="example@gmail.com"
-                                value="{{ old('email') }}">
-
-                            @error('email')
-                                <small class="text-danger d-block mt-1">
-                                    {{ $message }}
-                                </small>
-                            @enderror
-                        </div>
-
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-secondary">
-                            Địa chỉ
-                        </label>
-
-                        <textarea name="address" rows="3" class="form-control"
-                            placeholder="Nhập địa chỉ">{{ old('address') }}</textarea>
-
-                        @error('address')
-                            <small class="text-danger d-block mt-1">
-                                {{ $message }}
-                            </small>
-                        @enderror
-                    </div>
-
-                    <div class="mt-4 pt-2">
-                        <button type="submit" class="btn text-white px-4" style="background-color: #4e73df;">
-                            <i class="fas fa-save me-1"></i>
-                            Thêm khách thuê
-                        </button>
-
-                        <a href="{{ route('admin.tenants.index') }}" class="btn btn-secondary px-4 ms-2">
-                            Quay lại
-                        </a>
-                    </div>
-
-                </form>
-            </div>
+            <a href="{{ route('admin.tenants.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                <i class="bx bx-arrow-back text-lg"></i>
+                Quay lại
+            </a>
         </div>
 
+        @include('admin.tenants._form')
     </div>
-
-    <style>
-        .custom-card {
-            border-radius: 0.5rem;
-            overflow: hidden;
-        }
-    </style>
-
 @endsection

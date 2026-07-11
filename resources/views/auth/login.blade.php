@@ -1,101 +1,120 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Đăng nhập</title>
-
-    <link href="{{ asset('assets/css/bootstrap.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('assets/css/app.min.css') }}" rel="stylesheet" type="text/css" />
-    <style>
-        body {
-            min-height: 100vh;
-            background: #f4f6f9;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .login-card {
-            width: 100%;
-            max-width: 430px;
-            border: none;
-            border-radius: 1rem;
-            box-shadow: 0 18px 50px rgba(56, 76, 119, 0.15);
-        }
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Đăng nhập | Quản lý phòng trọ</title>
+    <link href="{{ asset('assets/images/favicon.ico') }}" rel="shortcut icon">
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body>
-    <div class="card login-card">
-        <div class="card-body p-4">
-            <div class="text-center mb-4">
-                <a href="{{ url('/') }}" class="d-inline-block mb-2">
-                    <img src="{{ asset('assets/images/logo-sm.svg') }}" alt="Logo" height="40" />
-                </a>
-                <h4 class="card-title mb-1">Đăng nhập</h4>
-                <p class="text-muted mb-0">Nhập email và mật khẩu của bạn để tiếp tục.</p>
+<body class="min-h-screen bg-slate-100 font-sans text-slate-900">
+    <main class="flex min-h-screen">
+        <section class="hidden flex-1 bg-slate-950 px-12 py-10 text-white lg:flex lg:flex-col lg:justify-between">
+            <a href="{{ url('/') }}" class="inline-flex items-center gap-3">
+                <span class="flex h-11 w-11 items-center justify-center rounded-lg bg-white">
+                    <img src="{{ asset('assets/images/logo-sm.svg') }}" alt="Logo" class="h-7 w-7">
+                </span>
+                <span>
+                    <span class="block text-lg font-bold">Rental Admin</span>
+                    <span class="text-sm text-slate-300">Quản lý phòng trọ</span>
+                </span>
+            </a>
+
+            <div class="max-w-xl">
+                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">Hệ thống vận hành</p>
+                <h1 class="mt-4 text-4xl font-bold leading-tight">Theo dõi phòng, khách thuê, hợp đồng và hóa đơn trong một nơi.</h1>
+                <p class="mt-5 text-base leading-7 text-slate-300">
+                    Giao diện quản trị gọn gàng giúp chủ trọ xử lý công việc hằng ngày nhanh hơn và ít sai sót hơn.
+                </p>
             </div>
 
-            @if ($errors->any())
-                <div class="alert alert-danger">
-                    <ul class="mb-0">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
+            <div class="grid grid-cols-3 gap-4 text-sm">
+                <div class="rounded-lg border border-white/10 bg-white/5 p-4">
+                    <p class="text-2xl font-bold">24/7</p>
+                    <p class="mt-1 text-slate-300">Truy cập hệ thống</p>
                 </div>
-            @endif
+                <div class="rounded-lg border border-white/10 bg-white/5 p-4">
+                    <p class="text-2xl font-bold">1 nơi</p>
+                    <p class="mt-1 text-slate-300">Quản lý dữ liệu</p>
+                </div>
+                <div class="rounded-lg border border-white/10 bg-white/5 p-4">
+                    <p class="text-2xl font-bold">Rõ ràng</p>
+                    <p class="mt-1 text-slate-300">Báo cáo hóa đơn</p>
+                </div>
+            </div>
+        </section>
 
-            <form method="POST" action="{{ route('login') }}">
-                @csrf
-
-                <div class="mb-3">
-                    <label for="email" class="form-label">Email</label>
-                    <input id="email" type="email" name="email" value="{{ old('email') }}" class="form-control" required autofocus />
+        <section class="flex flex-1 items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
+            <div class="w-full max-w-md">
+                <div class="mb-8 text-center lg:hidden">
+                    <a href="{{ url('/') }}" class="inline-flex items-center justify-center gap-3">
+                        <img src="{{ asset('assets/images/logo-sm.svg') }}" alt="Logo" class="h-10 w-10">
+                        <span class="text-lg font-bold">Quản lý phòng trọ</span>
+                    </a>
                 </div>
 
-                <div class="mb-3">
-                    <label for="password" class="form-label">Mật khẩu</label>
-                    <div class="input-group">
-                        <input id="password" type="password" name="password" class="form-control" required />
-                        <button type="button" class="btn btn-light border-0 d-flex align-items-center gap-1" id="togglePassword" aria-label="Hiện mật khẩu">
-                            <i class="mdi mdi-eye-off" id="togglePasswordIcon"></i>
-                            <span id="togglePasswordText">Hiện</span>
-                        </button>
+                <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                    <div>
+                        <p class="text-sm font-medium text-indigo-600">Chào mừng quay lại</p>
+                        <h2 class="mt-2 text-2xl font-bold text-slate-950">Đăng nhập</h2>
+                        <p class="mt-2 text-sm text-slate-500">Nhập email và mật khẩu để tiếp tục.</p>
                     </div>
-                </div>
 
-                <div class="mb-3 form-check">
-                    <input id="remember" type="checkbox" name="remember" class="form-check-input" />
-                    <label class="form-check-label" for="remember">Ghi nhớ đăng nhập</label>
-                </div>
+                    @if ($errors->any())
+                        <div class="mt-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                            <ul class="space-y-1">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
 
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-primary">Đăng nhập</button>
-                </div>
-            </form>
+                    <form method="POST" action="{{ route('login') }}" class="mt-6 space-y-5">
+                        @csrf
 
-            <div class="mt-3 text-center text-muted">
-                Nếu bạn chưa có tài khoản, vui lòng liên hệ quản trị viên.
+                        <div>
+                            <label for="email" class="mb-1.5 block text-sm font-semibold text-slate-700">Email</label>
+                            <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus
+                                class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                        </div>
+
+                        <div>
+                            <label for="password" class="mb-1.5 block text-sm font-semibold text-slate-700">Mật khẩu</label>
+                            <div class="flex rounded-lg border border-slate-200 bg-white transition focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-100">
+                                <input id="password" type="password" name="password" required
+                                    class="h-11 min-w-0 flex-1 rounded-l-lg border-0 px-3 text-sm outline-none">
+                                <button type="button" id="togglePassword" class="h-11 shrink-0 rounded-r-lg px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                                    Hiện
+                                </button>
+                            </div>
+                        </div>
+
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input id="remember" type="checkbox" name="remember" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                            <span>Ghi nhớ đăng nhập</span>
+                        </label>
+
+                        <button type="submit" class="inline-flex h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                            Đăng nhập
+                        </button>
+                    </form>
+
+                    <p class="mt-6 text-center text-sm text-slate-500">
+                        Nếu bạn chưa có tài khoản, vui lòng liên hệ quản trị viên.
+                    </p>
+                </div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
-    <script src="{{ asset('assets/libs/jquery/jquery.min.js') }}"></script>
-    <script src="{{ asset('assets/libs/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script>
-        var togglePasswordButton = document.getElementById('togglePassword');
-        if (togglePasswordButton) {
-            togglePasswordButton.addEventListener('click', function () {
-                var passwordInput = document.getElementById('password');
-                var icon = document.getElementById('togglePasswordIcon');
-                var text = document.getElementById('togglePasswordText');
-                var isPassword = passwordInput.type === 'password';
-                passwordInput.type = isPassword ? 'text' : 'password';
-                icon.classList.toggle('mdi-eye', !isPassword);
-                icon.classList.toggle('mdi-eye-off', isPassword);
-                text.textContent = isPassword ? 'Ẩn' : 'Hiện';
-            });
-        }
+        document.getElementById('togglePassword')?.addEventListener('click', function () {
+            const passwordInput = document.getElementById('password');
+            const isPassword = passwordInput.type === 'password';
+            passwordInput.type = isPassword ? 'text' : 'password';
+            this.textContent = isPassword ? 'Ẩn' : 'Hiện';
+        });
     </script>
 </body>
 </html>

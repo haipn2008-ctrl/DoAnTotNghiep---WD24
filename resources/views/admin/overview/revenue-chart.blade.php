@@ -1,98 +1,33 @@
 @extends('layouts.admin.index')
 
+@section('title', 'Biểu đồ doanh thu | Quản lý phòng trọ')
+@section('page_title', 'Biểu đồ doanh thu')
+
 @section('content')
-    <div class="container-fluid">
-        <!-- start page title -->
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                    <h4 class="mb-sm-0 font-size-18">
-                        Biểu đồ Doanh Thu Tháng/Năm
-                    </h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item">
-                                <a href="{{ route('admin.overview') }}">
-                                    Tổng Quan
-                                </a>
-                            </li>
-                            <li class="breadcrumb-item active">
-                                Biểu đồ Doanh Thu
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
+    <div class="space-y-6">
+        <div>
+            <p class="text-sm font-medium text-slate-500">Tổng quan</p>
+            <h2 class="mt-1 text-2xl font-bold text-slate-950">Biểu đồ doanh thu tháng/năm</h2>
         </div>
-        <!-- end page title -->
 
-        <!-- Monthly Revenue Chart -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Doanh Thu Theo Tháng (Năm {{ date('Y') }})</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="monthlyRevenueChart"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="font-semibold text-slate-950">Doanh thu theo tháng - Năm {{ date('Y') }}</h3>
+            <div id="monthlyRevenueChart" class="mt-4 min-h-[360px]"></div>
+        </section>
     </div>
-
-    @push('scripts')
-        <script>
-            var options = {
-                chart: {
-                    type: 'column',
-                    height: 350,
-                    toolbar: {
-                        show: true
-                    }
-                },
-                plotOptions: {
-                    column: {
-                        columnWidth: '60%',
-                        colors: ['#5156be']
-                    }
-                },
-                series: [{
-                    name: 'Doanh Thu (VNĐ)',
-                    data: @json($monthlyRevenue)
-                }],
-                xaxis: {
-                    categories: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
-                                'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
-                    title: {
-                        text: 'Tháng'
-                    }
-                },
-                yaxis: {
-                    title: {
-                        text: 'Doanh Thu (VNĐ)'
-                    }
-                },
-                dataLabels: {
-                    enabled: false
-                },
-                stroke: {
-                    show: true,
-                    width: 2,
-                    colors: ['transparent']
-                },
-                tooltip: {
-                    theme: 'light',
-                    y: {
-                        formatter: function (val) {
-                            return "₫ " + Number(val).toLocaleString('vi-VN');
-                        }
-                    }
-                }
-            };
-
-            var chart = new ApexCharts(document.querySelector("#monthlyRevenueChart"), options);
-            chart.render();
-        </script>
-    @endpush
 @endsection
+
+@push('scripts')
+    <script>
+        new ApexCharts(document.querySelector("#monthlyRevenueChart"), {
+            chart: { type: 'bar', height: 360, toolbar: { show: true } },
+            series: [{ name: 'Doanh thu', data: @json($monthlyRevenue) }],
+            colors: ['#4f46e5'],
+            plotOptions: { bar: { borderRadius: 6, columnWidth: '55%' } },
+            dataLabels: { enabled: false },
+            xaxis: { categories: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'] },
+            yaxis: { labels: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' } },
+            tooltip: { y: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' } }
+        }).render();
+    </script>
+@endpush

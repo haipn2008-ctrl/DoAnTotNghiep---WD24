@@ -6,18 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\TenantRequest;
 use App\Models\Tenant;
 use App\Models\User;
-use Illuminate\Http\Request;
 
 class TenantController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         $tenants = Tenant::with([
             'user',
-            'contracts.room'
+            'contracts.room',
         ])
             ->latest()
             ->paginate(10);
@@ -41,7 +37,7 @@ class TenantController extends Controller
     {
         $tenants = Tenant::with([
             'user',
-            'contracts.room'
+            'contracts.room',
         ])
             ->latest()
             ->get();
@@ -75,8 +71,6 @@ class TenantController extends Controller
                     ->pluck('room.room_code')
                     ->first();
 
-                $status = $activeRoom ? 'Đang thuê' : 'Chưa thuê';
-
                 fputcsv($file, [
                     $tenant->full_name,
                     $tenant->cccd,
@@ -84,7 +78,7 @@ class TenantController extends Controller
                     $tenant->email,
                     $tenant->address,
                     $activeRoom ?? '-',
-                    $status,
+                    $activeRoom ? 'Đang thuê' : 'Chưa thuê',
                     $tenant->created_at->format('d/m/Y'),
                 ]);
             }
@@ -95,9 +89,6 @@ class TenantController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         $users = User::where('role_id', 2)
@@ -110,9 +101,6 @@ class TenantController extends Controller
         );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(TenantRequest $request)
     {
         Tenant::create($request->validated());
@@ -124,15 +112,14 @@ class TenantController extends Controller
 
     public function show(Tenant $tenant)
     {
+        $tenant->load(['user', 'contracts.room']);
+
         return view(
             'admin.tenants.show',
             compact('tenant')
         );
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Tenant $tenant)
     {
         $users = User::where(function ($query) {
@@ -141,45 +128,32 @@ class TenantController extends Controller
         })
             ->orWhere('id', $tenant->user_id)
             ->get();
+
         return view(
             'admin.tenants.edit',
-            compact(
-                'tenant',
-                'users'
-            )
+            compact('tenant', 'users')
         );
     }
 
-    public function update(
-        TenantRequest $request,
-        Tenant $tenant
-    ) {
+    public function update(TenantRequest $request, Tenant $tenant)
+    {
         $tenant->update($request->validated());
 
         return redirect()
             ->route('admin.tenants.index')
-            ->with('success', 'Cập nhật thành công');
+            ->with('success', 'Cập nhật khách thuê thành công');
     }
-    /**
-     * Remove the specified resource from storage.
-     */
+
     public function destroy(Tenant $tenant)
     {
         if ($tenant->contracts()->exists()) {
-
             return back()
-                ->with(
-                    'error',
-                    'Khách thuê đã có hợp đồng'
-                );
+                ->with('error', 'Khách thuê đã có hợp đồng');
         }
 
         $tenant->delete();
 
         return back()
-            ->with(
-                'success',
-                'Xóa thành công'
-            );
+            ->with('success', 'Xóa khách thuê thành công');
     }
 }
