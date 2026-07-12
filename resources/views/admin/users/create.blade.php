@@ -44,6 +44,11 @@
                 </div>
 
                 <div class="mb-3">
+                    <label class="form-label">Nhập lại mật khẩu</label>
+                    <input type="password" name="password_confirmation" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label">Vai trò</label>
                     <select name="role_id" class="form-select" required>
                         @foreach($roles as $role)

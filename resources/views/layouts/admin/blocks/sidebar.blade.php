@@ -111,8 +111,8 @@
                     <ul aria-expanded="false" class="sub-menu">
                         <li><a href="{{ route('admin.rooms.export') }}">Xuất danh sách phòng</a></li>
                         <li><a href="{{ route('admin.tenants.export') }}">Xuất danh sách khách thuê</a></li>
-                        <li><a href="#">Xuất danh sách hóa đơn</a></li>
-                        <li><a href="#">Xuất danh sách thanh toán</a></li>
+                        <li><a href="{{ route('admin.invoices.export') }}">Xuất danh sách hóa đơn</a></li>
+                        <li><a href="{{ route('admin.invoices.payments.export') }}">Xuất danh sách thanh toán</a></li>
                     </ul>
                 </li>
 

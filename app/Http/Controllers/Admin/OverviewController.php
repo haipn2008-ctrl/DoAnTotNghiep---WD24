@@ -13,9 +13,10 @@ use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-class InvoiceController extends Controller
+class OverviewController extends Controller
 {
     public function index(Request $request)
     {
@@ -576,5 +577,92 @@ class InvoiceController extends Controller
                 'maintenanceRooms'
             )
         );
+    }
+
+    public function revenueChart()
+    {
+        $user = auth()->user();
+
+        if ($user->role_id !== 1) {
+            return redirect()->route('dashboard');
+        }
+
+        $currentYear = Carbon::now()->year;
+        $monthlyRevenue = [];
+
+        // Get revenue for each month
+        for ($month = 1; $month <= 12; $month++) {
+            $revenue = Invoice::where('year', $currentYear)
+                ->where('month', $month)
+                ->sum('total_amount');
+            $monthlyRevenue[] = $revenue;
+        }
+
+        // Get yearly revenue for last 5 years
+        $yearlyRevenue = [];
+        $yearLabels = [];
+        for ($i = 4; $i >= 0; $i--) {
+            $year = $currentYear - $i;
+            $revenue = Invoice::where('year', $year)
+                ->sum('total_amount');
+            $yearlyRevenue[] = $revenue;
+            $yearLabels[] = (string)$year;
+        }
+
+        return view('admin.overview.revenue-chart', compact('currentYear', 'monthlyRevenue', 'yearlyRevenue', 'yearLabels'));
+    }
+
+    public function revenueStats()
+    {
+        $user = auth()->user();
+
+        if ($user->role_id !== 1) {
+            return redirect()->route('dashboard');
+        }
+
+        $totalRevenue = Invoice::sum('total_amount');
+        $monthRevenue = Invoice::where('month', Carbon::now()->month)
+            ->where('year', Carbon::now()->year)
+            ->sum('total_amount');
+        $todayRevenue = Invoice::whereDate('created_at', Carbon::today())
+            ->sum('total_amount');
+        $totalBilled = Invoice::sum('total_amount');
+        $totalReceivable = Invoice::sum('total_amount') - (Payment::sum('amount_paid') ?? 0);
+        
+        // Calculate collection rate
+        $totalPaid = Payment::sum('amount_paid') ?? 0;
+        $collectionRate = $totalBilled > 0 
+            ? round(($totalPaid / $totalBilled) * 100, 1)
+            : 0;
+
+        return view('admin.overview.revenue-stats', compact(
+            'totalRevenue',
+            'monthRevenue',
+            'todayRevenue',
+            'totalBilled',
+            'totalReceivable',
+            'collectionRate'
+        ));
+    }
+
+    public function roomStats()
+    {
+        $user = auth()->user();
+
+        if ($user->role_id !== 1) {
+            return redirect()->route('dashboard');
+        }
+
+        $totalRooms = Room::count();
+        $occupiedRooms = Room::occupied()->count();
+        $availableRooms = Room::available()->count();
+        $maintenanceRooms = Room::maintenance()->count();
+
+        return view('admin.overview.room-stats', compact(
+            'totalRooms',
+            'occupiedRooms',
+            'availableRooms',
+            'maintenanceRooms'
+        ));
     }
 }

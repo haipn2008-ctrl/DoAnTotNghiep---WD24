@@ -101,8 +101,20 @@ Route::middleware('auth')->group(function () {
         Route::post('/invoices/generate', [InvoiceController::class, 'generate'])
             ->name('invoices.generate.store');
 
+        Route::get('/invoices/export', [InvoiceController::class, 'exportForm'])
+            ->name('invoices.export');
+
+        Route::get('/invoices/export/download', [InvoiceController::class, 'export'])
+            ->name('invoices.export.download');
+
         Route::get('/invoices/payments', [InvoiceController::class, 'payments'])
             ->name('invoices.payments');
+
+        Route::get('/invoices/payments/export', [InvoiceController::class, 'exportPaymentsForm'])
+            ->name('invoices.payments.export');
+
+        Route::get('/invoices/payments/export/download', [InvoiceController::class, 'exportPayments'])
+            ->name('invoices.payments.export.download');
 
         Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
             ->name('invoices.payments.store');

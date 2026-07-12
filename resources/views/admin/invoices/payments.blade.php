@@ -2,7 +2,7 @@
 
 @section('content')
 <div class="container-fluid">
-    <div class="row">
+    <div class="row mb-3">
         <div class="col-12">
             <div class="page-title-box d-sm-flex align-items-center justify-content-between">
                 <h4 class="mb-sm-0 font-size-18">Ghi nhận thanh toán</h4>
@@ -16,36 +16,36 @@
                 <table class="table table-bordered align-middle">
                     <thead>
                         <tr>
+                            <th>Mã giao dịch</th>
                             <th>Hóa đơn</th>
                             <th>Phòng</th>
                             <th>Người thuê</th>
-                            <th>Tổng tiền</th>
-                            <th>Còn nợ</th>
+                            <th>Số tiền</th>
+                            <th>Phương thức</th>
+                            <th>Ngày thanh toán</th>
                             <th>Trạng thái</th>
-                            <th>Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($invoices as $invoice)
+                        @forelse($payments as $payment)
                             <tr>
-                                <td>#{{ $invoice->id }}</td>
-                                <td>{{ $invoice->contract->room->room_code ?? '-' }}</td>
-                                <td>{{ $invoice->contract->tenant->full_name ?? '-' }}</td>
-                                <td>{{ number_format($invoice->total_amount, 0, ',', '.') }} VNĐ</td>
-                                <td>{{ number_format($invoice->balance_amount, 0, ',', '.') }} VNĐ</td>
-                                <td><span class="badge bg-warning">{{ $invoice->status_label }}</span></td>
-                                <td>
-                                    <a href="{{ route('admin.invoices.show', $invoice->id) }}" class="btn btn-sm btn-primary">Thanh toán</a>
-                                </td>
+                                <td>{{ $payment->transaction_code ?? '-' }}</td>
+                                <td>{{ $payment->invoice->invoice_code ?? '-' }}</td>
+                                <td>{{ $payment->invoice->room->room_code ?? '-' }}</td>
+                                <td>{{ $payment->invoice->contract->tenant->full_name ?? '-' }}</td>
+                                <td>{{ number_format($payment->amount_paid, 0, ',', '.') }} VNĐ</td>
+                                <td>{{ $payment->payment_method }}</td>
+                                <td>{{ $payment->payment_date?->format('d/m/Y') ?? '-' }}</td>
+                                <td><span class="badge bg-success">{{ $payment->status }}</span></td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="text-center">Không có hóa đơn cần thanh toán.</td></tr>
+                            <tr><td colspan="8" class="text-center">Không có thanh toán nào.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             <div class="d-flex justify-content-center mt-3">
-                {{ $invoices->links() }}
+                {{ $payments->links() }}
             </div>
         </div>
     </div>

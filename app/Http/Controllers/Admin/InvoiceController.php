@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
@@ -163,6 +164,14 @@ class InvoiceController extends Controller
     }
 
     /**
+     * Alias for the invoice generation form route.
+     */
+    public function generateForm(Request $request)
+    {
+        return $this->generate($request);
+    }
+
+    /**
      * Form sinh hóa đơn
      */
     public function generate(Request $request)
@@ -233,6 +242,77 @@ class InvoiceController extends Controller
             )
         );
     }
+
+    /**
+     * Form xuất danh sách hóa đơn
+     */
+    public function exportForm(Request $request)
+    {
+        $month = $request->filled('month')
+            ? (int) $request->month
+            : null;
+
+        $year = $request->filled('year')
+            ? (int) $request->year
+            : null;
+
+        $status = $request->status;
+        $keyword = trim($request->keyword ?? '');
+
+        $query = Invoice::with([
+            'contract.tenant',
+            'room',
+            'payments',
+        ])
+            ->withSum([
+                'payments as paid_amount' => function ($q) {
+                    $q->success();
+                }
+            ], 'amount_paid')
+            ->latest('invoice_date')
+            ->latest('id');
+
+        if ($month) {
+            $query->where('month', $month);
+        }
+
+        if ($year) {
+            $query->where('year', $year);
+        }
+
+        if (in_array($status, [
+            Invoice::STATUS_UNPAID,
+            Invoice::STATUS_PARTIAL,
+            Invoice::STATUS_PAID,
+        ])) {
+            $query->where('status', $status);
+        }
+
+        if ($keyword !== '') {
+            $query->where(function ($q) use ($keyword) {
+                $q->whereHas('room', function ($room) use ($keyword) {
+                    $room->where('room_code', 'like', "%{$keyword}%");
+                })
+                    ->orWhereHas('contract', function ($contract) use ($keyword) {
+                        $contract->where('contract_code', 'like', "%{$keyword}%")
+                            ->orWhereHas('tenant', function ($tenant) use ($keyword) {
+                                $tenant->where('full_name', 'like', "%{$keyword}%")
+                                    ->orWhere('phone', 'like', "%{$keyword}%");
+                            });
+                    });
+            });
+        }
+
+        $invoices = $query
+            ->paginate(15)
+            ->withQueryString();
+
+        return view(
+            'admin.invoices.export',
+            compact('invoices')
+        );
+    }
+
     /**
      * Xem trước hóa đơn
      */
@@ -389,6 +469,116 @@ class InvoiceController extends Controller
             );
     }
     /**
+     * Xuất danh sách hóa đơn ra CSV
+     */
+    public function export(Request $request)
+    {
+        $month = $request->filled('month')
+            ? (int) $request->month
+            : null;
+
+        $year = $request->filled('year')
+            ? (int) $request->year
+            : null;
+
+        $status = $request->status;
+
+        $keyword = trim($request->keyword ?? '');
+
+        $query = Invoice::with([
+            'contract.tenant',
+            'room',
+            'payments',
+        ])
+            ->withSum([
+                'payments as paid_amount' => function ($q) {
+                    $q->success();
+                }
+            ], 'amount_paid')
+            ->latest('invoice_date')
+            ->latest('id');
+
+        if ($month) {
+            $query->where('month', $month);
+        }
+
+        if ($year) {
+            $query->where('year', $year);
+        }
+
+        if (in_array($status, [
+            Invoice::STATUS_UNPAID,
+            Invoice::STATUS_PARTIAL,
+            Invoice::STATUS_PAID,
+        ])) {
+            $query->where('status', $status);
+        }
+
+        if ($keyword !== '') {
+            $query->where(function ($q) use ($keyword) {
+                $q->whereHas('room', function ($room) use ($keyword) {
+                    $room->where('room_code', 'like', "%{$keyword}%");
+                })
+                    ->orWhereHas('contract', function ($contract) use ($keyword) {
+                        $contract->where('contract_code', 'like', "%{$keyword}%")
+                            ->orWhereHas('tenant', function ($tenant) use ($keyword) {
+                                $tenant->where('full_name', 'like', "%{$keyword}%")
+                                    ->orWhere('phone', 'like', "%{$keyword}%");
+                            });
+                    });
+            });
+        }
+
+        $invoices = $query->get();
+
+        $filename = 'danh_sach_hoa_don_' . now()->format('Ymd_His') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $columns = [
+            'Mã hóa đơn',
+            'Kỳ',
+            'Phòng',
+            'Khách thuê',
+            'Tổng tiền',
+            'Đã thu',
+            'Còn lại',
+            'Trạng thái',
+            'Ngày phát hành',
+        ];
+
+        $callback = function () use ($invoices, $columns) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, $columns);
+
+            foreach ($invoices as $invoice) {
+                $paidAmount = $invoice->paid_amount ?? $invoice->payments()->success()->sum('amount_paid');
+                $remainingAmount = max(0, $invoice->total_amount - $paidAmount);
+
+                fputcsv($file, [
+                    $invoice->invoice_code,
+                    sprintf('%02d', $invoice->month) . '/' . $invoice->year,
+                    $invoice->room->room_code ?? '-',
+                    $invoice->contract->tenant->full_name ?? '-',
+                    number_format($invoice->total_amount, 0, ',', '.'),
+                    number_format($paidAmount, 0, ',', '.'),
+                    number_format($remainingAmount, 0, ',', '.'),
+                    $invoice->status_label,
+                    $invoice->invoice_date?->format('d/m/Y') ?? '-',
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
      * Danh sách thanh toán
      */
     public function payments(Request $request)
@@ -455,6 +645,146 @@ class InvoiceController extends Controller
             'admin.invoices.payments',
             compact('payments')
         );
+    }
+
+    /**
+     * Form xuất danh sách thanh toán
+     */
+    public function exportPaymentsForm(Request $request)
+    {
+        $query = Payment::with([
+            'invoice.contract.tenant',
+            'invoice.room',
+            'confirmer',
+        ])->latest('payment_date');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('method')) {
+            $query->where(
+                'payment_method',
+                $request->method
+            );
+        }
+
+        if ($request->filled('keyword')) {
+            $keyword = trim($request->keyword);
+
+            $query->where(function ($q) use ($keyword) {
+                $q->where('transaction_code', 'like', "%{$keyword}%")
+                    ->orWhereHas('invoice.room', function ($room) use ($keyword) {
+                        $room->where('room_code', 'like', "%{$keyword}%");
+                    })
+                    ->orWhereHas('invoice.contract', function ($contract) use ($keyword) {
+                        $contract->where('contract_code', 'like', "%{$keyword}%");
+                    })
+                    ->orWhereHas('invoice.contract.tenant', function ($tenant) use ($keyword) {
+                        $tenant->where('full_name', 'like', "%{$keyword}%");
+                    });
+            });
+        }
+
+        $payments = $query->paginate(10)->withQueryString();
+
+        return view('admin.invoices.payments-export', compact(
+            'payments'
+        ));
+    }
+
+    /**
+     * Xuất danh sách thanh toán ra CSV
+     */
+    public function exportPayments(Request $request)
+    {
+        $query = Payment::with([
+            'invoice.contract.tenant',
+            'invoice.room',
+            'confirmer',
+        ])->latest('payment_date');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('method')) {
+            $query->where('payment_method', $request->method);
+        }
+
+        if ($request->filled('keyword')) {
+            $keyword = trim($request->keyword);
+
+            $query->where(function ($q) use ($keyword) {
+                $q->where('transaction_code', 'like', "%{$keyword}%")
+                    ->orWhereHas('invoice.room', function ($room) use ($keyword) {
+                        $room->where('room_code', 'like', "%{$keyword}%");
+                    })
+                    ->orWhereHas('invoice.contract', function ($contract) use ($keyword) {
+                        $contract->where('contract_code', 'like', "%{$keyword}%");
+                    })
+                    ->orWhereHas('invoice.contract.tenant', function ($tenant) use ($keyword) {
+                        $tenant->where('full_name', 'like', "%{$keyword}%");
+                    });
+            });
+        }
+
+        $payments = $query->get();
+
+        $filename = 'danh_sach_thanh_toan_' . now()->format('Ymd_His') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $columns = [
+            'Mã giao dịch',
+            'Hóa đơn',
+            'Phòng',
+            'Người thuê',
+            'Số tiền',
+            'Phương thức',
+            'Ngày thanh toán',
+            'Trạng thái',
+            'Ghi chú',
+        ];
+
+        $callback = function () use ($payments, $columns) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, $columns);
+
+            foreach ($payments as $payment) {
+                $methodLabel = match ($payment->payment_method) {
+                    Payment::METHOD_BANK_TRANSFER => 'Chuyển khoản',
+                    Payment::METHOD_QR => 'QR',
+                    default => 'Tiền mặt',
+                };
+
+                $statusLabel = match ($payment->status) {
+                    Payment::STATUS_SUCCESS => 'Thành công',
+                    Payment::STATUS_PENDING => 'Chờ xử lý',
+                    default => 'Thất bại',
+                };
+
+                fputcsv($file, [
+                    $payment->transaction_code ?? '-',
+                    $payment->invoice->invoice_code ?? '-',
+                    $payment->invoice->room->room_code ?? '-',
+                    $payment->invoice->contract->tenant->full_name ?? '-',
+                    number_format($payment->amount_paid, 0, ',', '.'),
+                    $methodLabel,
+                    $payment->payment_date?->format('d/m/Y') ?? '-',
+                    $statusLabel,
+                    $payment->note ?? '-',
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     /**

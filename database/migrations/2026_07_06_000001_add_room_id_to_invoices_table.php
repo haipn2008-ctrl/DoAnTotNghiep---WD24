@@ -9,21 +9,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('invoices', function (Blueprint $table) {
+        if (!Schema::hasColumn('invoices', 'room_id')) {
+            Schema::table('invoices', function (Blueprint $table) {
 
-            $table->foreignId('room_id')
-                ->nullable()
-                ->after('contract_id')
-                ->constrained()
-                ->cascadeOnUpdate()
-                ->nullOnDelete();
+                $table->foreignId('room_id')
+                    ->nullable()
+                    ->after('contract_id')
+                    ->constrained()
+                    ->cascadeOnUpdate()
+                    ->nullOnDelete();
 
-            $table->unique([
-                'room_id',
-                'month',
-                'year'
-            ]);
-        });
+                $table->unique([
+                    'room_id',
+                    'month',
+                    'year'
+                ]);
+            });
+        }
     }
     //
 
