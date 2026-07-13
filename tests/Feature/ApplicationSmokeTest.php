@@ -12,6 +12,12 @@ class ApplicationSmokeTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+    }
+
     public function test_admin_pages_render_successfully(): void
     {
         $admin = $this->createUser('Admin', 1);
