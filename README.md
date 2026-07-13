@@ -4,10 +4,6 @@
 Vite. Hệ thống hỗ trợ quản lý phòng, khách thuê, hợp đồng, chỉ số điện nước,
 hóa đơn, công nợ, thanh toán, dashboard và xuất CSV.
 
-README này dành cho tất cả thành viên trong nhóm. Mỗi người nên dùng database
-riêng trên máy của mình để có thể thêm, sửa, xóa và chạy lại dữ liệu test mà
-không ảnh hưởng đến người khác.
-
 ## Yêu cầu môi trường
 
 - PHP 8.3 trở lên.
@@ -16,56 +12,7 @@ không ảnh hưởng đến người khác.
 - Node.js 22 và npm.
 - Khuyến nghị dùng Laragon trên Windows để chạy dự án nhanh nhất.
 
-## Cài đặt lần đầu
-
-Mở Terminal của Laragon tại thư mục dự án và chạy:
-
-```bash
-composer install
-npm install
-```
-
-Tạo file môi trường và khóa ứng dụng:
-
-```powershell
-Copy-Item .env.example .env
-php artisan key:generate
-```
-
-Tạo một database MySQL riêng, ví dụ `stay_master_ten_thanh_vien`, sau đó sửa
-phần kết nối trong `.env`:
-
-```dotenv
-APP_NAME="Stay Master"
-APP_ENV=local
-APP_DEBUG=true
-APP_URL=http://localhost
-
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=stay_master_ten_thanh_vien
-DB_USERNAME=root
-DB_PASSWORD=
-```
-
-Tạo liên kết để hiển thị ảnh phòng và ảnh đồng hồ điện nước:
-
-```bash
-php artisan storage:link
-```
-
-Sau đó chọn một trong hai bộ dữ liệu ở phần tiếp theo.
-
-## Chọn dữ liệu để test
-
 ### Bộ dữ liệu cơ bản
-
-Phù hợp khi cần kiểm tra nhanh thao tác thêm, sửa và xóa:
-
-```bash
-php artisan migrate:fresh --seed
-```
 
 Tài khoản có sẵn:
 
@@ -76,20 +23,9 @@ Tài khoản có sẵn:
 
 ### Bộ dữ liệu lớn
 
-Khuyến nghị dùng bộ này để test bộ lọc, phân trang, dashboard, công nợ, xuất
-CSV và hiệu năng:
-
 ```bash
 php artisan migrate:fresh --seed --seeder='Database\Seeders\LargeTestDataSeeder' --force
 ```
-
-Tài khoản mẫu đều dùng mật khẩu `password`:
-
-| Quyền | Email | Ghi chú |
-| --- | --- | --- |
-| Quản trị | `admin01@test.local` | Có thể dùng `admin01` đến `admin08` |
-| Khách thuê | `tenant001@test.local` | Có thể dùng `tenant001` đến `tenant070` |
-
 Bộ dữ liệu lớn tạo cố định:
 
 - 8 tài khoản quản trị và 70 tài khoản khách thuê.
@@ -107,27 +43,14 @@ Bộ dữ liệu lớn tạo cố định:
 > triển hoặc kiểm thử. Tuyệt đối không chạy trên database dùng chung hoặc
 > production.
 
-## Chạy dự án
 
-Nếu sử dụng máy chủ tích hợp của Laravel, mở hai terminal:
+Tài khoản mẫu đều dùng mật khẩu `password`:
 
-```bash
-php artisan serve
-```
+| Quyền | Email | Ghi chú |
+| --- | --- | --- |
+| Quản trị | `admin01@test.local` | Có thể dùng `admin01` đến `admin08` |
+| Khách thuê | `tenant001@test.local` | Có thể dùng `tenant001` đến `tenant070` |
 
-```bash
-npm run dev
-```
-
-Sau đó truy cập `http://127.0.0.1:8000`. Nếu dùng Auto Virtual Hosts của
-Laragon, có thể mở tên miền `.test` do Laragon tạo và vẫn giữ `npm run dev`
-để cập nhật giao diện trong lúc phát triển.
-
-Để kiểm tra bản build production:
-
-```bash
-npm run build
-```
 
 ## Gợi ý kịch bản test thủ công
 
