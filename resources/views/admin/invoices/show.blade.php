@@ -20,10 +20,20 @@
                 <h2 class="mt-1 text-2xl font-bold text-slate-950">Chi tiết hóa đơn</h2>
             </div>
 
-            <a href="{{ route('admin.invoices.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-                <i class="bx bx-arrow-back text-lg"></i>
-                Quay lại
-            </a>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('admin.invoices.print', $invoice) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    <i class="bx bx-printer text-lg"></i>
+                    In hóa đơn
+                </a>
+                <a href="{{ route('admin.invoices.edit', $invoice) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    <i class="bx bx-edit text-lg"></i>
+                    Cập nhật
+                </a>
+                <a href="{{ route('admin.invoices.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    <i class="bx bx-arrow-back text-lg"></i>
+                    Quay lại
+                </a>
+            </div>
         </div>
 
         <div class="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -126,6 +136,35 @@
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Đã thu</span><span class="font-semibold text-sky-700">{{ number_format($paidAmount, 0, ',', '.') }}đ</span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Còn lại</span><span class="font-semibold text-rose-700">{{ number_format($remainingAmount, 0, ',', '.') }}đ</span></div>
                 </div>
+
+                @if ($remainingAmount > 0)
+                    <form method="POST" action="{{ route('admin.invoices.payments.store', $invoice) }}" class="mt-6 space-y-4 border-t border-slate-200 pt-5">
+                        @csrf
+                        <h4 class="font-semibold text-slate-950">Ghi nhận thanh toán</h4>
+                        <div>
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Số tiền</label>
+                            <input type="number" name="amount_paid" min="1" max="{{ (int) $remainingAmount }}" value="{{ old('amount_paid', (int) $remainingAmount) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                        </div>
+                        <div>
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày thanh toán</label>
+                            <input type="date" name="payment_date" value="{{ old('payment_date', now()->toDateString()) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                        </div>
+                        <div>
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Phương thức</label>
+                            <select name="payment_method" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                                <option value="cash">Tiền mặt</option>
+                                <option value="bank_transfer">Chuyển khoản</option>
+                                <option value="qr">QR</option>
+                            </select>
+                        </div>
+                        <input type="text" name="transaction_code" value="{{ old('transaction_code') }}" placeholder="Mã giao dịch (nếu có)" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                        <textarea name="note" rows="2" placeholder="Ghi chú" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('note') }}</textarea>
+                        <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
+                            <i class="bx bx-check-circle text-lg"></i>
+                            Xác nhận thanh toán
+                        </button>
+                    </form>
+                @endif
             </aside>
         </div>
     </div>

@@ -1,17 +1,17 @@
 <?php
-//Admin routes
+
+// Admin routes
+use App\Http\Controllers\Admin\ContractController;
+use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
-use App\Http\Controllers\Admin\SettingController;
-use App\Http\Controllers\Admin\OverviewController;
-use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Admin\ContractController;
-//Client routes
+// Client routes
 use App\Http\Controllers\Client\ContractController as ClientContractController;
-
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Role;
@@ -67,7 +67,7 @@ Route::middleware('auth')->group(function () {
             ->name('contracts.end');
 
         // Form kết thúc hợp đồng
-        Route::get('contracts/{id}/end-form',[ContractController::class,'endForm'])->name('contracts.end.form');
+        Route::get('contracts/{id}/end-form', [ContractController::class, 'endForm'])->name('contracts.end.form');
 
         // Danh sách gia hạn hợp đồng
         Route::get('contracts/extend', [ContractController::class, 'extendList'])
@@ -98,11 +98,33 @@ Route::middleware('auth')->group(function () {
         Route::get('/utilities', [UtilityController::class, 'index'])
             ->name('utilities.index');
 
-        Route::get('/invoices', [InvoiceController::class, 'index'])
-            ->name('invoices.index');
-
-        Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
+        // Quản lý hóa đơn và công nợ
+        Route::get('/invoices/generate', [InvoiceController::class, 'generateForm'])
             ->name('invoices.generate');
+
+        Route::post('/invoices/generate', [InvoiceController::class, 'generateStore'])
+            ->name('invoices.generate.store');
+
+        Route::get('/invoices/export', [InvoiceController::class, 'exportForm'])
+            ->name('invoices.export');
+
+        Route::get('/invoices/export/download', [InvoiceController::class, 'export'])
+            ->name('invoices.export.download');
+
+        Route::get('/invoices/payments', [InvoiceController::class, 'payments'])
+            ->name('invoices.payments');
+
+        Route::get('/invoices/payments/export', [InvoiceController::class, 'exportPaymentsForm'])
+            ->name('invoices.payments.export');
+
+        Route::get('/invoices/payments/export/download', [InvoiceController::class, 'exportPayments'])
+            ->name('invoices.payments.export.download');
+
+        Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
+            ->name('invoices.payments.store');
+
+        Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
+            ->name('invoices.print');
 
         Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
             ->name('invoices.preview');
@@ -110,8 +132,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
             ->name('invoices.issue');
 
-        Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])
-            ->name('invoices.show');
+        Route::resource('invoices', InvoiceController::class)
+            ->except(['create', 'store']);
 
         // Tổng Quan Dashboard
         Route::get('/overview', [OverviewController::class, 'index'])

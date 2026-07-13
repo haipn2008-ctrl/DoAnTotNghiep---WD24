@@ -24,7 +24,7 @@ class InvoiceGenerator
             ->where('status', 'confirmed')
             ->first();
 
-        if (!$reading) {
+        if (! $reading) {
             throw ValidationException::withMessages([
                 'utility_reading' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$month}/{$year}.",
             ]);
@@ -160,6 +160,7 @@ class InvoiceGenerator
             $invoice = Invoice::create([
                 'contract_id' => $preview['contract']->id,
                 'room_id' => $preview['room']->id,
+                'invoice_code' => $this->nextInvoiceCode($month, $year),
                 'utility_reading_id' => $preview['reading']->id,
                 'month' => $month,
                 'year' => $year,
@@ -201,5 +202,20 @@ class InvoiceGenerator
                 'contract' => "Hợp đồng {$contract->contract_code} không nằm trong kỳ {$month}/{$year}.",
             ]);
         }
+    }
+
+    private function nextInvoiceCode(int $month, int $year): string
+    {
+        $prefix = sprintf('INV-%04d%02d-', $year, $month);
+        $latestCode = Invoice::where('invoice_code', 'like', $prefix.'%')
+            ->lockForUpdate()
+            ->orderByDesc('invoice_code')
+            ->value('invoice_code');
+
+        $sequence = $latestCode
+            ? ((int) substr($latestCode, -4)) + 1
+            : 1;
+
+        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
     }
 }

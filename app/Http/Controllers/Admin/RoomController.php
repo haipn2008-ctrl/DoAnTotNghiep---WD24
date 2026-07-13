@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RoomRequest;
 use App\Models\Amenity;
+use App\Models\Contract;
 use App\Models\Room;
 use Illuminate\Http\Request;
 
@@ -34,7 +35,7 @@ class RoomController extends Controller
         $rooms = $this->roomQuery($request)
             ->get();
 
-        $filename = 'danh_sach_phong_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'danh_sach_phong_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -53,7 +54,7 @@ class RoomController extends Controller
 
         $callback = function () use ($rooms, $columns) {
             $file = fopen('php://output', 'w');
-            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($file, $columns);
 
             foreach ($rooms as $room) {
@@ -111,7 +112,7 @@ class RoomController extends Controller
         $room = Room::create($data);
 
         $room->amenities()->sync(
-            $request->amenities ?? []
+            $request->input('amenities', [])
         );
 
         return redirect()
@@ -156,7 +157,7 @@ class RoomController extends Controller
         $room->update($data);
 
         $room->amenities()->sync(
-            $request->amenities ?? []
+            $request->input('amenities', [])
         );
 
         return redirect()
@@ -167,7 +168,7 @@ class RoomController extends Controller
     public function destroy(Room $room)
     {
         $hasActiveContract = $room->contracts()
-            ->where('status', 'active')
+            ->where('status', Contract::STATUS_ACTIVE)
             ->exists();
 
         if ($hasActiveContract) {
@@ -191,7 +192,7 @@ class RoomController extends Controller
             $query->where(
                 'room_code',
                 'like',
-                '%' . $request->room_code . '%'
+                '%'.$request->room_code.'%'
             );
         }
 

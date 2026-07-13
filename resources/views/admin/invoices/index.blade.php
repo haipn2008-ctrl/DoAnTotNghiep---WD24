@@ -19,10 +19,20 @@
                 <h2 class="mt-1 text-2xl font-bold text-slate-950">Danh sách hóa đơn</h2>
             </div>
 
-            <a href="{{ route('admin.invoices.generate') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-                <i class="bx bx-file-plus text-lg"></i>
-                Sinh hóa đơn
-            </a>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('admin.invoices.payments') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    <i class="bx bx-credit-card text-lg"></i>
+                    Thanh toán
+                </a>
+                <a href="{{ route('admin.invoices.export', request()->query()) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    <i class="bx bx-export text-lg"></i>
+                    Xuất CSV
+                </a>
+                <a href="{{ route('admin.invoices.generate') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+                    <i class="bx bx-file-plus text-lg"></i>
+                    Sinh hóa đơn
+                </a>
+            </div>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -129,7 +139,10 @@
                                     </span>
                                 </td>
                                 <td class="px-5 py-4">
-                                    <div class="flex justify-end">
+                                    <div class="flex justify-end gap-2">
+                                        <a href="{{ route('admin.invoices.print', $invoice) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" title="In hóa đơn">
+                                            <i class="bx bx-printer text-lg"></i>
+                                        </a>
                                         <a href="{{ route('admin.invoices.show', $invoice) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" title="Xem chi tiết">
                                             <i class="bx bx-show text-lg"></i>
                                         </a>
