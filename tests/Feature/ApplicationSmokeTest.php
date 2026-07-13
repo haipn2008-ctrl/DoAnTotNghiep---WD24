@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Role;
+use App\Models\Room;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -55,6 +56,29 @@ class ApplicationSmokeTest extends TestCase
         $this->actingAs($client)
             ->get('/client')
             ->assertSuccessful();
+    }
+
+    public function test_room_list_uses_tailwind_pagination(): void
+    {
+        $admin = $this->createUser('Admin', 1);
+
+        foreach (range(1, 11) as $number) {
+            Room::create([
+                'room_code' => sprintf('TEST-%02d', $number),
+                'floor' => 1,
+                'price' => 2000000,
+                'area' => 25,
+                'max_people' => 4,
+                'current_people' => 0,
+                'status' => Room::STATUS_AVAILABLE,
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get('/admin/rooms')
+            ->assertSuccessful()
+            ->assertSee('aria-label="Pagination Navigation"', false)
+            ->assertDontSee('class="pagination"', false);
     }
 
     private function createUser(string $name, int $roleId): User
