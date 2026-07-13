@@ -1,81 +1,270 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Hệ thống quản lý phòng trọ Stay Master
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Đây là đồ án tốt nghiệp xây dựng bằng Laravel, MySQL, Blade, Tailwind CSS và
+Vite. Hệ thống hỗ trợ quản lý phòng, khách thuê, hợp đồng, chỉ số điện nước,
+hóa đơn, công nợ, thanh toán, dashboard và xuất CSV.
 
-## Dữ liệu lớn để kiểm thử
+README này dành cho tất cả thành viên trong nhóm. Mỗi người nên dùng database
+riêng trên máy của mình để có thể thêm, sửa, xóa và chạy lại dữ liệu test mà
+không ảnh hưởng đến người khác.
 
-Seeder độc lập `LargeTestDataSeeder` tạo dữ liệu cố định để kiểm tra bộ lọc,
-phân trang, dashboard, xuất CSV và hiệu năng. Chạy lệnh sau trên database dành
-riêng cho phát triển/kiểm thử:
+## Yêu cầu môi trường
+
+- PHP 8.3 trở lên.
+- Composer 2.
+- MySQL hoặc MariaDB; có thể dùng MySQL đi kèm Laragon.
+- Node.js 22 và npm.
+- Khuyến nghị dùng Laragon trên Windows để chạy dự án nhanh nhất.
+
+## Cài đặt lần đầu
+
+Mở Terminal của Laragon tại thư mục dự án và chạy:
 
 ```bash
-php artisan migrate:fresh --seed --seeder=Database\Seeders\LargeTestDataSeeder --force
+composer install
+npm install
 ```
 
-> **Cảnh báo:** `migrate:fresh` xóa toàn bộ bảng và dữ liệu trong database đang
-> được cấu hình. Không chạy lệnh này trên database production hoặc database có
-> dữ liệu cần giữ lại.
+Tạo file môi trường và khóa ứng dụng:
+
+```powershell
+Copy-Item .env.example .env
+php artisan key:generate
+```
+
+Tạo một database MySQL riêng, ví dụ `stay_master_ten_thanh_vien`, sau đó sửa
+phần kết nối trong `.env`:
+
+```dotenv
+APP_NAME="Stay Master"
+APP_ENV=local
+APP_DEBUG=true
+APP_URL=http://localhost
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=stay_master_ten_thanh_vien
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+Tạo liên kết để hiển thị ảnh phòng và ảnh đồng hồ điện nước:
+
+```bash
+php artisan storage:link
+```
+
+Sau đó chọn một trong hai bộ dữ liệu ở phần tiếp theo.
+
+## Chọn dữ liệu để test
+
+### Bộ dữ liệu cơ bản
+
+Phù hợp khi cần kiểm tra nhanh thao tác thêm, sửa và xóa:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+Tài khoản có sẵn:
+
+| Quyền | Email | Mật khẩu |
+| --- | --- | --- |
+| Quản trị | `admin@gmail.com` | `123456` |
+| Khách thuê | `user@gmail.com` | `123456` |
+
+### Bộ dữ liệu lớn
+
+Khuyến nghị dùng bộ này để test bộ lọc, phân trang, dashboard, công nợ, xuất
+CSV và hiệu năng:
+
+```bash
+php artisan migrate:fresh --seed --seeder='Database\Seeders\LargeTestDataSeeder' --force
+```
 
 Tài khoản mẫu đều dùng mật khẩu `password`:
 
-- Quản trị: `admin01@test.local`
-- Khách thuê: `tenant001@test.local`
+| Quyền | Email | Ghi chú |
+| --- | --- | --- |
+| Quản trị | `admin01@test.local` | Có thể dùng `admin01` đến `admin08` |
+| Khách thuê | `tenant001@test.local` | Có thể dùng `tenant001` đến `tenant070` |
 
-Seeder tạo 8 quản trị viên, 70 khách thuê, 90 phòng, 130 hợp đồng, dữ liệu điện
-nước trong 12 tháng, 1.080 hóa đơn, 5.400 chi tiết hóa đơn và gần 1.000 giao
-dịch thanh toán với nhiều trạng thái khác nhau.
+Bộ dữ liệu lớn tạo cố định:
 
-## About Laravel
+- 8 tài khoản quản trị và 70 tài khoản khách thuê.
+- 90 phòng: 60 đang thuê, 20 phòng trống và 10 phòng bảo trì.
+- 130 hợp đồng: 60 đang hoạt động, 20 chờ ký, 25 hết hạn và 25 đã kết thúc.
+- 1.080 bản ghi điện nước trong 12 tháng.
+- 1.080 hóa đơn và 5.400 chi tiết hóa đơn.
+- 965 giao dịch gồm thành công, chờ xử lý và thất bại.
+- Hóa đơn đã trả đủ, trả một phần, chưa trả và quá hạn.
+- Dữ liệu biên như mức tiêu thụ bằng 0, mức tiêu thụ rất cao, nội dung dài và
+  tiếng Việt có dấu.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+> **Cảnh báo:** `migrate:fresh` xóa toàn bộ bảng và dữ liệu của database đang
+> được cấu hình trong `.env`. Chỉ chạy trên database cá nhân dành cho phát
+> triển hoặc kiểm thử. Tuyệt đối không chạy trên database dùng chung hoặc
+> production.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Chạy dự án
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Nếu sử dụng máy chủ tích hợp của Laravel, mở hai terminal:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+```bash
+npm run dev
+```
 
-## Contributing
+Sau đó truy cập `http://127.0.0.1:8000`. Nếu dùng Auto Virtual Hosts của
+Laragon, có thể mở tên miền `.test` do Laragon tạo và vẫn giữ `npm run dev`
+để cập nhật giao diện trong lúc phát triển.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Để kiểm tra bản build production:
 
-## Code of Conduct
+```bash
+npm run build
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Gợi ý kịch bản test thủ công
 
-## Security Vulnerabilities
+### Tài khoản quản trị
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+1. Đăng nhập và kiểm tra số liệu dashboard.
+2. Lọc phòng theo mã và trạng thái, sau đó chuyển qua nhiều trang.
+3. Thêm, sửa, xem, xóa phòng và kiểm tra ảnh phòng.
+4. Thêm, sửa, xem khách thuê; thử dữ liệu tiếng Việt và số điện thoại trùng.
+5. Tạo hợp đồng chờ ký, hợp đồng hoạt động, gia hạn và kết thúc hợp đồng.
+6. Nhập chỉ số điện nước; thử chỉ số bằng chỉ số cũ, chỉ số lớn và tải ảnh
+   đồng hồ.
+7. Tạo hóa đơn từ hợp đồng, xem chi tiết, sửa, in và xóa hóa đơn phù hợp.
+8. Ghi nhận thanh toán đủ, một phần và nhiều lần; kiểm tra công nợ còn lại.
+9. Lọc hóa đơn/thanh toán theo trạng thái, kỳ, phòng, khách thuê và từ khóa.
+10. Xuất CSV phòng, khách thuê, hóa đơn và thanh toán; mở bằng Excel để kiểm
+    tra tiếng Việt, số tiền và số dòng.
 
-## License
+### Tài khoản khách thuê
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+1. Đăng nhập bằng một tài khoản `tenant...@test.local`.
+2. Kiểm tra phòng và hợp đồng đang gắn với đúng khách thuê.
+3. Kiểm tra hóa đơn gần nhất, hóa đơn chưa thanh toán và số tiền còn nợ.
+4. Thử tài khoản chưa có hồ sơ khách thuê để bảo đảm dashboard không lỗi.
+
+### Dữ liệu biên nên thử thêm
+
+- Từ khóa không có kết quả và từ khóa có dấu/không dấu.
+- Trang đầu, trang giữa, trang cuối và tham số `page` lớn hơn tổng số trang.
+- Tháng 1, tháng 12 và dữ liệu qua năm mới.
+- Phòng trống, đang thuê, bảo trì và phòng đã đủ số người.
+- Hợp đồng hết hạn hoặc đã kết thúc nhưng vẫn còn lịch sử hóa đơn.
+- Hóa đơn quá hạn, chưa trả, trả một phần và đã trả đủ.
+- Tải file sai định dạng hoặc ảnh lớn hơn giới hạn cho phép.
+
+## Chạy kiểm thử tự động
+
+Nếu PHP đã bật extension `pdo_sqlite`, chỉ cần chạy:
+
+```bash
+php artisan test
+```
+
+Nếu Laragon chưa bật `pdo_sqlite`, hãy tạo một database MySQL riêng chỉ dành
+cho test, ví dụ `stay_master_test_ten_thanh_vien`, rồi chạy trong PowerShell:
+
+```powershell
+$env:APP_ENV="testing"
+$env:DB_CONNECTION="mysql"
+$env:DB_DATABASE="stay_master_test_ten_thanh_vien"
+php artisan test
+Remove-Item Env:APP_ENV, Env:DB_CONNECTION, Env:DB_DATABASE
+```
+
+> Test sử dụng `RefreshDatabase` và có thể xóa dữ liệu trong database test.
+> Không trỏ lệnh test vào database phát triển đang chứa dữ liệu cần giữ.
+
+Trước khi commit hoặc push, nên chạy tối thiểu:
+
+```bash
+php artisan test
+npm run build
+php artisan route:list
+composer validate --no-check-publish
+git diff --check
+```
+
+Có thể kiểm tra định dạng các file PHP vừa sửa bằng Pint. Ví dụ:
+
+```powershell
+vendor\bin\pint --test app\Providers\AppServiceProvider.php
+```
+
+## Quy ước làm việc nhóm
+
+- Không commit file `.env`, thư mục `vendor`, `node_modules` hoặc dữ liệu cá
+  nhân đã tải lên.
+- Mỗi thành viên dùng database riêng; đặt tên có tên thành viên để tránh nhầm.
+- Trước khi sửa, chạy `git status` và cập nhật nhánh đang làm việc.
+- Không dùng `migrate:fresh` trên database của thành viên khác.
+- Không sửa migration đã được người khác sử dụng; hãy tạo migration mới để
+  thay đổi schema.
+- Commit theo từng chức năng, nội dung commit ngắn gọn và dễ hiểu.
+- Trước khi push, kiểm tra lại trang liên quan, test tự động và `git diff`.
+- Khi xử lý xung đột, ưu tiên giữ đủ chức năng của cả hai phía và chạy lại test
+  sau khi merge.
+
+## Xử lý lỗi thường gặp
+
+### Giao diện chưa cập nhật hoặc phân trang mất định dạng
+
+```bash
+npm install
+npm run build
+php artisan optimize:clear
+```
+
+Sau đó tải lại bằng `Ctrl + F5`.
+
+### Ảnh không hiển thị
+
+```bash
+php artisan storage:link
+```
+
+Kiểm tra quyền ghi của `storage` và `bootstrap/cache`.
+
+### Class hoặc cấu hình cũ vẫn còn trong cache
+
+```bash
+composer dump-autoload
+php artisan optimize:clear
+```
+
+### Migration hoặc dữ liệu test bị rối
+
+Chỉ trên database cá nhân có thể xóa:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+Hoặc tạo lại bộ dữ liệu lớn bằng lệnh ở phần “Bộ dữ liệu lớn”.
+
+## Các khu vực chính trong mã nguồn
+
+| Thư mục | Nội dung |
+| --- | --- |
+| `app/Http/Controllers/Admin` | Xử lý các chức năng quản trị |
+| `app/Models` | Model và quan hệ dữ liệu |
+| `app/Services` | Nghiệp vụ dùng chung, gồm tạo hóa đơn |
+| `database/migrations` | Lịch sử cấu trúc database |
+| `database/seeders` | Dữ liệu mẫu cơ bản và dữ liệu lớn |
+| `resources/views` | Giao diện Blade/Tailwind |
+| `routes/web.php` | Route quản trị, khách thuê và đăng nhập |
+| `tests/Feature` | Test luồng chức năng chính |
+
+Khi phát hiện lỗi, hãy ghi rõ tài khoản đang dùng, URL, bước tái hiện, dữ liệu
+đầu vào, kết quả mong đợi, kết quả thực tế và ảnh chụp màn hình. Thông tin này
+giúp thành viên khác tái hiện và sửa lỗi nhanh hơn.
