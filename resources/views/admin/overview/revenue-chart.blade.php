@@ -1,147 +1,55 @@
 @extends('layouts.admin.index')
 
+@section('title', 'Biểu đồ doanh thu | Quản lý phòng trọ')
+@section('page_title', 'Biểu đồ doanh thu')
+
 @section('content')
-    <div class="container-fluid">
-        <!-- start page title -->
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                    <h4 class="mb-sm-0 font-size-18">
-                        Biểu đồ Doanh Thu Tháng/Năm
-                    </h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item">
-                                <a href="{{ route('admin.overview') }}">
-                                    Tổng Quan
-                                </a>
-                            </li>
-                            <li class="breadcrumb-item active">
-                                Biểu đồ Doanh Thu
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
+    <div class="space-y-6">
+        <div>
+            <p class="text-sm font-medium text-slate-500">Tổng quan</p>
+            <h2 class="mt-1 text-2xl font-bold text-slate-950">Biểu đồ doanh thu tháng/năm</h2>
         </div>
-        <!-- end page title -->
 
-        <!-- Monthly Revenue Chart -->
-        <div class="row">
-            <div class="col-xl-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Doanh Thu Theo Tháng (Năm {{ $currentYear }})</h5>
-                    </div>
-                    <div class="card-body">
-                        @php
-                            $currentMonthIndex = now()->month - 1;
-                            $currentMonthRevenue = $monthlyRevenue[$currentMonthIndex] ?? 0;
-                        @endphp
-                        <div class="mb-3">
-                            <h6>Doanh thu tháng {{ now()->month }}:</h6>
-                            <h3>{{ number_format($currentMonthRevenue, 0, ',', '.') }} đ</h3>
-                        </div>
-                        <div id="monthlyRevenueChart"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Doanh Thu Theo Năm</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="yearlyRevenueChart"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="font-semibold text-slate-950">Doanh thu theo tháng - Năm {{ $currentYear }}</h3>
+            <div id="monthlyRevenueChart" class="mt-4 min-h-[360px]"></div>
+        </section>
+
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="font-semibold text-slate-950">Doanh thu theo năm</h3>
+            <div id="yearlyRevenueChart" class="mt-4 min-h-[360px]"></div>
+        </section>
     </div>
-
-    @push('scripts')
-        <script>
-            var options = {
-                chart: {
-                    type: 'bar',
-                    height: 350,
-                    toolbar: {
-                        show: true
-                    }
-                },
-                colors: ['#5156be'],
-                plotOptions: {
-                    bar: {
-                        columnWidth: '60%'
-                    }
-                },
-                series: [{
-                    name: 'Doanh Thu (VNĐ)',
-                    data: @json($monthlyRevenue)
-                }],
-                xaxis: {
-                    categories: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
-                                'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
-                    title: {
-                        text: 'Tháng'
-                    }
-                },
-                yaxis: {
-                    title: {
-                        text: 'Doanh Thu (VNĐ)'
-                    }
-                },
-                dataLabels: {
-                    enabled: true,
-                    formatter: function (val) {
-                        return '₫ ' + Number(val).toLocaleString('vi-VN');
-                    }
-                },
-                stroke: {
-                    show: true,
-                    width: 2,
-                    colors: ['transparent']
-                },
-                tooltip: {
-                    theme: 'light',
-                    y: {
-                        formatter: function (val) {
-                            return "₫ " + Number(val).toLocaleString('vi-VN');
-                        }
-                    }
-                }
-            };
-
-            var monthlyChart = new ApexCharts(document.querySelector("#monthlyRevenueChart"), options);
-            monthlyChart.render();
-
-            var yearlyOptions = {
-                chart: {
-                    type: 'line',
-                    height: 350,
-                    toolbar: { show: true }
-                },
-                series: [{
-                    name: 'Doanh Thu (VNĐ)',
-                    data: @json($yearlyRevenue)
-                }],
-                xaxis: {
-                    categories: @json($yearLabels),
-                    title: { text: 'Năm' }
-                },
-                yaxis: {
-                    title: { text: 'Doanh Thu (VNĐ)' }
-                },
-                stroke: { curve: 'smooth' },
-                dataLabels: { enabled: false },
-                tooltip: {
-                    theme: 'light',
-                    y: { formatter: function (val) { return '₫ ' + Number(val).toLocaleString('vi-VN'); } }
-                }
-            };
-
-            var yearlyChart = new ApexCharts(document.querySelector("#yearlyRevenueChart"), yearlyOptions);
-            yearlyChart.render();
-        </script>
-    @endpush
 @endsection
+
+@push('scripts')
+    <script>
+        new ApexCharts(document.querySelector("#monthlyRevenueChart"), {
+            chart: { type: 'bar', height: 360, toolbar: { show: true } },
+            series: [{ name: 'Doanh Thu (VNĐ)', data: @json($monthlyRevenue) }],
+            colors: ['#5156be'],
+            plotOptions: { bar: { columnWidth: '60%' } },
+            dataLabels: {
+                enabled: true,
+                formatter: function(val) { return '₫ ' + Number(val).toLocaleString('vi-VN'); }
+            },
+            xaxis: {
+                categories: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+                             'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
+                title: { text: 'Tháng' }
+            },
+            yaxis: { title: { text: 'Doanh Thu (VNĐ)' } },
+            tooltip: { y: { formatter: function(val) { return '₫ ' + Number(val).toLocaleString('vi-VN'); } } }
+        }).render();
+
+        new ApexCharts(document.querySelector("#yearlyRevenueChart"), {
+            chart: { type: 'line', height: 360, toolbar: { show: true } },
+            series: [{ name: 'Doanh Thu (VNĐ)', data: @json($yearlyRevenue) }],
+            xaxis: { categories: @json($yearLabels), title: { text: 'Năm' } },
+            yaxis: { title: { text: 'Doanh Thu (VNĐ)' } },
+            stroke: { curve: 'smooth' },
+            dataLabels: { enabled: false },
+            tooltip: { y: { formatter: function(val) { return '₫ ' + Number(val).toLocaleString('vi-VN'); } } }
+        }).render();
+    </script>
+@endpush

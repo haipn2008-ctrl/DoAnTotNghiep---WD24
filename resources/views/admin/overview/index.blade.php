@@ -1,323 +1,91 @@
 @extends('layouts.admin.index')
 
+@section('title', 'Tổng quan | Quản lý phòng trọ')
+@section('page_title', 'Tổng quan')
+
 @section('content')
-    <div class="container-fluid">
-        <!-- start page title -->
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                    <h4 class="mb-sm-0 font-size-18">
-                        Tổng Quan
-                    </h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item">
-                                <a href="javascript: void(0);">
-                                    Admin
-                                </a>
-                            </li>
-                            <li class="breadcrumb-item active">
-                                Tổng Quan
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- end page title -->
-
-        <!-- Statistics Cards -->
-        <div class="row">
-            <div class="col-xl-3 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Tổng Doanh Thu
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ number_format($totalRevenue / 1000000, 1) }}M
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-currency-usd" style="font-size: 40px; color: #5156be;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Tổng Phòng
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ $totalRooms }}
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-home" style="font-size: 40px; color: #00bfa5;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Hợp Đồng Hoạt Động
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ $activeContracts }}
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-file-document" style="font-size: 40px; color: #ffc107;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Tổng Công Nợ
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ number_format($totalReceivable, 0, ',', '.') }} đ
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-alert-circle" style="font-size: 40px; color: #ef5350;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div class="space-y-6">
+        <div>
+            <p class="text-sm font-medium text-slate-500">Báo cáo vận hành</p>
+            <h2 class="mt-1 text-2xl font-bold text-slate-950">Tổng quan hệ thống</h2>
         </div>
 
-        <!-- Charts Row 1 -->
-        <div class="row">
-            <!-- Doanh Thu Theo Tháng (Cột) -->
-            <div class="col-lg-7">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Doanh Thu Theo Tháng - Năm 2025 & 2026</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="monthly-revenue-chart" style="height: 350px;"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tỷ Lệ Phòng (Tròn) -->
-            <div class="col-lg-5">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Doanh Thu Theo Tháng - Năm {{ $previousYear }} & {{ $currentYear }}</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="room-status-chart" style="height: 350px;"></div>
-                    </div>
-                </div>
-            </div>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Tổng doanh thu</p><p class="mt-3 text-3xl font-bold text-emerald-700">{{ number_format($totalRevenue, 0, ',', '.') }}đ</p></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Tổng phòng</p><p class="mt-3 text-3xl font-bold text-slate-950">{{ $totalRooms }}</p></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Hợp đồng hoạt động</p><p class="mt-3 text-3xl font-bold text-indigo-700">{{ $activeContracts }}</p></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Hóa đơn chưa thanh toán</p><p class="mt-3 text-3xl font-bold text-amber-700">{{ $unpaidInvoices }}</p></div>
         </div>
 
-        <!-- Charts Row 2 -->
-        <div class="row">
-            <!-- Trạng Thái Hóa Đơn (Tròn) -->
-            <div class="col-lg-5">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Trạng Thái Hóa Đơn</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="invoice-status-chart" style="height: 350px;"></div>
-                    </div>
+        <div class="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
+            <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="font-semibold text-slate-950">Doanh thu theo tháng</h3>
+                <p class="mt-1 text-sm text-slate-500">So sánh năm {{ $previousYear }} và {{ $currentYear }}</p>
+                <div id="monthly-revenue-chart" class="mt-4 min-h-[350px]"></div>
+            </section>
+
+            <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="font-semibold text-slate-950">Trạng thái phòng</h3>
+                <div id="room-status-chart" class="mt-4 min-h-[350px]"></div>
+            </section>
+        </div>
+
+        <div class="grid gap-6 xl:grid-cols-[1fr_1.35fr]">
+            <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="font-semibold text-slate-950">Trạng thái hóa đơn</h3>
+                <div id="invoice-status-chart" class="mt-4 min-h-[350px]"></div>
+            </section>
+
+            <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="font-semibold text-slate-950">Thống kê nhanh</h3>
+                <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Doanh thu hôm nay</p><p class="mt-2 text-xl font-bold text-slate-950">{{ number_format($todayRevenue, 0, ',', '.') }}đ</p></div>
+                    <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Doanh thu tháng này</p><p class="mt-2 text-xl font-bold text-slate-950">{{ number_format($monthRevenue, 0, ',', '.') }}đ</p></div>
+                    <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Đã thuê</p><p class="mt-2 text-xl font-bold text-emerald-700">{{ $occupiedRooms }} phòng · {{ $occupiedPercent }}%</p></div>
+                    <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Còn trống</p><p class="mt-2 text-xl font-bold text-sky-700">{{ $availableRooms }} phòng · {{ $availablePercent }}%</p></div>
+                    <div class="rounded-lg bg-slate-50 p-4 sm:col-span-2"><p class="text-sm text-slate-500">Bảo trì</p><p class="mt-2 text-xl font-bold text-amber-700">{{ $maintenanceRooms }} phòng · {{ $maintenancePercent }}%</p></div>
                 </div>
-            </div>
-
-            <!-- Thống Kê Nhanh -->
-            <div class="col-lg-7">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center">
-                                    <div class="flex-grow-1">
-                                        <p class="text-muted mb-2">Doanh Thu Hôm Nay</p>
-                                        <h4 class="mb-0">{{ number_format($todayRevenue, 0, ',', '.') }} đ</h4>
-                                    </div>
-                                    <div class="text-center">
-                                        <i class="mdi mdi-cash-multiple" style="font-size: 40px; color: #5156be; opacity: 0.3;"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center">
-                                    <div class="flex-grow-1">
-                                        <p class="text-muted mb-2">Doanh Thu Tháng Này</p>
-                                        <h4 class="mb-0">{{ number_format($monthRevenue, 0, ',', '.') }} đ</h4>
-                                    </div>
-                                    <div class="text-center">
-                                        <i class="mdi mdi-calendar" style="font-size: 40px; color: #00bfa5; opacity: 0.3;"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-12">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">Chi Tiết Phòng</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row text-center">
-                                    <div class="col-6 col-sm-4">
-                                        <div class="mb-3">
-                                            <h5>{{ $occupiedRooms }}</h5>
-                                            <p class="text-muted mb-0">Đã Thuê</p>
-                                            <small class="text-success">{{ $occupiedPercent }}%</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-sm-4">
-                                        <div class="mb-3">
-                                            <h5>{{ $availableRooms }}</h5>
-                                            <p class="text-muted mb-0">Còn Trống</p>
-                                            <small class="text-info">{{ $availablePercent }}%</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-sm-4">
-                                        <div class="mb-3">
-                                            <h5>{{ $maintenanceRooms }}</h5>
-                                            <p class="text-muted mb-0">Bảo Trì</p>
-                                            <small class="text-warning">{{ $maintenancePercent }}%</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </section>
         </div>
     </div>
-
-    @push('scripts')
-        <script src="{{ asset('assets/libs/apexcharts/apexcharts.min.js') }}"></script>
-        <script>
-            // 1. Biểu đồ cột - Doanh Thu Theo Tháng
-            var monthlyOptions = {
-                series: [{
-                    name: 'Doanh Thu {{ $previousYear }}',
-                    data: @json($monthlyRevenuePreviousYear)
-                },
-                {
-                    name: 'Doanh Thu {{ $currentYear }}',
-                    data: @json($monthlyRevenueCurrentYear)
-                }],
-                chart: {
-                    type: 'bar',
-                    height: 350,
-                    toolbar: { show: false }
-                },
-                plotOptions: {
-                    bar: {
-                        dataLabels: { enabled: false },
-                        columnWidth: '70%'
-                    }
-                },
-                colors: ['#5156be', '#00bfa5'],
-                xaxis: {
-                    categories: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12']
-                },
-                yaxis: {
-                    title: { text: 'Doanh Thu (VNĐ)' }
-                }
-            };
-
-            var monthlyChart = new ApexCharts(document.querySelector("#monthly-revenue-chart"), monthlyOptions);
-            monthlyChart.render();
-
-            // 2. Biểu đồ tròn - Trạng Thái Phòng
-            var roomStatusOptions = {
-                series: [{{ $occupiedRooms }}, {{ $availableRooms }}, {{ $maintenanceRooms }}],
-                labels: ['Đã Thuê', 'Còn Trống', 'Bảo Trì'],
-                chart: {
-                    type: 'donut',
-                    height: 350
-                },
-                colors: ['#ffc107', '#00bfa5', '#ef5350'],
-                plotOptions: {
-                    pie: {
-                        donut: {
-                            size: '70%'
-                        }
-                    }
-                },
-                dataLabels: {
-                    enabled: true,
-                    formatter: function(val) {
-                        return Math.round(val) + '%'
-                    }
-                },
-                legend: {
-                    position: 'bottom'
-                }
-            };
-
-            var roomStatusChart = new ApexCharts(document.querySelector("#room-status-chart"), roomStatusOptions);
-            roomStatusChart.render();
-
-            // 3. Biểu đồ tròn - Trạng Thái Hóa Đơn
-            var invoiceStatusOptions = {
-                series: [{{ $paidInvoices }}, {{ $unpaidInvoices }}, {{ $partialInvoices }}],
-                labels: ['Đã Thanh Toán', 'Chưa Thanh Toán', 'Thanh Toán Một Phần'],
-                chart: {
-                    type: 'pie',
-                    height: 350
-                },
-                colors: ['#00bfa5', '#ef5350', '#ffc107'],
-                dataLabels: {
-                    enabled: true,
-                    formatter: function(val) {
-                        return Math.round(val) + '%'
-                    }
-                },
-                legend: {
-                    position: 'bottom'
-                }
-            };
-
-            var invoiceStatusChart = new ApexCharts(document.querySelector("#invoice-status-chart"), invoiceStatusOptions);
-            invoiceStatusChart.render();
-        </script>
-    @endpush
 @endsection
+
+@push('scripts')
+    <script>
+        new ApexCharts(document.querySelector("#monthly-revenue-chart"), {
+            chart: { type: 'bar', height: 350, toolbar: { show: false } },
+            series: [
+                { name: 'Doanh Thu {{ $previousYear }}', data: @json($monthlyRevenuePreviousYear) },
+                { name: 'Doanh Thu {{ $currentYear }}', data: @json($monthlyRevenueCurrentYear) }
+            ],
+            colors: ['#5156be', '#00bfa5'],
+            plotOptions: { bar: { dataLabels: { enabled: false }, columnWidth: '70%' } },
+            dataLabels: { enabled: false },
+            xaxis: { categories: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'] },
+            yaxis: {
+                title: { text: 'Doanh Thu (VNĐ)' },
+                labels: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' }
+            },
+            tooltip: { y: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' } }
+        }).render();
+
+        new ApexCharts(document.querySelector("#room-status-chart"), {
+            chart: { type: 'donut', height: 350 },
+            series: [{{ $occupiedRooms }}, {{ $availableRooms }}, {{ $maintenanceRooms }}],
+            labels: ['Đã Thuê', 'Còn Trống', 'Bảo Trì'],
+            colors: ['#ffc107', '#00bfa5', '#ef5350'],
+            plotOptions: { pie: { donut: { size: '70%' } } },
+            dataLabels: { enabled: true, formatter: val => Math.round(val) + '%' },
+            legend: { position: 'bottom' }
+        }).render();
+
+        new ApexCharts(document.querySelector("#invoice-status-chart"), {
+            chart: { type: 'pie', height: 350 },
+            series: [{{ $paidInvoices }}, {{ $unpaidInvoices }}, {{ $partialInvoices }}],
+            labels: ['Đã Thanh Toán', 'Chưa Thanh Toán', 'Thanh Toán Một Phần'],
+            colors: ['#00bfa5', '#ef5350', '#ffc107'],
+            dataLabels: { enabled: true, formatter: val => Math.round(val) + '%' },
+            legend: { position: 'bottom' }
+        }).render();
+    </script>
+@endpush

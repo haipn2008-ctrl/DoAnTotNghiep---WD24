@@ -133,6 +133,12 @@ p{
 <body>
 
 <div class="contract">
+@php
+    $houseAddress = 'Cầu Giấy - Hà Nội';
+    $createdDate = \Carbon\Carbon::parse($contract->created_at);
+    $startDate = \Carbon\Carbon::parse($contract->start_date);
+    $endDate = \Carbon\Carbon::parse($contract->end_date);
+@endphp
 
 <div class="center national">
      CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
@@ -147,14 +153,14 @@ p{
 </div>
 <p class="contract-info">
 Hôm nay ngày
-<span class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('d') }}</span>
+<span class="line small">{{ $createdDate->format('d') }}</span>
 tháng
-<span class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('m') }}</span>
+<span class="line small">{{ $createdDate->format('m') }}</span>
 năm
-<span class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('Y') }}</span>;
+<span class="line small">{{ $createdDate->format('Y') }}</span>;
 tại địa chỉ:
 <span class="line mini">
-    Cầu Giấy - Hà Nội
+    {{ $houseAddress }}
 </span>
 </p>
 <p>
@@ -179,7 +185,7 @@ Sinh ngày:
 
 <p>
 Nơi đăng ký hộ khẩu:
-<span class="line Large">Cầu Giấy - Hà Nội</span>
+<span class="line Large">{{ $houseAddress }}</span>
 </p>
 
 <p>
@@ -266,8 +272,7 @@ cùng thống nhất như sau:
 <p>
 Bên A đồng ý cho bên B thuê 01 phòng ở tại địa chỉ:
 <span class="line short">
-{{ $contract->room->address }}
-Phòng {{ $contract->room->room_code }}
+{{ $houseAddress }}, phòng {{ $contract->room->room_code }}
 </span>
 </p>
 <p>
@@ -315,21 +320,18 @@ Tiền đặt cọc:
 
 <p>
 Hợp đồng có giá trị kể từ ngày
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('d') }}</strong>
+<strong class="line small">{{ $startDate->format('d') }}</strong>
 tháng
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('m') }}</strong>
+<strong class="line small">{{ $startDate->format('m') }}</strong>
 năm
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->created_at)->format('Y') }}</strong>
+<strong class="line small">{{ $startDate->format('Y') }}</strong>
 
-{{-- {{ \Carbon\Carbon::parse($contract->start_date)->format('d/m/Y') }} --}}
 đến ngày
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->end_date)->format('d') }}</strong>
+<strong class="line small">{{ $endDate->format('d') }}</strong>
 tháng
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->end_date)->format('m') }}</strong>
+<strong class="line small">{{ $endDate->format('m') }}</strong>
 năm
-<strong class="line small">{{ \Carbon\Carbon::parse($contract->end_date)->format('Y') }}</strong>
-
-{{-- {{ \Carbon\Carbon::parse($contract->end_date)->format('d/m/Y') }} --}}
+<strong class="line small">{{ $endDate->format('Y') }}</strong>
 </p>
 <div style="margin-top:40px;">
 

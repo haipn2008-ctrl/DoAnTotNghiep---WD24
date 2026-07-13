@@ -1,208 +1,55 @@
 @extends('layouts.admin.index')
 
+@section('title', 'Thống kê phòng | Quản lý phòng trọ')
+@section('page_title', 'Thống kê phòng')
+
+@php
+    $occupiedPercent = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
+    $availablePercent = $totalRooms > 0 ? round(($availableRooms / $totalRooms) * 100, 1) : 0;
+    $maintenancePercent = $totalRooms > 0 ? round(($maintenanceRooms / $totalRooms) * 100, 1) : 0;
+@endphp
+
 @section('content')
-    <div class="container-fluid">
-        <!-- start page title -->
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                    <h4 class="mb-sm-0 font-size-18">
-                        Thống Kê Số Phòng
-                    </h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item">
-                                <a href="{{ route('admin.overview') }}">
-                                    Tổng Quan
-                                </a>
-                            </li>
-                            <li class="breadcrumb-item active">
-                                Thống Kê Phòng
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- end page title -->
-
-        <!-- Room Statistics Cards -->
-        <div class="row">
-            <div class="col-xl-3 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Tổng Số Phòng
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ $totalRooms }}
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-home" style="font-size: 40px; color: #5156be;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Phòng Đã Cho Thuê
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ $occupiedRooms }}
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-account" style="font-size: 40px; color: #00bfa5;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Phòng Còn Trống
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ $availableRooms }}
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-home-outline" style="font-size: 40px; color: #ffc107;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Phòng Bảo Trì
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ $maintenanceRooms }}
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-wrench" style="font-size: 40px; color: #ef5350;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div class="space-y-6">
+        <div>
+            <p class="text-sm font-medium text-slate-500">Tổng quan</p>
+            <h2 class="mt-1 text-2xl font-bold text-slate-950">Thống kê số phòng</h2>
         </div>
 
-        <!-- Room Statistics Chart -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Biểu Đồ Trạng Thái Phòng</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="roomStatusChart"></div>
-                    </div>
-                </div>
-            </div>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Tổng số phòng</p><p class="mt-3 text-3xl font-bold text-slate-950">{{ $totalRooms }}</p></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Phòng đã cho thuê</p><p class="mt-3 text-3xl font-bold text-emerald-700">{{ $occupiedRooms }}</p></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Phòng còn trống</p><p class="mt-3 text-3xl font-bold text-sky-700">{{ $availableRooms }}</p></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Phòng bảo trì</p><p class="mt-3 text-3xl font-bold text-amber-700">{{ $maintenanceRooms }}</p></div>
         </div>
 
-        <!-- Room Details Table -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Chi Tiết Trạng Thái Phòng</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Trạng Thái</th>
-                                        <th class="text-right">Số Lượng</th>
-                                        <th class="text-right">Tỷ Lệ</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><i class="mdi mdi-account" style="color: #00bfa5;"></i> Đã Cho Thuê</td>
-                                        <td class="text-right">{{ $occupiedRooms }}</td>
-                                        <td class="text-right">{{ ($totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0) }}%</td>
-                                    </tr>
-                                    <tr>
-                                        <td><i class="mdi mdi-home-outline" style="color: #ffc107;"></i> Còn Trống</td>
-                                        <td class="text-right">{{ $availableRooms }}</td>
-                                        <td class="text-right">{{ ($totalRooms > 0 ? round(($availableRooms / $totalRooms) * 100, 1) : 0) }}%</td>
-                                    </tr>
-                                    <tr>
-                                        <td><i class="mdi mdi-wrench" style="color: #ef5350;"></i> Bảo Trì</td>
-                                        <td class="text-right">{{ $maintenanceRooms }}</td>
-                                        <td class="text-right">{{ ($totalRooms > 0 ? round(($maintenanceRooms / $totalRooms) * 100, 1) : 0) }}%</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="font-semibold text-slate-950">Biểu đồ trạng thái phòng</h3>
+            <div id="roomStatusChart" class="mt-4 min-h-[350px]"></div>
+        </section>
+
+        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Chi tiết trạng thái phòng</h3></div>
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <tbody class="divide-y divide-slate-100">
+                    <tr><td class="px-5 py-4 text-slate-600">Đã cho thuê</td><td class="px-5 py-4 text-right">{{ $occupiedRooms }}</td><td class="px-5 py-4 text-right font-semibold">{{ $occupiedPercent }}%</td></tr>
+                    <tr><td class="px-5 py-4 text-slate-600">Còn trống</td><td class="px-5 py-4 text-right">{{ $availableRooms }}</td><td class="px-5 py-4 text-right font-semibold">{{ $availablePercent }}%</td></tr>
+                    <tr><td class="px-5 py-4 text-slate-600">Bảo trì</td><td class="px-5 py-4 text-right">{{ $maintenanceRooms }}</td><td class="px-5 py-4 text-right font-semibold">{{ $maintenancePercent }}%</td></tr>
+                </tbody>
+            </table>
+        </section>
     </div>
-
-    @push('scripts')
-        <script>
-            var options = {
-                chart: {
-                    type: 'donut',
-                    height: 350
-                },
-                series: [{{ $occupiedRooms }}, {{ $availableRooms }}, {{ $maintenanceRooms }}],
-                labels: ['Đã Cho Thuê', 'Còn Trống', 'Bảo Trì'],
-                colors: ['#00bfa5', '#ffc107', '#ef5350'],
-                plotOptions: {
-                    pie: {
-                        donut: {
-                            size: '75%'
-                        }
-                    }
-                },
-                dataLabels: {
-                    enabled: true,
-                    formatter: function (val) {
-                        return Math.round(val) + '%';
-                    }
-                },
-                legend: {
-                    position: 'bottom'
-                }
-            };
-
-            var chart = new ApexCharts(document.querySelector("#roomStatusChart"), options);
-            chart.render();
-        </script>
-    @endpush
 @endsection
+
+@push('scripts')
+    <script>
+        new ApexCharts(document.querySelector("#roomStatusChart"), {
+            chart: { type: 'donut', height: 350 },
+            series: [{{ $occupiedRooms }}, {{ $availableRooms }}, {{ $maintenanceRooms }}],
+            labels: ['Đã cho thuê', 'Còn trống', 'Bảo trì'],
+            colors: ['#059669', '#0284c7', '#d97706'],
+            legend: { position: 'bottom' },
+            dataLabels: { enabled: true, formatter: val => Math.round(val) + '%' }
+        }).render();
+    </script>
+@endpush

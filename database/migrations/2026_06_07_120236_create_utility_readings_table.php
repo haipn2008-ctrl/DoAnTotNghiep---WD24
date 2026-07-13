@@ -6,127 +6,41 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+    public function up()
     {
         Schema::create('utility_readings', function (Blueprint $table) {
 
             $table->id();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Quan hệ
-            |--------------------------------------------------------------------------
-            */
-
-            $table->foreignId('contract_id')
-                ->constrained()
-                ->cascadeOnUpdate()
-                ->cascadeOnDelete();
-
             $table->foreignId('room_id')
                 ->constrained()
-                ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Kỳ ghi điện nước
-            |--------------------------------------------------------------------------
-            */
+            $table->integer('month');
 
-            $table->unsignedTinyInteger('month');
-
-            $table->unsignedSmallInteger('year');
+            $table->integer('year');
 
             $table->date('record_date');
 
-            /*
-            |--------------------------------------------------------------------------
-            | Chỉ số điện
-            |--------------------------------------------------------------------------
-            */
-
-            $table->integer('electric_old')
+            $table->integer('electricity_old')
                 ->default(0);
 
-            $table->integer('electric_new')
-                ->default(0);
-
-            $table->decimal('electric_unit_price', 12, 2)
-                ->default(0);
-
-            $table->string('electricity_image')
-                ->nullable();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Chỉ số nước
-            |--------------------------------------------------------------------------
-            */
+            $table->integer('electricity_new');
 
             $table->integer('water_old')
                 ->default(0);
 
-            $table->integer('water_new')
-                ->default(0);
-
-            $table->decimal('water_unit_price', 12, 2)
-                ->default(0);
-
-            $table->string('water_image')
-                ->nullable();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Trạng thái
-            |--------------------------------------------------------------------------
-            */
+            $table->integer('water_new');
 
             $table->enum('status', [
                 'draft',
                 'confirmed'
             ])->default('draft');
 
-            /*
-            |--------------------------------------------------------------------------
-            | Ghi chú
-            |--------------------------------------------------------------------------
-            */
-
             $table->text('note')
                 ->nullable();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Người nhập
-            |--------------------------------------------------------------------------
-            */
-
-            $table->foreignId('recorded_by')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
-
             $table->timestamps();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Index
-            |--------------------------------------------------------------------------
-            */
-
-            $table->index(['room_id', 'month', 'year']);
-            $table->index(['contract_id', 'month', 'year']);
-            $table->index('status');
-
-            /*
-            |--------------------------------------------------------------------------
-            | Mỗi phòng chỉ có 1 lần chốt điện nước / tháng
-            |--------------------------------------------------------------------------
-            */
 
             $table->unique([
                 'room_id',
@@ -136,10 +50,7 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
+    public function down()
     {
         Schema::dropIfExists('utility_readings');
     }

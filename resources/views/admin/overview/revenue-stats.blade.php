@@ -1,195 +1,41 @@
 @extends('layouts.admin.index')
 
+@section('title', 'Thống kê doanh thu | Quản lý phòng trọ')
+@section('page_title', 'Thống kê doanh thu')
+
 @section('content')
-    <div class="container-fluid">
-        <!-- start page title -->
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                    <h4 class="mb-sm-0 font-size-18">
-                        Thống Kê Tổng Doanh Thu
-                    </h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item">
-                                <a href="{{ route('admin.overview') }}">
-                                    Tổng Quan
-                                </a>
-                            </li>
-                            <li class="breadcrumb-item active">
-                                Thống Kê Doanh Thu
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
+    <div class="space-y-6">
+        <div>
+            <p class="text-sm font-medium text-slate-500">Tổng quan</p>
+            <h2 class="mt-1 text-2xl font-bold text-slate-950">Thống kê tổng doanh thu</h2>
         </div>
-        <!-- end page title -->
 
-        <!-- Revenue Statistics -->
-        <div class="row">
-            <div class="col-xl-4 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Tổng Doanh Thu
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ number_format($totalRevenue / 1000000, 1) }}M
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-currency-usd" style="font-size: 40px; color: #5156be;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="grid gap-4 md:grid-cols-3">
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Tổng doanh thu</p>
+                <p class="mt-3 text-3xl font-bold text-emerald-700">{{ number_format($totalRevenue, 0, ',', '.') }}đ</p>
             </div>
-
-            <div class="col-xl-4 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Doanh Thu Tháng Này
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ number_format($monthRevenue / 1000000, 1) }}M
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-calendar-month" style="font-size: 40px; color: #ffc107;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Doanh thu tháng này</p>
+                <p class="mt-3 text-3xl font-bold text-indigo-700">{{ number_format($monthRevenue, 0, ',', '.') }}đ</p>
             </div>
-
-            <div class="col-xl-4 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Doanh Thu Hôm Nay
-                                </span>
-                                <h4 class="mb-3">
-                                    {{ number_format($todayRevenue / 1000000, 1) }}M
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center">
-                                    <i class="mdi mdi-today" style="font-size: 40px; color: #00bfa5;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Doanh thu hôm nay</p>
+                <p class="mt-3 text-3xl font-bold text-sky-700">{{ number_format($todayRevenue, 0, ',', '.') }}đ</p>
             </div>
         </div>
 
-        <!-- Revenue Details -->
-        <div class="row mt-4">
-            <div class="col-xl-4 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-7">
-                                <span class="text-muted mb-3 d-block">Tổng Doanh Thu</span>
-                                <h4 class="mb-0">{{ number_format($totalRevenue, 0, ',', '.') }} VNĐ</h4>
-                            </div>
-                            <div class="col-5 text-end">
-                                <i class="mdi mdi-cash-multiple" style="font-size: 32px; color: #5156be;"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h3 class="font-semibold text-slate-950">Chi tiết doanh thu</h3>
             </div>
-            <div class="col-xl-4 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-7">
-                                <span class="text-muted mb-3 d-block">Tổng Phải Thu</span>
-                                <h4 class="mb-0">{{ number_format($totalBilled, 0, ',', '.') }} VNĐ</h4>
-                            </div>
-                            <div class="col-5 text-end">
-                                <i class="mdi mdi-file-document-outline" style="font-size: 32px; color: #ffc107;"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-4 col-md-6">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-7">
-                                <span class="text-muted mb-3 d-block">Tổng Công Nợ</span>
-                                <h4 class="mb-0">{{ number_format($totalReceivable, 0, ',', '.') }} VNĐ</h4>
-                            </div>
-                            <div class="col-5 text-end">
-                                <i class="mdi mdi-alert-circle-outline" style="font-size: 32px; color: #ef5350;"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Chi Tiết Doanh Thu</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Loại Doanh Thu</th>
-                                        <th class="text-right">Giá Trị</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>Tổng Doanh Thu Đã Thanh Toán</td>
-                                        <td class="text-right"><strong>{{ number_format($totalRevenue, 0, ',', '.') }} VNĐ</strong></td>
-                                    </tr>
-                                    <tr>
-                                        <td>Tổng Phải Thu</td>
-                                        <td class="text-right">{{ number_format($totalBilled, 0, ',', '.') }} VNĐ</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Tổng Công Nợ</td>
-                                        <td class="text-right">{{ number_format($totalReceivable, 0, ',', '.') }} VNĐ</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Tỷ Lệ Thu Tiền</td>
-                                        <td class="text-right">{{ $collectionRate }}%</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Doanh Thu Tháng Này</td>
-                                        <td class="text-right">{{ number_format($monthRevenue, 0, ',', '.') }} VNĐ</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Doanh Thu Hôm Nay</td>
-                                        <td class="text-right">{{ number_format($todayRevenue, 0, ',', '.') }} VNĐ</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <tbody class="divide-y divide-slate-100">
+                    <tr><td class="px-5 py-4 text-slate-600">Tổng doanh thu</td><td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($totalRevenue, 0, ',', '.') }}đ</td></tr>
+                    <tr><td class="px-5 py-4 text-slate-600">Doanh thu tháng này</td><td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($monthRevenue, 0, ',', '.') }}đ</td></tr>
+                    <tr><td class="px-5 py-4 text-slate-600">Doanh thu hôm nay</td><td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($todayRevenue, 0, ',', '.') }}đ</td></tr>
+                </tbody>
+            </table>
+        </section>
     </div>
 @endsection

@@ -20,8 +20,9 @@ class TenantRequest extends FormRequest
         return [
             'user_id' => [
                 'required',
-                'exists:users,id'
+                'exists:users,id',
             ],
+
             'full_name' => 'required|max:255',
 
             'date_of_birth' => 'nullable|date',
@@ -50,12 +51,21 @@ class TenantRequest extends FormRequest
             'address' => 'nullable|max:500',
         ];
     }
+
     #[Override]
     public function messages()
     {
         return [
             'user_id.required' => 'Vui lòng chọn tài khoản đăng nhập.',
             'user_id.exists' => 'Tài khoản không tồn tại.',
+            'full_name.required' => 'Vui lòng nhập họ và tên.',
+            'cccd.required' => 'Vui lòng nhập CCCD.',
+            'cccd.digits' => 'CCCD phải gồm 12 chữ số.',
+            'cccd.unique' => 'CCCD đã tồn tại.',
+            'phone.required' => 'Vui lòng nhập số điện thoại.',
+            'phone.unique' => 'Số điện thoại đã tồn tại.',
+            'email.email' => 'Email không đúng định dạng.',
+            'email.unique' => 'Email đã tồn tại.',
         ];
     }
 }

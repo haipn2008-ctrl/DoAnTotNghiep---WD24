@@ -10,22 +10,26 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('invoices', function (Blueprint $table) {
-
             $table->foreignId('room_id')
                 ->nullable()
                 ->after('contract_id')
                 ->constrained()
                 ->cascadeOnUpdate()
                 ->nullOnDelete();
+        });
 
-            $table->unique([
-                'room_id',
-                'month',
-                'year'
-            ]);
+        DB::table('invoices')
+            ->join('contracts', 'invoices.contract_id', '=', 'contracts.id')
+            ->select('invoices.id', 'contracts.room_id')
+            ->get()
+            ->each(function ($row) {
+                DB::table('invoices')->where('id', $row->id)->update(['room_id' => $row->room_id]);
+            });
+
+        Schema::table('invoices', function (Blueprint $table) {
+            $table->unique(['room_id', 'month', 'year'], 'invoices_room_month_year_unique');
         });
     }
-    //
 
     public function down(): void
     {

@@ -1,14 +1,6 @@
-<footer class="footer">
-    <div class="container-fluid">
-        <div class="row align-items-center">
-            <div class="col-sm-6">
-                © 2024 Hệ thống Quản lý Phòng Trọ.
-            </div>
-            <div class="col-sm-6">
-                <div class="text-sm-end d-none d-sm-block">
-                    Cần hỗ trợ? Liên hệ BQL: <strong>1900 xxxx</strong>
-                </div>
-            </div>
-        </div>
+<footer class="border-t border-slate-200 bg-white px-4 py-4 text-sm text-slate-500 sm:px-6 lg:px-8">
+    <div class="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+        <p>© {{ date('Y') }} Hệ thống Quản lý Phòng Trọ.</p>
+        <p>Cần hỗ trợ? Liên hệ BQL: <strong class="font-semibold text-slate-700">1900 xxxx</strong></p>
     </div>
 </footer>

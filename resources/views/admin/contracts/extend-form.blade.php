@@ -1,236 +1,91 @@
-@extends('layouts.admin.home')
+@extends('layouts.admin.index')
+
+@section('title', 'Xác nhận gia hạn | Quản lý phòng trọ')
+@section('page_title', 'Xác nhận gia hạn')
 
 @section('content')
-
-<div class="container-fluid py-4">
-
-    <div class="card shadow-sm border-0">
-
-        <div class="card-header bg-white">
-
-            <h4 class="mb-0 fw-bold">
-                <i class="fas fa-calendar-plus text-primary me-2"></i>
-                Xác nhận gia hạn hợp đồng
-            </h4>
-
-        </div>
-
-        <div class="card-body">
-
-            {{-- Lưu ý --}}
-            <div class="alert alert-info border-0 shadow-sm">
-
-                <h5 class="fw-bold mb-3">
-                    <i class="fas fa-info-circle text-primary me-2"></i>
-                    Lưu ý khi gia hạn hợp đồng
-                </h5>
-
-                <ul class="mb-0">
-
-                    <li>Đảm bảo người thuê có nhu cầu tiếp tục thuê phòng.</li>
-
-                    <li>Kiểm tra người thuê đã thanh toán đầy đủ các khoản còn nợ.</li>
-
-                    <li>Ngày kết thúc mới phải lớn hơn ngày kết thúc hiện tại.</li>
-
-                    <li>Sau khi xác nhận, thời hạn hợp đồng sẽ được cập nhật.</li>
-
-                </ul>
-
+    <div class="space-y-6">
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+                <p class="text-sm font-medium text-slate-500">Hợp đồng {{ $contract->contract_code }}</p>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Xác nhận gia hạn hợp đồng</h2>
             </div>
 
-            <div class="row">
+            <a href="{{ route('admin.contracts.extend.list') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                <i class="bx bx-arrow-back text-lg"></i>
+                Quay lại
+            </a>
+        </div>
 
-                {{-- Thông tin hợp đồng --}}
-                <div class="col-md-5">
+        <section class="rounded-lg border border-sky-200 bg-sky-50 p-5">
+            <h3 class="font-semibold text-sky-950">Lưu ý khi gia hạn</h3>
+            <p class="mt-1 text-sm leading-6 text-sky-800">Đảm bảo người thuê muốn tiếp tục thuê, đã thanh toán các khoản còn nợ và ngày kết thúc mới lớn hơn ngày kết thúc hiện tại.</p>
+        </section>
 
-                    <div class="card border-0 shadow-sm bg-light">
+        <div class="grid gap-6 lg:grid-cols-[380px_1fr]">
+            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h3 class="font-semibold text-slate-950">Thông tin hợp đồng</h3>
+                </div>
+                <div class="space-y-3 p-5 text-sm">
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Mã hợp đồng</span><span class="font-semibold text-slate-950">{{ $contract->contract_code }}</span></div>
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Người thuê</span><span class="font-semibold text-slate-950">{{ $contract->tenant->full_name }}</span></div>
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Phòng</span><span class="font-semibold text-slate-950">{{ $contract->room->room_code }}</span></div>
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Bắt đầu</span><span class="font-semibold text-slate-950">{{ \Carbon\Carbon::parse($contract->start_date)->format('d/m/Y') }}</span></div>
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Kết thúc hiện tại</span><span class="font-semibold text-rose-700">{{ \Carbon\Carbon::parse($contract->end_date)->format('d/m/Y') }}</span></div>
+                </div>
+            </section>
 
-                        <div class="card-header bg-primary text-white">
+            <form action="{{ route('admin.contracts.extend', $contract->id) }}" method="POST" class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                @csrf
 
-                            <h5 class="mb-0">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h3 class="font-semibold text-slate-950">Thông tin gia hạn</h3>
+                </div>
 
-                                Thông tin hợp đồng
-
-                            </h5>
-
-                        </div>
-
-                        <div class="card-body">
-
-                            <table class="table table-borderless mb-0">
-
-                                <tr>
-                                    <th width="45%">Mã hợp đồng</th>
-                                    <td>{{ $contract->contract_code }}</td>
-                                </tr>
-
-                                <tr>
-                                    <th>Người thuê</th>
-                                    <td>{{ $contract->tenant->full_name }}</td>
-                                </tr>
-
-                                <tr>
-                                    <th>Phòng</th>
-                                    <td>{{ $contract->room->room_code }}</td>
-                                </tr>
-
-                                <tr>
-                                    <th>Ngày bắt đầu</th>
-                                    <td>{{ \Carbon\Carbon::parse($contract->start_date)->format('d/m/Y') }}</td>
-                                </tr>
-
-                                <tr>
-                                    <th>Ngày kết thúc hiện tại</th>
-                                    <td class="text-danger fw-bold">
-                                        {{ \Carbon\Carbon::parse($contract->end_date)->format('d/m/Y') }}
-                                    </td>
-                                </tr>
-
-                            </table>
-
-                        </div>
-
+                <div class="space-y-5 p-5">
+                    <div>
+                        <label for="new_end_date" class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày kết thúc mới</label>
+                        <input id="new_end_date" type="date" name="new_end_date" value="{{ \Carbon\Carbon::parse($contract->end_date)->addMonth()->format('Y-m-d') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" required>
                     </div>
 
+                    <div>
+                        <label for="extend_reason" class="mb-1.5 block text-sm font-semibold text-slate-700">Lý do gia hạn</label>
+                        <select id="extend_reason" name="extend_reason" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                            <option value="tenant_request">Người thuê có nhu cầu tiếp tục thuê</option>
+                            <option value="renew_contract">Gia hạn theo hợp đồng</option>
+                            <option value="agreement">Hai bên thỏa thuận</option>
+                            <option value="other">Khác</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="extend_note" class="mb-1.5 block text-sm font-semibold text-slate-700">Ghi chú</label>
+                        <textarea id="extend_note" name="extend_note" rows="5" placeholder="Nhập ghi chú..." class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"></textarea>
+                    </div>
+
+                    <label class="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-700">
+                        <input id="confirmExtend" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        Tôi xác nhận hai bên đã thống nhất gia hạn hợp đồng.
+                    </label>
                 </div>
 
-                {{-- Form --}}
-                <div class="col-md-7">
-
-                    <form action="{{ route('admin.contracts.extend',$contract->id) }}"
-                          method="POST">
-
-                        @csrf
-
-                        <div class="mb-3">
-
-                            <label class="form-label fw-bold">
-
-                                <i class="fas fa-calendar-alt me-1"></i>
-
-                                Ngày kết thúc mới
-
-                            </label>
-
-                            <input type="date"
-                                   name="new_end_date"
-                                   class="form-control"
-                                   value="{{ \Carbon\Carbon::parse($contract->end_date)->addMonth()->format('Y-m-d') }}"
-                                   required>
-
-                        </div>
-
-                        <div class="mb-3">
-
-                            <label class="form-label fw-bold">
-
-                                <i class="fas fa-list me-1"></i>
-
-                                Lý do gia hạn
-
-                            </label>
-
-                            <select name="extend_reason"
-                                    class="form-select">
-
-                                <option value="tenant_request">
-                                    Người thuê có nhu cầu tiếp tục thuê
-                                </option>
-
-                                <option value="renew_contract">
-                                    Gia hạn theo hợp đồng
-                                </option>
-
-                                <option value="agreement">
-                                    Hai bên thỏa thuận
-                                </option>
-
-                                <option value="other">
-                                    Khác
-                                </option>
-
-                            </select>
-
-                        </div>
-
-                        <div class="mb-4">
-
-                            <label class="form-label fw-bold">
-
-                                <i class="fas fa-comment-alt me-1"></i>
-
-                                Ghi chú
-
-                            </label>
-
-                            <textarea
-                                name="extend_note"
-                                rows="5"
-                                class="form-control"
-                                placeholder="Nhập ghi chú..."></textarea>
-
-                        </div>
-
-                        <div class="form-check mb-4">
-
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="confirmExtend">
-
-                            <label class="form-check-label fw-semibold"
-                                   for="confirmExtend">
-
-                                Tôi xác nhận hai bên đã thống nhất gia hạn hợp đồng.
-
-                            </label>
-
-                        </div>
-
-                        <div class="d-flex justify-content-end">
-
-                            <a href="{{ route('admin.contracts.extend.list') }}"
-                               class="btn btn-secondary me-2">
-
-                                <i class="fas fa-arrow-left"></i>
-
-                                Quay lại
-
-                            </a>
-
-                            <button type="submit"
-                                    id="btnExtend"
-                                    class="btn btn-primary"
-                                    disabled>
-
-                                <i class="fas fa-check-circle"></i>
-
-                                Xác nhận gia hạn
-
-                            </button>
-
-                        </div>
-
-                    </form>
-
+                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                    <a href="{{ route('admin.contracts.extend.list') }}" class="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Hủy</a>
+                    <button id="btnExtend" type="submit" disabled class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+                        <i class="bx bx-check-circle text-lg"></i>
+                        Xác nhận gia hạn
+                    </button>
                 </div>
-
-            </div>
-
+            </form>
         </div>
-
     </div>
 
-</div>
-
-<script>
-
-document.getElementById('confirmExtend').addEventListener('change', function () {
-
-    document.getElementById('btnExtend').disabled = !this.checked;
-
-});
-
-</script>
-
+    @push('scripts')
+        <script>
+            document.getElementById('confirmExtend')?.addEventListener('change', function () {
+                document.getElementById('btnExtend').disabled = !this.checked;
+            });
+        </script>
+    @endpush
 @endsection

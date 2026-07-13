@@ -1,242 +1,157 @@
 @extends('layouts.admin.index')
 
-@section('title', 'Quản lý điện / nước')
+@section('title', 'Kiểm tra chỉ số điện nước | Quản lý phòng trọ')
+@section('page_title', 'Kiểm tra chỉ số điện nước')
 
 @section('content')
-    <div class="container-fluid">
-        <div class="row mb-4">
-            <div class="col-sm-6">
-                <h4 class="mb-sm-0 font-size-18">Kiểm tra chỉ số Điện/Nước</h4>
+    <div class="space-y-6">
+        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+            <div>
+                <p class="text-sm font-medium text-slate-500">Điện nước và dịch vụ</p>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Kiểm tra chỉ số điện/nước</h2>
             </div>
-            <div class="col-sm-6">
-                {{-- Đồng bộ form lọc: Tự động submit khi thay đổi (onchange) giống trang create --}}
-                <form action="{{ route('admin.utilities.index') }}" method="GET"
-                    class="d-flex justify-content-end align-items-center">
-                    <label class="me-2 mb-0">Kỳ:</label>
-                    <select name="month" class="form-select form-select-sm w-auto me-2" onchange="this.form.submit()">
+
+            <form action="{{ route('admin.utilities.index') }}" method="GET" class="flex flex-wrap items-end gap-2">
+                <div>
+                    <label for="month" class="mb-1.5 block text-sm font-semibold text-slate-700">Tháng</label>
+                    <select id="month" name="month" onchange="this.form.submit()" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         @for ($m = 1; $m <= 12; $m++)
-                            <option value="{{ $m }}" {{ $month == $m ? 'selected' : '' }}>Tháng
-                                {{ $m }}
-                            </option>
+                            <option value="{{ $m }}" @selected($month == $m)>Tháng {{ $m }}</option>
                         @endfor
                     </select>
-                    <select name="year" class="form-select form-select-sm w-auto me-2" onchange="this.form.submit()">
+                </div>
+                <div>
+                    <label for="year" class="mb-1.5 block text-sm font-semibold text-slate-700">Năm</label>
+                    <select id="year" name="year" onchange="this.form.submit()" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         @for ($y = date('Y'); $y >= date('Y') - 2; $y--)
-                            <option value="{{ $y }}" {{ $year == $y ? 'selected' : '' }}>Năm {{ $y }}
-                            </option>
+                            <option value="{{ $y }}" @selected($year == $y)>Năm {{ $y }}</option>
                         @endfor
                     </select>
-                </form>
+                </div>
+            </form>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Tổng điện tiêu thụ</p>
+                <p class="mt-3 text-3xl font-bold text-indigo-700">{{ number_format($totalElectricity) }} <span class="text-base text-slate-500">kWh</span></p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Tổng nước tiêu thụ</p>
+                <p class="mt-3 text-3xl font-bold text-sky-700">{{ number_format($totalWater) }} <span class="text-base text-slate-500">khối</span></p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Tiến độ chốt số</p>
+                <p class="mt-3 text-3xl font-bold {{ $roomsRead < $totalRooms ? 'text-amber-700' : 'text-emerald-700' }}">{{ $roomsRead }} / {{ $totalRooms }} <span class="text-base text-slate-500">phòng</span></p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Tiền điện</p>
+                <p class="mt-1 text-xs text-slate-500">{{ number_format($setting->electric_price, 0, ',', '.') }}đ/kWh</p>
+                <p class="mt-3 text-2xl font-bold text-indigo-700">{{ number_format($totalElectricityFee, 0, ',', '.') }}đ</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Tiền nước</p>
+                <p class="mt-1 text-xs text-slate-500">{{ number_format($setting->water_price, 0, ',', '.') }}đ/khối</p>
+                <p class="mt-3 text-2xl font-bold text-sky-700">{{ number_format($totalWaterFee, 0, ',', '.') }}đ</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Tổng tiền điện nước</p>
+                <p class="mt-3 text-2xl font-bold text-emerald-700">{{ number_format($totalUtilityFee, 0, ',', '.') }}đ</p>
             </div>
         </div>
 
-        @if(session('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        @endif
-
-        {{-- Giữ nguyên phần thống kê của index vì nó cần thiết cho trang tổng quan --}}
-        <div class="row">
-            <div class="col-xl-4 col-md-4">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <span class="text-muted mb-3 lh-1 d-block text-truncate">Tổng điện tiêu thụ</span>
-                        <h4 class="mb-1 text-primary">
-                            {{ number_format($totalElectricity) }} <span class="font-size-16 text-muted">kWh</span>
-                        </h4>
-                    </div>
+        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
+                <div>
+                    <h3 class="font-semibold text-slate-950">Chi tiết các phòng đã nhập</h3>
+                    <p class="text-sm text-slate-500">Tháng {{ $month }}/{{ $year }}</p>
                 </div>
+                <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year]) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                    <i class="bx bx-plus text-lg"></i>
+                    Nhập chỉ số
+                </a>
             </div>
 
-            <div class="col-xl-4 col-md-4">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <span class="text-muted mb-3 lh-1 d-block text-truncate">Tổng nước tiêu thụ</span>
-                        <h4 class="mb-1 text-info">
-                            {{ number_format($totalWater) }} <span class="font-size-16 text-muted">Khối</span>
-                        </h4>
-                    </div>
-                </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                        <tr>
+                            <th class="px-5 py-3">Phòng</th>
+                            <th class="px-5 py-3 text-center">Điện cũ</th>
+                            <th class="px-5 py-3 text-center">Điện mới</th>
+                            <th class="px-5 py-3 text-center">Ảnh điện</th>
+                            <th class="px-5 py-3 text-center">Dùng điện</th>
+                            <th class="px-5 py-3 text-right">Tiền điện</th>
+                            <th class="px-5 py-3 text-center">Nước cũ</th>
+                            <th class="px-5 py-3 text-center">Nước mới</th>
+                            <th class="px-5 py-3 text-center">Ảnh nước</th>
+                            <th class="px-5 py-3 text-center">Dùng nước</th>
+                            <th class="px-5 py-3 text-right">Tiền nước</th>
+                            <th class="px-5 py-3 text-right">Tổng</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @forelse ($readings as $item)
+                            @php
+                                $dienDung = $item->electricity_new - $item->electricity_old;
+                                $nuocDung = $item->water_new - $item->water_old;
+                                $tienDien = $dienDung * $setting->electric_price;
+                                $tienNuoc = $nuocDung * $setting->water_price;
+                                $tongDienNuoc = $tienDien + $tienNuoc;
+                                $activeContract = $item->room ? $item->room->contracts->first() : null;
+                                $startDate = $activeContract && $activeContract->start_date
+                                    ? \Carbon\Carbon::parse($activeContract->start_date)->format('d/m/Y')
+                                    : 'N/A';
+                            @endphp
+                            <tr class="hover:bg-slate-50/70">
+                                <td class="px-5 py-4">
+                                    <p class="font-semibold text-slate-950">{{ $item->room->room_code ?? 'Phòng trống' }}</p>
+                                    <p class="mt-1 text-xs text-slate-500">Ngày thuê: {{ $startDate }}</p>
+                                </td>
+                                <td class="px-5 py-4 text-center text-slate-600">{{ $item->electricity_old }}</td>
+                                <td class="px-5 py-4 text-center font-semibold text-indigo-700">{{ $item->electricity_new }}</td>
+                                <td class="px-5 py-4 text-center">
+                                    @if ($item->electricity_image)
+                                        <a href="{{ asset('storage/' . $item->electricity_image) }}" target="_blank">
+                                            <img src="{{ asset('storage/' . $item->electricity_image) }}" alt="Ảnh đồng hồ điện" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
+                                        </a>
+                                    @else
+                                        <span class="text-xs text-slate-400">Chưa có</span>
+                                    @endif
+                                </td>
+                                <td class="px-5 py-4 text-center font-semibold text-emerald-700">{{ $dienDung }} kWh</td>
+                                <td class="px-5 py-4 text-right font-semibold text-indigo-700">{{ number_format($tienDien, 0, ',', '.') }}đ</td>
+                                <td class="px-5 py-4 text-center text-slate-600">{{ $item->water_old }}</td>
+                                <td class="px-5 py-4 text-center font-semibold text-sky-700">{{ $item->water_new }}</td>
+                                <td class="px-5 py-4 text-center">
+                                    @if ($item->water_image)
+                                        <a href="{{ asset('storage/' . $item->water_image) }}" target="_blank">
+                                            <img src="{{ asset('storage/' . $item->water_image) }}" alt="Ảnh đồng hồ nước" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
+                                        </a>
+                                    @else
+                                        <span class="text-xs text-slate-400">Chưa có</span>
+                                    @endif
+                                </td>
+                                <td class="px-5 py-4 text-center font-semibold text-emerald-700">{{ $nuocDung }} khối</td>
+                                <td class="px-5 py-4 text-right font-semibold text-sky-700">{{ number_format($tienNuoc, 0, ',', '.') }}đ</td>
+                                <td class="px-5 py-4 text-right font-bold text-emerald-700">{{ number_format($tongDienNuoc, 0, ',', '.') }}đ</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="12" class="px-5 py-12 text-center text-slate-500">
+                                    Chưa có dữ liệu chốt số cho tháng {{ $month }}/{{ $year }}.
+                                    <div class="mt-3">
+                                        <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year]) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+                                            <i class="bx bx-plus text-lg"></i>
+                                            Nhập số ngay
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
-
-            <div class="col-xl-4 col-md-4">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <span class="text-muted mb-3 lh-1 d-block text-truncate">Tiến độ chốt số</span>
-                        <h4 class="mb-1 {{ $roomsRead < $totalRooms ? 'text-warning' : 'text-success' }}">
-                            {{ $roomsRead }} / {{ $totalRooms }} <span class="font-size-16 text-muted">Phòng</span>
-                        </h4>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mt-3">
-            <div class="col-xl-4 col-md-4">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <span class="text-muted mb-2 lh-1 d-block text-truncate">Tiền điện</span>
-                        <small class="text-muted d-block mb-2">
-                            {{ number_format($setting->electric_price, 0, ',', '.') }} VNĐ/kWh
-                        </small>
-                        <h4 class="mb-1 text-primary">
-                            {{ number_format($totalElectricityFee, 0, ',', '.') }} <span class="font-size-16 text-muted">VNĐ</span>
-                        </h4>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-4 col-md-4">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <span class="text-muted mb-2 lh-1 d-block text-truncate">Tiền nước</span>
-                        <small class="text-muted d-block mb-2">
-                            {{ number_format($setting->water_price, 0, ',', '.') }} VNĐ/Khối
-                        </small>
-                        <h4 class="mb-1 text-info">
-                            {{ number_format($totalWaterFee, 0, ',', '.') }} <span class="font-size-16 text-muted">VNĐ</span>
-                        </h4>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-4 col-md-4">
-                <div class="card card-h-100">
-                    <div class="card-body">
-                        <span class="text-muted mb-3 lh-1 d-block text-truncate">Tổng tiền điện nước</span>
-                        <h4 class="mb-1 text-success">
-                            {{ number_format($totalUtilityFee, 0, ',', '.') }} <span class="font-size-16 text-muted">VNĐ</span>
-                        </h4>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mt-3">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-white">
-                        {{-- Đồng bộ tiêu đề Card có hiển thị tháng/năm --}}
-                        <h5 class="card-title mb-0">Chi tiết các phòng đã nhập - Tháng
-                            {{ $month }}/{{ $year }}</h5>
-                    </div>
-                    <div class="card-body px-0 pt-0">
-                        <div class="table-responsive">
-                            <table class="table align-middle table-nowrap table-hover mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th style="width: 15%">Tên Phòng</th>
-                                        <th class="text-center" style="width: 12%">Số Điện Cũ</th>
-                                        <th class="text-center" style="width: 12%">Số Điện Mới</th>
-                                        <th class="text-center" style="width: 12%">Ảnh điện</th>
-                                        <th class="text-center" style="width: 18%">Dùng (kWh)</th>
-                                        <th class="text-end" style="width: 14%">Tiền Điện</th>
-                                        <th class="text-center" style="width: 12%">Số Nước Cũ</th>
-                                        <th class="text-center" style="width: 12%">Số Nước Mới</th>
-                                        <th class="text-center" style="width: 12%">Ảnh nước</th>
-                                        <th class="text-center" style="width: 18%">Dùng (Khối)</th>
-                                        <th class="text-end" style="width: 14%">Tiền Nước</th>
-                                        <th class="text-end" style="width: 14%">Tổng Đ/N</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse($readings as $item)
-                                        @php
-                                            $dienDung = $item->electricity_new - $item->electricity_old;
-                                            $nuocDung = $item->water_new - $item->water_old;
-                                            $tienDien = $dienDung * $setting->electric_price;
-                                            $tienNuoc = $nuocDung * $setting->water_price;
-                                            $tongDienNuoc = $tienDien + $tienNuoc;
-                                            $activeContract = $item->room ? $item->room->contracts->first() : null;
-                                            $startDate = $activeContract && $activeContract->start_date
-                                                ? \Carbon\Carbon::parse($activeContract->start_date)->format('d/m/Y')
-                                                : 'N/A';
-                                        @endphp
-                                        <tr>
-                                            <td class="fw-bold align-middle">
-                                                <span class="fs-6">{{ $item->room->room_code ?? 'Phòng trống' }}</span>
-                                                <br>
-                                                <small class="text-muted fw-normal">
-                                                    <i class="mdi mdi-calendar-check"></i> Ngày thuê:
-                                                    {{ $startDate }}
-                                                </small>
-                                            </td>
-
-                                            {{-- Đồng bộ UI điện --}}
-                                            <td class="text-center align-middle">{{ $item->electricity_old }}</td>
-                                            <td class="text-center align-middle text-primary fw-bold fs-6">
-                                                {{ $item->electricity_new }}
-                                            </td>
-                                            <td class="text-center align-middle">
-                                                @if($item->electricity_image)
-                                                    <a href="{{ asset('storage/' . $item->electricity_image) }}" target="_blank">
-                                                        <img src="{{ asset('storage/' . $item->electricity_image) }}"
-                                                            alt="Ảnh đồng hồ điện"
-                                                            class="img-thumbnail"
-                                                            style="width: 70px; height: 70px; object-fit: cover;">
-                                                    </a>
-                                                @else
-                                                    <span class="text-muted">Chưa có</span>
-                                                @endif
-                                            </td>
-                                            <td class="text-center align-middle">
-                                                <span class="text-success fw-bold">Dùng: {{ $dienDung }}</span>
-                                            </td>
-                                            <td class="text-end align-middle text-primary fw-bold">
-                                                {{ number_format($tienDien, 0, ',', '.') }} VNĐ
-                                            </td>
-
-                                            {{-- Đồng bộ UI nước --}}
-                                            <td class="text-center align-middle">{{ $item->water_old }}</td>
-                                            <td class="text-center align-middle text-info fw-bold fs-6">
-                                                {{ $item->water_new }}
-                                            </td>
-                                            <td class="text-center align-middle">
-                                                @if($item->water_image)
-                                                    <a href="{{ asset('storage/' . $item->water_image) }}" target="_blank">
-                                                        <img src="{{ asset('storage/' . $item->water_image) }}"
-                                                            alt="Ảnh đồng hồ nước"
-                                                            class="img-thumbnail"
-                                                            style="width: 70px; height: 70px; object-fit: cover;">
-                                                    </a>
-                                                @else
-                                                    <span class="text-muted">Chưa có</span>
-                                                @endif
-                                            </td>
-                                            <td class="text-center align-middle">
-                                                <span class="text-success fw-bold">Dùng: {{ $nuocDung }}</span>
-                                            </td>
-                                            <td class="text-end align-middle text-info fw-bold">
-                                                {{ number_format($tienNuoc, 0, ',', '.') }} VNĐ
-                                            </td>
-                                            <td class="text-end align-middle text-success fw-bold">
-                                                {{ number_format($tongDienNuoc, 0, ',', '.') }} VNĐ
-                                            </td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="12" class="text-center text-muted py-5">
-                                                <div class="mb-3">
-                                                    <i class="mdi mdi-text-box-search-outline" style="font-size: 3rem;"></i>
-                                                </div>
-                                                Chưa có dữ liệu chốt số cho tháng {{ $month }}/{{ $year }}.
-                                                <br>
-                                                <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year]) }}"
-                                                    class="btn btn-primary mt-3">
-                                                    <i class="mdi mdi-plus-circle-outline me-1"></i> Nhập số ngay
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
+        </section>
     </div>
 @endsection

@@ -28,6 +28,9 @@ class Invoice extends Model
 
         'contract_id',
 
+        'invoice_code',
+
+        'room_id',
         'utility_reading_id',
 
         'month',
@@ -209,7 +212,7 @@ class Invoice extends Model
         return
             now()->gt($this->due_date)
             &&
-            !$this->isPaid();
+            ! $this->isPaid();
     }
 
     /*
