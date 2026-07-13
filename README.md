@@ -7,6 +7,29 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Dữ liệu lớn để kiểm thử
+
+Seeder độc lập `LargeTestDataSeeder` tạo dữ liệu cố định để kiểm tra bộ lọc,
+phân trang, dashboard, xuất CSV và hiệu năng. Chạy lệnh sau trên database dành
+riêng cho phát triển/kiểm thử:
+
+```bash
+php artisan migrate:fresh --seed --seeder=Database\Seeders\LargeTestDataSeeder --force
+```
+
+> **Cảnh báo:** `migrate:fresh` xóa toàn bộ bảng và dữ liệu trong database đang
+> được cấu hình. Không chạy lệnh này trên database production hoặc database có
+> dữ liệu cần giữ lại.
+
+Tài khoản mẫu đều dùng mật khẩu `password`:
+
+- Quản trị: `admin01@test.local`
+- Khách thuê: `tenant001@test.local`
+
+Seeder tạo 8 quản trị viên, 70 khách thuê, 90 phòng, 130 hợp đồng, dữ liệu điện
+nước trong 12 tháng, 1.080 hóa đơn, 5.400 chi tiết hóa đơn và gần 1.000 giao
+dịch thanh toán với nhiều trạng thái khác nhau.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
