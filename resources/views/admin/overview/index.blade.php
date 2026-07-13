@@ -20,7 +20,7 @@
         <div class="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
             <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="font-semibold text-slate-950">Doanh thu theo tháng</h3>
-                <p class="mt-1 text-sm text-slate-500">So sánh năm 2025 và 2026</p>
+                <p class="mt-1 text-sm text-slate-500">So sánh năm {{ $previousYear }} và {{ $currentYear }}</p>
                 <div id="monthly-revenue-chart" class="mt-4 min-h-[350px]"></div>
             </section>
 
@@ -55,30 +55,36 @@
         new ApexCharts(document.querySelector("#monthly-revenue-chart"), {
             chart: { type: 'bar', height: 350, toolbar: { show: false } },
             series: [
-                { name: 'Doanh thu 2025', data: @json($monthlyRevenue2025) },
-                { name: 'Doanh thu 2026', data: @json($monthlyRevenue2026) }
+                { name: 'Doanh Thu {{ $previousYear }}', data: @json($monthlyRevenuePreviousYear) },
+                { name: 'Doanh Thu {{ $currentYear }}', data: @json($monthlyRevenueCurrentYear) }
             ],
-            colors: ['#4f46e5', '#059669'],
-            plotOptions: { bar: { borderRadius: 5, columnWidth: '60%' } },
+            colors: ['#5156be', '#00bfa5'],
+            plotOptions: { bar: { dataLabels: { enabled: false }, columnWidth: '70%' } },
             dataLabels: { enabled: false },
             xaxis: { categories: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'] },
-            yaxis: { labels: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' } },
+            yaxis: {
+                title: { text: 'Doanh Thu (VNĐ)' },
+                labels: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' }
+            },
             tooltip: { y: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' } }
         }).render();
 
         new ApexCharts(document.querySelector("#room-status-chart"), {
             chart: { type: 'donut', height: 350 },
             series: [{{ $occupiedRooms }}, {{ $availableRooms }}, {{ $maintenanceRooms }}],
-            labels: ['Đã thuê', 'Còn trống', 'Bảo trì'],
-            colors: ['#059669', '#0284c7', '#d97706'],
+            labels: ['Đã Thuê', 'Còn Trống', 'Bảo Trì'],
+            colors: ['#ffc107', '#00bfa5', '#ef5350'],
+            plotOptions: { pie: { donut: { size: '70%' } } },
+            dataLabels: { enabled: true, formatter: val => Math.round(val) + '%' },
             legend: { position: 'bottom' }
         }).render();
 
         new ApexCharts(document.querySelector("#invoice-status-chart"), {
             chart: { type: 'pie', height: 350 },
             series: [{{ $paidInvoices }}, {{ $unpaidInvoices }}, {{ $partialInvoices }}],
-            labels: ['Đã thanh toán', 'Chưa thanh toán', 'Thanh toán một phần'],
-            colors: ['#059669', '#d97706', '#0284c7'],
+            labels: ['Đã Thanh Toán', 'Chưa Thanh Toán', 'Thanh Toán Một Phần'],
+            colors: ['#00bfa5', '#ef5350', '#ffc107'],
+            dataLabels: { enabled: true, formatter: val => Math.round(val) + '%' },
             legend: { position: 'bottom' }
         }).render();
     </script>

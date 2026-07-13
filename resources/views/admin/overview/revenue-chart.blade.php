@@ -11,8 +11,13 @@
         </div>
 
         <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 class="font-semibold text-slate-950">Doanh thu theo tháng - Năm {{ date('Y') }}</h3>
+            <h3 class="font-semibold text-slate-950">Doanh thu theo tháng - Năm {{ $currentYear }}</h3>
             <div id="monthlyRevenueChart" class="mt-4 min-h-[360px]"></div>
+        </section>
+
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="font-semibold text-slate-950">Doanh thu theo năm</h3>
+            <div id="yearlyRevenueChart" class="mt-4 min-h-[360px]"></div>
         </section>
     </div>
 @endsection
@@ -21,13 +26,30 @@
     <script>
         new ApexCharts(document.querySelector("#monthlyRevenueChart"), {
             chart: { type: 'bar', height: 360, toolbar: { show: true } },
-            series: [{ name: 'Doanh thu', data: @json($monthlyRevenue) }],
-            colors: ['#4f46e5'],
-            plotOptions: { bar: { borderRadius: 6, columnWidth: '55%' } },
+            series: [{ name: 'Doanh Thu (VNĐ)', data: @json($monthlyRevenue) }],
+            colors: ['#5156be'],
+            plotOptions: { bar: { columnWidth: '60%' } },
+            dataLabels: {
+                enabled: true,
+                formatter: function(val) { return '₫ ' + Number(val).toLocaleString('vi-VN'); }
+            },
+            xaxis: {
+                categories: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+                             'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
+                title: { text: 'Tháng' }
+            },
+            yaxis: { title: { text: 'Doanh Thu (VNĐ)' } },
+            tooltip: { y: { formatter: function(val) { return '₫ ' + Number(val).toLocaleString('vi-VN'); } } }
+        }).render();
+
+        new ApexCharts(document.querySelector("#yearlyRevenueChart"), {
+            chart: { type: 'line', height: 360, toolbar: { show: true } },
+            series: [{ name: 'Doanh Thu (VNĐ)', data: @json($yearlyRevenue) }],
+            xaxis: { categories: @json($yearLabels), title: { text: 'Năm' } },
+            yaxis: { title: { text: 'Doanh Thu (VNĐ)' } },
+            stroke: { curve: 'smooth' },
             dataLabels: { enabled: false },
-            xaxis: { categories: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'] },
-            yaxis: { labels: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' } },
-            tooltip: { y: { formatter: val => Number(val).toLocaleString('vi-VN') + 'đ' } }
+            tooltip: { y: { formatter: function(val) { return '₫ ' + Number(val).toLocaleString('vi-VN'); } } }
         }).render();
     </script>
 @endpush

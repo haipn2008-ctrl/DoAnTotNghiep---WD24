@@ -7,7 +7,7 @@
     <title>@yield('title', 'Quản lý phòng trọ')</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-
+    <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&display=swap">
     <link href="{{ asset('assets/css/icons.min.css') }}" rel="stylesheet" type="text/css">
     @stack('styles')
 </head>

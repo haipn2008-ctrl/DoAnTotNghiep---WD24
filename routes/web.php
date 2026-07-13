@@ -99,7 +99,8 @@ Route::middleware('auth')->group(function () {
             ->name('utilities.index');
 
         // Quản lý hóa đơn và công nợ
-        Route::get('/invoices/generate', [InvoiceController::class, 'generateForm'])
+        // Các route cụ thể phải đặt TRƯỚC resource để tránh bị {invoice} chiếm
+        Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
             ->name('invoices.generate');
 
         Route::post('/invoices/generate', [InvoiceController::class, 'generateStore'])
@@ -120,17 +121,17 @@ Route::middleware('auth')->group(function () {
         Route::get('/invoices/payments/export/download', [InvoiceController::class, 'exportPayments'])
             ->name('invoices.payments.export.download');
 
-        Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
-            ->name('invoices.payments.store');
-
-        Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
-            ->name('invoices.print');
-
         Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
             ->name('invoices.preview');
 
         Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
             ->name('invoices.issue');
+
+        Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
+            ->name('invoices.payments.store');
+
+        Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
+            ->name('invoices.print');
 
         Route::resource('invoices', InvoiceController::class)
             ->except(['create', 'store']);

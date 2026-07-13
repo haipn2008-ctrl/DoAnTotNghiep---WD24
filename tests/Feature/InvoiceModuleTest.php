@@ -18,6 +18,12 @@ class InvoiceModuleTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+    }
+
     public function test_invoice_can_be_generated_once_and_payment_updates_status(): void
     {
         $role = Role::create(['role_name' => 'Admin']);

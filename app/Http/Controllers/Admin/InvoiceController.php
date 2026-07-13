@@ -9,9 +9,9 @@ use App\Models\Payment;
 use App\Services\InvoiceGenerator;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
@@ -70,7 +70,6 @@ class InvoiceController extends Controller
 
                     $room->where('room_code', 'like', "%{$keyword}%");
                 })
-
                     ->orWhereHas('contract', function ($contract) use ($keyword) {
 
                         $contract->where('contract_code', 'like', "%{$keyword}%")
@@ -218,17 +217,11 @@ class InvoiceController extends Controller
                 '>=',
                 $periodStart
             )
-            ->orderBy('room_id')
+            ->orderBy('id')
             ->get();
 
-        $issuedRoomIds = Invoice::where(
-            'month',
-            $month
-        )
-            ->where(
-                'year',
-                $year
-            )
+        $issuedRoomIds = Invoice::where('month', $month)
+            ->where('year', $year)
             ->pluck('room_id')
             ->toArray();
 
@@ -635,7 +628,7 @@ class InvoiceController extends Controller
         if ($request->filled('method')) {
             $query->where(
                 'payment_method',
-                $request->method
+                $request->input('method')
             );
         }
 
@@ -704,7 +697,7 @@ class InvoiceController extends Controller
         if ($request->filled('method')) {
             $query->where(
                 'payment_method',
-                $request->method
+                $request->input('method')
             );
         }
 
@@ -748,7 +741,7 @@ class InvoiceController extends Controller
         }
 
         if ($request->filled('method')) {
-            $query->where('payment_method', $request->method);
+            $query->where('payment_method', $request->input('method'));
         }
 
         if ($request->filled('keyword')) {

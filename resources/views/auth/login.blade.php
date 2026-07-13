@@ -6,6 +6,7 @@
     <title>Đăng nhập | Quản lý phòng trọ</title>
     <link href="{{ asset('assets/images/favicon.ico') }}" rel="shortcut icon">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&display=swap">
 </head>
 <body class="min-h-screen bg-slate-100 font-sans text-slate-900">
     <main class="flex min-h-screen">

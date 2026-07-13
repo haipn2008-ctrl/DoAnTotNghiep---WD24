@@ -42,7 +42,7 @@ return new class extends Migration
             if (! Schema::hasColumn('contracts', 'terminated_by')) {
                 $table->enum('terminated_by', ['admin', 'tenant'])
                     ->nullable()
-                    ->after('terminated_at');
+                    ->after('termination_note');
             }
         });
     }

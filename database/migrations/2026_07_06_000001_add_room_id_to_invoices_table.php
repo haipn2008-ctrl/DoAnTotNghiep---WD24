@@ -20,7 +20,11 @@ return new class extends Migration
 
         DB::table('invoices')
             ->join('contracts', 'invoices.contract_id', '=', 'contracts.id')
-            ->update(['invoices.room_id' => DB::raw('contracts.room_id')]);
+            ->select('invoices.id', 'contracts.room_id')
+            ->get()
+            ->each(function ($row) {
+                DB::table('invoices')->where('id', $row->id)->update(['room_id' => $row->room_id]);
+            });
 
         Schema::table('invoices', function (Blueprint $table) {
             $table->unique(['room_id', 'month', 'year'], 'invoices_room_month_year_unique');
