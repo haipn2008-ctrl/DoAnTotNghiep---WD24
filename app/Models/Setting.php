@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class Setting extends Model
 {
@@ -61,6 +62,37 @@ class Setting extends Model
      */
     public static function current()
     {
-        return self::where('is_active', true)->first();
+        $query = self::query();
+
+        if (Schema::hasColumn((new self())->getTable(), 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        return $query->first();
+    }
+
+    public static function currentOrCreate(array $defaults = []): self
+    {
+        $setting = self::current();
+
+        if ($setting) {
+            return $setting;
+        }
+
+        $payload = array_merge([
+            'electric_price' => 0,
+            'water_price' => 0,
+            'internet_fee' => 0,
+            'service_fee' => 0,
+            'parking_fee' => 0,
+            'invoice_day' => 5,
+            'payment_due_days' => 10,
+        ], $defaults);
+
+        if (Schema::hasColumn((new self())->getTable(), 'is_active')) {
+            $payload['is_active'] = true;
+        }
+
+        return self::create($payload);
     }
 }

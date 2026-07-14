@@ -41,15 +41,7 @@ class InvoiceGenerator
             ]);
         }
 
-        $setting = Setting::where('is_active', true)->first()
-            ?? Setting::firstOrCreate([], [
-                'electric_price' => 0,
-                'water_price' => 0,
-                'internet_fee' => 0,
-                'service_fee' => 0,
-                'parking_fee' => 0,
-                'payment_due_days' => 10,
-            ]);
+        $setting = Setting::currentOrCreate();
 
         $billingDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
         $invoiceDate = $billingDate->toDateString();
