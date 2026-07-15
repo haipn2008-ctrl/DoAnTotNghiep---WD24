@@ -22,10 +22,9 @@ class OverviewController extends Controller
         // Hợp đồng đang hoạt động
         $activeContracts = Contract::where('status', Contract::STATUS_ACTIVE)->count();
 
-        // Công nợ: tổng tiền chưa thu của hóa đơn chưa / thanh toán 1 phần
-        $outstandingIds  = Invoice::whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])->pluck('id');
-        $totalBilledOut  = Invoice::whereIn('id', $outstandingIds)->sum('total_amount');
-        $totalPaidOut    = Payment::success()->whereIn('invoice_id', $outstandingIds)->sum('amount_paid');
+        // Công nợ thực tế: tổng tiền hóa đơn trừ tổng thanh toán thành công
+        $totalBilledOut  = Invoice::sum('total_amount');
+        $totalPaidOut    = Payment::success()->sum('amount_paid');
         $totalReceivable = max(0, $totalBilledOut - $totalPaidOut);
 
         // Doanh thu theo tháng

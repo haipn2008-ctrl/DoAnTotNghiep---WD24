@@ -4,34 +4,44 @@
 @section('page_title', 'Cập nhật hóa đơn')
 
 @section('content')
+    @php
+        $statusMap = [
+            'unpaid' => ['text' => 'Chưa thanh toán', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
+            'partial' => ['text' => 'Thanh toán một phần', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200'],
+            'paid' => ['text' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        ];
+        $statusData = $statusMap[$invoice->status] ?? ['text' => $invoice->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
+    @endphp
+
     <div class="mx-auto max-w-2xl space-y-6">
         <div class="flex items-end justify-between gap-4">
             <div>
                 <p class="text-sm font-medium text-slate-500">{{ $invoice->invoice_code ?? 'HDON' . str_pad($invoice->id, 5, '0', STR_PAD_LEFT) }}</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Cập nhật trạng thái hóa đơn</h2>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Trạng thái hóa đơn</h2>
             </div>
             <a href="{{ route('admin.invoices.show', $invoice) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 <i class="bx bx-arrow-back text-lg"></i> Quay lại
             </a>
         </div>
 
-        <form method="POST" action="{{ route('admin.invoices.update', $invoice) }}" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            @csrf
-            @method('PUT')
+        <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <p class="text-sm text-slate-500">Trạng thái hiện tại</p>
+            <div class="mt-3">
+                <span class="inline-flex rounded-full px-3 py-1 text-sm font-semibold ring-1 {{ $statusData['class'] }}">
+                    {{ $statusData['text'] }}
+                </span>
+            </div>
 
-            <label for="status" class="mb-2 block text-sm font-semibold text-slate-700">Trạng thái</label>
-            <select id="status" name="status" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                <option value="unpaid" @selected(old('status', $invoice->status) === 'unpaid')>Chưa thanh toán</option>
-                <option value="partial" @selected(old('status', $invoice->status) === 'partial')>Thanh toán một phần</option>
-                <option value="paid" @selected(old('status', $invoice->status) === 'paid')>Đã thanh toán</option>
-            </select>
-            @error('status')<p class="mt-2 text-sm text-rose-600">{{ $message }}</p>@enderror
+            <div class="mt-5 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700">
+                Trạng thái hóa đơn được cập nhật tự động dựa trên các khoản thanh toán thành công.
+                Vui lòng ghi nhận thanh toán tại trang chi tiết hóa đơn.
+            </div>
 
             <div class="mt-6 flex justify-end">
-                <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
-                    <i class="bx bx-save text-lg"></i> Lưu thay đổi
-                </button>
+                <a href="{{ route('admin.invoices.show', $invoice) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+                    <i class="bx bx-show text-lg"></i> Đến chi tiết hóa đơn
+                </a>
             </div>
-        </form>
+        </div>
     </div>
 @endsection

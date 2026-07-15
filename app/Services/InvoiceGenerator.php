@@ -43,9 +43,17 @@ class InvoiceGenerator
 
         $setting = Setting::currentOrCreate();
 
-        $billingDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
-        $invoiceDate = $billingDate->toDateString();
-        $dueDate = $billingDate->copy()->addDays((int) ($setting->payment_due_days ?? 10))->toDateString();
+        // Ngày lập hóa đơn theo cấu hình invoice_day, clamp theo số ngày thực tế của tháng.
+        $invoiceDateCarbon = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $invoiceDay = (int) ($setting->invoice_day ?? 1);
+        $invoiceDay = max(1, min($invoiceDay, $invoiceDateCarbon->daysInMonth));
+        $invoiceDateCarbon->day($invoiceDay);
+
+        $invoiceDate = $invoiceDateCarbon->toDateString();
+        $dueDate = $invoiceDateCarbon
+            ->copy()
+            ->addDays((int) ($setting->payment_due_days ?? 10))
+            ->toDateString();
 
         $electricityUsage = $reading->electricity_new - $reading->electricity_old;
         $waterUsage = $reading->water_new - $reading->water_old;
@@ -186,14 +194,29 @@ class InvoiceGenerator
         $periodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $periodEnd = $periodStart->copy()->endOfMonth();
 
+        $effectiveEnd = $this->resolveContractEffectiveEnd($contract);
+
         if (
             Carbon::parse($contract->start_date)->gt($periodEnd)
-            || Carbon::parse($contract->end_date)->lt($periodStart)
+            || $effectiveEnd->lt($periodStart)
         ) {
             throw ValidationException::withMessages([
                 'contract' => "Hợp đồng {$contract->contract_code} không nằm trong kỳ {$month}/{$year}.",
             ]);
         }
+    }
+
+    private function resolveContractEffectiveEnd(Contract $contract): Carbon
+    {
+        if ($contract->actual_end_date) {
+            return Carbon::parse($contract->actual_end_date)->endOfDay();
+        }
+
+        if ($contract->extend_end_date) {
+            return Carbon::parse($contract->extend_end_date)->endOfDay();
+        }
+
+        return Carbon::parse($contract->end_date)->endOfDay();
     }
 
     private function nextInvoiceCode(int $month, int $year): string

@@ -212,10 +212,10 @@ class InvoiceController extends Controller
                 '<=',
                 $periodEnd
             )
-            ->whereDate(
-                'end_date',
-                '>=',
-                $periodStart
+            // Kỳ hiệu lực kết thúc ưu tiên: actual_end_date > extend_end_date > end_date
+            ->whereRaw(
+                'COALESCE(actual_end_date, extend_end_date, end_date) >= ?',
+                [$periodStart->toDateString()]
             )
             ->orderBy('id')
             ->get();
@@ -445,28 +445,14 @@ class InvoiceController extends Controller
         Request $request,
         Invoice $invoice
     ) {
-
-        $data = $request->validate([
-
-            'status' => 'required|in:'
-                .Invoice::STATUS_UNPAID.','
-                .Invoice::STATUS_PARTIAL.','
-                .Invoice::STATUS_PAID,
-
-        ]);
-
-        $invoice->update([
-            'status' => $data['status'],
-        ]);
-
         return redirect()
             ->route(
                 'admin.invoices.show',
                 $invoice
             )
             ->with(
-                'success',
-                'Cập nhật trạng thái hóa đơn thành công.'
+                'error',
+                'Trạng thái hóa đơn được tính tự động từ thanh toán. Vui lòng ghi nhận thanh toán tại chi tiết hóa đơn.'
             );
     }
 
