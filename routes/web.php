@@ -54,33 +54,49 @@ Route::middleware('auth')->group(function () {
 
         // Quản lý hợp đồng thuê phòng
 
-        // Danh sách kết thúc hợp đồng (ĐẶT TRƯỚC resource)
-        Route::get('contracts/end', [ContractController::class, 'endList'])
-            ->name('contracts.end.list');
-
         // Xử lý kết thúc hợp đồng
-        Route::post('contracts/{id}/end', [ContractController::class, 'end'])
-            ->name('contracts.end');
-
-        // Form kết thúc hợp đồng
-        Route::get('contracts/{id}/end-form', [ContractController::class, 'endForm'])->name('contracts.end.form');
-
-        // Danh sách gia hạn hợp đồng
-        Route::get('contracts/extend', [ContractController::class, 'extendList'])
-            ->name('contracts.extend.list');
-
-        // Form gia hạn
-        Route::get('contracts/{id}/extend-form', [ContractController::class, 'extendForm'])
-            ->name('contracts.extend.form');
+        Route::post('contracts/{contract}/terminate',[ContractController::class,'end'])
+        ->name('contracts.terminate');
 
         // Xử lý gia hạn
-        Route::post('contracts/{id}/extend', [ContractController::class, 'extend'])
-            ->name('contracts.extend');
+        Route::post('contracts/{contract}/extend',[ContractController::class,'extend'])
+        ->name('contracts.extend');
+        // Xử lý hoàn cọc
+        Route::post(
+            'contracts/{contract}/return-deposit',
+            [ContractController::class, 'returnDeposit']
+        )->name('contracts.returnDeposit');
 
         // In hợp đồng
         Route::get('contracts/{id}/print', [ContractController::class, 'print'])
             ->name('contracts.print');
-
+        // Gửi hợp đồng để ký điện tử
+        Route::post('contracts/{contract}/send-signature',[ContractController::class, 'sendSignature'])
+            ->name('contracts.send-signature');
+        // Thu hồi hợp đồng để ký điện tử
+        Route::post(
+            'contracts/{contract}/recall-signature',
+            [ContractController::class, 'recallSignature']
+        )->name('contracts.recall-signature');
+        // Xác nhận ký hợp đồng điện tử
+        Route::post('contracts/{contract}/confirm-signature',[ContractController::class, 'confirmSignature'])
+            ->name('contracts.confirm-signature');
+        // Xác nhận đặt cọc
+        Route::post('contracts/{contract}/confirm-deposit',[ContractController::class, 'confirmDeposit'])
+            ->name('contracts.confirm-deposit');
+        // Kích hoạt hợp đồng
+        Route::post('contracts/{contract}/activate',[ContractController::class, 'activate'])
+            ->name('contracts.activate');
+        // Xem chi tiết hợp đồng trong modal
+        Route::get(
+            'contracts/{contract}/modal',
+            [ContractController::class, 'modal']
+        )->name('contracts.modal');
+        // Xử lý hoàn cọc
+        Route::post(
+            'contracts/{contract}/return-deposit',
+            [ContractController::class, 'returnDeposit']
+        )->name('contracts.returnDeposit');
         // Resource phải đặt SAU CÙNG
         Route::resource('contracts', ContractController::class);
         //

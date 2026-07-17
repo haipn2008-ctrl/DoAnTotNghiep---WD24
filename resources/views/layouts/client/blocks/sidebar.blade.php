@@ -33,8 +33,10 @@
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
                         <li><a href="#">Xem chi tiết hợp đồng</a></li>
+                        <li><a href="#">Lịch sử gia hạn</a></li>
                         <li><a href="#">Yêu cầu gia hạn</a></li>
                         <li><a href="#">Yêu cầu trả phòng</a></li>
+                        <li><a href="#">Lịch sử yêu cầu</a></li>
                     </ul>
                 </li>
 

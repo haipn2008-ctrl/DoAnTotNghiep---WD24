@@ -54,23 +54,13 @@
                     </a>
                     <ul aria-expanded="false" class="sub-menu">
                         <li>
-                            <a href="{{ route('admin.contracts.create') }}">
-                                Tạo hợp đồng thuê
-                            </a>
-                        </li>
-                        <li>
                             <a href="{{ route('admin.contracts.index') }}">
                                 Danh sách hợp đồng
                             </a>
                         </li>
                         <li>
-                            <a href="{{ route('admin.contracts.extend.list') }}">
-                                Gia hạn hợp đồng
-                            </a>
-                        </li>
-                        <li>
-                            <a href="{{ route('admin.contracts.end.list') }}">
-                                Kết thúc hợp đồng
+                            <a href="#">
+                                Mẫu hợp đồng
                             </a>
                         </li>
                     </ul>

@@ -60,10 +60,16 @@ class Room extends Model
     /**
      * Hợp đồng đang hoạt động
      */
-    public function activeContract()
+    public function currentContract()
     {
         return $this->hasOne(Contract::class)
-            ->where('status', Contract::STATUS_ACTIVE);
+            ->whereIn('status',[
+                Contract::STATUS_DRAFT,
+                Contract::STATUS_PENDING_SIGNATURE,
+                Contract::STATUS_SIGNED,
+                Contract::STATUS_DEPOSIT_PAID,
+                Contract::STATUS_ACTIVE
+            ]);
     }
 
     /**
@@ -126,4 +132,14 @@ class Room extends Model
     {
         return $this->status === self::STATUS_MAINTENANCE;
     }
+    public function getStatusTextAttribute()
+    {
+        return match ($this->status) {
+            self::STATUS_AVAILABLE => 'Còn trống',
+            self::STATUS_OCCUPIED => 'Đang thuê',
+            self::STATUS_MAINTENANCE => 'Đang bảo trì',
+            default => 'Không xác định',
+        };
+    }
+    
 }

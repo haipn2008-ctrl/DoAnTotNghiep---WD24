@@ -18,11 +18,15 @@ class Contract extends Model
 
     const STATUS_SIGNED = 'signed';
 
+    const STATUS_DEPOSIT_PAID = 'deposit_paid';
+
     const STATUS_ACTIVE = 'active';
 
     const STATUS_EXPIRED = 'expired';
 
     const STATUS_TERMINATED = 'terminated';
+
+    const STATUS_DEPOSIT_RETURNED = 'deposit_returned';
 
     /*
     |--------------------------------------------------------------------------
@@ -138,6 +142,10 @@ class Contract extends Model
             Invoice::class
         );
     }
+    public function histories()
+    {
+        return $this->hasMany(ContractHistory::class);
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -174,6 +182,15 @@ class Contract extends Model
     {
         return $query->where('status', self::STATUS_TERMINATED);
     }
+    public function scopeDepositPaid($query)
+    {
+        return $query->where('status', self::STATUS_DEPOSIT_PAID);
+    }
+
+    public function scopeDepositReturned($query)
+    {
+        return $query->where('status', self::STATUS_DEPOSIT_RETURNED);
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -195,6 +212,15 @@ class Contract extends Model
     {
         return $this->status === self::STATUS_SIGNED;
     }
+    public function isDepositPaidStatus()
+    {
+        return $this->status === self::STATUS_DEPOSIT_PAID;
+    }
+
+    public function isDepositReturnedStatus()
+    {
+        return $this->status === self::STATUS_DEPOSIT_RETURNED;
+    }
 
     public function isActive()
     {
@@ -210,6 +236,7 @@ class Contract extends Model
     {
         return $this->status === self::STATUS_TERMINATED;
     }
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -259,10 +286,21 @@ class Contract extends Model
 
     public function canTerminate()
     {
-        return in_array($this->status, [
-            self::STATUS_ACTIVE,
-            self::STATUS_SIGNED,
-        ]);
+        return $this->status === self::STATUS_ACTIVE;
+    }
+        
+    public function canActivate()
+    {
+        return $this->status === self::STATUS_DEPOSIT_PAID;
+    }
+    public function canReturnDeposit()
+    {
+        return $this->status === self::STATUS_TERMINATED;
+    }
+
+    public function canEdit()
+    {
+        return $this->status === self::STATUS_DRAFT;
     }
 
     /*
@@ -270,7 +308,18 @@ class Contract extends Model
     | Accessor
     |--------------------------------------------------------------------------
     */
-
+    public function getStatusTextAttribute()
+    {
+        return match ($this->status) {
+            self::STATUS_DRAFT => 'Bản nháp',
+            self::STATUS_PENDING_SIGNATURE => 'Chờ ký',
+            self::STATUS_ACTIVE => 'Đang hoạt động',
+            self::STATUS_EXPIRED => 'Hết hạn',
+            self::STATUS_TERMINATED => 'Đã kết thúc',
+            self::STATUS_DEPOSIT_RETURNED => 'Đã hoàn cọc',
+            default => 'Không xác định',
+        };
+    }
     public function getDurationAttribute()
     {
         return $this->start_date->diffInMonths($this->end_date);
