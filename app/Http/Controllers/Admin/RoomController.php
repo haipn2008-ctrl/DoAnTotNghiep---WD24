@@ -11,30 +11,9 @@ use Illuminate\Http\Request;
 
 class RoomController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
-        $query = Room::query()->with('amenities');
-
-        if ($request->room_code) {
-            $query->where(
-                'room_code',
-                'like',
-                '%' . $request->room_code . '%'
-            );
-        }
-
-        if ($request->status) {
-            $query->where(
-                'status',
-                $request->status
-            );
-        }
-
-        $rooms = $query
-            ->latest()
+        $rooms = $this->roomQuery($request)
             ->paginate(10);
 
         return view(
@@ -43,28 +22,20 @@ class RoomController extends Controller
         );
     }
 
-    /**
-     * Form xuất CSV
-     */
-    public function exportForm()
+    public function exportForm(Request $request)
     {
-        $rooms = Room::with('amenities')
-            ->latest()
+        $rooms = $this->roomQuery($request)
             ->paginate(10);
 
         return view('admin.rooms.export', compact('rooms'));
     }
 
-    /**
-     * Xuất CSV
-     */
-    public function export()
+    public function export(Request $request)
     {
-        $rooms = Room::with('amenities')
-            ->latest()
+        $rooms = $this->roomQuery($request)
             ->get();
 
-        $filename = 'danh_sach_phong_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'danh_sach_phong_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -82,23 +53,15 @@ class RoomController extends Controller
         ];
 
         $callback = function () use ($rooms, $columns) {
-
             $file = fopen('php://output', 'w');
-
-            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
-
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($file, $columns);
 
             foreach ($rooms as $room) {
-
                 $status = match ($room->status) {
-
-                    Room::STATUS_AVAILABLE => 'Trống',
-
-                    Room::STATUS_OCCUPIED => 'Đang thuê',
-
-                    Room::STATUS_MAINTENANCE => 'Bảo trì',
-
+                    'available' => 'Trống',
+                    'occupied' => 'Đang thuê',
+                    'maintenance' => 'Bảo trì',
                     default => ucfirst($room->status),
                 };
 
@@ -108,21 +71,13 @@ class RoomController extends Controller
                     ->implode(', ');
 
                 fputcsv($file, [
-
                     $room->room_code,
-
                     $room->floor,
-
                     number_format($room->price),
-
                     $room->area,
-
                     $room->current_people,
-
                     $status,
-
                     $amenities,
-
                 ]);
             }
 
@@ -132,9 +87,6 @@ class RoomController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    /**
-     * Form tạo phòng
-     */
     public function create()
     {
         $amenities = Amenity::all();
@@ -145,19 +97,17 @@ class RoomController extends Controller
         );
     }
 
-    /**
-     * Lưu phòng
-     */
     public function store(RoomRequest $request)
     {
         $data = $request->validated();
 
         if ($request->hasFile('image')) {
-
             $data['thumbnail'] = $request
                 ->file('image')
                 ->store('rooms', 'public');
         }
+
+        unset($data['image']);
 
         $room = Room::create($data);
 
@@ -167,15 +117,9 @@ class RoomController extends Controller
 
         return redirect()
             ->route('admin.rooms.index')
-            ->with(
-                'success',
-                'Thêm phòng thành công'
-            );
+            ->with('success', 'Thêm phòng thành công');
     }
 
-    /**
-     * Chi tiết phòng
-     */
     public function show(Room $room)
     {
         $room->load('amenities');
@@ -186,9 +130,6 @@ class RoomController extends Controller
         );
     }
 
-    /**
-     * Form sửa phòng
-     */
     public function edit(Room $room)
     {
         $room->load('amenities');
@@ -197,26 +138,21 @@ class RoomController extends Controller
 
         return view(
             'admin.rooms.edit',
-            compact(
-                'room',
-                'amenities'
-            )
+            compact('room', 'amenities')
         );
     }
 
-    /**
-     * Cập nhật phòng
-     */
     public function update(RoomRequest $request, Room $room)
     {
         $data = $request->validated();
 
         if ($request->hasFile('image')) {
-
             $data['thumbnail'] = $request
                 ->file('image')
                 ->store('rooms', 'public');
         }
+
+        unset($data['image']);
 
         $room->update($data);
 
@@ -226,15 +162,9 @@ class RoomController extends Controller
 
         return redirect()
             ->route('admin.rooms.index')
-            ->with(
-                'success',
-                'Cập nhật phòng thành công'
-            );
+            ->with('success', 'Cập nhật phòng thành công');
     }
 
-    /**
-     * Xóa phòng
-     */
     public function destroy(Room $room)
     {
         $hasActiveContract = $room->contracts()
@@ -242,22 +172,37 @@ class RoomController extends Controller
             ->exists();
 
         if ($hasActiveContract) {
-
             return redirect()
                 ->route('admin.rooms.index')
-                ->with(
-                    'error',
-                    'Không thể xóa phòng đang có người thuê'
-                );
+                ->with('error', 'Không thể xóa phòng đang có người thuê');
         }
 
         $room->delete();
 
         return redirect()
             ->route('admin.rooms.index')
-            ->with(
-                'success',
-                'Xóa phòng thành công'
+            ->with('success', 'Xóa phòng thành công');
+    }
+
+    private function roomQuery(Request $request)
+    {
+        $query = Room::with('amenities');
+
+        if ($request->room_code) {
+            $query->where(
+                'room_code',
+                'like',
+                '%'.$request->room_code.'%'
             );
+        }
+
+        if ($request->status) {
+            $query->where(
+                'status',
+                $request->status
+            );
+        }
+
+        return $query->latest();
     }
 }

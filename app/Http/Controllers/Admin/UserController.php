@@ -8,7 +8,6 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -52,16 +51,11 @@ class UserController extends Controller
     {
         $this->adminOnly();
 
-        User::create(
-            $request->validated()
-        );
+        User::create($request->validated());
 
         return redirect()
             ->route('admin.users.index')
-            ->with(
-                'success',
-                'Tạo tài khoản thành công.'
-            );
+            ->with('success', 'Tạo tài khoản thành công.');
     }
 
     public function edit(User $user)
@@ -73,10 +67,8 @@ class UserController extends Controller
         return view('admin.users.edit', compact('user', 'roles'));
     }
 
-    public function update(
-        UserRequest $request,
-        User $user
-    ) {
+    public function update(UserRequest $request, User $user)
+    {
         $this->adminOnly();
 
         $data = $request->validated();
@@ -89,10 +81,7 @@ class UserController extends Controller
 
         return redirect()
             ->route('admin.users.index')
-            ->with(
-                'success',
-                'Cập nhật tài khoản thành công.'
-            );
+            ->with('success', 'Cập nhật tài khoản thành công.');
     }
 
     public function destroy(User $user)
@@ -100,11 +89,15 @@ class UserController extends Controller
         $this->adminOnly();
 
         if (Auth::id() === $user->id) {
-            return redirect()->route('admin.users.index')->with('error', 'Không thể xóa chính bạn.');
+            return redirect()
+                ->route('admin.users.index')
+                ->with('error', 'Không thể xóa chính bạn.');
         }
 
         $user->delete();
 
-        return redirect()->route('admin.users.index')->with('success', 'Xóa tài khoản thành công.');
+        return redirect()
+            ->route('admin.users.index')
+            ->with('success', 'Xóa tài khoản thành công.');
     }
 }

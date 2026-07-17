@@ -1,18 +1,22 @@
 <?php
-//Admin routes
+
+// Admin routes
+use App\Http\Controllers\Admin\ContractController;
+use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
-use App\Http\Controllers\Admin\SettingController;
-use App\Http\Controllers\Admin\OverviewController;
-use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Admin\ContractController;
-//Client routes
+// Client routes
 use App\Http\Controllers\Client\ContractController as ClientContractController;
-
+use App\Models\Contract;
+use App\Models\Invoice;
 use App\Models\Role;
+use App\Models\Room;
+use App\Models\Tenant;
 use Illuminate\Support\Facades\Route;
 
 // Tự động chuyển hướng về trang dashboard để kiểm tra đăng nhập
@@ -111,10 +115,11 @@ Route::middleware('auth')->group(function () {
             ->name('utilities.index');
 
         // Quản lý hóa đơn và công nợ
-        Route::get('/invoices/generate', [InvoiceController::class, 'generateForm'])
+        // Các route cụ thể phải đặt TRƯỚC resource để tránh bị {invoice} chiếm
+        Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
             ->name('invoices.generate');
 
-        Route::post('/invoices/generate', [InvoiceController::class, 'generate'])
+        Route::post('/invoices/generate', [InvoiceController::class, 'generateStore'])
             ->name('invoices.generate.store');
 
         Route::get('/invoices/export', [InvoiceController::class, 'exportForm'])
@@ -132,6 +137,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/invoices/payments/export/download', [InvoiceController::class, 'exportPayments'])
             ->name('invoices.payments.export.download');
 
+        Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
+            ->name('invoices.preview');
+
+        Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
+            ->name('invoices.issue');
+
         Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
             ->name('invoices.payments.store');
 
@@ -140,21 +151,6 @@ Route::middleware('auth')->group(function () {
 
         Route::resource('invoices', InvoiceController::class)
             ->except(['create', 'store']);
-
-        Route::get('/invoices', [InvoiceController::class, 'index'])
-            ->name('invoices.index');
-
-        Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
-            ->name('invoices.generate');
-
-        Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
-            ->name('invoices.preview');
-
-        Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
-            ->name('invoices.issue');
-
-        Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])
-            ->name('invoices.show');
 
         // Tổng Quan Dashboard
         Route::get('/overview', [OverviewController::class, 'index'])
@@ -199,19 +195,74 @@ Route::middleware('auth')->group(function () {
                 return redirect()->route('dashboard');
             }
 
-            return view('layouts.admin.home');
+            $currentMonth = now()->month;
+            $currentYear = now()->year;
+
+            $stats = [
+                'total_rooms' => Room::count(),
+                'available_rooms' => Room::where('status', 'available')->count(),
+                'occupied_rooms' => Room::where('status', 'occupied')->count(),
+                'maintenance_rooms' => Room::where('status', 'maintenance')->count(),
+                'total_tenants' => Tenant::count(),
+                'active_contracts' => Contract::where('status', 'active')->count(),
+                'unpaid_invoices' => Invoice::whereIn('status', ['unpaid', 'partial'])->count(),
+                'monthly_revenue' => Invoice::where('status', 'paid')
+                    ->where('month', $currentMonth)
+                    ->where('year', $currentYear)
+                    ->sum('total_amount'),
+            ];
+
+            $recentInvoices = Invoice::with(['room', 'contract.tenant'])
+                ->latest()
+                ->take(5)
+                ->get();
+
+            $recentContracts = Contract::with(['room', 'tenant'])
+                ->latest()
+                ->take(5)
+                ->get();
+
+            return view('layouts.admin.home', compact('stats', 'recentInvoices', 'recentContracts'));
         })->name('home');
     });
 
     // Nhóm route dành cho Client (Người dùng thường)
     Route::get('/client', function () {
-        $user = auth()->user();
+        $user = auth()->user()->load([
+            'tenant.contracts.room',
+            'tenant.contracts.invoices.room',
+        ]);
 
         if ($user->role_id !== 2) {
             return redirect()->route('dashboard');
         }
 
-        return view('layouts.client.home');
+        $tenant = $user->tenant;
+        $activeContract = $tenant?->contracts
+            ->where('status', 'active')
+            ->sortByDesc('start_date')
+            ->first();
+
+        $invoices = $tenant
+            ? Invoice::with(['room', 'contract'])
+                ->whereHas('contract', function ($query) use ($tenant) {
+                    $query->where('tenant_id', $tenant->id);
+                })
+                ->latest()
+                ->get()
+            : collect();
+
+        $recentInvoice = $invoices->first();
+        $openInvoices = $invoices->whereIn('status', ['unpaid', 'partial']);
+        $supportRequests = 0;
+
+        return view('layouts.client.home', compact(
+            'tenant',
+            'activeContract',
+            'recentInvoice',
+            'openInvoices',
+            'supportRequests'
+        ));
     })->name('client.home');
 
     // Route::prefix('client')

@@ -1,479 +1,163 @@
 @extends('layouts.admin.index')
+<<<<<<< HEAD
 <link rel="stylesheet"
 href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+=======
+
+@section('title', 'Dashboard | Quản lý phòng trọ')
+@section('page_title', 'Dashboard quản lý phòng trọ')
+
+@php
+    $roomTotal = max((int) ($stats['total_rooms'] ?? 0), 1);
+    $fillRate = round((($stats['occupied_rooms'] ?? 0) / $roomTotal) * 100);
+
+    $statusLabels = [
+        'unpaid' => ['label' => 'Chưa thanh toán', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
+        'partial' => ['label' => 'Thanh toán một phần', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
+        'paid' => ['label' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'pending' => ['label' => 'Chờ xử lý', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
+        'active' => ['label' => 'Đang hiệu lực', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'expired' => ['label' => 'Hết hạn', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'],
+        'terminated' => ['label' => 'Đã kết thúc', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
+    ];
+@endphp
+
+>>>>>>> 3bb66892adb64dbcdda16ab528fbe3ec6422a225
 @section('content')
-    <div class="container-fluid">
-        <!-- start page title -->
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                    <h4 class="mb-sm-0 font-size-18">
-                        Trang chủ
-                    </h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item">
-                                <a href="javascript: void(0);">
-                                    Trang chủ
-                                </a>
-                            </li>
-                            <li class="breadcrumb-item active">
-                                Trang chủ
-                            </li>
-                        </ol>
-                    </div>
-                </div>
+    <div class="space-y-6">
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+                <p class="text-sm font-medium text-slate-500">Tổng quan vận hành hôm nay</p>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Xin chào, {{ Auth::user()->name ?? 'Admin' }}</h2>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('admin.rooms.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+                    <i class="bx bx-plus text-lg"></i>
+                    Thêm phòng
+                </a>
+                <a href="{{ route('admin.invoices.generate') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    <i class="bx bx-receipt text-lg"></i>
+                    Sinh hóa đơn
+                </a>
             </div>
         </div>
-        <!-- end page title -->
-        <div class="row">
-            <div class="col-xl-3 col-md-6">
-                <!-- card -->
-                <div class="card card-h-100">
-                    <!-- card body -->
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    My Wallet
-                                </span>
-                                <h4 class="mb-3">
-                                    $
-                                    <span class="counter-value" data-target="865.2">
-                                        0
-                                    </span>
-                                    k
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="apex-charts mb-2" data-colors='["#5156be"]' id="mini-chart1">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="text-nowrap">
-                            <span class="badge bg-success-subtle text-success">
-                                +$20.9k
-                            </span>
-                            <span class="ms-1 text-muted font-size-13">
-                                Since last week
-                            </span>
-                        </div>
-                    </div>
-                    <!-- end card body -->
+
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-medium text-slate-500">Tổng số phòng</p>
+                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                        <i class="bx bx-building-house text-xl"></i>
+                    </span>
                 </div>
-                <!-- end card -->
+                <p class="mt-4 text-3xl font-bold text-slate-950">{{ number_format($stats['total_rooms'] ?? 0) }}</p>
+                <p class="mt-1 text-sm text-slate-500">{{ $stats['available_rooms'] ?? 0 }} phòng trống, {{ $stats['maintenance_rooms'] ?? 0 }} bảo trì</p>
             </div>
-            <!-- end col -->
-            <div class="col-xl-3 col-md-6">
-                <!-- card -->
-                <div class="card card-h-100">
-                    <!-- card body -->
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Số lượng giao dịch
-                                </span>
-                                <h4 class="mb-3">
-                                    <span class="counter-value" data-target="6258">
-                                        0
-                                    </span>
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="apex-charts mb-2" data-colors='["#5156be"]' id="mini-chart2">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="text-nowrap">
-                            <span class="badge bg-danger-subtle text-danger">
-                                -29 Trades
-                            </span>
-                            <span class="ms-1 text-muted font-size-13">
-                                Since last week
-                            </span>
-                        </div>
-                    </div>
-                    <!-- end card body -->
+
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-medium text-slate-500">Tỷ lệ lấp đầy</p>
+                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                        <i class="bx bx-line-chart text-xl"></i>
+                    </span>
                 </div>
-                <!-- end card -->
-            </div>
-            <!-- end col-->
-            <div class="col-xl-3 col-md-6">
-                <!-- card -->
-                <div class="card card-h-100">
-                    <!-- card body -->
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Số tiền đầu tư
-                                </span>
-                                <h4 class="mb-3">
-                                    $
-                                    <span class="counter-value" data-target="4.32">
-                                        0
-                                    </span>
-                                    M
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="apex-charts mb-2" data-colors='["#5156be"]' id="mini-chart3">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="text-nowrap">
-                            <span class="badge bg-success-subtle text-success">
-                                + $2.8k
-                            </span>
-                            <span class="ms-1 text-muted font-size-13">
-                                Since last week
-                            </span>
-                        </div>
-                    </div>
-                    <!-- end card body -->
+                <p class="mt-4 text-3xl font-bold text-slate-950">{{ $fillRate }}%</p>
+                <div class="mt-3 h-2 rounded-full bg-slate-100">
+                    <div class="h-2 rounded-full bg-emerald-500" style="width: {{ min($fillRate, 100) }}%"></div>
                 </div>
-                <!-- end card -->
             </div>
-            <!-- end col -->
-            <div class="col-xl-3 col-md-6">
-                <!-- card -->
-                <div class="card card-h-100">
-                    <!-- card body -->
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-6">
-                                <span class="text-muted mb-3 lh-1 d-block text-truncate">
-                                    Tỷ lệ lợi nhuận
-                                </span>
-                                <h4 class="mb-3">
-                                    <span class="counter-value" data-target="12.57">
-                                        0
-                                    </span>
-                                    %
-                                </h4>
-                            </div>
-                            <div class="col-6">
-                                <div class="apex-charts mb-2" data-colors='["#5156be"]' id="mini-chart4">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="text-nowrap">
-                            <span class="badge bg-success-subtle text-success">
-                                +2.95%
-                            </span>
-                            <span class="ms-1 text-muted font-size-13">
-                                Since last week
-                            </span>
-                        </div>
-                    </div>
-                    <!-- end card body -->
+
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-medium text-slate-500">Khách thuê</p>
+                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+                        <i class="bx bx-user text-xl"></i>
+                    </span>
                 </div>
-                <!-- end card -->
+                <p class="mt-4 text-3xl font-bold text-slate-950">{{ number_format($stats['total_tenants'] ?? 0) }}</p>
+                <p class="mt-1 text-sm text-slate-500">{{ number_format($stats['active_contracts'] ?? 0) }} hợp đồng đang hiệu lực</p>
             </div>
-            <!-- end col -->
+
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-medium text-slate-500">Doanh thu tháng</p>
+                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                        <i class="bx bx-wallet text-xl"></i>
+                    </span>
+                </div>
+                <p class="mt-4 text-3xl font-bold text-slate-950">{{ number_format($stats['monthly_revenue'] ?? 0, 0, ',', '.') }}đ</p>
+                <p class="mt-1 text-sm text-slate-500">{{ number_format($stats['unpaid_invoices'] ?? 0) }} hóa đơn cần thu</p>
+            </div>
         </div>
-        <!-- end row-->
-        <div class="row">
-            <div class="col-xl-5">
-                <!-- card -->
-                <div class="card card-h-100">
-                    <!-- card body -->
-                    <div class="card-body">
-                        <div class="d-flex flex-wrap align-items-center mb-4">
-                            <h5 class="card-title me-2">
-                                Số dư trên Ví
-                            </h5>
-                            <div class="ms-auto">
-                                <div>
-                                    <button class="btn btn-soft-secondary btn-sm" type="button">
-                                        Tất cả
-                                    </button>
-                                    <button class="btn btn-soft-primary btn-sm" type="button">
-                                        1 Tháng
-                                    </button>
-                                    <button class="btn btn-soft-secondary btn-sm" type="button">
-                                        6 Tháng
-                                    </button>
-                                    <button class="btn btn-soft-secondary btn-sm" type="button">
-                                        1 Năm
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row align-items-center">
-                            <div class="col-sm">
-                                <div class="apex-charts" data-colors='["#777aca", "#5156be", "#a8aada"]'
-                                    id="wallet-balance">
-                                </div>
-                            </div>
-                            <div class="col-sm align-self-center">
-                                <div class="mt-4 mt-sm-0">
-                                    <div>
-                                        <p class="mb-2">
-                                            <i class="mdi mdi-circle align-middle font-size-10 me-2 text-success">
-                                            </i>
-                                            Bitcoin
-                                        </p>
-                                        <h6>
-                                            0.4412 BTC =
-                                            <span class="text-muted font-size-14 fw-normal">
-                                                $ 4025.32
-                                            </span>
-                                        </h6>
-                                    </div>
-                                    <div class="mt-4 pt-2">
-                                        <p class="mb-2">
-                                            <i class="mdi mdi-circle align-middle font-size-10 me-2 text-primary">
-                                            </i>
-                                            Ethereum
-                                        </p>
-                                        <h6>
-                                            4.5701 ETH =
-                                            <span class="text-muted font-size-14 fw-normal">
-                                                $ 1123.64
-                                            </span>
-                                        </h6>
-                                    </div>
-                                    <div class="mt-4 pt-2">
-                                        <p class="mb-2">
-                                            <i class="mdi mdi-circle align-middle font-size-10 me-2 text-info">
-                                            </i>
-                                            Litecoin
-                                        </p>
-                                        <h6>
-                                            35.3811 LTC =
-                                            <span class="text-muted font-size-14 fw-normal">
-                                                $ 2263.09
-                                            </span>
-                                        </h6>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+
+        <div class="grid gap-6 xl:grid-cols-2">
+            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                    <div>
+                        <h3 class="font-semibold text-slate-950">Hóa đơn gần đây</h3>
+                        <p class="text-sm text-slate-500">Theo dõi nhanh công nợ mới phát sinh</p>
                     </div>
+                    <a href="{{ route('admin.invoices.index') }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Xem tất cả</a>
                 </div>
-                <!-- end card -->
-            </div>
-            <!-- end col -->
-            <div class="col-xl-7">
-                <div class="row">
-                    <div class="col-xl-8">
-                        <!-- card -->
-                        <div class="card card-h-100">
-                            <!-- card body -->
-                            <div class="card-body">
-                                <div class="d-flex flex-wrap align-items-center mb-4">
-                                    <h5 class="card-title me-2">
-                                        Tổng quan đã đầu tư
-                                    </h5>
-                                    <div class="ms-auto">
-                                        <select class="form-select form-select-sm">
-                                            <option selected="" value="MAY">
-                                                Tháng 5
-                                            </option>
-                                            <option value="AP">
-                                                Tháng 4
-                                            </option>
-                                            <option value="MA">
-                                                Tháng 3
-                                            </option>
-                                            <option value="FE">
-                                                Tháng 2
-                                            </option>
-                                            <option value="JA">
-                                                Tháng 1
-                                            </option>
-                                            <option value="DE">
-                                                Tháng 12
-                                            </option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="row align-items-center">
-                                    <div class="col-sm">
-                                        <div class="apex-charts" data-colors='["#5156be", "#34c38f"]'
-                                            id="invested-overview">
-                                        </div>
-                                    </div>
-                                    <div class="col-sm align-self-center">
-                                        <div class="mt-4 mt-sm-0">
-                                            <p class="mb-1">
-                                                Invested Amount
-                                            </p>
-                                            <h4>
-                                                $ 6134.39
-                                            </h4>
-                                            <p class="text-muted mb-4">
-                                                + 0.0012.23 ( 0.2 % )
-                                                <i class="mdi mdi-arrow-up ms-1 text-success">
-                                                </i>
-                                            </p>
-                                            <div class="row g-0">
-                                                <div class="col-6">
-                                                    <div>
-                                                        <p class="mb-2 text-muted text-uppercase font-size-11">
-                                                            Income
-                                                        </p>
-                                                        <h5 class="fw-medium">
-                                                            $ 2632.46
-                                                        </h5>
-                                                    </div>
-                                                </div>
-                                                <div class="col-6">
-                                                    <div>
-                                                        <p class="mb-2 text-muted text-uppercase font-size-11">
-                                                            Expenses
-                                                        </p>
-                                                        <h5 class="fw-medium">
-                                                            -$ 924.38
-                                                        </h5>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="mt-2">
-                                                <a class="btn btn-primary btn-sm" href="#">
-                                                    View more
-                                                    <i class="mdi mdi-arrow-right ms-1">
-                                                    </i>
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- end col -->
-                    <div class="col-xl-4">
-                        <!-- card -->
-                        <div class="card bg-primary text-white shadow-primary card-h-100">
-                            <!-- card body -->
-                            <div class="card-body p-0">
-                                <div class="carousel slide text-center widget-carousel" data-bs-ride="carousel"
-                                    id="carouselExampleCaptions">
-                                    <div class="carousel-inner">
-                                        <div class="carousel-item active">
-                                            <div class="text-center p-4">
-                                                <i class="mdi mdi-bitcoin widget-box-1-icon">
-                                                </i>
-                                                <div class="avatar-md m-auto">
-                                                    <span
-                                                        class="avatar-title rounded-circle bg-light-subtle text-white font-size-24">
-                                                        <i class="mdi mdi-currency-btc">
-                                                        </i>
-                                                    </span>
-                                                </div>
-                                                <h4 class="mt-3 lh-base fw-normal text-white">
-                                                    <b>
-                                                        Bitcoin
-                                                    </b>
-                                                    News
-                                                </h4>
-                                                <p class="text-white-50 font-size-13">
-                                                    Bitcoin prices fell sharply amid the global sell-off in equities.
-                                                    Negative news
-                                                    over the Bitcoin past week has dampened Bitcoin basics
-                                                    sentiment for bitcoin.
-                                                </p>
-                                                <button class="btn btn-light btn-sm" type="button">
-                                                    View details
-                                                    <i class="mdi mdi-arrow-right ms-1">
-                                                    </i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <!-- end carousel-item -->
-                                        <div class="carousel-item">
-                                            <div class="text-center p-4">
-                                                <i class="mdi mdi-ethereum widget-box-1-icon">
-                                                </i>
-                                                <div class="avatar-md m-auto">
-                                                    <span
-                                                        class="avatar-title rounded-circle bg-light-subtle text-white font-size-24">
-                                                        <i class="mdi mdi-ethereum">
-                                                        </i>
-                                                    </span>
-                                                </div>
-                                                <h4 class="mt-3 lh-base fw-normal text-white">
-                                                    <b>
-                                                        ETH
-                                                    </b>
-                                                    News
-                                                </h4>
-                                                <p class="text-white-50 font-size-13">
-                                                    Bitcoin prices fell sharply amid the global sell-off in equities.
-                                                    Negative news
-                                                    over the Bitcoin past week has dampened Bitcoin basics
-                                                    sentiment for bitcoin.
-                                                </p>
-                                                <button class="btn btn-light btn-sm" type="button">
-                                                    View details
-                                                    <i class="mdi mdi-arrow-right ms-1">
-                                                    </i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <!-- end carousel-item -->
-                                        <div class="carousel-item">
-                                            <div class="text-center p-4">
-                                                <i class="mdi mdi-litecoin widget-box-1-icon">
-                                                </i>
-                                                <div class="avatar-md m-auto">
-                                                    <span
-                                                        class="avatar-title rounded-circle bg-light-subtle text-white font-size-24">
-                                                        <i class="mdi mdi-litecoin">
-                                                        </i>
-                                                    </span>
-                                                </div>
-                                                <h4 class="mt-3 lh-base fw-normal text-white">
-                                                    <b>
-                                                        Litecoin
-                                                    </b>
-                                                    News
-                                                </h4>
-                                                <p class="text-white-50 font-size-13">
-                                                    Bitcoin prices fell sharply amid the global sell-off in equities.
-                                                    Negative news
-                                                    over the Bitcoin past week has dampened Bitcoin basics
-                                                    sentiment for bitcoin.
-                                                </p>
-                                                <button class="btn btn-light btn-sm" type="button">
-                                                    View details
-                                                    <i class="mdi mdi-arrow-right ms-1">
-                                                    </i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <!-- end carousel-item -->
-                                    </div>
-                                    <!-- end carousel-inner -->
-                                    <div class="carousel-indicators carousel-indicators-rounded">
-                                        <button aria-current="true" aria-label="Slide 1" class="active" data-bs-slide-to="0"
-                                            data-bs-target="#carouselExampleCaptions" type="button">
-                                        </button>
-                                        <button aria-label="Slide 2" data-bs-slide-to="1"
-                                            data-bs-target="#carouselExampleCaptions" type="button">
-                                        </button>
-                                        <button aria-label="Slide 3" data-bs-slide-to="2"
-                                            data-bs-target="#carouselExampleCaptions" type="button">
-                                        </button>
-                                    </div>
-                                    <!-- end carousel-indicators -->
-                                </div>
-                                <!-- end carousel -->
-                            </div>
-                            <!-- end card body -->
-                        </div>
-                        <!-- end card -->
-                    </div>
-                    <!-- end col -->
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                            <tr>
+                                <th class="px-5 py-3">Phòng</th>
+                                <th class="px-5 py-3">Kỳ</th>
+                                <th class="px-5 py-3">Tổng tiền</th>
+                                <th class="px-5 py-3">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @forelse ($recentInvoices as $invoice)
+                                @php($invoiceStatus = $statusLabels[$invoice->status] ?? ['label' => $invoice->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                                <tr>
+                                    <td class="px-5 py-4 font-medium text-slate-900">{{ $invoice->room->room_code ?? 'N/A' }}</td>
+                                    <td class="px-5 py-4 text-slate-600">{{ $invoice->month }}/{{ $invoice->year }}</td>
+                                    <td class="px-5 py-4 font-semibold text-slate-900">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</td>
+                                    <td class="px-5 py-4">
+                                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $invoiceStatus['class'] }}">{{ $invoiceStatus['label'] }}</span>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-5 py-8 text-center text-slate-500">Chưa có hóa đơn nào.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
-                <!-- end row -->
-            </div>
-            <!-- end col -->
+            </section>
+
+            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                    <div>
+                        <h3 class="font-semibold text-slate-950">Hợp đồng mới</h3>
+                        <p class="text-sm text-slate-500">Các hợp đồng được cập nhật gần nhất</p>
+                    </div>
+                    <a href="{{ route('admin.contracts.index') }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Xem tất cả</a>
+                </div>
+
+                <div class="divide-y divide-slate-100">
+                    @forelse ($recentContracts as $contract)
+                        @php($contractStatus = $statusLabels[$contract->status] ?? ['label' => $contract->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                        <div class="flex items-center justify-between gap-4 px-5 py-4">
+                            <div class="min-w-0">
+                                <p class="truncate font-semibold text-slate-950">{{ $contract->contract_code }}</p>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    {{ $contract->tenant->full_name ?? 'Chưa có khách' }} · Phòng {{ $contract->room->room_code ?? 'N/A' }}
+                                </p>
+                            </div>
+                            <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $contractStatus['class'] }}">{{ $contractStatus['label'] }}</span>
+                        </div>
+                    @empty
+                        <div class="px-5 py-8 text-center text-sm text-slate-500">Chưa có hợp đồng nào.</div>
+                    @endforelse
+                </div>
+            </section>
         </div>
-    </div>
-    <!-- container-fluid -->
     </div>
 @endsection

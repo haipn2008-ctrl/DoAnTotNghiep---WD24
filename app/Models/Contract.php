@@ -12,11 +12,7 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    const STATUS_DRAFT = 'draft';
-
-    const STATUS_PENDING_SIGNATURE = 'pending_signature';
-
-    const STATUS_SIGNED = 'signed';
+    const STATUS_PENDING = 'pending';
 
     const STATUS_DEPOSIT_PAID = 'deposit_paid';
 
@@ -88,17 +84,17 @@ class Contract extends Model
      */
     protected $casts = [
 
-        'signed_at'         => 'datetime',
-        'deposit_paid_at'   => 'datetime',
-        'extended_at'       => 'datetime',
-        'terminated_at'     => 'datetime',
+        'signed_at' => 'datetime',
+        'deposit_paid_at' => 'datetime',
+        'extended_at' => 'datetime',
+        'terminated_at' => 'datetime',
 
-        'start_date'        => 'date',
-        'end_date'          => 'date',
-        'actual_end_date'   => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'actual_end_date' => 'date',
 
         'extend_start_date' => 'date',
-        'extend_end_date'   => 'date',
+        'extend_end_date' => 'date',
     ];
 
     /*
@@ -132,7 +128,7 @@ class Contract extends Model
 
     public function utilityReadings()
     {
-        return $this->hasMany(UtilityReading::class);
+        return $this->hasMany(UtilityReading::class, 'room_id', 'room_id');
     }
 
     public function payments()
@@ -153,19 +149,9 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function scopeDraft($query)
+    public function scopePending($query)
     {
-        return $query->where('status', self::STATUS_DRAFT);
-    }
-
-    public function scopePendingSignature($query)
-    {
-        return $query->where('status', self::STATUS_PENDING_SIGNATURE);
-    }
-
-    public function scopeSigned($query)
-    {
-        return $query->where('status', self::STATUS_SIGNED);
+        return $query->where('status', self::STATUS_PENDING);
     }
 
     public function scopeActive($query)
@@ -198,19 +184,9 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function isDraft()
+    public function isPending()
     {
-        return $this->status === self::STATUS_DRAFT;
-    }
-
-    public function isPendingSignature()
-    {
-        return $this->status === self::STATUS_PENDING_SIGNATURE;
-    }
-
-    public function isSigned()
-    {
-        return $this->status === self::STATUS_SIGNED;
+        return $this->status === self::STATUS_PENDING;
     }
     public function isDepositPaidStatus()
     {
@@ -287,6 +263,7 @@ class Contract extends Model
     public function canTerminate()
     {
         return $this->status === self::STATUS_ACTIVE;
+<<<<<<< HEAD
     }
         
     public function canActivate()
@@ -301,6 +278,8 @@ class Contract extends Model
     public function canEdit()
     {
         return $this->status === self::STATUS_DRAFT;
+=======
+>>>>>>> 3bb66892adb64dbcdda16ab528fbe3ec6422a225
     }
 
     /*

@@ -1,100 +1,29 @@
-@extends('layouts.admin.home')
+@extends('layouts.admin.index')
 
-@section('title', 'Xuất danh sách thanh toán')
+@section('title', 'Xuất danh sách thanh toán | Quản lý phòng trọ')
 
 @section('content')
-    <div class="container-fluid mt-4">
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                    <h4 class="mb-sm-0 font-size-18">Xuất danh sách thanh toán</h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('admin.invoices.payments') }}">Thanh toán</a></li>
-                            <li class="breadcrumb-item active">Xuất danh sách thanh toán</li>
-                        </ol>
-                    </div>
-                </div>
+    <div class="space-y-6">
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div><p class="text-sm font-medium text-slate-500">Quản lý công nợ</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Xuất danh sách thanh toán</h2></div>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('admin.invoices.payments.export.download', request()->only(['status', 'method', 'keyword'])) }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"><i class="bx bx-download text-lg"></i> Tải file CSV</a>
+                <a href="{{ route('admin.invoices.payments', request()->only(['status', 'method', 'keyword'])) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><i class="bx bx-arrow-back text-lg"></i> Quay lại</a>
             </div>
         </div>
 
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body bg-light">
-                <div class="row">
-                    <div class="col-md-8 align-self-center">
-                        <p class="mb-0">
-                            Trang xuất danh sách thanh toán chỉ dùng để tải file CSV toàn bộ thanh toán theo bộ lọc hiện tại.
-                        </p>
-                    </div>
-                    <div class="col-md-4 d-flex justify-content-end gap-2">
-                        <a href="{{ route('admin.invoices.payments.export.download', request()->only(['status','method','keyword'])) }}" class="btn btn-success px-4 py-2">
-                            <i class="fas fa-file-csv me-1"></i> Xuất file CSV
-                        </a>
-                        <a href="{{ route('admin.invoices.payments') }}" class="btn btn-outline-secondary px-4 py-2">
-                            Quay lại ghi nhận thanh toán
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">File CSV sẽ giữ nguyên bộ lọc hiện tại và có thể mở trực tiếp bằng Excel.</div>
 
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="text-white" style="background-color:#4e73df;">
-                            <tr>
-                                <th>STT</th>
-                                <th>Mã giao dịch</th>
-                                <th>Hóa đơn</th>
-                                <th>Phòng</th>
-                                <th>Người thuê</th>
-                                <th class="text-end">Số tiền</th>
-                                <th>Phương thức</th>
-                                <th>Ngày thanh toán</th>
-                                <th>Trạng thái</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($payments as $payment)
-                                @php
-                                    $methodLabel = match ($payment->payment_method) {
-                                        'bank_transfer' => 'Chuyển khoản',
-                                        'qr' => 'QR',
-                                        default => 'Tiền mặt',
-                                    };
-
-                                    $statusLabel = match ($payment->status) {
-                                        'success' => 'Thành công',
-                                        'pending' => 'Chờ xử lý',
-                                        default => 'Thất bại',
-                                    };
-                                @endphp
-                                <tr>
-                                    <td>{{ $loop->iteration }}</td>
-                                    <td>{{ $payment->transaction_code ?? '-' }}</td>
-                                    <td>{{ $payment->invoice->invoice_code ?? '-' }}</td>
-                                    <td>{{ $payment->invoice->room->room_code ?? '-' }}</td>
-                                    <td>{{ $payment->invoice->contract->tenant->full_name ?? '-' }}</td>
-                                    <td class="text-end">{{ number_format($payment->amount_paid, 0, ',', '.') }} VNĐ</td>
-                                    <td>{{ $methodLabel }}</td>
-                                    <td>{{ $payment->payment_date?->format('d/m/Y') ?? '-' }}</td>
-                                    <td><span class="badge bg-secondary">{{ $statusLabel }}</span></td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="9" class="text-center py-4">Không có thanh toán để xuất</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-3 d-flex justify-content-end">
-            {{ $payments->links() }}
-        </div>
+        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"><div class="overflow-x-auto"><table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th class="px-5 py-3">Giao dịch</th><th class="px-5 py-3">Hóa đơn</th><th class="px-5 py-3">Phòng / khách thuê</th><th class="px-5 py-3 text-right">Số tiền</th><th class="px-5 py-3">Phương thức</th><th class="px-5 py-3">Ngày</th><th class="px-5 py-3">Trạng thái</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+                @forelse($payments as $payment)
+                    <tr class="hover:bg-slate-50/70"><td class="px-5 py-4 font-semibold text-slate-950">{{ $payment->transaction_code ?? 'GD-' . $payment->id }}</td><td class="px-5 py-4 text-indigo-600">{{ $payment->invoice->invoice_code ?? '-' }}</td><td class="px-5 py-4"><p class="font-medium text-slate-900">{{ $payment->invoice->room->room_code ?? '-' }}</p><p class="mt-1 text-xs text-slate-500">{{ $payment->invoice->contract->tenant->full_name ?? '-' }}</p></td><td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</td><td class="px-5 py-4 text-slate-600">{{ $payment->payment_method }}</td><td class="px-5 py-4 text-slate-600">{{ $payment->payment_date?->format('d/m/Y') ?? '-' }}</td><td class="px-5 py-4"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $payment->status }}</span></td></tr>
+                @empty
+                    <tr><td colspan="7" class="px-5 py-12 text-center text-slate-500">Không có thanh toán để xuất.</td></tr>
+                @endforelse
+            </tbody>
+        </table></div></div>
+        @if ($payments->hasPages())<div class="flex justify-end">{{ $payments->links() }}</div>@endif
     </div>
 @endsection

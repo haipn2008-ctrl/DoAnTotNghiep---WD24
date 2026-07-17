@@ -12,9 +12,9 @@ class Room extends Model
     |--------------------------------------------------------------------------
     */
 
-    const STATUS_AVAILABLE   = 'available';
+    const STATUS_AVAILABLE = 'available';
 
-    const STATUS_OCCUPIED    = 'occupied';
+    const STATUS_OCCUPIED = 'occupied';
 
     const STATUS_MAINTENANCE = 'maintenance';
 

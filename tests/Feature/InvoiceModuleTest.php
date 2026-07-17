@@ -18,6 +18,12 @@ class InvoiceModuleTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+    }
+
     public function test_invoice_can_be_generated_once_and_payment_updates_status(): void
     {
         $role = Role::create(['role_name' => 'Admin']);
@@ -97,7 +103,7 @@ class InvoiceModuleTest extends TestCase
         $this->assertEquals('unpaid', $invoice->status);
         $this->assertGreaterThan(0, $invoice->total_amount);
 
-        $paymentResponse = $this->post('/admin/invoices/' . $invoice->id . '/payments', [
+        $paymentResponse = $this->post('/admin/invoices/'.$invoice->id.'/payments', [
             'amount_paid' => 2000000,
             'payment_date' => '2026-07-10',
             'payment_method' => 'cash',

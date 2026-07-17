@@ -1,58 +1,193 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Hệ thống quản lý phòng trọ Stay Master
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Đây là đồ án tốt nghiệp xây dựng bằng Laravel, MySQL, Blade, Tailwind CSS và
+Vite. Hệ thống hỗ trợ quản lý phòng, khách thuê, hợp đồng, chỉ số điện nước,
+hóa đơn, công nợ, thanh toán, dashboard và xuất CSV.
 
-## About Laravel
+## Yêu cầu môi trường
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.3 trở lên.
+- Composer 2.
+- MySQL hoặc MariaDB; có thể dùng MySQL đi kèm Laragon.
+- Node.js 22 và npm.
+- Khuyến nghị dùng Laragon trên Windows để chạy dự án nhanh nhất.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### Bộ dữ liệu cơ bản
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Tài khoản có sẵn:
 
-## Learning Laravel
+| Quyền | Email | Mật khẩu |
+| --- | --- | --- |
+| Quản trị | `admin@gmail.com` | `123456` |
+| Khách thuê | `user@gmail.com` | `123456` |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Bộ dữ liệu lớn
 
 ```bash
-composer require laravel/boost --dev
+php artisan migrate:fresh --seed --seeder='Database\Seeders\LargeTestDataSeeder' --force
+```
+Bộ dữ liệu lớn tạo cố định:
 
-php artisan boost:install
+- 8 tài khoản quản trị và 70 tài khoản khách thuê.
+- 90 phòng: 60 đang thuê, 20 phòng trống và 10 phòng bảo trì.
+- 130 hợp đồng: 60 đang hoạt động, 20 chờ ký, 25 hết hạn và 25 đã kết thúc.
+- 1.080 bản ghi điện nước trong 12 tháng.
+- 1.080 hóa đơn và 5.400 chi tiết hóa đơn.
+- 965 giao dịch gồm thành công, chờ xử lý và thất bại.
+- Hóa đơn đã trả đủ, trả một phần, chưa trả và quá hạn.
+- Dữ liệu biên như mức tiêu thụ bằng 0, mức tiêu thụ rất cao, nội dung dài và
+  tiếng Việt có dấu.
+
+> **Cảnh báo:** `migrate:fresh` xóa toàn bộ bảng và dữ liệu của database đang
+> được cấu hình trong `.env`. Chỉ chạy trên database cá nhân dành cho phát
+> triển hoặc kiểm thử. Tuyệt đối không chạy trên database dùng chung hoặc
+> production.
+
+
+Tài khoản mẫu đều dùng mật khẩu `password`:
+
+| Quyền | Email | Ghi chú |
+| --- | --- | --- |
+| Quản trị | `admin01@test.local` | Có thể dùng `admin01` đến `admin08` |
+| Khách thuê | `tenant001@test.local` | Có thể dùng `tenant001` đến `tenant070` |
+
+
+## Gợi ý kịch bản test thủ công
+
+### Tài khoản quản trị
+
+1. Đăng nhập và kiểm tra số liệu dashboard.
+2. Lọc phòng theo mã và trạng thái, sau đó chuyển qua nhiều trang.
+3. Thêm, sửa, xem, xóa phòng và kiểm tra ảnh phòng.
+4. Thêm, sửa, xem khách thuê; thử dữ liệu tiếng Việt và số điện thoại trùng.
+5. Tạo hợp đồng chờ ký, hợp đồng hoạt động, gia hạn và kết thúc hợp đồng.
+6. Nhập chỉ số điện nước; thử chỉ số bằng chỉ số cũ, chỉ số lớn và tải ảnh
+   đồng hồ.
+7. Tạo hóa đơn từ hợp đồng, xem chi tiết, sửa, in và xóa hóa đơn phù hợp.
+8. Ghi nhận thanh toán đủ, một phần và nhiều lần; kiểm tra công nợ còn lại.
+9. Lọc hóa đơn/thanh toán theo trạng thái, kỳ, phòng, khách thuê và từ khóa.
+10. Xuất CSV phòng, khách thuê, hóa đơn và thanh toán; mở bằng Excel để kiểm
+    tra tiếng Việt, số tiền và số dòng.
+
+### Tài khoản khách thuê
+
+1. Đăng nhập bằng một tài khoản `tenant...@test.local`.
+2. Kiểm tra phòng và hợp đồng đang gắn với đúng khách thuê.
+3. Kiểm tra hóa đơn gần nhất, hóa đơn chưa thanh toán và số tiền còn nợ.
+4. Thử tài khoản chưa có hồ sơ khách thuê để bảo đảm dashboard không lỗi.
+
+### Dữ liệu biên nên thử thêm
+
+- Từ khóa không có kết quả và từ khóa có dấu/không dấu.
+- Trang đầu, trang giữa, trang cuối và tham số `page` lớn hơn tổng số trang.
+- Tháng 1, tháng 12 và dữ liệu qua năm mới.
+- Phòng trống, đang thuê, bảo trì và phòng đã đủ số người.
+- Hợp đồng hết hạn hoặc đã kết thúc nhưng vẫn còn lịch sử hóa đơn.
+- Hóa đơn quá hạn, chưa trả, trả một phần và đã trả đủ.
+- Tải file sai định dạng hoặc ảnh lớn hơn giới hạn cho phép.
+
+## Chạy kiểm thử tự động
+
+Nếu PHP đã bật extension `pdo_sqlite`, chỉ cần chạy:
+
+```bash
+php artisan test
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Nếu Laragon chưa bật `pdo_sqlite`, hãy tạo một database MySQL riêng chỉ dành
+cho test, ví dụ `stay_master_test_ten_thanh_vien`, rồi chạy trong PowerShell:
 
-## Contributing
+```powershell
+$env:APP_ENV="testing"
+$env:DB_CONNECTION="mysql"
+$env:DB_DATABASE="stay_master_test_ten_thanh_vien"
+php artisan test
+Remove-Item Env:APP_ENV, Env:DB_CONNECTION, Env:DB_DATABASE
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+> Test sử dụng `RefreshDatabase` và có thể xóa dữ liệu trong database test.
+> Không trỏ lệnh test vào database phát triển đang chứa dữ liệu cần giữ.
 
-## Code of Conduct
+Trước khi commit hoặc push, nên chạy tối thiểu:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+php artisan test
+npm run build
+php artisan route:list
+composer validate --no-check-publish
+git diff --check
+```
 
-## Security Vulnerabilities
+Có thể kiểm tra định dạng các file PHP vừa sửa bằng Pint. Ví dụ:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```powershell
+vendor\bin\pint --test app\Providers\AppServiceProvider.php
+```
 
-## License
+## Quy ước làm việc nhóm
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+- Không commit file `.env`, thư mục `vendor`, `node_modules` hoặc dữ liệu cá
+  nhân đã tải lên.
+- Mỗi thành viên dùng database riêng; đặt tên có tên thành viên để tránh nhầm.
+- Trước khi sửa, chạy `git status` và cập nhật nhánh đang làm việc.
+- Không dùng `migrate:fresh` trên database của thành viên khác.
+- Không sửa migration đã được người khác sử dụng; hãy tạo migration mới để
+  thay đổi schema.
+- Commit theo từng chức năng, nội dung commit ngắn gọn và dễ hiểu.
+- Trước khi push, kiểm tra lại trang liên quan, test tự động và `git diff`.
+- Khi xử lý xung đột, ưu tiên giữ đủ chức năng của cả hai phía và chạy lại test
+  sau khi merge.
+
+## Xử lý lỗi thường gặp
+
+### Giao diện chưa cập nhật hoặc phân trang mất định dạng
+
+```bash
+npm install
+npm run build
+php artisan optimize:clear
+```
+
+Sau đó tải lại bằng `Ctrl + F5`.
+
+### Ảnh không hiển thị
+
+```bash
+php artisan storage:link
+```
+
+Kiểm tra quyền ghi của `storage` và `bootstrap/cache`.
+
+### Class hoặc cấu hình cũ vẫn còn trong cache
+
+```bash
+composer dump-autoload
+php artisan optimize:clear
+```
+
+### Migration hoặc dữ liệu test bị rối
+
+Chỉ trên database cá nhân có thể xóa:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+Hoặc tạo lại bộ dữ liệu lớn bằng lệnh ở phần “Bộ dữ liệu lớn”.
+
+## Các khu vực chính trong mã nguồn
+
+| Thư mục | Nội dung |
+| --- | --- |
+| `app/Http/Controllers/Admin` | Xử lý các chức năng quản trị |
+| `app/Models` | Model và quan hệ dữ liệu |
+| `app/Services` | Nghiệp vụ dùng chung, gồm tạo hóa đơn |
+| `database/migrations` | Lịch sử cấu trúc database |
+| `database/seeders` | Dữ liệu mẫu cơ bản và dữ liệu lớn |
+| `resources/views` | Giao diện Blade/Tailwind |
+| `routes/web.php` | Route quản trị, khách thuê và đăng nhập |
+| `tests/Feature` | Test luồng chức năng chính |
+
+Khi phát hiện lỗi, hãy ghi rõ tài khoản đang dùng, URL, bước tái hiện, dữ liệu
+đầu vào, kết quả mong đợi, kết quả thực tế và ảnh chụp màn hình. Thông tin này
+giúp thành viên khác tái hiện và sửa lỗi nhanh hơn.

@@ -9,25 +9,25 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('payments', function (Blueprint $table) {
-            if (!Schema::hasColumn('payments', 'payment_method')) {
+            if (! Schema::hasColumn('payments', 'payment_method')) {
                 $table->enum('payment_method', ['cash', 'bank_transfer', 'qr'])
                     ->default('cash')
                     ->after('payment_date');
             }
 
-            if (!Schema::hasColumn('payments', 'transaction_code')) {
+            if (! Schema::hasColumn('payments', 'transaction_code')) {
                 $table->string('transaction_code')
                     ->nullable()
                     ->after('payment_method');
             }
 
-            if (!Schema::hasColumn('payments', 'status')) {
+            if (! Schema::hasColumn('payments', 'status')) {
                 $table->enum('status', ['pending', 'success', 'failed'])
                     ->default('success')
                     ->after('transaction_code');
             }
 
-            if (!Schema::hasColumn('payments', 'confirmed_by')) {
+            if (! Schema::hasColumn('payments', 'confirmed_by')) {
                 $table->foreignId('confirmed_by')
                     ->nullable()
                     ->constrained('users')

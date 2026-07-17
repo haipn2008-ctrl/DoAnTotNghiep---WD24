@@ -12,520 +12,225 @@ use Illuminate\Validation\ValidationException;
 
 class InvoiceGenerator
 {
-    /**
-     * Xem trước hóa đơn.
-     */
-    public function preview(
-        Contract $contract,
-        int $month,
-        int $year
-    ): array {
+    public function preview(Contract $contract, int $month, int $year): array
+    {
+        $contract->loadMissing(['room', 'tenant']);
 
-        $contract->loadMissing([
-            'room',
-            'tenant'
-        ]);
-
-        $this->ensureContractCanBeBilled(
-            $contract,
-            $month,
-            $year
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Lấy kỳ điện nước
-        |--------------------------------------------------------------------------
-        */
+        $this->ensureContractCanBeBilled($contract, $month, $year);
 
         $reading = UtilityReading::where('room_id', $contract->room_id)
             ->where('month', $month)
             ->where('year', $year)
-            ->confirmed()
+            ->where('status', 'confirmed')
             ->first();
 
-        if (!$reading) {
-
+        if (! $reading) {
             throw ValidationException::withMessages([
-                'utility' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$month}/{$year}."
+                'utility_reading' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$month}/{$year}.",
             ]);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Kiểm tra đã sinh hóa đơn chưa
-        |--------------------------------------------------------------------------
-        */
+        $existingInvoice = Invoice::where('room_id', $contract->room_id)
+            ->where('month', $month)
+            ->where('year', $year)
+            ->exists();
 
-        if (
-            Invoice::where('room_id', $contract->room_id)
-                ->where('month', $month)
-                ->where('year', $year)
-                ->exists()
-        ) {
-
+        if ($existingInvoice) {
             throw ValidationException::withMessages([
-                'invoice' => "Hóa đơn tháng {$month}/{$year} đã tồn tại."
+                'invoice' => "Phòng {$contract->room->room_code} đã có hóa đơn tháng {$month}/{$year}.",
             ]);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Lấy cấu hình hệ thống
-        |--------------------------------------------------------------------------
-        */
+        $setting = Setting::currentOrCreate();
 
-        $setting = Setting::first();
+        // Ngày lập hóa đơn theo cấu hình invoice_day, clamp theo số ngày thực tế của tháng.
+        $invoiceDateCarbon = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $invoiceDay = (int) ($setting->invoice_day ?? 1);
+        $invoiceDay = max(1, min($invoiceDay, $invoiceDateCarbon->daysInMonth));
+        $invoiceDateCarbon->day($invoiceDay);
 
-        if (!$setting) {
-
-            throw ValidationException::withMessages([
-                'setting' => 'Chưa cấu hình giá điện nước.'
-            ]);
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Ngày lập hóa đơn
-        |--------------------------------------------------------------------------
-        */
-
-        $invoiceDate = Carbon::create(
-            $year,
-            $month,
-            1
-        )->endOfMonth();
-
-        $dueDate = $invoiceDate
+        $invoiceDate = $invoiceDateCarbon->toDateString();
+        $dueDate = $invoiceDateCarbon
             ->copy()
-            ->addDays(
-                $setting->payment_due_days ?? 10
-            );
+            ->addDays((int) ($setting->payment_due_days ?? 10))
+            ->toDateString();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Tính tiền điện nước
-        |--------------------------------------------------------------------------
-        */
+        $electricityUsage = $reading->electricity_new - $reading->electricity_old;
+        $waterUsage = $reading->water_new - $reading->water_old;
 
-        $electricUsage = $reading->electric_usage;
-        $waterUsage = $reading->water_usage;
+        if ($electricityUsage < 0 || $waterUsage < 0) {
+            throw ValidationException::withMessages([
+                'utility_reading' => 'Chỉ số mới không được nhỏ hơn chỉ số cũ.',
+            ]);
+        }
 
-        $electricAmount = $reading->electric_amount;
-        $waterAmount = $reading->water_amount;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Danh sách chi tiết hóa đơn
-        |--------------------------------------------------------------------------
-        */
-
-        $details = [
-
+        $lines = [
             [
                 'type' => 'room',
                 'name' => 'Tiền thuê phòng',
-
                 'quantity' => 1,
-                'unit' => 'tháng',
-
-                'unit_price' => $contract->monthly_rent,
-
-                'amount' => $contract->monthly_rent,
-
+                'unit' => 'thang',
+                'unit_price' => (float) $contract->monthly_rent,
+                'amount' => (float) $contract->monthly_rent,
                 'old_index' => null,
                 'new_index' => null,
-
                 'note' => "Hợp đồng {$contract->contract_code}",
-
                 'sort_order' => 1,
             ],
-
             [
-                'type' => 'electric',
-
+                'type' => 'electricity',
                 'name' => 'Tiền điện',
-
-                'quantity' => $electricUsage,
-
+                'quantity' => $electricityUsage,
                 'unit' => 'kWh',
-
-                'unit_price' => $reading->electric_unit_price,
-
-                'amount' => $electricAmount,
-
-                'old_index' => $reading->electric_old,
-
-                'new_index' => $reading->electric_new,
-
+                'unit_price' => (float) $setting->electric_price,
+                'amount' => $electricityUsage * (float) $setting->electric_price,
+                'old_index' => $reading->electricity_old,
+                'new_index' => $reading->electricity_new,
                 'note' => null,
-
                 'sort_order' => 2,
             ],
-
             [
                 'type' => 'water',
-
                 'name' => 'Tiền nước',
-
                 'quantity' => $waterUsage,
-
-                'unit' => 'm³',
-
-                'unit_price' => $reading->water_unit_price,
-
-                'amount' => $waterAmount,
-
+                'unit' => 'm3',
+                'unit_price' => (float) $setting->water_price,
+                'amount' => $waterUsage * (float) $setting->water_price,
                 'old_index' => $reading->water_old,
-
                 'new_index' => $reading->water_new,
-
                 'note' => null,
-
                 'sort_order' => 3,
             ],
-                    /*
-        |--------------------------------------------------------------------------
-        | Internet
-        |--------------------------------------------------------------------------
-        */
-
-        if (($setting->internet_fee ?? 0) > 0) {
-
-            $details[] = [
-
-                'type' => 'internet',
-
-                'name' => 'Phí Internet',
-
-                'quantity' => 1,
-
-                'unit' => 'tháng',
-
-                'unit_price' => $setting->internet_fee,
-
-                'amount' => $setting->internet_fee,
-
-                'old_index' => null,
-
-                'new_index' => null,
-
-                'note' => null,
-
-                'sort_order' => 4,
-            ];
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Dịch vụ
-        |--------------------------------------------------------------------------
-        */
-
-        if (($setting->service_fee ?? 0) > 0) {
-
-            $details[] = [
-
-                'type' => 'service',
-
-                'name' => 'Phí dịch vụ',
-
-                'quantity' => 1,
-
-                'unit' => 'tháng',
-
-                'unit_price' => $setting->service_fee,
-
-                'amount' => $setting->service_fee,
-
-                'old_index' => null,
-
-                'new_index' => null,
-
-                'note' => null,
-
-                'sort_order' => 5,
-            ];
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Phí gửi xe (nếu có)
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            property_exists($setting, 'parking_fee')
-            && ($setting->parking_fee ?? 0) > 0
-        ) {
-
-            $details[] = [
-
-                'type' => 'other',
-
-                'name' => 'Phí gửi xe',
-
-                'quantity' => 1,
-
-                'unit' => 'tháng',
-
-                'unit_price' => $setting->parking_fee,
-
-                'amount' => $setting->parking_fee,
-
-                'old_index' => null,
-
-                'new_index' => null,
-
-                'note' => null,
-
-                'sort_order' => 6,
-            ];
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Tính tổng
-        |--------------------------------------------------------------------------
-        */
-
-        $roomFee = collect($details)
-            ->where('type', 'room')
-            ->sum('amount');
-
-        $electricFee = collect($details)
-            ->where('type', 'electric')
-            ->sum('amount');
-
-        $waterFee = collect($details)
-            ->where('type', 'water')
-            ->sum('amount');
-
-        $internetFee = collect($details)
-            ->where('type', 'internet')
-            ->sum('amount');
-
-        $serviceFee = collect($details)
-            ->whereIn('type', [
-                'service',
-                'other'
-            ])
-            ->sum('amount');
-
-        $total = collect($details)
-            ->sum('amount');
-
-        return [
-
-            'contract' => $contract,
-
-            'room' => $contract->room,
-
-            'tenant' => $contract->tenant,
-
-            'reading' => $reading,
-
-            'month' => $month,
-
-            'year' => $year,
-
-            'invoice_date' => $invoiceDate->toDateString(),
-
-            'due_date' => $dueDate->toDateString(),
-
-            'room_fee' => $roomFee,
-
-            'electricity_fee' => $electricFee,
-
-            'water_fee' => $waterFee,
-
-            'internet_fee' => $internetFee,
-
-            'service_fee' => $serviceFee,
-
-            'total_amount' => $total,
-
-            'status' => Invoice::STATUS_UNPAID,
-
-            'details' => $details,
         ];
-    }
-        /*
-    |--------------------------------------------------------------------------
-    | Sinh hóa đơn
-    |--------------------------------------------------------------------------
-    */
 
-    public function issue(
-        Contract $contract,
-        int $month,
-        int $year
-    ): Invoice {
+        $serviceLines = [
+            ['internet', 'Phí internet', (float) ($setting->internet_fee ?? 0), 4],
+            ['service', 'Phí dịch vụ chung', (float) ($setting->service_fee ?? 0), 5],
+            ['parking', 'Phí gửi xe', (float) ($setting->parking_fee ?? 0), 6],
+        ];
 
-        return DB::transaction(function () use (
-            $contract,
-            $month,
-            $year
-        ) {
-
-            $preview = $this->preview(
-                $contract,
-                $month,
-                $year
-            );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Tạo hóa đơn
-            |--------------------------------------------------------------------------
-            */
-
-            $invoice = Invoice::create([
-
-                'contract_id' => $preview['contract']->id,
-
-                'room_id' => $preview['room']->id,
-
-                'utility_reading_id' => $preview['reading']->id,
-
-                'month' => $month,
-
-                'year' => $year,
-
-                'invoice_date' => $preview['invoice_date'],
-
-                'due_date' => $preview['due_date'],
-
-                'room_fee' => $preview['room_fee'],
-
-                'electricity_fee' => $preview['electricity_fee'],
-
-                'water_fee' => $preview['water_fee'],
-
-                'internet_fee' => $preview['internet_fee'],
-
-                'service_fee' => $preview['service_fee'],
-
-                'total_amount' => $preview['total_amount'],
-
-                'status' => Invoice::STATUS_UNPAID,
-            ]);
-
-            /*
-            |--------------------------------------------------------------------------
-            | Lưu chi tiết hóa đơn
-            |--------------------------------------------------------------------------
-            */
-
-            foreach ($preview['details'] as $detail) {
-
-                $invoice->details()->create($detail);
+        foreach ($serviceLines as [$type, $name, $amount, $sortOrder]) {
+            if ($amount <= 0) {
+                continue;
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Load relationship
-            |--------------------------------------------------------------------------
-            */
+            $lines[] = [
+                'type' => $type,
+                'name' => $name,
+                'quantity' => 1,
+                'unit' => 'thang',
+                'unit_price' => $amount,
+                'amount' => $amount,
+                'old_index' => null,
+                'new_index' => null,
+                'note' => null,
+                'sort_order' => $sortOrder,
+            ];
+        }
 
-            return $invoice->load([
+        $totalAmount = collect($lines)->sum('amount');
+        $internetFee = collect($lines)->where('type', 'internet')->sum('amount');
+        $serviceFee = collect($lines)->whereIn('type', ['service', 'parking'])->sum('amount');
 
-                'contract',
+        return [
+            'contract' => $contract,
+            'room' => $contract->room,
+            'tenant' => $contract->tenant,
+            'reading' => $reading,
+            'month' => $month,
+            'year' => $year,
+            'invoice_date' => $invoiceDate,
+            'due_date' => $dueDate,
+            'room_fee' => (float) $contract->monthly_rent,
+            'electricity_fee' => collect($lines)->where('type', 'electricity')->sum('amount'),
+            'water_fee' => collect($lines)->where('type', 'water')->sum('amount'),
+            'internet_fee' => $internetFee,
+            'service_fee' => $serviceFee,
+            'total_amount' => $totalAmount,
+            'status' => 'unpaid',
+            'lines' => $lines,
+        ];
+    }
 
-                'contract.tenant',
+    public function issue(Contract $contract, int $month, int $year): Invoice
+    {
+        return DB::transaction(function () use ($contract, $month, $year) {
+            $preview = $this->preview($contract, $month, $year);
 
-                'room',
-
-                'utilityReading',
-
-                'details',
+            $invoice = Invoice::create([
+                'contract_id' => $preview['contract']->id,
+                'room_id' => $preview['room']->id,
+                'invoice_code' => $this->nextInvoiceCode($month, $year),
+                'utility_reading_id' => $preview['reading']->id,
+                'month' => $month,
+                'year' => $year,
+                'invoice_date' => $preview['invoice_date'],
+                'due_date' => $preview['due_date'],
+                'room_fee' => $preview['room_fee'],
+                'electricity_fee' => $preview['electricity_fee'],
+                'water_fee' => $preview['water_fee'],
+                'internet_fee' => $preview['internet_fee'],
+                'service_fee' => $preview['service_fee'],
+                'total_amount' => $preview['total_amount'],
+                'status' => 'unpaid',
             ]);
+
+            foreach ($preview['lines'] as $line) {
+                $invoice->details()->create($line);
+            }
+
+            return $invoice->load(['contract.tenant', 'room', 'details']);
         });
     }
-        /*
-    |--------------------------------------------------------------------------
-    | Kiểm tra hợp đồng có được phép sinh hóa đơn
-    |--------------------------------------------------------------------------
-    */
 
-    private function ensureContractCanBeBilled(
-        Contract $contract,
-        int $month,
-        int $year
-    ): void {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Hợp đồng phải đang hiệu lực
-        |--------------------------------------------------------------------------
-        */
-
+    private function ensureContractCanBeBilled(Contract $contract, int $month, int $year): void
+    {
         if ($contract->status !== 'active') {
-
             throw ValidationException::withMessages([
-                'contract' => 'Chỉ hợp đồng đang hiệu lực mới được sinh hóa đơn.'
+                'contract' => 'Chỉ hợp đồng đang hiệu lực mới được sinh hóa đơn.',
             ]);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Kỳ cần sinh hóa đơn
-        |--------------------------------------------------------------------------
-        */
+        $periodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $periodEnd = $periodStart->copy()->endOfMonth();
 
-        $periodStart = Carbon::create(
-            $year,
-            $month,
-            1
-        )->startOfMonth();
-
-        $periodEnd = $periodStart
-            ->copy()
-            ->endOfMonth();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Hợp đồng phải còn hiệu lực trong kỳ
-        |--------------------------------------------------------------------------
-        */
+        $effectiveEnd = $this->resolveContractEffectiveEnd($contract);
 
         if (
-
             Carbon::parse($contract->start_date)->gt($periodEnd)
-
-            ||
-
-            Carbon::parse($contract->end_date)->lt($periodStart)
-
+            || $effectiveEnd->lt($periodStart)
         ) {
-
             throw ValidationException::withMessages([
-
-                'contract' => "Hợp đồng {$contract->contract_code} không còn hiệu lực trong kỳ {$month}/{$year}."
-
+                'contract' => "Hợp đồng {$contract->contract_code} không nằm trong kỳ {$month}/{$year}.",
             ]);
         }
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Không cho sinh hóa đơn 2 lần
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-
-            Invoice::where('room_id', $contract->room_id)
-                ->where('month', $month)
-                ->where('year', $year)
-                ->exists()
-
-        ) {
-
-            throw ValidationException::withMessages([
-
-                'invoice' => 'Hóa đơn tháng này đã được tạo.'
-
-            ]);
+    private function resolveContractEffectiveEnd(Contract $contract): Carbon
+    {
+        if ($contract->actual_end_date) {
+            return Carbon::parse($contract->actual_end_date)->endOfDay();
         }
+
+        if ($contract->extend_end_date) {
+            return Carbon::parse($contract->extend_end_date)->endOfDay();
+        }
+
+        return Carbon::parse($contract->end_date)->endOfDay();
+    }
+
+    private function nextInvoiceCode(int $month, int $year): string
+    {
+        $prefix = sprintf('INV-%04d%02d-', $year, $month);
+        $latestCode = Invoice::where('invoice_code', 'like', $prefix.'%')
+            ->lockForUpdate()
+            ->orderByDesc('invoice_code')
+            ->value('invoice_code');
+
+        $sequence = $latestCode
+            ? ((int) substr($latestCode, -4)) + 1
+            : 1;
+
+        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
     }
 }
