@@ -122,6 +122,71 @@ if (uploadBox && contractImage) {
 }
 let editor = null;
 
+// Giữ nguyên mẫu hợp đồng gốc để khi đóng/mở modal không bị mất.
+let defaultContractTemplate = "";
+const initialContractEditor = document.getElementById("contractEditor");
+if (initialContractEditor) {
+    defaultContractTemplate = initialContractEditor.value;
+}
+
+function contractDateParts(value) {
+    if (!value) return { day: "", month: "", year: "" };
+    const [year, month, day] = value.split("-");
+    return { day: day || "", month: month || "", year: year || "" };
+}
+
+function contractMoney(value) {
+    if (value === null || value === undefined || value === "") return "";
+    const n = Number(String(value).replace(/[^0-9-]/g, ""));
+    return Number.isFinite(n) ? n.toLocaleString("vi-VN") : value;
+}
+
+function renderContractPlaceholders(html) {
+    const tenantSelect = document.getElementById("tenantSelect");
+    const roomSelectEl = document.getElementById("roomSelect");
+    const tenantOption = tenantSelect?.options[tenantSelect.selectedIndex];
+    const roomOption = roomSelectEl?.options[roomSelectEl.selectedIndex];
+
+    const start = contractDateParts(document.getElementById("startDate")?.value || "");
+    const end = contractDateParts(document.getElementById("endDate")?.value || "");
+    const now = new Date();
+
+    const data = {
+        created_day: String(now.getDate()).padStart(2, "0"),
+        created_month: String(now.getMonth() + 1).padStart(2, "0"),
+        created_year: String(now.getFullYear()),
+        house_address: "Cầu Giấy - Hà Nội",
+
+        tenant_name: tenantOption?.dataset.name || tenantOption?.textContent?.trim() || "",
+        tenant_dob: tenantOption?.dataset.dob || "",
+        tenant_address: tenantOption?.dataset.address || "",
+        tenant_cccd: tenantOption?.dataset.cccd || "",
+        tenant_cccd_issue_date: tenantOption?.dataset.cccdIssueDate || "",
+        tenant_cccd_issue_place: tenantOption?.dataset.cccdIssuePlace || "",
+        tenant_phone: tenantOption?.dataset.phone || "",
+
+        room: roomOption?.dataset.room || roomOption?.textContent?.trim() || "",
+        price: contractMoney(roomOption?.dataset.price || document.getElementById("monthlyRent")?.value || ""),
+        deposit: contractMoney(document.getElementById("deposit")?.value || ""),
+
+        start_day: start.day,
+        start_month: start.month,
+        start_year: start.year,
+        end_day: end.day,
+        end_month: end.month,
+        end_year: end.year
+    };
+
+    Object.entries(data).forEach(([key, value]) => {
+        html = html.replace(
+            new RegExp("\\{\\{\\s*" + key + "\\s*\\}\\}", "g"),
+            value ?? ""
+        );
+    });
+
+    return html;
+}
+
 document.addEventListener("DOMContentLoaded", function () {
 
     function initEditor() {
@@ -182,6 +247,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 <textarea id="contractEditor" name="contract_content"></textarea>
             `;
 
+            const resetEditor = document.getElementById("contractEditor");
+            if (resetEditor) {
+                resetEditor.value = defaultContractTemplate;
+            }
+
         });
 
     }
@@ -190,7 +260,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if(contractForm){
         contractForm.addEventListener("submit",function(){
             if(editor){
-                document.getElementById("contractEditor").value=editor.getData();
+                document.getElementById("contractEditor").value =
+                    renderContractPlaceholders(editor.getData());
             }
         });
     }
@@ -206,7 +277,8 @@ document.addEventListener("DOMContentLoaded", function () {
             if(!editor) return;
             editorWrapper.style.display="none";
             previewWrapper.style.display="block";
-            previewContent.innerHTML=editor.getData();
+            previewContent.innerHTML =
+                renderContractPlaceholders(editor.getData());
             editorBtn.classList.remove("active");
             previewBtn.classList.add("active");
         });
@@ -221,129 +293,438 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 });
-document.addEventListener("DOMContentLoaded",function(){
+document.addEventListener("DOMContentLoaded", function () {
 
-    $(document).on("click",".btn-view-contract",function(){
+    document.addEventListener("click", async function (e) {
 
-        let url=$(this).data("url");
+        const btn = e.target.closest(".btn-view-contract");
 
-        $("#contractModalContent").html(`
-            <div class="text-center p-5">
+        if (!btn) return;
 
+        e.preventDefault();
+
+        const url = btn.dataset.url;
+
+        const modalElement = document.getElementById("contractModal");
+        const modalContent = document.getElementById("contractModalContent");
+
+        if (!modalElement || !modalContent) {
+            console.error("Không tìm thấy modal hợp đồng");
+            return;
+        }
+
+        modalContent.innerHTML = `
+            <div class="modal-body text-center p-5">
                 <div class="spinner-border text-primary"></div>
-
+                <div class="mt-3">Đang tải hợp đồng...</div>
             </div>
-        `);
+        `;
 
-        $("#contractModal").modal("show");
+        const contractModal =
+            bootstrap.Modal.getOrCreateInstance(modalElement);
 
-        $("#contractModalContent").load(url,function(response,status){
+        contractModal.show();
 
-            if(status==="error"){
+        try {
 
-                $("#contractModalContent").html(`
+            const response = await fetch(url, {
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "text/html"
+                }
+            });
 
-                    <div class="alert alert-danger">
-
-                        Không tải được hợp đồng.
-
-                    </div>
-
-                `);
-
+            if (!response.ok) {
+                throw new Error("HTTP " + response.status);
             }
 
-        });
+            modalContent.innerHTML = await response.text();
 
+        } catch (error) {
+
+            console.error("Lỗi tải hợp đồng:", error);
+
+            modalContent.innerHTML = `
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        Có lỗi xảy ra
+                    </h5>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="alert alert-danger mb-0">
+                        Không tải được chi tiết hợp đồng.
+                    </div>
+                </div>
+            `;
+        }
+
+    });
+
+   // =========================
+// GIA HẠN HỢP ĐỒNG
+// =========================
+
+document.addEventListener('click', function (e) {
+
+    const btn = e.target.closest('.extendContractBtn');
+
+    if (!btn) return;
+
+    const id = btn.dataset.id;
+    const code = btn.dataset.code;
+    const room = btn.dataset.room;
+    const tenant = btn.dataset.tenant;
+    const endDate = btn.dataset.end;
+    const action = btn.dataset.action;
+
+    console.log('Gia hạn contract:', {
+        id,
+        code,
+        room,
+        tenant,
+        endDate,
+        action
     });
 
     // =========================
-// Validate ngày gia hạn
-// =========================
+    // FORM ACTION
+    // =========================
 
-document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById('extendContractForm');
 
-    const extendModal = document.getElementById("extendContractModal");
+    if (form) {
+        form.action = action;
+    }
 
-    if (!extendModal) return;
 
-    extendModal.addEventListener("shown.bs.modal", function () {
+    // =========================
+    // MÃ HỢP ĐỒNG
+    // =========================
 
-        const endDateInput = document.getElementById("new_end_date");
-        const submitBtn = document.getElementById("btnSubmitExtend");
-        const error = document.getElementById("extendError");
+    const codeInput =
+        document.getElementById('extend_contract_code');
 
-        if (!endDateInput) return;
+    if (codeInput) {
+        codeInput.value = code || '';
+    }
 
-        // Lấy ngày kết thúc hiện tại từ Blade
-        const currentEndDate = "{{ optional($contract->end_date)->format('Y-m-d') }}";
 
-        // Không cho chọn ngày nhỏ hơn ngày hiện tại
-        endDateInput.min = currentEndDate;
+    // =========================
+    // PHÒNG
+    // =========================
 
-        function validateExtendDate() {
+    const roomInput =
+        document.getElementById('extend_room');
 
-            if (!endDateInput.value) {
+    if (roomInput) {
+        roomInput.value = room || '';
+    }
 
-                submitBtn.disabled = true;
-                error.classList.add("d-none");
-                return;
 
-            }
+    // =========================
+    // KHÁCH THUÊ
+    // =========================
 
-            if (endDateInput.value <= currentEndDate) {
+    const tenantInput =
+        document.getElementById('extend_tenant');
 
-                submitBtn.disabled = true;
+    if (tenantInput) {
+        tenantInput.value = tenant || '';
+    }
 
-                error.classList.remove("d-none");
 
-            } else {
+    // =========================
+    // NGÀY KẾT THÚC HIỆN TẠI
+    // =========================
 
-                submitBtn.disabled = false;
+    const currentEndInput =
+        document.getElementById('extend_current_end_date');
 
-                error.classList.add("d-none");
+    if (currentEndInput) {
 
-            }
+        if (endDate) {
+
+            const parts = endDate.split('-');
+
+            currentEndInput.value =
+                `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+        } else {
+
+            currentEndInput.value = '';
 
         }
+    }
 
-        endDateInput.addEventListener("change", validateExtendDate);
 
-        validateExtendDate();
+    // =========================
+    // NGÀY KẾT THÚC MỚI
+    // =========================
 
-    });
+    const newEndInput =
+        document.getElementById('new_end_date');
+
+    const submitBtn =
+        document.getElementById('btnSubmitExtend');
+
+    const error =
+        document.getElementById('extendError');
+
+
+    if (newEndInput) {
+
+        // reset dữ liệu cũ
+        newEndInput.value = '';
+
+        // ngày mới phải sau ngày hiện tại
+        if (endDate) {
+
+            const nextDay = new Date(endDate + 'T00:00:00');
+
+            nextDay.setDate(nextDay.getDate() + 1);
+
+            const year = nextDay.getFullYear();
+
+            const month =
+                String(nextDay.getMonth() + 1)
+                    .padStart(2, '0');
+
+            const day =
+                String(nextDay.getDate())
+                    .padStart(2, '0');
+
+            newEndInput.min =
+                `${year}-${month}-${day}`;
+        }
+    }
+
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+    }
+
+
+    if (error) {
+        error.classList.add('d-none');
+    }
+
+});
+
+
+// =========================
+// VALIDATE NGÀY GIA HẠN
+// =========================
+
+document.addEventListener('change', function (e) {
+
+    if (e.target.id !== 'new_end_date') {
+        return;
+    }
+
+    const input = e.target;
+
+    const submitBtn =
+        document.getElementById('btnSubmitExtend');
+
+    const error =
+        document.getElementById('extendError');
+
+
+    if (!input.value) {
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+        }
+
+        return;
+    }
+
+
+    if (input.min && input.value < input.min) {
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+        }
+
+        if (error) {
+            error.classList.remove('d-none');
+        }
+
+        return;
+    }
+
+
+    if (submitBtn) {
+        submitBtn.disabled = false;
+    }
+
+    if (error) {
+        error.classList.add('d-none');
+    }
+
+});
+
+// =========================
+// THU HỒI HỢP ĐỒNG
+// =========================
+
+document.addEventListener('click', function (e) {
+
+    const btn = e.target.closest('.recallContractBtn');
+
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const code = btn.dataset.code;
+
+    const form = document.getElementById('recallContractForm');
+    const codeText = document.getElementById('recallContractCode');
+    const reason = document.getElementById('recallReason');
+    const counter = document.getElementById('recallReasonCount');
+    const error = document.getElementById('recallReasonError');
+    const submitBtn = document.getElementById('btnSubmitRecall');
+
+    // Gán đúng route của hợp đồng
+    if (form) {
+        form.action = action;
+    }
+
+    // Hiện mã hợp đồng
+    if (codeText) {
+        codeText.textContent = code || '';
+    }
+
+    // Reset dữ liệu cũ
+    if (reason) {
+        reason.value = '';
+    }
+
+    if (counter) {
+        counter.textContent = '0/500';
+    }
+
+    if (error) {
+        error.classList.add('d-none');
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+    }
+
+});
+
+
+// =========================
+// VALIDATE LÝ DO THU HỒI
+// =========================
+
+document.addEventListener('input', function (e) {
+
+    if (e.target.id !== 'recallReason') {
+        return;
+    }
+
+    const reason = e.target;
+
+    const counter =
+        document.getElementById('recallReasonCount');
+
+    const error =
+        document.getElementById('recallReasonError');
+
+    const submitBtn =
+        document.getElementById('btnSubmitRecall');
+
+    const length = reason.value.trim().length;
+
+    // Đếm ký tự
+    if (counter) {
+        counter.textContent =
+            reason.value.length + '/500';
+    }
+
+    // Validate
+    if (length >= 5) {
+
+        if (submitBtn) {
+            submitBtn.disabled = false;
+        }
+
+        if (error) {
+            error.classList.add('d-none');
+        }
+
+    } else {
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+        }
+
+        if (length > 0 && error) {
+            error.classList.remove('d-none');
+        } else if (error) {
+            error.classList.add('d-none');
+        }
+    }
 
 });
 
 // =========================
 // Hoàn tiền cọc
 // =========================
+document.addEventListener('click', function (e) {
 
-$(document).on('click', '.returnDepositBtn', function () {
+    const btn = e.target.closest('.returnDepositBtn');
 
-    let id = $(this).data('id');
+    if (!btn) return;
 
-    $('#returnDepositForm').attr(
-        'action',
-        '/admin/contracts/' + id + '/return-deposit'
-    );
+    const id = btn.dataset.id;
 
+    const form = document.getElementById('returnDepositForm');
+
+    if (!form) {
+        console.error('Không tìm thấy returnDepositForm');
+        return;
+    }
+
+    form.action = '/admin/contracts/' + id + '/return-deposit';
 });
 
 // =========================
 // Kết thúc hợp đồng
 // =========================
 
-$(document).on('click', '.terminateBtn', function () {
+document.addEventListener('click', function (e) {
 
-    let id = $(this).data('id');
+    const btn = e.target.closest('.terminateBtn');
 
-    $('#terminateContractForm').attr(
-        'action',
-        '/admin/contracts/' + id + '/terminate'
-    );
+    if (!btn) return;
 
-    $('#actual_end_date').val($(this).data('end'));
+    const id = btn.dataset.id;
+
+    console.log('Contract terminate ID:', id);
+
+    const form = document.getElementById('terminateContractForm');
+
+    if (!form) {
+        console.error('Không tìm thấy terminateContractForm');
+        return;
+    }
+
+    form.action = '/admin/contracts/' + id + '/terminate';
+
+    const dateInput = document.getElementById('actual_end_date');
+
+    if (dateInput) {
+        dateInput.value = '';
+    }
 
 });
 

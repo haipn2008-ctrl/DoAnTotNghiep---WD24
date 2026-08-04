@@ -5,9 +5,10 @@
 
     <div class="modal-dialog modal-lg">
 
-        <form action="{{ route('admin.contracts.extend',$contract) }}"
-              method="POST"
-              class="modal-content border-0 shadow">
+        <form
+            id="extendContractForm"
+            method="POST"
+            class="modal-content border-0 shadow">
 
             @csrf
 
@@ -37,8 +38,8 @@
                         </label>
 
                         <input
+                            id="extend_contract_code"
                             class="form-control"
-                            value="{{ $contract->contract_code }}"
                             readonly>
 
                     </div>
@@ -50,8 +51,8 @@
                         </label>
 
                         <input
+                            id="extend_room"
                             class="form-control"
-                            value="{{ $contract->room->room_code }}"
                             readonly>
 
                     </div>
@@ -63,8 +64,8 @@
                         </label>
 
                         <input
+                            id="extend_tenant"
                             class="form-control"
-                            value="{{ $contract->tenant->full_name }}"
                             readonly>
 
                     </div>
@@ -76,10 +77,9 @@
                         </label>
 
                         <input
+                            id="extend_current_end_date"
                             class="form-control"
-                            value="{{ optional($contract->end_date)->format('d/m/Y') }}"
                             readonly>
-
                     </div>
 
                     <div class="col-md-12 mb-3">
@@ -93,7 +93,6 @@
                             name="new_end_date"
                             id="new_end_date"
                             class="form-control"
-                            min="{{ optional($contract->end_date)->format('Y-m-d') }}"
                             required>
 
                         <small

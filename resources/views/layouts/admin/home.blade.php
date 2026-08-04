@@ -7,6 +7,7 @@ href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.m
 @section('title', 'Dashboard | Quản lý phòng trọ')
 @section('page_title', 'Dashboard quản lý phòng trọ')
 
+
 @php
     $roomTotal = max((int) ($stats['total_rooms'] ?? 0), 1);
     $fillRate = round((($stats['occupied_rooms'] ?? 0) / $roomTotal) * 100);

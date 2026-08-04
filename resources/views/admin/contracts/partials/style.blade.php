@@ -90,7 +90,7 @@ body{
     CARD
 ==============================*/
 
-.card{
+.contract-modal .card{
     border:none;
     border-radius:15px;
     box-shadow:0 5px 20px rgba(0,0,0,.05);
@@ -113,19 +113,19 @@ body{
     FORM
 ==============================*/
 
-.form-label{
+.contract-modal .form-label{
     font-weight:600;
     margin-bottom:8px;
 }
 
-.form-control,
-.form-select{
+.contract-modal .form-control,
+.contract-modal .form-select{
     height:44px;
     border-radius:10px;
     box-shadow:none!important;
 }
 
-textarea.form-control{
+.contract-modal textarea.form-control{
     min-height:90px;
     resize:none;
 }
@@ -384,5 +384,288 @@ textarea.form-control{
     background:#ef4444;
     color:#fff;
 }
+/* Không để Bootstrap phá link của layout admin */
+#admin-sidebar a {
+    text-decoration: none !important;
+}
 
+/* Giữ link trong header không bị Bootstrap gạch chân */
+header a,
+nav a {
+    text-decoration: none !important;
+}
+
+/* CONTRACT LIST FILTER - scoped, không ảnh hưởng layout admin */
+.contract-list-filter .input-group-text{
+    height:44px;
+    border-color:#dee2e6;
+    border-radius:10px 0 0 10px;
+}
+.contract-list-filter .form-control,
+.contract-list-filter .form-select{
+    height:44px;
+    border:1px solid #dee2e6;
+    border-radius:10px;
+    box-shadow:none !important;
+}
+.contract-list-filter .input-group .form-control{
+    border-left:0;
+    border-radius:0 10px 10px 0;
+}
+.contract-list-filter .form-control:focus,
+.contract-list-filter .form-select:focus{
+    border-color:#86b7fe;
+    box-shadow:0 0 0 .2rem rgba(13,110,253,.12) !important;
+}
+.contract-list-filter .btn{
+    height:44px;
+    border-radius:10px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+}
 </style>
+
+@push('styles')
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+<style>
+/*
+|--------------------------------------------------------------------------
+| BẢO VỆ LAYOUT ADMIN KHỎI BOOTSTRAP
+|--------------------------------------------------------------------------
+| Giữ nguyên Bootstrap cho contract form/modal/list.
+| Chỉ khôi phục đúng Sidebar + Header theo Tailwind layout hiện tại.
+*/
+
+/* ==================== SIDEBAR ==================== */
+#admin-sidebar {
+    width: 18rem !important;              /* w-72 */
+    background-color: #fff !important;
+    border-right: 1px solid rgb(226 232 240) !important;
+    font-family: "Instrument Sans", sans-serif !important;
+    line-height: 1.5 !important;
+}
+
+#admin-sidebar *,
+#admin-sidebar *::before,
+#admin-sidebar *::after {
+    box-sizing: border-box !important;
+}
+
+#admin-sidebar a {
+    text-decoration: none !important;
+}
+
+#admin-sidebar p,
+#admin-sidebar span,
+#admin-sidebar summary,
+#admin-sidebar a {
+    font-family: inherit !important;
+}
+
+#admin-sidebar p {
+    margin: 0 !important;
+}
+
+#admin-sidebar nav {
+    display: block !important;
+}
+
+#admin-sidebar summary {
+    list-style: none !important;
+}
+
+#admin-sidebar summary::-webkit-details-marker {
+    display: none !important;
+}
+
+/* Brand */
+#admin-sidebar > div:first-child {
+    height: 4rem !important;              /* h-16 */
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+}
+
+#admin-sidebar > div:first-child > a {
+    display: flex !important;
+    align-items: center !important;
+    gap: .75rem !important;
+}
+
+#admin-sidebar > div:first-child > a > span:first-child {
+    display: flex !important;
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: .5rem !important;
+    background-color: rgb(79 70 229) !important;
+    color: #fff !important;
+    font-size: 1.25rem !important;
+    line-height: 1.75rem !important;
+    font-weight: 700 !important;
+}
+
+#admin-sidebar > div:first-child > a > span:last-child > span:first-child {
+    display: block !important;
+    color: rgb(15 23 42) !important;
+    font-size: .875rem !important;
+    line-height: 1.25rem !important;
+    font-weight: 700 !important;
+}
+
+#admin-sidebar > div:first-child > a > span:last-child > span:last-child {
+    display: block !important;
+    color: rgb(100 116 139) !important;
+    font-size: .75rem !important;
+    line-height: 1rem !important;
+}
+
+/* Menu area */
+#admin-sidebar nav {
+    padding: 1.25rem 1rem !important;
+}
+
+#admin-sidebar nav > p {
+    padding-left: .75rem !important;
+    padding-right: .75rem !important;
+    color: rgb(148 163 184) !important;
+    font-size: .75rem !important;
+    line-height: 1rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .025em !important;
+}
+
+#admin-sidebar nav > div {
+    margin-top: .75rem !important;
+}
+
+#admin-sidebar nav details {
+    margin-bottom: .5rem !important;
+    border-radius: .5rem !important;
+}
+
+#admin-sidebar nav details > summary {
+    display: flex !important;
+    cursor: pointer !important;
+    align-items: center !important;
+    gap: .75rem !important;
+    padding: .625rem .75rem !important;
+    border-radius: .5rem !important;
+    font-size: .875rem !important;
+    line-height: 1.25rem !important;
+    font-weight: 600 !important;
+}
+
+#admin-sidebar nav details > summary > i:first-child {
+    font-size: 1.25rem !important;
+    line-height: 1.75rem !important;
+}
+
+#admin-sidebar nav details > summary > span {
+    flex: 1 1 0% !important;
+}
+
+#admin-sidebar nav details > div {
+    margin-top: .25rem !important;
+    padding-left: 2.5rem !important;
+}
+
+#admin-sidebar nav details > div > a {
+    display: block !important;
+    margin-bottom: .25rem !important;
+    padding: .5rem .75rem !important;
+    border-radius: .5rem !important;
+    font-size: .875rem !important;
+    line-height: 1.25rem !important;
+}
+
+/* ==================== HEADER ==================== */
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    border-bottom: 1px solid rgb(226 232 240) !important;
+    background: rgba(255,255,255,.95) !important;
+    font-family: "Instrument Sans", sans-serif !important;
+}
+
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header *,
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header *::before,
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header *::after {
+    box-sizing: border-box !important;
+}
+
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header > div {
+    display: flex !important;
+    height: 4rem !important;              /* h-16 */
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 1rem !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+}
+
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header p,
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header h1 {
+    margin: 0 !important;
+    font-family: inherit !important;
+}
+
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header h1 {
+    color: rgb(15 23 42) !important;
+    font-size: 1.125rem !important;
+    line-height: 1.75rem !important;
+    font-weight: 600 !important;
+}
+
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header p.text-xs {
+    font-size: .75rem !important;
+    line-height: 1rem !important;
+}
+
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header p.text-sm {
+    font-size: .875rem !important;
+    line-height: 1.25rem !important;
+}
+
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header button {
+    font-family: inherit !important;
+}
+
+body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header #admin-user-menu-button {
+    display: flex !important;
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 0 !important;
+    border-radius: 9999px !important;
+    background-color: rgb(79 70 229) !important;
+    color: #fff !important;
+    font-size: .875rem !important;
+    line-height: 1.25rem !important;
+    font-weight: 600 !important;
+}
+
+/* Desktop content offset must remain identical to shared admin layout */
+@media (min-width: 1024px) {
+    body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col {
+        padding-left: 18rem !important;    /* lg:pl-72 */
+    }
+}
+
+/* Mobile: do not force desktop header padding */
+@media (max-width: 1023.98px) {
+    body > .min-h-screen > div.flex.min-w-0.flex-1.flex-col > header > div {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+}
+</style>
+@endpush

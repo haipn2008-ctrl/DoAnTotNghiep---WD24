@@ -10,14 +10,22 @@ use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Admin\ContractExtensionRequestController as AdminContractExtensionRequestController;
+use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminContractTerminationRequestController;
+
+
 // Client routes
 use App\Http\Controllers\Client\ContractController as ClientContractController;
+use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
+use App\Http\Controllers\Client\RequestHistoryController;
+use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\Route;
+
 
 // Tự động chuyển hướng về trang dashboard để kiểm tra đăng nhập
 Route::get('/', function () {
@@ -56,52 +64,135 @@ Route::middleware('auth')->group(function () {
             ->name('tenants.export.download');
         Route::resource('tenants', TenantController::class);
 
-        // Quản lý hợp đồng thuê phòng
+        // =====================================================
+        // QUẢN LÝ HỢP ĐỒNG THUÊ PHÒNG
+        // =====================================================
 
-        // Xử lý kết thúc hợp đồng
-        Route::post('contracts/{contract}/terminate',[ContractController::class,'end'])
-        ->name('contracts.terminate');
+        // 1. Kết thúc hợp đồng
+        Route::post(
+            'contracts/{contract}/terminate',
+            [ContractController::class, 'end']
+        )->name('contracts.terminate');
 
-        // Xử lý gia hạn
-        Route::post('contracts/{contract}/extend',[ContractController::class,'extend'])
-        ->name('contracts.extend');
-        // Xử lý hoàn cọc
+
+        // 2. Gia hạn hợp đồng
+        Route::post(
+            'contracts/{contract}/extend',
+            [ContractController::class, 'extend']
+        )->name('contracts.extend');
+
+
+        // 3. Xử lý tiền cọc sau khi kết thúc hợp đồng
         Route::post(
             'contracts/{contract}/return-deposit',
             [ContractController::class, 'returnDeposit']
-        )->name('contracts.returnDeposit');
+        )->name('contracts.return-deposit');
 
-        // In hợp đồng
-        Route::get('contracts/{id}/print', [ContractController::class, 'print'])
-            ->name('contracts.print');
-        // Gửi hợp đồng để ký điện tử
-        Route::post('contracts/{contract}/send-signature',[ContractController::class, 'sendSignature'])
-            ->name('contracts.send-signature');
-        // Thu hồi hợp đồng để ký điện tử
+
+        // 4. In hợp đồng
+        Route::get(
+            'contracts/{id}/print',
+            [ContractController::class, 'print']
+        )->name('contracts.print');
+
+
+        // =====================================================
+        // KÝ HỢP ĐỒNG & KÍCH HOẠT
+        // =====================================================
+
+        // 5. Gửi hợp đồng cho khách thuê ký
+        Route::post(
+            'contracts/{contract}/send-signature',
+            [ContractController::class, 'sendSignature']
+        )->name('contracts.send-signature');
+
+
+        // 6. Thu hồi yêu cầu ký
         Route::post(
             'contracts/{contract}/recall-signature',
             [ContractController::class, 'recallSignature']
         )->name('contracts.recall-signature');
-        // Xác nhận ký hợp đồng điện tử
-        Route::post('contracts/{contract}/confirm-signature',[ContractController::class, 'confirmSignature'])
-            ->name('contracts.confirm-signature');
-        // Xác nhận đặt cọc
-        Route::post('contracts/{contract}/confirm-deposit',[ContractController::class, 'confirmDeposit'])
-            ->name('contracts.confirm-deposit');
-        // Kích hoạt hợp đồng
-        Route::post('contracts/{contract}/activate',[ContractController::class, 'activate'])
-            ->name('contracts.activate');
-        // Xem chi tiết hợp đồng trong modal
+
+
+        // 7. Xác nhận khách thuê đã ký
+        Route::post(
+            'contracts/{contract}/confirm-signature',
+            [ContractController::class, 'confirmSignature']
+        )->name('contracts.confirm-signature');
+
+
+        // 8. Xác nhận đã đóng tiền cọc
+        Route::post(
+            'contracts/{contract}/confirm-deposit',
+            [ContractController::class, 'confirmDeposit']
+        )->name('contracts.confirm-deposit');
+
+
+        // 9. Kích hoạt hợp đồng
+        Route::post(
+            'contracts/{contract}/activate',
+            [ContractController::class, 'activate']
+        )->name('contracts.activate');
+
+
+        // =====================================================
+        // MODAL CHI TIẾT HỢP ĐỒNG
+        // =====================================================
+
         Route::get(
             'contracts/{contract}/modal',
             [ContractController::class, 'modal']
         )->name('contracts.modal');
-        // Xử lý hoàn cọc
+
+
+        // =====================================================
+        // YÊU CẦU GIA HẠN HỢP ĐỒNG
+        // =====================================================
+
+        // Danh sách yêu cầu gia hạn
+        Route::get(
+            'extension-requests',
+            [AdminContractExtensionRequestController::class, 'index']
+        )->name('extension-requests.index');
+
+
+        // Duyệt yêu cầu gia hạn
         Route::post(
-            'contracts/{contract}/return-deposit',
-            [ContractController::class, 'returnDeposit']
-        )->name('contracts.returnDeposit');
-        // Resource phải đặt SAU CÙNG
+            'extension-requests/{extensionRequest}/approve',
+            [AdminContractExtensionRequestController::class, 'approve']
+        )->name('extension-requests.approve');
+
+
+        // Từ chối yêu cầu gia hạn
+        Route::post(
+            'extension-requests/{extensionRequest}/reject',
+            [AdminContractExtensionRequestController::class, 'reject']
+        )->name('extension-requests.reject');
+
+        // =====================================================
+        // YÊU CẦU TRẢ PHÒNG
+        // =====================================================
+
+        Route::get(
+            'termination-requests',
+            [AdminContractTerminationRequestController::class, 'index']
+        )->name('termination-requests.index');
+
+        Route::post(
+            'termination-requests/{terminationRequest}/approve',
+            [AdminContractTerminationRequestController::class, 'approve']
+        )->name('termination-requests.approve');
+
+        Route::post(
+            'termination-requests/{terminationRequest}/reject',
+            [AdminContractTerminationRequestController::class, 'reject']
+        )->name('termination-requests.reject');
+
+        // =====================================================
+        // RESOURCE HỢP ĐỒNG
+        // Luôn đặt sau các route contracts cụ thể
+        // =====================================================
+
         Route::resource('contracts', ContractController::class);
         //
         // Chức năng điện nước
@@ -265,14 +356,62 @@ Route::middleware('auth')->group(function () {
         ));
     })->name('client.home');
 
-    // Route::prefix('client')
-    // ->name('client.')
-    // ->middleware(['auth'])
-    // ->group(function () {
+    Route::prefix('client')
+    ->name('client.')
+    ->group(function () {
 
-    //     Route::get('/contract',
-    //         [ClientContractController::class, 'show'])
-    //         ->name('contract.show');
+        // Hợp đồng của tôi
+        Route::get('/contracts', [
+            ClientContractController::class,
+            'index'
+        ])->name('contracts.index');
+        
+        // Chi tiết hợp đồng
+        Route::get('/contracts/{contract}', [
+            ClientContractController::class,
+            'show'
+        ])->name('contracts.show');
 
-    // });
+        // In hợp đồng của khách thuê
+        Route::get('/contracts/{contract}/print', [
+            ClientContractController::class,
+            'print'
+        ])->name('contracts.print');
+
+        // Tải hợp đồng PDF
+        Route::get('/contracts/{contract}/download', [
+            ClientContractController::class,
+            'download'
+        ])->name('contracts.download');
+
+        // Khách thuê ký hợp đồng
+        Route::post('/contracts/{contract}/sign', [
+            ClientContractController::class,
+            'sign'
+        ])->name('contracts.sign');
+
+        Route::get('/extension-requests', [ClientContractExtensionRequestController::class, 'index'])
+            ->name('extension-requests.index');
+
+        Route::post('/extension-requests', [ClientContractExtensionRequestController::class, 'store'])
+            ->name('extension-requests.store');
+
+        // ================================
+        // YÊU CẦU TRẢ PHÒNG
+        // ================================
+
+        Route::get('/termination-requests', [
+            ClientContractTerminationRequestController::class,
+            'index'
+        ])->name('termination-requests.index');
+
+        Route::post('/termination-requests', [
+            ClientContractTerminationRequestController::class,
+            'store'
+        ])->name('termination-requests.store');
+
+        });
+        // Lịch sử yêu cầu gia hạn và trả phòng
+        Route::get('/request-history', [RequestHistoryController::class, 'index'])
+            ->name('requests.history');
 });

@@ -12,7 +12,11 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    const STATUS_PENDING = 'pending';
+    const STATUS_DRAFT = 'draft';
+
+    const STATUS_PENDING_SIGNATURE = 'pending_signature';
+
+    const STATUS_SIGNED = 'signed';
 
     const STATUS_DEPOSIT_PAID = 'deposit_paid';
 
@@ -23,6 +27,8 @@ class Contract extends Model
     const STATUS_TERMINATED = 'terminated';
 
     const STATUS_DEPOSIT_RETURNED = 'deposit_returned';
+
+    const STATUS_COMPLETED = 'completed';
 
     /*
     |--------------------------------------------------------------------------
@@ -35,6 +41,10 @@ class Contract extends Model
     const DEPOSIT_PAID = 'paid';
 
     const DEPOSIT_RETURNED = 'returned';
+
+    const DEPOSIT_PARTIAL = 'partial_returned';
+
+    const DEPOSIT_FORFEITED = 'forfeited';
 
     /**
      * Các trường được phép ghi dữ liệu
@@ -52,11 +62,17 @@ class Contract extends Model
         'deposit_amount',
         'deposit_status',
         'deposit_paid_at',
+        'deposit_process_type',
+        'deposit_refund_amount',
+        'deposit_deduction_amount',
+        'deposit_processed_at',
+        'deposit_process_reason',
+        'deposit_process_note',
 
         'number_of_people',
 
         'signed_at',
-
+        'tenant_signature',
         'start_date',
         'end_date',
         'actual_end_date',
@@ -74,6 +90,8 @@ class Contract extends Model
 
         'contract_file',
 
+        'contract_content',
+
         'status',
 
         'note',
@@ -84,17 +102,20 @@ class Contract extends Model
      */
     protected $casts = [
 
-        'signed_at' => 'datetime',
-        'deposit_paid_at' => 'datetime',
-        'extended_at' => 'datetime',
-        'terminated_at' => 'datetime',
+        'signed_at'         => 'datetime',
+        'deposit_paid_at'   => 'datetime',
+        'deposit_processed_at' => 'datetime',
+        'deposit_refund_amount' => 'decimal:2',
+        'deposit_deduction_amount' => 'decimal:2',
+        'extended_at'       => 'datetime',
+        'terminated_at'     => 'datetime',
 
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'actual_end_date' => 'date',
+        'start_date'        => 'date',
+        'end_date'          => 'date',
+        'actual_end_date'   => 'date',
 
         'extend_start_date' => 'date',
-        'extend_end_date' => 'date',
+        'extend_end_date'   => 'date',
     ];
 
     /*
@@ -128,7 +149,7 @@ class Contract extends Model
 
     public function utilityReadings()
     {
-        return $this->hasMany(UtilityReading::class, 'room_id', 'room_id');
+        return $this->hasMany(UtilityReading::class);
     }
 
     public function payments()
@@ -140,8 +161,10 @@ class Contract extends Model
     }
     public function histories()
     {
-        return $this->hasMany(ContractHistory::class);
+        return $this->hasMany(ContractHistory::class)
+            ->latest();
     }
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -149,9 +172,19 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function scopePending($query)
+    public function scopeDraft($query)
     {
-        return $query->where('status', self::STATUS_PENDING);
+        return $query->where('status', self::STATUS_DRAFT);
+    }
+
+    public function scopePendingSignature($query)
+    {
+        return $query->where('status', self::STATUS_PENDING_SIGNATURE);
+    }
+
+    public function scopeSigned($query)
+    {
+        return $query->where('status', self::STATUS_SIGNED);
     }
 
     public function scopeActive($query)
@@ -184,9 +217,19 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function isPending()
+    public function isDraft()
     {
-        return $this->status === self::STATUS_PENDING;
+        return $this->status === self::STATUS_DRAFT;
+    }
+
+    public function isPendingSignature()
+    {
+        return $this->status === self::STATUS_PENDING_SIGNATURE;
+    }
+
+    public function isSigned()
+    {
+        return $this->status === self::STATUS_SIGNED;
     }
     public function isDepositPaidStatus()
     {
@@ -252,7 +295,7 @@ class Contract extends Model
         return $this->status === self::STATUS_ACTIVE;
     }
 
-    public function canExtend()
+    public function canExtend(): bool
     {
         return in_array($this->status, [
             self::STATUS_ACTIVE,
@@ -263,7 +306,6 @@ class Contract extends Model
     public function canTerminate()
     {
         return $this->status === self::STATUS_ACTIVE;
-<<<<<<< HEAD
     }
         
     public function canActivate()
@@ -272,14 +314,18 @@ class Contract extends Model
     }
     public function canReturnDeposit()
     {
-        return $this->status === self::STATUS_TERMINATED;
+        return $this->status === self::STATUS_TERMINATED
+            && $this->deposit_status === self::DEPOSIT_PAID;
+    }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED;
     }
 
     public function canEdit()
     {
         return $this->status === self::STATUS_DRAFT;
-=======
->>>>>>> 3bb66892adb64dbcdda16ab528fbe3ec6422a225
     }
 
     /*
@@ -287,15 +333,19 @@ class Contract extends Model
     | Accessor
     |--------------------------------------------------------------------------
     */
+
     public function getStatusTextAttribute()
     {
         return match ($this->status) {
             self::STATUS_DRAFT => 'Bản nháp',
             self::STATUS_PENDING_SIGNATURE => 'Chờ ký',
+            self::STATUS_SIGNED => 'Đã ký',
+            self::STATUS_DEPOSIT_PAID => 'Đã thanh toán cọc',
             self::STATUS_ACTIVE => 'Đang hoạt động',
             self::STATUS_EXPIRED => 'Hết hạn',
             self::STATUS_TERMINATED => 'Đã kết thúc',
             self::STATUS_DEPOSIT_RETURNED => 'Đã hoàn cọc',
+            self::STATUS_COMPLETED => 'Hoàn tất',
             default => 'Không xác định',
         };
     }
@@ -315,5 +365,9 @@ class Contract extends Model
     public function isOverExpired()
     {
         return now()->greaterThan($this->end_date);
+    }
+    public function extensionRequests()
+    {
+        return $this->hasMany(ContractExtensionRequest::class);
     }
 }

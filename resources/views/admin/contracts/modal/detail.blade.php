@@ -694,6 +694,46 @@ Thông tin hợp đồng
     </div>
 
 </div>
+
+@if($contract->tenant_signature)
+<div class="row g-4 mt-1">
+    <div class="col-lg-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="fw-bold mb-0">
+                    <i class="bi bi-pen text-primary me-2"></i>
+                    Chữ ký khách thuê
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-7">
+                        <div class="border rounded bg-white p-3 text-center">
+                            <img src="{{ asset('storage/' . $contract->tenant_signature) }}"
+                                 alt="Chữ ký khách thuê"
+                                 style="max-width:320px;max-height:140px;object-fit:contain;">
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="alert alert-success mb-0">
+                            <div class="fw-bold mb-2">
+                                <i class="bi bi-check-circle-fill me-1"></i>
+                                Khách thuê đã ký hợp đồng
+                            </div>
+                            <div><strong>Người ký:</strong> {{ $contract->tenant->full_name ?? '-' }}</div>
+                            <div class="mt-2">
+                                <strong>Thời gian ký:</strong>
+                                {{ optional($contract->signed_at)->format('d/m/Y H:i') ?? '-' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="row g-4 mt-1">
 
     <!-- Thời gian hợp đồng -->
@@ -1131,25 +1171,20 @@ Thông tin hợp đồng
     </a>
     @if($contract->isPendingSignature())
 
-    <form
-        action="{{ route('admin.contracts.recall-signature',$contract) }}"
-        method="POST"
-        class="d-inline">
+    <button
+        type="button"
+        class="btn btn-danger recallContractBtn"
 
-        @csrf
+        data-code="{{ $contract->contract_code }}"
+        data-action="{{ route('admin.contracts.recall-signature', $contract) }}"
 
-        <button
-            type="submit"
-            class="btn btn-danger"
-            onclick="return confirm('Thu hồi hợp đồng để chỉnh sửa?')">
+        data-bs-toggle="modal"
+        data-bs-target="#recallContractModal">
 
-            <i class="bi bi-arrow-counterclockwise me-1"></i>
+        <i class="bi bi-arrow-counterclockwise me-1"></i>
+        Thu hồi
 
-            Thu hồi
-
-        </button>
-
-    </form>
+    </button>
 
     @endif
     @if($contract->isDraft())
@@ -1173,6 +1208,39 @@ Thông tin hợp đồng
         </button>
 
     </form>
+
+    @endif
+
+    @if($contract->isSigned())
+    <form action="{{ route('admin.contracts.confirm-deposit', $contract) }}" method="POST" class="d-inline">
+        @csrf
+        <button type="submit" class="btn btn-warning"
+                onclick="return confirm('Xác nhận đã nhận đủ tiền cọc của khách thuê?')">
+            <i class="bi bi-cash-coin me-1"></i>
+            Xác nhận tiền cọc
+        </button>
+    </form>
+    @endif
+
+    @if($contract->status === \App\Models\Contract::STATUS_DEPOSIT_PAID)
+
+        <form
+            action="{{ route('admin.contracts.activate', $contract) }}"
+            method="POST"
+            class="d-inline"
+        >
+            @csrf
+
+            <button
+                type="submit"
+                class="btn btn-success"
+                onclick="return confirm('Kích hoạt hợp đồng này?')"
+            >
+                <i class="bi bi-check-circle me-1"></i>
+                Kích hoạt hợp đồng
+            </button>
+
+        </form>
 
     @endif
 
@@ -1208,12 +1276,20 @@ Thông tin hợp đồng
     @if($contract->canExtend())
 
     <button
-        class="btn btn-warning"
+        type="button"
+        class="btn btn-warning extendContractBtn"
+
+        data-id="{{ $contract->id }}"
+        data-code="{{ $contract->contract_code }}"
+        data-room="{{ $contract->room->room_code ?? '' }}"
+        data-tenant="{{ $contract->tenant->full_name ?? '' }}"
+        data-end="{{ optional($contract->end_date)->format('Y-m-d') }}"
+        data-action="{{ route('admin.contracts.extend', $contract) }}"
+
         data-bs-toggle="modal"
         data-bs-target="#extendContractModal">
 
         <i class="bi bi-arrow-repeat me-1"></i>
-
         Gia hạn
 
     </button>
@@ -1226,19 +1302,14 @@ Thông tin hợp đồng
     <button
         type="button"
         class="btn btn-danger terminateBtn"
-
         data-id="{{ $contract->id }}"
-
-        data-end="{{ optional($contract->end_date)->format('Y-m-d') }}"
-
+        data-action="{{ route('admin.contracts.terminate', $contract) }}"
+        data-start="{{ optional($contract->start_date)->format('Y-m-d') }}"
         data-bs-toggle="modal"
-
         data-bs-target="#terminateContractModal">
 
         <i class="bi bi-slash-circle me-1"></i>
-
         Kết thúc
-
     </button>
 
     @endif
@@ -1249,13 +1320,16 @@ Thông tin hợp đồng
         class="btn btn-info returnDepositBtn"
 
         data-id="{{ $contract->id }}"
+        data-code="{{ $contract->contract_code }}"
+        data-deposit="{{ $contract->deposit_amount }}"
+        data-action="{{ route('admin.contracts.return-deposit', $contract) }}"
 
         data-bs-toggle="modal"
         data-bs-target="#returnDepositModal">
 
         <i class="bi bi-cash-coin me-1"></i>
 
-        Hoàn cọc
+        Xử lý tiền cọc
 
     </button>
 
@@ -1271,15 +1345,66 @@ Thông tin hợp đồng
    Modal
 ================================ */
 
-#contractDetailModal .modal-dialog{
-    max-width:1400px;
+/* ===== FIX CUỘN MODAL CHI TIẾT ===== */
+
+#contractModal {
+    overflow: hidden !important;
 }
 
-#contractDetailModal .modal-content{
-    border:none;
-    border-radius:18px;
-    overflow:hidden;
-    box-shadow:0 15px 40px rgba(0,0,0,.15);
+#contractModal .modal-dialog {
+    max-width: 1400px !important;
+    height: calc(100vh - 32px) !important;
+    margin: 16px auto !important;
+
+    display: flex !important;
+    align-items: stretch !important;
+}
+
+#contractModal .modal-content {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+
+    overflow: hidden !important;
+}
+
+/* HEADER không cuộn */
+#contractModal .contract-header {
+    flex: 0 0 auto !important;
+}
+
+/* CHỈ BODY CUỘN */
+#contractModal .contract-body {
+    flex: 1 1 0 !important;
+
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+
+    padding: 25px !important;
+}
+
+/* Nội dung bên trong không được tự tạo scrollbar khác */
+#contractModal .container-fluid,
+#contractModal .tab-content,
+#contractModal .tab-pane {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* FOOTER luôn nằm cuối modal */
+#contractModal .modal-footer {
+    flex: 0 0 auto !important;
+    position: relative !important;
+    bottom: auto !important;
 }
 
 /* ===============================
@@ -1330,15 +1455,14 @@ Thông tin hợp đồng
 }
 
 .contract-body{
-
     background:#f6f8fb;
-
-    max-height:78vh;
-
+    flex:1 1 auto;
+    min-height:0;
+    height:auto;
+    max-height:none;
     overflow-y:auto;
-
+    overflow-x:hidden;
     padding:25px;
-
 }
 
 /* ===============================
@@ -1491,24 +1615,21 @@ Thông tin hợp đồng
    Footer
 ================================ */
 
-.modal-footer{
-
-    background:#fff;
-
-    border-top:1px solid #eee;
-
-    padding:18px 25px;
-
+#contractModal .contract-header,
+#contractModal .modal-footer{
+    flex:0 0 auto;
 }
 
-.modal-footer .btn{
+#contractModal .modal-footer{
+    background:#fff;
+    border-top:1px solid #eee;
+    padding:18px 25px;
+}
 
+#contractModal .modal-footer .btn{
     border-radius:10px;
-
     padding:9px 18px;
-
     font-weight:600;
-
 }
 
 /* ===============================
