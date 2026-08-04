@@ -35,12 +35,26 @@
         [
             'label' => 'Hợp đồng',
             'icon' => 'bx bx-file',
-            'active' => request()->routeIs('admin.contracts*'),
+            'active' => request()->routeIs('admin.contracts*')
+                || request()->routeIs('admin.extension-requests*')
+                || request()->routeIs('admin.termination-requests*'),
+
             'items' => [
-                ['label' => 'Tạo hợp đồng thuê', 'route' => 'admin.contracts.create', 'active' => request()->routeIs('admin.contracts.create')],
-                ['label' => 'Danh sách hợp đồng', 'route' => 'admin.contracts.index', 'active' => request()->routeIs('admin.contracts.index')],
-                ['label' => 'Gia hạn hợp đồng', 'route' => 'admin.contracts.extend.list', 'active' => request()->routeIs('admin.contracts.extend*')],
-                ['label' => 'Kết thúc hợp đồng', 'route' => 'admin.contracts.end.list', 'active' => request()->routeIs('admin.contracts.end*')],
+                [
+                    'label' => 'Danh sách hợp đồng',
+                    'route' => 'admin.contracts.index',
+                    'active' => request()->routeIs('admin.contracts.index')
+                ],
+                [
+                    'label' => 'Yêu cầu gia hạn',
+                    'route' => 'admin.extension-requests.index',
+                    'active' => request()->routeIs('admin.extension-requests*')
+                ],
+                [
+                    'label' => 'Yêu cầu trả phòng',
+                    'route' => 'admin.termination-requests.index',
+                    'active' => request()->routeIs('admin.termination-requests*')
+                ],
             ],
         ],
         [

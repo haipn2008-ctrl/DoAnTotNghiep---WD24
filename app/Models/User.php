@@ -40,4 +40,8 @@ class User extends Authenticatable
     {
         return $this->hasOne(Tenant::class);
     }
+    public function contractHistories()
+    {
+        return $this->hasMany(ContractHistory::class);
+    }
 }

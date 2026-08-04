@@ -5,127 +5,54 @@
 <title>Hợp đồng thuê phòng trọ</title>
 
 <style>
-
-@page{
-    size:A4;
-    margin:15mm;
+@page {
+    size: A4 portrait;
+    margin: 18mm 20mm 18mm 20mm;
 }
 
-body{
-    font-family:"Times New Roman", serif;
-    font-size:16px;
-    line-height:1.4;
+html, body {
+    margin: 0;
+    padding: 0;
 }
 
-.contract{
-    width:210mm;
-    min-height:297mm;
-    margin:auto;
-    background:white;
-    padding:40px;
-    border:1px solid #999;
-    box-sizing:border-box;
+body {
+    font-family: "DejaVu Serif", serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #000;
 }
 
-.center{
-    text-align:center;
+.contract {
+    width: 168mm;
+    margin: 0 auto;
+    padding: 0;
+    border: none;
 }
 
-.national{
-    font-weight:bold;
-    font-size:18px;
-}
-
-.slogan{
-    text-align: center;
-    font-size: 17px;
-    margin-top: 6px;
-    margin-bottom: 40px;
-}
-
-.title{
-    text-align: center;
-    font-size: 16px;
-    font-weight: bold;
-    text-transform: uppercase;
-    margin-top: 45px;
-    margin-bottom: 35px;
-}
-
-.line{
-    display:inline-block;
-    border-bottom:1px dotted #000;
-    padding:0 5px;
-    text-align:center;
-}
-
-.short{
-    min-width:180px;
-}
-.small{
-    min-width:15px;
-}
-.mini{
-    min-width:80px;
-}
-
-.medium{
-    min-width:250px;
-}
-.Large{
-    min-width:350px;
-}
-.ExtraLarge{
-    min-width:450px;
-}
-.big{
-    min-width:520px;
-}
-
-.section{
-    margin-top:20px;
-}
-
-.bold{
-    font-weight:bold;
-}
-p{
-    margin:12px 0;
-    /* text-align:justify; */
-}
-
-/* h2{
-    margin-top:40px;
-    margin-bottom:20px;
-} */
-.info-row{
-    margin:6px 0;
-}
-
-.info-row .line{
-    display:inline-block;
-    border-bottom:1px dotted #000;
-    padding:0 3px;
-}
-.contract-info{
-    margin-bottom:15px;
-}
-@media print{
-
-    body{
-        background:white;
-    }
-
-    .contract{
-        border:none;
-        padding:0;
-        width:auto;
-    }
-     @page {
-        margin: 20mm;
-    }
-}
-
+.center { text-align: center; }
+.national { font-weight: bold; font-size: 16px; }
+.slogan { text-align: center; font-size: 13px; margin-top: 4px; margin-bottom: 18px; }
+.title { text-align: center; font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 20px 0 18px; }
+.line { display: inline-block; border-bottom: 1px dotted #000; padding: 0 4px; text-align: center; }
+.short { min-width: 125px; }
+.small { min-width: 15px; }
+.mini { min-width: 65px; }
+.medium { min-width: 180px; }
+.Large { min-width: 250px; }
+.ExtraLarge { min-width: 320px; }
+.big { min-width: 430px; }
+.section { margin-top: 16px; }
+.bold { font-weight: bold; }
+p { margin: 6px 0; }
+.info-row { margin: 6px 0; }
+.info-row .line { display: inline-block; border-bottom: 1px dotted #000; padding: 0 3px; }
+.contract-info { margin-bottom: 8px; }
+h3 { page-break-after: avoid; }
+table { page-break-inside: avoid; }
+.signature-block { page-break-inside: avoid; }
+.page-break { page-break-before: always; }
+.page-title { margin-top: 0 !important; page-break-after: avoid; }
+.signature-block table { page-break-inside: avoid; }
 </style>
 
 </head>
@@ -166,10 +93,10 @@ tại địa chỉ:
 <p>
     <span class="line big"></span>
 </p>
-<p class="bold">
+<p class="bold" style="margin-top:12px;">
 Chúng tôi gồm:
 </p>
-<p>
+<p style="margin-top:7px;">
 1. Đại diện bên cho thuê phòng trọ (Bên A):
 </p>
 
@@ -207,7 +134,7 @@ tại:
 Số điện thoại:
 <span class="line Large">0865819798</span>
 </p>
-<p>
+<p style="margin-top:9px;">
 2. Bên thuê phòng trọ (Bên B):
 </p>
 
@@ -264,7 +191,7 @@ Số điện thoại:
 </span>
 </p>
 
-<p class="bold">
+<p class="bold" style="margin-top:11px;">
 Sau khi bàn bạc trên tinh thần dân chủ, hai bên cùng có lợi,
 cùng thống nhất như sau:
 </p>
@@ -279,7 +206,7 @@ Bên A đồng ý cho bên B thuê 01 phòng ở tại địa chỉ:
     <span class="line big"></span>
 </p>
 
-<p>
+<p style="margin-top:12px;">
 Giá thuê:
 <span class="line short">
 {{ number_format($contract->room->price,0,',','.') }}
@@ -333,118 +260,105 @@ tháng
 năm
 <strong class="line small">{{ $endDate->format('Y') }}</strong>
 </p>
-<div style="margin-top:40px;">
+<div class="page-break"></div>
+<div>
 
-    <h3 style="
-        font-size:20px;
+    <h3 class="page-title" style="
+        font-size:16px;
         font-weight:bold;
         margin-bottom:15px;
     ">
         TRÁCH NHIỆM CỦA CÁC BÊN
     </h3>
 
-    <p class="bold">
+    <p class="bold" style="margin-top:18px; margin-bottom:14px;">
         * Trách nhiệm của bên A:
     </p>
 
-    <p>
+    <p style="margin:14px 0; line-height:1.75;">
         - Tạo mọi điều kiện thuận lợi để bên B thực hiện theo hợp đồng.
     </p>
 
-    <p>
+    <p style="margin:14px 0; line-height:1.75;">
         - Cung cấp nguồn điện, nước, wifi cho bên B sử dụng.
     </p>
 
-    <p class="bold">
+    <p class="bold" style="margin-top:24px; margin-bottom:14px;">
         * Trách nhiệm của bên B:
     </p>
 
-    <p>
+    <p style="margin:14px 0; line-height:1.75;">
         - Thanh toán đầy đủ các khoản tiền theo đúng thỏa thuận.
     </p>
 
-    <p>
+    <p style="margin:14px 0; line-height:1.75;">
         - Bảo quản các trang thiết bị và cơ sở vật chất của bên A trang bị cho ban đầu (làm hỏng phải sửa, mất phải đền).
     </p>
 
-    <p>
+    <p style="margin:14px 0; line-height:1.75;">
         - Không được tự ý sửa chữa, cải tạo cơ sở vật chất khi chưa được sự đồng ý của bên A.
     </p>
 
-    <p>
+    <p style="margin:14px 0; line-height:1.75;">
         - Giữ gìn vệ sinh trong và ngoài khuôn viên của phòng trọ.
     </p>
 
-    <p>
+    <p style="margin:14px 0; line-height:1.75;">
         - Bên B phải chấp hành mọi quy định của pháp luật Nhà nước và quy định của địa phương.
     </p>
 
-    <p>
+    <p style="margin:14px 0; line-height:1.75;">
         - Nếu bên B cho khách ở qua đêm thì phải báo và được sự đồng ý của chủ nhà đồng thời phải chịu trách nhiệm về các hành vi vi phạm pháp luật của khách trong thời gian ở lại.
     </p>
 
-    <div style="height:30px;"></div>
-
-    <h3 style="
-        font-size:20px;
+    <h3 class="page-title" style="
+        font-size:16px;
         font-weight:bold;
-        margin-bottom:15px;
+        margin-top:28px !important;
+        margin-bottom:16px;
     ">
         TRÁCH NHIỆM CHUNG
     </h3>
 
-    <p>
+    <p style="margin:12px 0; line-height:1.65;">
         - Hai bên phải tạo điều kiện cho nhau thực hiện hợp đồng.
     </p>
 
-    <p>
+    <p style="margin:12px 0; line-height:1.65;">
         - Trong thời gian hợp đồng còn hiệu lực nếu bên nào vi phạm các điều khoản đã thỏa thuận thì bên còn lại có quyền đơn phương chấm dứt hợp đồng; nếu vi phạm hợp đồng đó gây tổn thất cho bên bị vi phạm hợp đồng thì bên vi phạm hợp đồng phải bồi thường thiệt hại.
     </p>
 
-    <p>
+    <div class="page-break"></div>
+
+    <h3 class="page-title" style="
+        font-size:16px;
+        font-weight:bold;
+        margin-bottom:18px;
+    ">
+        TRÁCH NHIỆM CHUNG (TIẾP)
+    </h3>
+
+    <p style="margin:13px 0; line-height:1.7;">
         - Một trong hai bên muốn chấm dứt hợp đồng trước thời hạn thì phải báo trước cho bên kia ít nhất 30 ngày và hai bên phải có sự thống nhất.
     </p>
 
-    <p>
+    <p style="margin:13px 0; line-height:1.7;">
         - Bên A phải trả lại tiền đặt cọc cho bên B.
     </p>
 
-    <p>
+    <p style="margin:13px 0; line-height:1.7;">
         - Bên nào vi phạm điều khoản chung thì phải chịu trách nhiệm trước pháp luật.
     </p>
 
-    <p>
+    <p style="margin:13px 0; line-height:1.7;">
         - Hợp đồng được lập thành 02 bản có giá trị pháp lý như nhau, mỗi bên giữ một bản.
     </p>
 
 </div>
 
-<div style="page-break-after:always;"></div>
-<div>
 
-    <p>
-        - Một trong hai bên muốn chấm dứt hợp đồng trước thời hạn
-        thì phải báo trước cho bên kia ít nhất 30 ngày và hai bên
-        phải có sự thống nhất.
-    </p>
-
-    <p>
-        - Bên A phải trả lại tiền đặt cọc cho bên B.
-    </p>
-
-    <p>
-        - Bên nào vi phạm điều khoản chung thì phải chịu trách nhiệm
-        trước pháp luật.
-    </p>
-
-    <p>
-        - Hợp đồng được lập thành 02 bản có giá trị pháp lý như nhau,
-        mỗi bên giữ một bản.
-    </p>
-
-    <br><br><br>
-
-    <hr style="margin-top:40px; margin-bottom:30px;">
+<div class="signature-block" style="margin-top:38px;">
+    <hr style="margin-top:0; margin-bottom:22px;">
 
     <table style="width:100%; text-align:center;">
         <tr>
@@ -466,16 +380,11 @@ năm
         </tr>
 
         <tr>
-            <td style="height:120px; vertical-align:bottom;">
+            <td style="height:130px; vertical-align:bottom;">
 
-                <div style="
-                    height:85px;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                ">
+                <div style="height:88px; text-align:center;">
                     <img
-                        src="{{ asset('storage/signatures/contracts/chukyD.jpg') }}"
+                        src="{{ public_path('storage/signatures/contracts/chukyD.jpg') }}"
                         alt="Chữ ký chủ trọ"
                         style="
                             max-width:180px;
@@ -491,16 +400,28 @@ năm
 
             </td>
 
-            <td style="height:120px; vertical-align:bottom;">
+            <td style="height:130px; vertical-align:bottom;">
 
                 @if(!empty($contract->tenant_signature))
-                    <div style="height:85px; display:flex; align-items:flex-end; justify-content:center;">
-                        <img src="{{ asset('storage/' . $contract->tenant_signature) }}"
-                             alt="Chữ ký khách thuê"
-                             style="max-width:180px;max-height:80px;object-fit:contain;">
+
+                    <div style="height:88px; text-align:center;">
+
+                        <img
+                            src="{{ public_path('storage/' . $contract->tenant_signature) }}"
+                            alt="Chữ ký khách thuê"
+                            style="
+                                max-width:180px;
+                                max-height:80px;
+                                object-fit:contain;
+                            "
+                        >
+
                     </div>
+
                 @else
-                    <div style="height:85px;"></div>
+
+                    <div style="height:88px;"></div>
+
                 @endif
 
                 <strong>
@@ -519,15 +440,7 @@ năm
 
 </div>
 
-<script>
-window.onload = function () {
-    window.print();
-};
 
-window.onafterprint = function () {
-    window.close();
-};
-</script>
 
 </body>
 </html>
