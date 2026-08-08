@@ -3,8 +3,8 @@
         ['label' => 'Tổng quan', 'href' => route('client.home'), 'active' => request()->routeIs('client.home'), 'icon' => '⌂'],
         ['label' => 'Phòng của tôi', 'href' => '#room', 'active' => false, 'icon' => '□'],
         ['label' => 'Hợp đồng', 'href' => '#contract', 'active' => false, 'icon' => '≡'],
-        ['label' => 'Điện nước', 'href' => '#utilities', 'active' => false, 'icon' => '↯'],
-        ['label' => 'Hóa đơn', 'href' => '#invoices', 'active' => false, 'icon' => '₫'],
+        ['label' => 'Điện nước', 'href' => route('client.utilities.index'), 'active' => request()->routeIs('client.utilities.*'), 'icon' => '↯'],
+        ['label' => 'Hóa đơn', 'href' => route('client.invoices.index'), 'active' => request()->routeIs('client.invoices.*'), 'icon' => '₫'],
         ['label' => 'Hỗ trợ', 'href' => '#support', 'active' => false, 'icon' => '?'],
     ];
 @endphp

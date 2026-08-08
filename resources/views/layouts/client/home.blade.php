@@ -81,16 +81,19 @@
 
         <section class="grid gap-6 xl:grid-cols-3">
             <div id="invoices" class="rounded-lg border border-slate-200 bg-white shadow-sm xl:col-span-2">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h3 class="font-semibold text-slate-950">Hóa đơn và thanh toán</h3>
-                    <p class="mt-1 text-sm text-slate-500">Các khoản cần thanh toán gần đây.</p>
+                <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                    <div>
+                        <h3 class="font-semibold text-slate-950">Hóa đơn và thanh toán</h3>
+                        <p class="mt-1 text-sm text-slate-500">Các khoản cần thanh toán gần đây.</p>
+                    </div>
+                    <a href="{{ route('client.invoices.index') }}" class="text-sm font-semibold text-indigo-700 hover:text-indigo-800">Xem tất cả</a>
                 </div>
 
                 @if ($recentInvoice)
                     <div class="divide-y divide-slate-100">
                         @foreach ($openInvoices->take(5) as $invoice)
                             @php($status = $invoiceStatusLabels[$invoice->status] ?? ['label' => $invoice->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
-                            <div class="flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center">
+                            <a href="{{ route('client.invoices.show', $invoice) }}" class="flex flex-col justify-between gap-3 px-5 py-4 hover:bg-slate-50 sm:flex-row sm:items-center">
                                 <div>
                                     <p class="font-semibold text-slate-950">Hóa đơn kỳ {{ $invoice->month }}/{{ $invoice->year }}</p>
                                     <p class="mt-1 text-sm text-slate-500">Phòng {{ $invoice->room->room_code ?? 'N/A' }} · Hạn {{ \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') }}</p>
@@ -99,7 +102,7 @@
                                     <span class="font-bold text-slate-950">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</span>
                                     <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span>
                                 </div>
-                            </div>
+                            </a>
                         @endforeach
 
                         @if ($openInvoices->isEmpty())

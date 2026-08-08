@@ -9,9 +9,9 @@ use App\Models\Payment;
 use App\Services\InvoiceGenerator;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
@@ -368,7 +368,15 @@ class InvoiceController extends Controller
                 'invoice_date' => $preview['invoice_date'],
                 'due_date' => $preview['due_date'],
                 'total_amount' => $preview['total_amount'],
-                'lines' => $preview['lines'],
+                'lines' => collect($preview['lines'])->map(fn (array $line) => [
+                    'type' => $line['type'],
+                    'name' => $line['name'],
+                    'quantity' => $line['quantity'],
+                    'unit' => $line['unit'],
+                    'unit_price' => $line['unit_price'],
+                    'amount' => $line['amount'],
+                    'note' => $line['note'],
+                ])->values(),
             ]);
         } catch (ValidationException $e) {
 
@@ -605,6 +613,7 @@ class InvoiceController extends Controller
             'invoice.contract.tenant',
             'invoice.room',
             'confirmer',
+            'submitter',
         ])->latest('payment_date');
 
         if ($request->filled('status')) {
@@ -867,6 +876,59 @@ class InvoiceController extends Controller
                 'success',
                 'Thanh toán thành công.'
             );
+    }
+
+    public function approvePayment(Payment $payment)
+    {
+        DB::transaction(function () use ($payment) {
+            $payment = Payment::lockForUpdate()->findOrFail($payment->id);
+
+            if (! $payment->isPending()) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Xác nhận thanh toán này đã được xử lý trước đó.',
+                ]);
+            }
+
+            $invoice = Invoice::lockForUpdate()->findOrFail($payment->invoice_id);
+            $remainingAmount = $invoice->remaining_amount;
+
+            if ((float) $payment->amount_paid > $remainingAmount) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Số tiền xác nhận vượt quá số tiền còn phải trả của hóa đơn.',
+                ]);
+            }
+
+            $payment->update([
+                'status' => Payment::STATUS_SUCCESS,
+                'confirmed_by' => auth()->id(),
+                'reviewed_at' => now(),
+                'review_note' => null,
+            ]);
+
+            $invoice->refreshStatus();
+        });
+
+        return back()->with('success', 'Đã duyệt xác nhận thanh toán.');
+    }
+
+    public function rejectPayment(Request $request, Payment $payment)
+    {
+        $data = $request->validate([
+            'review_note' => 'required|string|max:1000',
+        ]);
+
+        if (! $payment->isPending()) {
+            return back()->with('error', 'Xác nhận thanh toán này đã được xử lý trước đó.');
+        }
+
+        $payment->update([
+            'status' => Payment::STATUS_FAILED,
+            'confirmed_by' => auth()->id(),
+            'reviewed_at' => now(),
+            'review_note' => $data['review_note'],
+        ]);
+
+        return back()->with('success', 'Đã từ chối xác nhận thanh toán.');
     }
 
     /**

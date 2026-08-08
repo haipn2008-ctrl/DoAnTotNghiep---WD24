@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class TenantSeeder extends Seeder
@@ -12,6 +13,7 @@ class TenantSeeder extends Seeder
         $tenants = [
 
             [
+                'user_email' => 'user@gmail.com',
                 'full_name' => 'Nguyễn Văn A',
                 'date_of_birth' => '2000-05-15',
                 'gender' => 'male',
@@ -24,6 +26,7 @@ class TenantSeeder extends Seeder
             ],
 
             [
+                'user_email' => 'user2@gmail.com',
                 'full_name' => 'Trần Thị B',
                 'date_of_birth' => '2001-08-20',
                 'gender' => 'female',
@@ -36,6 +39,7 @@ class TenantSeeder extends Seeder
             ],
 
             [
+                'user_email' => 'user3@gmail.com',
                 'full_name' => 'Hoàng Văn C',
                 'date_of_birth' => '1999-12-01',
                 'gender' => 'male',
@@ -48,6 +52,7 @@ class TenantSeeder extends Seeder
             ],
 
             [
+                'user_email' => 'user4@gmail.com',
                 'full_name' => 'Lê Thị D',
                 'date_of_birth' => '2002-02-25',
                 'gender' => 'female',
@@ -62,10 +67,13 @@ class TenantSeeder extends Seeder
         ];
 
         foreach ($tenants as $tenant) {
+            $userEmail = $tenant['user_email'];
+            unset($tenant['user_email']);
+            $tenant['user_id'] = User::where('email', $userEmail)->value('id');
 
             Tenant::updateOrCreate(
                 [
-                    'cccd' => $tenant['cccd']
+                    'cccd' => $tenant['cccd'],
                 ],
                 $tenant
             );

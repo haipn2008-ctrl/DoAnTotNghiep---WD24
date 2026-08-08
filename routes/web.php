@@ -10,8 +10,9 @@ use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
 use App\Http\Controllers\Auth\LoginController;
-// Client routes
-use App\Http\Controllers\Client\ContractController as ClientContractController;
+use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
+use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
+use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Role;
@@ -38,7 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [LoginController::class, 'dashboard'])->name('dashboard');
 
     // Nhóm route dành riêng cho Admin
-    Route::prefix('admin')->name('admin.')->group(function () {
+    Route::prefix('admin')->name('admin.')->middleware('role:admin')->group(function () {
 
         Route::resource('users', UserController::class)->except(['show']);
 
@@ -130,6 +131,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
             ->name('invoices.payments.store');
 
+        Route::post('/invoices/payments/{payment}/approve', [InvoiceController::class, 'approvePayment'])
+            ->name('invoices.payments.approve');
+
+        Route::post('/invoices/payments/{payment}/reject', [InvoiceController::class, 'rejectPayment'])
+            ->name('invoices.payments.reject');
+
         Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
             ->name('invoices.print');
 
@@ -210,53 +217,12 @@ Route::middleware('auth')->group(function () {
         })->name('home');
     });
 
-    // Nhóm route dành cho Client (Người dùng thường)
-    Route::get('/client', function () {
-        $user = auth()->user()->load([
-            'tenant.contracts.room',
-            'tenant.contracts.invoices.room',
-        ]);
-
-        if ($user->role_id !== 2) {
-            return redirect()->route('dashboard');
-        }
-
-        $tenant = $user->tenant;
-        $activeContract = $tenant?->contracts
-            ->where('status', 'active')
-            ->sortByDesc('start_date')
-            ->first();
-
-        $invoices = $tenant
-            ? Invoice::with(['room', 'contract'])
-                ->whereHas('contract', function ($query) use ($tenant) {
-                    $query->where('tenant_id', $tenant->id);
-                })
-                ->latest()
-                ->get()
-            : collect();
-
-        $recentInvoice = $invoices->first();
-        $openInvoices = $invoices->whereIn('status', ['unpaid', 'partial']);
-        $supportRequests = 0;
-
-        return view('layouts.client.home', compact(
-            'tenant',
-            'activeContract',
-            'recentInvoice',
-            'openInvoices',
-            'supportRequests'
-        ));
-    })->name('client.home');
-
-    // Route::prefix('client')
-    // ->name('client.')
-    // ->middleware(['auth'])
-    // ->group(function () {
-
-    //     Route::get('/contract',
-    //         [ClientContractController::class, 'show'])
-    //         ->name('contract.show');
-
-    // });
+    Route::prefix('client')->name('client.')->middleware('role:client')->group(function () {
+        Route::get('/', [ClientDashboardController::class, 'index'])->name('home');
+        Route::get('/invoices', [ClientInvoiceController::class, 'index'])->name('invoices.index');
+        Route::get('/invoices/{invoice}', [ClientInvoiceController::class, 'show'])->name('invoices.show');
+        Route::get('/invoices/{invoice}/print', [ClientInvoiceController::class, 'print'])->name('invoices.print');
+        Route::post('/invoices/{invoice}/payments', [ClientInvoiceController::class, 'storePayment'])->name('invoices.payments.store');
+        Route::get('/utilities', [ClientUtilityController::class, 'index'])->name('utilities.index');
+    });
 });

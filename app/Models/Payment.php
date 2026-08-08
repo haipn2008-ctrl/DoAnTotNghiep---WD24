@@ -47,7 +47,15 @@ class Payment extends Model
 
         'status',
 
+        'submitted_by',
+
+        'proof_image',
+
         'confirmed_by',
+
+        'reviewed_at',
+
+        'review_note',
 
         'note',
 
@@ -61,6 +69,8 @@ class Payment extends Model
         'payment_date' => 'date',
 
         'amount_paid' => 'decimal:2',
+
+        'reviewed_at' => 'datetime',
 
     ];
 
@@ -84,6 +94,11 @@ class Payment extends Model
     public function confirmer()
     {
         return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
+    public function submitter()
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
     }
 
     /*

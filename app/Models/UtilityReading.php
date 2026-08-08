@@ -7,12 +7,18 @@ use Illuminate\Database\Eloquent\Model;
 class UtilityReading extends Model
 {
     protected $fillable = [
-        'room_id', 'month', 'year', 
-        'electricity_old', 'electricity_new', 
+        'room_id', 'month', 'year',
+        'record_date',
+        'electricity_old', 'electricity_new',
         'electricity_image',
         'water_old', 'water_new',
         'water_image',
-        'status'
+        'status',
+        'note',
+    ];
+
+    protected $casts = [
+        'record_date' => 'date',
     ];
 
     // Lấy thông tin phòng tương ứng
@@ -25,13 +31,15 @@ class UtilityReading extends Model
     {
         return $this->hasOne(Invoice::class);
     }
-    
+
     // Hàm phụ trợ tính số lượng tiêu thụ
-    public function getElectricityUsageAttribute() {
+    public function getElectricityUsageAttribute()
+    {
         return $this->electricity_new - $this->electricity_old;
     }
 
-    public function getWaterUsageAttribute() {
+    public function getWaterUsageAttribute()
+    {
         return $this->water_new - $this->water_old;
     }
 }

@@ -52,9 +52,7 @@
                             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                                 <tr>
                                     <th class="px-5 py-3">Khoản thu</th>
-                                    <th class="px-5 py-3 text-center">Chỉ số cũ</th>
-                                    <th class="px-5 py-3 text-center">Chỉ số mới</th>
-                                    <th class="px-5 py-3 text-center">Số lượng</th>
+                                    <th class="px-5 py-3 text-center">Đã sử dụng</th>
                                     <th class="px-5 py-3 text-right">Đơn giá</th>
                                     <th class="px-5 py-3 text-right">Thành tiền</th>
                                 </tr>
@@ -68,9 +66,7 @@
                                                 <p class="mt-1 text-xs text-slate-500">{{ $detail->note }}</p>
                                             @endif
                                         </td>
-                                        <td class="px-5 py-4 text-center text-slate-600">{{ $detail->old_index ?? '-' }}</td>
-                                        <td class="px-5 py-4 text-center text-slate-600">{{ $detail->new_index ?? '-' }}</td>
-                                        <td class="px-5 py-4 text-center text-slate-600">{{ number_format($detail->quantity, 0, ',', '.') }} {{ $detail->unit }}</td>
+                                        <td class="px-5 py-4 text-center font-medium text-slate-700">{{ number_format($detail->quantity, 0, ',', '.') }} {{ $detail->unit }}</td>
                                         <td class="px-5 py-4 text-right text-slate-600">{{ number_format($detail->unit_price, 0, ',', '.') }}đ</td>
                                         <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($detail->amount, 0, ',', '.') }}đ</td>
                                     </tr>
@@ -78,7 +74,7 @@
                             </tbody>
                             <tfoot class="bg-slate-50">
                                 <tr>
-                                    <th colspan="5" class="px-5 py-4 text-right font-semibold text-slate-700">Tổng cộng</th>
+                                    <th colspan="3" class="px-5 py-4 text-right font-semibold text-slate-700">Tổng cộng</th>
                                     <th class="px-5 py-4 text-right text-lg font-bold text-emerald-700">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</th>
                                 </tr>
                             </tfoot>
