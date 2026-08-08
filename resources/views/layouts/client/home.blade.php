@@ -26,7 +26,7 @@
                         Cổng khách thuê giúp bạn xem nhanh hợp đồng, hóa đơn, chỉ số điện nước và thông báo từ ban quản lý.
                     </p>
                 </div>
-                <a href="#support" class="inline-flex h-11 w-fit items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">
+                <a href="{{ route('client.support.index') }}" class="inline-flex h-11 w-fit items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">
                     Gửi yêu cầu hỗ trợ
                 </a>
             </div>
@@ -40,15 +40,15 @@
         @endunless
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <a href="{{ route('client.room.show') }}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-indigo-200">
                 <p class="text-sm font-medium text-slate-500">Phòng hiện tại</p>
                 <p class="mt-3 text-2xl font-bold text-slate-950">{{ $activeContract?->room?->room_code ?? 'Chưa có' }}</p>
                 <p class="mt-1 text-xs text-slate-500">
                     {{ $activeContract ? 'Đang thuê theo hợp đồng ' . $activeContract->contract_code : 'Chưa có hợp đồng đang hiệu lực.' }}
                 </p>
-            </div>
+            </a>
 
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <a href="{{ route('client.contracts.index') }}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-indigo-200">
                 <p class="text-sm font-medium text-slate-500">Hợp đồng</p>
                 <p class="mt-3 text-2xl font-bold {{ $activeContract ? 'text-emerald-600' : 'text-slate-950' }}">
                     {{ $activeContract ? 'Hiệu lực' : 'Chưa có' }}
@@ -60,7 +60,7 @@
                         Thông tin hợp đồng sẽ hiển thị khi được ban quản lý tạo.
                     @endif
                 </p>
-            </div>
+            </a>
 
             <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <p class="text-sm font-medium text-slate-500">Hóa đơn gần nhất</p>
@@ -130,6 +130,7 @@
                     <p class="mt-1 text-sm text-slate-500">Liên hệ ban quản lý khi cần xử lý vấn đề phát sinh.</p>
                 </div>
                 <div class="space-y-3 p-5 text-sm">
+                    <a href="{{ route('client.support.index') }}" class="block rounded-lg bg-indigo-50 p-4 font-semibold text-indigo-700">Gửi và theo dõi yêu cầu hỗ trợ →</a>
                     <div class="rounded-lg bg-slate-50 p-4">
                         <p class="font-semibold text-slate-950">Hotline</p>
                         <p class="mt-1 text-slate-500">1900 xxxx</p>

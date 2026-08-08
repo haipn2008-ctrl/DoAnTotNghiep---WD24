@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Models\SupportRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
@@ -34,8 +35,9 @@ class DashboardController extends Controller
             Invoice::STATUS_PARTIAL,
         ]);
 
-        // Sẽ được thay bằng dữ liệu thật khi triển khai chức năng hỗ trợ ở bước 6.
-        $supportRequests = 0;
+        $supportRequests = SupportRequest::where('user_id', $request->user()->id)
+            ->whereIn('status', [SupportRequest::STATUS_NEW, SupportRequest::STATUS_IN_PROGRESS])
+            ->count();
 
         return view('layouts.client.home', compact(
             'tenant',

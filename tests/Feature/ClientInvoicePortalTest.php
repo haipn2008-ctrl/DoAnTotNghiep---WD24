@@ -7,11 +7,13 @@ use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
+use App\Models\SupportRequest;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -171,6 +173,109 @@ class ClientInvoicePortalTest extends TestCase
             ->assertDontSeeText('888 kWh')
             ->assertDontSee('Chỉ số cũ')
             ->assertDontSee('Chỉ số mới');
+    }
+
+    public function test_client_only_sees_their_own_room_and_contracts(): void
+    {
+        [$client, $ownContract, $ownRoom] = $this->createClientContext('PORTAL');
+        [, $otherContract, $otherRoom] = $this->createClientContext('PORTALOTHER');
+
+        $this->actingAs($client)
+            ->get('/client/room')
+            ->assertSuccessful()
+            ->assertSee($ownRoom->room_code)
+            ->assertDontSee($otherRoom->room_code);
+
+        $this->actingAs($client)
+            ->get('/client/contracts')
+            ->assertSuccessful()
+            ->assertSee($ownContract->contract_code)
+            ->assertDontSee($otherContract->contract_code);
+
+        $this->actingAs($client)
+            ->get('/client/contracts/'.$otherContract->id)
+            ->assertNotFound();
+    }
+
+    public function test_support_request_can_be_sent_reviewed_and_seen_only_by_its_owner(): void
+    {
+        Storage::fake('public');
+        [$client, $contract] = $this->createClientContext('SUPPORT');
+        [$otherClient] = $this->createClientContext('SUPPORTOTHER');
+
+        $this->actingAs($client)
+            ->post('/client/support', [
+                'category' => 'utility',
+                'subject' => 'Điện tăng bất thường',
+                'description' => 'Nhờ ban quản lý kiểm tra lại mức sử dụng.',
+                'attachment' => UploadedFile::fake()->image('meter.jpg'),
+            ])
+            ->assertRedirect();
+
+        $supportRequest = SupportRequest::firstOrFail();
+        $this->assertSame($client->id, $supportRequest->user_id);
+        $this->assertSame($contract->id, $supportRequest->contract_id);
+        Storage::disk('public')->assertExists($supportRequest->attachment);
+
+        $this->actingAs($otherClient)
+            ->get('/client/support')
+            ->assertSuccessful()
+            ->assertDontSee('Điện tăng bất thường');
+
+        $adminRole = Role::create(['role_name' => 'Admin']);
+        $admin = User::create([
+            'name' => 'Admin hỗ trợ',
+            'email' => 'support-admin@example.com',
+            'phone' => '0988888888',
+            'role_id' => $adminRole->id,
+            'password' => 'password',
+        ]);
+        $this->actingAs($admin)
+            ->get('/admin/support')
+            ->assertSuccessful()
+            ->assertSee('Điện tăng bất thường');
+
+        $this->actingAs($admin)
+            ->put('/admin/support/'.$supportRequest->id, [
+                'status' => 'resolved',
+                'admin_response' => 'Đã kiểm tra và xác nhận chỉ số đúng.',
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($client)
+            ->get('/client/support')
+            ->assertSuccessful()
+            ->assertSee('Điện tăng bất thường')
+            ->assertSee('Đã kiểm tra và xác nhận chỉ số đúng.');
+    }
+
+    public function test_client_can_update_contact_information_and_password(): void
+    {
+        [$client] = $this->createClientContext('ACCOUNT');
+
+        $this->actingAs($client)
+            ->put('/client/account', [
+                'name' => 'Tên mới',
+                'email' => 'new-account@example.com',
+                'phone' => '0912345678',
+            ])
+            ->assertRedirect();
+
+        $client->refresh();
+        $this->assertSame('Tên mới', $client->name);
+        $this->assertSame('new-account@example.com', $client->email);
+        $this->assertSame('new-account@example.com', $client->tenant->email);
+        $this->assertSame('0912345678', $client->tenant->phone);
+
+        $this->actingAs($client)
+            ->put('/client/account/password', [
+                'current_password' => 'password',
+                'password' => 'new-password-123',
+                'password_confirmation' => 'new-password-123',
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue(Hash::check('new-password-123', $client->fresh()->password));
     }
 
     private function createClientContext(string $suffix): array

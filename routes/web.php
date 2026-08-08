@@ -6,12 +6,17 @@ use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SupportController as AdminSupportController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Client\AccountController as ClientAccountController;
+use App\Http\Controllers\Client\ContractController as ClientContractController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
+use App\Http\Controllers\Client\RoomController as ClientRoomController;
+use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Models\Contract;
 use App\Models\Invoice;
@@ -167,6 +172,9 @@ Route::middleware('auth')->group(function () {
             ->where('type', 'electricity|water|internet|service')
             ->name('settings.update');
 
+        Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');
+        Route::put('/support/{supportRequest}', [AdminSupportController::class, 'update'])->name('support.update');
+
         Route::get('/roles', function () {
             $user = auth()->user();
 
@@ -224,5 +232,13 @@ Route::middleware('auth')->group(function () {
         Route::get('/invoices/{invoice}/print', [ClientInvoiceController::class, 'print'])->name('invoices.print');
         Route::post('/invoices/{invoice}/payments', [ClientInvoiceController::class, 'storePayment'])->name('invoices.payments.store');
         Route::get('/utilities', [ClientUtilityController::class, 'index'])->name('utilities.index');
+        Route::get('/room', [ClientRoomController::class, 'show'])->name('room.show');
+        Route::get('/contracts', [ClientContractController::class, 'index'])->name('contracts.index');
+        Route::get('/contracts/{contract}', [ClientContractController::class, 'show'])->name('contracts.show');
+        Route::get('/support', [ClientSupportController::class, 'index'])->name('support.index');
+        Route::post('/support', [ClientSupportController::class, 'store'])->name('support.store');
+        Route::get('/account', [ClientAccountController::class, 'edit'])->name('account.edit');
+        Route::put('/account', [ClientAccountController::class, 'update'])->name('account.update');
+        Route::put('/account/password', [ClientAccountController::class, 'updatePassword'])->name('account.password.update');
     });
 });

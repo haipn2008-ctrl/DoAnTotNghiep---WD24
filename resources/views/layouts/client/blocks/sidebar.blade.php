@@ -1,11 +1,12 @@
 @php
     $menuItems = [
         ['label' => 'Tổng quan', 'href' => route('client.home'), 'active' => request()->routeIs('client.home'), 'icon' => '⌂'],
-        ['label' => 'Phòng của tôi', 'href' => '#room', 'active' => false, 'icon' => '□'],
-        ['label' => 'Hợp đồng', 'href' => '#contract', 'active' => false, 'icon' => '≡'],
+        ['label' => 'Phòng của tôi', 'href' => route('client.room.show'), 'active' => request()->routeIs('client.room.*'), 'icon' => '□'],
+        ['label' => 'Hợp đồng', 'href' => route('client.contracts.index'), 'active' => request()->routeIs('client.contracts.*'), 'icon' => '≡'],
         ['label' => 'Điện nước', 'href' => route('client.utilities.index'), 'active' => request()->routeIs('client.utilities.*'), 'icon' => '↯'],
         ['label' => 'Hóa đơn', 'href' => route('client.invoices.index'), 'active' => request()->routeIs('client.invoices.*'), 'icon' => '₫'],
-        ['label' => 'Hỗ trợ', 'href' => '#support', 'active' => false, 'icon' => '?'],
+        ['label' => 'Hỗ trợ', 'href' => route('client.support.index'), 'active' => request()->routeIs('client.support.*'), 'icon' => '?'],
+        ['label' => 'Tài khoản', 'href' => route('client.account.edit'), 'active' => request()->routeIs('client.account.*'), 'icon' => '○'],
     ];
 @endphp
 
