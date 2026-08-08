@@ -44,4 +44,22 @@ class User extends Authenticatable
     {
         return $this->hasOne(Tenant::class);
     }
+
+    public function hasRole(string ...$roles): bool
+    {
+        $roleName = strtolower((string) $this->role?->role_name);
+        $roles = array_map('strtolower', $roles);
+
+        return in_array($roleName, $roles, true);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin');
+    }
+
+    public function isClient(): bool
+    {
+        return $this->hasRole('user', 'client');
+    }
 }

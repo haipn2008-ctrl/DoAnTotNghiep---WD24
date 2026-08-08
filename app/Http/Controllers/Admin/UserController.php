@@ -13,7 +13,7 @@ class UserController extends Controller
 {
     protected function adminOnly(): void
     {
-        if (! Auth::check() || Auth::user()->role_id !== 1) {
+        if (! Auth::check() || ! Auth::user()->isAdmin()) {
             abort(403);
         }
     }

@@ -124,6 +124,41 @@ class ClientInvoicePortalTest extends TestCase
         $this->assertDatabaseCount('payments', 0);
     }
 
+    public function test_admin_can_reject_client_payment_without_reducing_invoice_balance(): void
+    {
+        [$client, $contract, $room] = $this->createClientContext('REJECTPAY');
+        $invoice = $this->createInvoice($contract, $room, 'INV-REJECT');
+        $payment = Payment::create([
+            'invoice_id' => $invoice->id,
+            'amount_paid' => 500000,
+            'payment_date' => '2026-07-09',
+            'payment_method' => 'bank_transfer',
+            'transaction_code' => 'REJECT-001',
+            'status' => Payment::STATUS_PENDING,
+            'submitted_by' => $client->id,
+        ]);
+        $adminRole = Role::create(['role_name' => 'Admin']);
+        $admin = User::create([
+            'name' => 'Admin từ chối',
+            'email' => 'reject-admin@example.com',
+            'phone' => '0977777777',
+            'role_id' => $adminRole->id,
+            'password' => 'password',
+        ]);
+
+        $this->actingAs($admin)
+            ->post('/admin/invoices/payments/'.$payment->id.'/reject', [
+                'review_note' => 'Không tìm thấy giao dịch tương ứng.',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(Payment::STATUS_FAILED, $payment->fresh()->status);
+        $this->assertSame(Invoice::STATUS_UNPAID, $invoice->fresh()->status);
+        $this->actingAs($client)
+            ->get('/client/invoices/'.$invoice->id)
+            ->assertSee('Không tìm thấy giao dịch tương ứng.');
+    }
+
     public function test_client_only_sees_utility_usage_within_their_own_contract_periods(): void
     {
         [$client, $contract, $room] = $this->createClientContext('UTILITY');

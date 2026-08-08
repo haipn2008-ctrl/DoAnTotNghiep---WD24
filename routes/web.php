@@ -176,24 +176,12 @@ Route::middleware('auth')->group(function () {
         Route::put('/support/{supportRequest}', [AdminSupportController::class, 'update'])->name('support.update');
 
         Route::get('/roles', function () {
-            $user = auth()->user();
-
-            if ($user->role_id !== 1) {
-                return redirect()->route('dashboard');
-            }
-
             $roles = Role::all();
 
             return view('admin.roles.index', compact('roles'));
         })->name('roles');
 
         Route::get('/', function () {
-            $user = auth()->user();
-
-            if ($user->role_id !== 1) {
-                return redirect()->route('dashboard');
-            }
-
             $currentMonth = now()->month;
             $currentYear = now()->year;
 

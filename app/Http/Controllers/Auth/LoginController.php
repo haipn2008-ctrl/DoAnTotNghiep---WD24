@@ -20,8 +20,7 @@ class LoginController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        if (Auth::attempt($credentials, $request->boolean('remember')))
-        {
+        if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
             return redirect()->intended(route('dashboard'));
@@ -46,11 +45,11 @@ class LoginController extends Controller
     {
         $user = Auth::user();
 
-        if ($user->role_id === 1) {
+        if ($user->isAdmin()) {
             return redirect()->route('admin.home');
         }
 
-        if ($user->role_id === 2) {
+        if ($user->isClient()) {
             return redirect()->route('client.home');
         }
 

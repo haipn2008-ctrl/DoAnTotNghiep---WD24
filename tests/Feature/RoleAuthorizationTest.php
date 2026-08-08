@@ -45,6 +45,17 @@ class RoleAuthorizationTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_dashboard_redirects_each_role_to_the_correct_portal(): void
+    {
+        $this->actingAs($this->createUser(User::ROLE_ADMIN, 'admin-dashboard@example.com'))
+            ->get('/dashboard')
+            ->assertRedirect('/admin');
+
+        $this->actingAs($this->createUser(User::ROLE_CLIENT, 'client-dashboard@example.com'))
+            ->get('/dashboard')
+            ->assertRedirect('/client');
+    }
+
     private function createUser(int $roleId, string $email): User
     {
         return User::create([
