@@ -176,6 +176,7 @@
                             id="editDeposit"
                             class="form-control"
                             value=""
+                            readonly
                             required>
 
                         <span class="input-group-text">
@@ -220,21 +221,36 @@
                     </h6>
 
                     <small class="text-muted">
-                        PNG • JPG • JPEG
+                        PNG • JPG • JPEG • WEBP
                     </small>
 
                     <input
                         hidden
                         type="file"
-                        accept="image/*"
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
                         id="editContractImage"
                         name="contract_image">
+
+                    <div
+                        id="editCurrentImageWrap"
+                        style="display:none; width:100%; margin-top:15px;">
+
+                        <div class="small text-muted mb-2">
+                            Ảnh hợp đồng hiện tại
+                        </div>
+
+                        <img
+                            id="editCurrentImage"
+                            src=""
+                            alt="Ảnh hợp đồng hiện tại"
+                            style="display:block; width:100%; max-height:300px; object-fit:contain; border:1px solid #dee2e6; border-radius:10px; padding:5px;">
+                    </div>
 
                     <img
                         id="editPreviewImage"
                         src=""
-                        style="display:none"
-                        alt="preview">
+                        style="display:none; width:100%; max-height:300px; object-fit:contain; border:1px solid #198754; border-radius:10px; padding:5px; margin-top:15px;"
+                        alt="Ảnh hợp đồng mới">
 
                 </div>
 
