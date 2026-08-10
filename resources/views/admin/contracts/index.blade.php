@@ -167,12 +167,6 @@
         </option>
 
         <option
-            value="{{ \App\Models\Contract::STATUS_EXPIRED }}"
-            {{ request('status') == \App\Models\Contract::STATUS_EXPIRED ? 'selected' : '' }}>
-            Hết hạn
-        </option>
-
-        <option
             value="{{ \App\Models\Contract::STATUS_TERMINATED }}"
             {{ request('status') == \App\Models\Contract::STATUS_TERMINATED ? 'selected' : '' }}>
             Đã chấm dứt
@@ -236,14 +230,6 @@ href="{{ route('admin.contracts.index',['status'=>\App\Models\Contract::STATUS_A
 class="btn btn-sm {{ request('status')==\App\Models\Contract::STATUS_ACTIVE?'btn-success':'btn-outline-success' }}">
 
 Hoạt động
-
-</a>
-
-<a
-href="{{ route('admin.contracts.index',['status'=>\App\Models\Contract::STATUS_EXPIRED]) }}"
-class="btn btn-sm {{ request('status')==\App\Models\Contract::STATUS_EXPIRED?'btn-danger':'btn-outline-danger' }}">
-
-Hết hạn
 
 </a>
 
@@ -500,7 +486,7 @@ Tạo ngày
             data-status="{{ $contract->status }}"
             data-content="{{ e($contract->contract_content) }}"
             data-note="{{ $contract->note }}"
-            data-image="{{ $contract->contract_file ? asset($contract->contract_file) : '' }}"
+            data-image="{{ $contract->contract_file ? asset('storage/' . ltrim($contract->contract_file, '/')) : '' }}"
 
             data-bs-toggle="modal"
             data-bs-target="#editContractModal"
@@ -595,9 +581,6 @@ Tạo ngày
 
 @include('admin.contracts.modal.extend-modal')
 @include('admin.contracts.modal.terminate-modal')
-@include('admin.contracts.modal.return-deposit-modal')
-
-@include('admin.contracts.modal.recall-modal')
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
