@@ -94,19 +94,32 @@ class RoomRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             /** @var Room|null $room */
             $room = $this->route('room');
-            $hasActiveContract = $room?->activeContract()->exists() ?? false;
 
-            if ($this->input('status') === Room::STATUS_OCCUPIED && ! $hasActiveContract) {
-                $validator->errors()->add('status', 'Chỉ hợp đồng đang hoạt động mới được chuyển phòng sang trạng thái đang thuê.');
+            $hasActiveContract = $room?->currentContract()->exists() ?? false;
+
+            if (
+                $this->input('status') === Room::STATUS_OCCUPIED
+                && ! $hasActiveContract
+            ) {
+                $validator->errors()->add(
+                    'status',
+                    'Chỉ hợp đồng đang hoạt động mới được chuyển phòng sang trạng thái đang thuê.'
+                );
             }
 
             if ($hasActiveContract) {
                 if ($this->input('status') !== Room::STATUS_OCCUPIED) {
-                    $validator->errors()->add('status', 'Phòng có hợp đồng đang hoạt động phải ở trạng thái đang thuê.');
+                    $validator->errors()->add(
+                        'status',
+                        'Phòng có hợp đồng đang hoạt động phải ở trạng thái đang thuê.'
+                    );
                 }
 
                 if ((int) $this->input('current_people') < 1) {
-                    $validator->errors()->add('current_people', 'Phòng có hợp đồng đang hoạt động phải có ít nhất một người.');
+                    $validator->errors()->add(
+                        'current_people',
+                        'Phòng có hợp đồng đang hoạt động phải có ít nhất một người.'
+                    );
                 }
             }
         });

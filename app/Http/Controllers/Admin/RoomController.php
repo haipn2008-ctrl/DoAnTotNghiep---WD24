@@ -190,23 +190,37 @@ class RoomController extends Controller
     public function destroy(Room $room)
     {
         $image = $room->thumbnail;
-        $hasActiveContract = DB::transaction(function () use ($room) {
-            $lockedRoom = Room::query()->lockForUpdate()->findOrFail($room->id);
 
-            if ($lockedRoom->contracts()->exists() || $lockedRoom->utilityReadings()->exists()) {
-                return true;
-            }
-
-            $lockedRoom->delete();
-
-            return false;
-        });
+        $hasActiveContract = $room->activeContract()->exists();
 
         if ($hasActiveContract) {
             return redirect()
                 ->route('admin.rooms.index')
-                ->with('error', 'Không thể xóa phòng đang có người thuê');
+                ->with(
+                    'error',
+                    'Không thể xóa phòng đang có hợp đồng hoạt động.'
+                );
         }
+
+        if ($room->utilityReadings()->exists()) {
+            return redirect()
+                ->route('admin.rooms.index')
+                ->with(
+                    'error',
+                    'Không thể xóa phòng vì đã có dữ liệu điện nước.'
+                );
+        }
+
+        if ($room->contracts()->exists()) {
+            return redirect()
+                ->route('admin.rooms.index')
+                ->with(
+                    'error',
+                    'Không thể xóa phòng vì phòng đã có lịch sử hợp đồng.'
+                );
+        }
+
+        $room->delete();
 
         if ($image) {
             Storage::disk('public')->delete($image);

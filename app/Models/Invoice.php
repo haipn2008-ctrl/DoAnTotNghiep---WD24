@@ -25,12 +25,13 @@ class Invoice extends Model
     */
 
     protected $fillable = [
-
+        
         'contract_id',
 
         'invoice_code',
 
         'room_id',
+
         'utility_reading_id',
 
         'month',
@@ -52,9 +53,10 @@ class Invoice extends Model
         'service_fee',
 
         'total_amount',
-
+        
         'status',
-
+         
+        'invoice_type',
     ];
 
     /*

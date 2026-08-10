@@ -3,6 +3,7 @@
 @section('title', 'Bảng điều khiển | Quản lý phòng trọ')
 @section('page_title', 'Bảng điều khiển quản lý phòng trọ')
 
+
 @php
     $roomTotal = max((int) ($stats['total_rooms'] ?? 0), 1);
     $fillRate = round((($stats['occupied_rooms'] ?? 0) / $roomTotal) * 100);

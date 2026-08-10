@@ -13,13 +13,23 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    const STATUS_PENDING = 'pending';
+    const STATUS_DRAFT = 'draft';
+
+    const STATUS_PENDING_SIGNATURE = 'pending_signature';
+
+    const STATUS_SIGNED = 'signed';
+
+    const STATUS_DEPOSIT_PAID = 'deposit_paid';
 
     const STATUS_ACTIVE = 'active';
 
     const STATUS_EXPIRED = 'expired';
 
     const STATUS_TERMINATED = 'terminated';
+
+    // const STATUS_DEPOSIT_RETURNED = 'deposit_returned';
+
+    const STATUS_COMPLETED = 'completed';
 
     /*
     |--------------------------------------------------------------------------
@@ -28,11 +38,16 @@ class Contract extends Model
     */
 
     const DEPOSIT_PENDING = 'pending';
-
     const DEPOSIT_PAID = 'paid';
 
-    const DEPOSIT_RETURNED = 'returned';
+    const DEPOSIT_REFUND_REQUESTED = 'refund_requested';
+    const DEPOSIT_REFUND_APPROVED = 'refund_approved';
+    const DEPOSIT_REFUND_REJECTED = 'refund_rejected';
+    const DEPOSIT_REFUND_PROCESSING = 'refund_processing';
 
+    const DEPOSIT_RETURNED = 'returned';
+    const DEPOSIT_PARTIAL = 'partial_returned';
+    const DEPOSIT_FORFEITED = 'forfeited';
     /**
      * Các trường được phép ghi dữ liệu
      */
@@ -49,11 +64,32 @@ class Contract extends Model
         'deposit_amount',
         'deposit_status',
         'deposit_paid_at',
-
+        'deposit_process_type',
+        'deposit_refund_amount',
+        'deposit_deduction_amount',
+        'deposit_processed_at',
+        'deposit_process_reason',
+        'deposit_process_note',
+        'deposit_bank_name',
+        'deposit_bank_account_number',
+        'deposit_bank_account_name',
+        'deposit_qr_image',
+        'deposit_refund_requested_at',
+        'deposit_refund_approved_at',
+        'deposit_transfer_amount',
+        'deposit_transferred_at',
+        'deposit_transfer_proof',
+        'deposit_damage_proof',
+        'deposit_admin_note',
+        
         'number_of_people',
 
         'signed_at',
-
+        'tenant_signature',
+        'planned_move_in_date',
+        'move_in_date',
+        'move_in_confirmed_at',
+        'move_in_confirmed_by',
         'start_date',
         'end_date',
         'actual_end_date',
@@ -71,6 +107,8 @@ class Contract extends Model
 
         'contract_file',
 
+        'contract_content',
+
         'status',
 
         'note',
@@ -81,17 +119,29 @@ class Contract extends Model
      */
     protected $casts = [
 
-        'signed_at' => 'datetime',
-        'deposit_paid_at' => 'datetime',
-        'extended_at' => 'datetime',
-        'terminated_at' => 'datetime',
+        'signed_at'         => 'datetime',
+        'planned_move_in_date' => 'date',
+        'move_in_date'      => 'date',
+        'move_in_confirmed_at' => 'datetime',
 
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'actual_end_date' => 'date',
+        'deposit_paid_at'   => 'datetime',
+        'deposit_processed_at' => 'datetime',
+        'deposit_refund_amount' => 'decimal:2',
+        'deposit_deduction_amount' => 'decimal:2',
+        'deposit_refund_requested_at' => 'datetime',
+        'deposit_refund_approved_at' => 'datetime',
+        'deposit_transfer_amount' => 'decimal:2',
+        'deposit_transferred_at' => 'datetime',
+
+        'extended_at'       => 'datetime',
+        'terminated_at'     => 'datetime',
+
+        'start_date'        => 'date',
+        'end_date'          => 'date',
+        'actual_end_date'   => 'date',
 
         'extend_start_date' => 'date',
-        'extend_end_date' => 'date',
+        'extend_end_date'   => 'date',
     ];
 
     /*
@@ -118,6 +168,14 @@ class Contract extends Model
         );
     }
 
+    public function moveInConfirmedBy()
+    {
+        return $this->belongsTo(
+            User::class,
+            'move_in_confirmed_by'
+        );
+    }
+
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
@@ -125,7 +183,7 @@ class Contract extends Model
 
     public function utilityReadings()
     {
-        return $this->hasMany(UtilityReading::class, 'room_id', 'room_id');
+        return $this->hasMany(UtilityReading::class);
     }
 
     public function payments()
@@ -135,6 +193,12 @@ class Contract extends Model
             Invoice::class
         );
     }
+    public function histories()
+    {
+        return $this->hasMany(ContractHistory::class)
+            ->latest();
+    }
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -142,9 +206,19 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function scopePending($query)
+    public function scopeDraft($query)
     {
-        return $query->where('status', self::STATUS_PENDING);
+        return $query->where('status', self::STATUS_DRAFT);
+    }
+
+    public function scopePendingSignature($query)
+    {
+        return $query->where('status', self::STATUS_PENDING_SIGNATURE);
+    }
+
+    public function scopeSigned($query)
+    {
+        return $query->where('status', self::STATUS_SIGNED);
     }
 
     public function scopeActive($query)
@@ -161,6 +235,15 @@ class Contract extends Model
     {
         return $query->where('status', self::STATUS_TERMINATED);
     }
+    public function scopeDepositPaid($query)
+    {
+        return $query->where('status', self::STATUS_DEPOSIT_PAID);
+    }
+
+    // public function scopeDepositReturned($query)
+    // {
+    //     return $query->where('status', self::STATUS_DEPOSIT_RETURNED);
+    // }
 
     /*
     |--------------------------------------------------------------------------
@@ -168,10 +251,37 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function isPending()
+    public function isDraft()
     {
-        return $this->status === self::STATUS_PENDING;
+        return $this->status === self::STATUS_DRAFT;
     }
+
+    public function isPendingSignature()
+    {
+        return $this->status === self::STATUS_PENDING_SIGNATURE;
+    }
+
+    public function isSigned()
+    {
+        return $this->status === self::STATUS_SIGNED;
+    }
+
+    public function isMoveInConfirmed(): bool
+    {
+        return !empty($this->move_in_date)
+            && !empty($this->move_in_confirmed_at)
+            && !empty($this->move_in_confirmed_by);
+    }
+
+    public function isDepositPaidStatus()
+    {
+        return $this->status === self::STATUS_DEPOSIT_PAID;
+    }
+
+    // public function isDepositReturnedStatus()
+    // {
+    //     return $this->status === self::STATUS_DEPOSIT_RETURNED;
+    // }
 
     public function isActive()
     {
@@ -187,6 +297,7 @@ class Contract extends Model
     {
         return $this->status === self::STATUS_TERMINATED;
     }
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -231,7 +342,7 @@ class Contract extends Model
         return $this->status === self::STATUS_ACTIVE;
     }
 
-    public function canExtend()
+    public function canExtend(): bool
     {
         return in_array($this->status, [
             self::STATUS_ACTIVE,
@@ -243,6 +354,58 @@ class Contract extends Model
     {
         return $this->status === self::STATUS_ACTIVE;
     }
+        
+    public function canActivate()
+    {
+        return $this->status === self::STATUS_DEPOSIT_PAID;
+    }
+    public function canReturnDeposit(): bool
+    {
+        return $this->status === self::STATUS_TERMINATED
+            && in_array($this->deposit_status, [
+                self::DEPOSIT_REFUND_REQUESTED,
+                self::DEPOSIT_REFUND_APPROVED,
+                self::DEPOSIT_REFUND_PROCESSING,
+            ], true);
+    }
+
+    public function canRequestDepositRefund(): bool
+    {
+        return $this->status === self::STATUS_TERMINATED
+            && in_array($this->deposit_status, [
+                self::DEPOSIT_PAID,
+                self::DEPOSIT_REFUND_REJECTED,
+            ], true);
+    }
+
+    public function isRefundRequested(): bool
+    {
+        return $this->deposit_status === self::DEPOSIT_REFUND_REQUESTED;
+    }
+
+    public function isRefundApproved(): bool
+    {
+        return $this->deposit_status === self::DEPOSIT_REFUND_APPROVED;
+    }
+
+    public function isRefundCompleted(): bool
+    {
+        return in_array($this->deposit_status, [
+            self::DEPOSIT_RETURNED,
+            self::DEPOSIT_PARTIAL,
+            self::DEPOSIT_FORFEITED,
+        ], true);
+    }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED;
+    }
+
+    public function canEdit()
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -250,6 +413,21 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
+    public function getStatusTextAttribute()
+    {
+        return match ($this->status) {
+            self::STATUS_DRAFT => 'Bản nháp',
+            self::STATUS_PENDING_SIGNATURE => 'Chờ ký',
+            self::STATUS_SIGNED => 'Đã ký',
+            self::STATUS_DEPOSIT_PAID => 'Đã thanh toán cọc',
+            self::STATUS_ACTIVE => 'Đang hoạt động',
+            self::STATUS_EXPIRED => 'Hết hạn',
+            self::STATUS_TERMINATED => 'Đã kết thúc',
+            // self::STATUS_DEPOSIT_RETURNED => 'Đã hoàn cọc',
+            self::STATUS_COMPLETED => 'Hoàn tất',
+            default => 'Không xác định',
+        };
+    }
     public function getDurationAttribute()
     {
         return $this->start_date->diffInMonths($this->end_date);
@@ -266,5 +444,24 @@ class Contract extends Model
     public function isOverExpired()
     {
         return now()->greaterThan($this->end_date);
+    }
+    public function extensionRequests()
+    {
+        return $this->hasMany(ContractExtensionRequest::class);
+    }
+    public function getDepositStatusTextAttribute(): string
+    {
+        return match ($this->deposit_status) {
+            self::DEPOSIT_PENDING => 'Chưa đóng cọc',
+            self::DEPOSIT_PAID => 'Đã đóng cọc',
+            self::DEPOSIT_REFUND_REQUESTED => 'Chờ duyệt hoàn cọc',
+            self::DEPOSIT_REFUND_APPROVED => 'Đã duyệt hoàn cọc',
+            self::DEPOSIT_REFUND_REJECTED => 'Từ chối hoàn cọc',
+            self::DEPOSIT_REFUND_PROCESSING => 'Đang chuyển khoản',
+            self::DEPOSIT_RETURNED => 'Đã hoàn toàn bộ',
+            self::DEPOSIT_PARTIAL => 'Đã hoàn một phần',
+            self::DEPOSIT_FORFEITED => 'Không hoàn cọc',
+            default => 'Không xác định',
+        };
     }
 }

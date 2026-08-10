@@ -6,40 +6,363 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ContractController extends Controller
 {
-    public function index(Request $request): View
+    /**
+     * Hợp đồng của tôi
+     */
+    public function index()
     {
-        $tenantId = $request->user()->tenant?->id;
-        $contracts = Contract::with('room')
-            ->when($tenantId, fn ($query) => $query->where('tenant_id', $tenantId), fn ($query) => $query->whereRaw('1 = 0'))
-            ->latest('start_date')
-            ->paginate(10);
+        $user = Auth::user();
 
-        return view('client.contracts.index', compact('contracts'));
+        // Chỉ khách thuê được truy cập
+        if ($user->role_id !== 2) {
+            return redirect()->route('dashboard');
+        }
+
+        $tenant = $user->tenant;
+
+        // Tài khoản chưa được liên kết khách thuê
+        if (!$tenant) {
+            return view('client.contracts.index', [
+                'tenant' => null,
+                'contracts' => collect(),
+            ]);
+        }
+
+        // Lấy tất cả hợp đồng của khách, hợp đồng mới nhất nằm trên cùng.
+        $contracts = Contract::with(['room', 'tenant'])
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('status', [
+                Contract::STATUS_PENDING_SIGNATURE,
+                Contract::STATUS_SIGNED,
+                Contract::STATUS_DEPOSIT_PAID,
+                Contract::STATUS_ACTIVE,
+                Contract::STATUS_EXPIRED,
+                Contract::STATUS_TERMINATED,
+                Contract::STATUS_COMPLETED,
+            ])
+            ->latest('id')
+            ->get();
+
+        return view('client.contracts.index', compact(
+            'tenant',
+            'contracts'
+        ));
     }
 
-    public function show(Request $request, int $contract): View
+    /**
+     * Xem chi tiết hợp đồng
+     */
+    public function show(Contract $contract)
     {
-        $tenantId = $request->user()->tenant?->id;
-        $contract = Contract::with(['room.amenities', 'tenant'])
-            ->when($tenantId, fn ($query) => $query->where('tenant_id', $tenantId), fn ($query) => $query->whereRaw('1 = 0'))
-            ->findOrFail($contract);
+        $user = Auth::user();
 
-        return view('client.contracts.show', compact('contract'));
+        if ($user->role_id !== 2) {
+            return redirect()->route('dashboard');
+        }
+
+        $tenant = $user->tenant;
+
+        // Không cho khách A xem hợp đồng khách B.
+        if (!$tenant || $contract->tenant_id !== $tenant->id) {
+            abort(403, 'Bạn không có quyền xem hợp đồng này.');
+        }
+
+        $contract->load([
+            'room',
+            'tenant',
+            'histories.user',
+        ]);
+
+        return view(
+            'client.contracts.show',
+            compact('contract')
+        );
     }
 
+    /**
+     * In hợp đồng của khách thuê
+     */
+    public function print(Contract $contract)
+    {
+        $user = Auth::user();
+
+        if ($user->role_id !== 2) {
+            abort(403);
+        }
+
+        $tenant = $user->tenant;
+
+        if (!$tenant || $contract->tenant_id !== $tenant->id) {
+            abort(403, 'Bạn không có quyền in hợp đồng này.');
+        }
+
+        $contract->load([
+            'room',
+            'tenant',
+            'representative',
+        ]);
+
+        return view('client.contracts.print', compact('contract'));
+    }
+
+    /**
+     * Tải hợp đồng PDF
+     */
+    public function download(Contract $contract)
+    {
+        $user = Auth::user();
+
+        if ($user->role_id !== 2) {
+            abort(403);
+        }
+
+        $tenant = $user->tenant;
+
+        if (!$tenant || $contract->tenant_id !== $tenant->id) {
+            abort(403, 'Bạn không có quyền tải hợp đồng này.');
+        }
+
+        $contract->load([
+            'room',
+            'tenant',
+            'representative',
+        ]);
+
+        $pdf = Pdf::loadView('client.contracts.pdf', [
+            'contract' => $contract,
+        ]);
+
+        $pdf->setPaper('a4', 'portrait');
+
+        $fileName = 'hop-dong-' . $contract->contract_code . '.pdf';
+
+        return $pdf->download($fileName);
+    }
+
+    /**
+     * Xem/tải file hợp đồng gốc được lưu trong hệ thống.
+     */
     public function file(Request $request, int $contract): StreamedResponse
     {
         $tenantId = $request->user()->tenant?->id;
+
         $contract = Contract::query()
-            ->when($tenantId, fn ($query) => $query->where('tenant_id', $tenantId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->when(
+                $tenantId,
+                fn ($query) => $query->where('tenant_id', $tenantId),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
             ->findOrFail($contract);
-        abort_unless($contract->contract_file && Storage::disk('local')->exists($contract->contract_file), 404);
+
+        abort_unless(
+            $contract->contract_file &&
+            Storage::disk('local')->exists($contract->contract_file),
+            404
+        );
 
         return Storage::disk('local')->response($contract->contract_file);
+    }
+
+    /**
+     * Khách thuê ký hợp đồng
+     */
+    public function sign(Request $request, Contract $contract)
+    {
+        $user = Auth::user();
+
+        if ($user->role_id !== 2) {
+            abort(403);
+        }
+
+        $tenant = $user->tenant;
+
+        if (!$tenant || $contract->tenant_id !== $tenant->id) {
+            abort(403, 'Bạn không có quyền ký hợp đồng này.');
+        }
+
+        // Chỉ được ký khi Admin đã gửi.
+        if (!$contract->isPendingSignature()) {
+            return back()->with(
+                'error',
+                'Hợp đồng này hiện không ở trạng thái chờ ký.'
+            );
+        }
+
+        $request->validate([
+            'signature' => ['required', 'string'],
+        ]);
+
+        $signature = $request->signature;
+
+        // Kiểm tra đúng ảnh PNG base64 từ canvas.
+        if (!preg_match('/^data:image\/png;base64,/', $signature)) {
+            return back()->with(
+                'error',
+                'Chữ ký không hợp lệ.'
+            );
+        }
+
+        $imageData = preg_replace(
+            '/^data:image\/png;base64,/',
+            '',
+            $signature
+        );
+
+        $imageData = base64_decode($imageData);
+
+        if ($imageData === false) {
+            return back()->with(
+                'error',
+                'Không thể xử lý chữ ký.'
+            );
+        }
+
+        $fileName =
+            'contract_' .
+            $contract->id .
+            '_tenant_' .
+            time() .
+            '.png';
+
+        $path = 'signatures/contracts/' . $fileName;
+
+        Storage::disk('public')->put($path, $imageData);
+
+        $contract->update([
+            'tenant_signature' => $path,
+            'status' => Contract::STATUS_SIGNED,
+            'signed_at' => now(),
+        ]);
+
+        return redirect()
+            ->route('client.contracts.show', $contract)
+            ->with('success', 'Bạn đã ký hợp đồng thành công.');
+    }
+
+    /**
+     * Khách thuê đăng ký ngày dự kiến nhận phòng
+     */
+    public function scheduleMoveIn(Request $request, Contract $contract)
+    {
+        $user = Auth::user();
+
+        if ($user->role_id !== 2) {
+            abort(403);
+        }
+
+        $tenant = $user->tenant;
+
+        if (!$tenant || $contract->tenant_id !== $tenant->id) {
+            abort(403, 'Bạn không có quyền cập nhật hợp đồng này.');
+        }
+
+        if (!$contract->isSigned()) {
+            return back()->with(
+                'error',
+                'Hợp đồng chưa được ký nên chưa thể đăng ký ngày nhận phòng.'
+            );
+        }
+
+        if ($contract->move_in_date) {
+            return back()->with(
+                'error',
+                'Hợp đồng này đã xác nhận nhận phòng.'
+            );
+        }
+
+        $request->validate([
+            'planned_move_in_date' => [
+                'required',
+                'date',
+                'after_or_equal:' . max(
+                    now()->toDateString(),
+                    optional($contract->start_date)->format('Y-m-d')
+                ),
+                'before_or_equal:' . optional(
+                    $contract->extend_end_date ?? $contract->end_date
+                )->format('Y-m-d'),
+            ],
+        ]);
+
+        $contract->update([
+            'planned_move_in_date' => $request->planned_move_in_date,
+        ]);
+
+        return redirect()
+            ->route('client.contracts.show', $contract)
+            ->with(
+                'success',
+                'Đã đăng ký ngày dự kiến nhận phòng: ' .
+                \Carbon\Carbon::parse($request->planned_move_in_date)->format('d/m/Y')
+            );
+    }
+
+    /**
+     * Khách thuê xác nhận đã thực tế nhận phòng
+     */
+    public function confirmMoveIn(Request $request, Contract $contract)
+    {
+        $user = Auth::user();
+
+        if ($user->role_id !== 2) {
+            abort(403);
+        }
+
+        $tenant = $user->tenant;
+
+        if (!$tenant || $contract->tenant_id !== $tenant->id) {
+            abort(403, 'Bạn không có quyền xác nhận hợp đồng này.');
+        }
+
+        if (!$contract->isSigned()) {
+            return back()->with(
+                'error',
+                'Hợp đồng chưa được ký nên chưa thể xác nhận nhận phòng.'
+            );
+        }
+
+        if (!$contract->planned_move_in_date) {
+            return back()->with(
+                'error',
+                'Bạn chưa đăng ký ngày dự kiến nhận phòng.'
+            );
+        }
+
+        if ($contract->move_in_date) {
+            return back()->with(
+                'error',
+                'Hợp đồng này đã xác nhận nhận phòng.'
+            );
+        }
+
+        $request->validate([
+            'move_in_date' => [
+                'required',
+                'date',
+                'after_or_equal:' . $contract->planned_move_in_date->format('Y-m-d'),
+                'before_or_equal:' . now()->toDateString(),
+            ],
+        ]);
+
+        $contract->update([
+            'move_in_date' => $request->move_in_date,
+            'move_in_confirmed_at' => now(),
+            'move_in_confirmed_by' => $user->id,
+            'status' => Contract::STATUS_ACTIVE,
+        ]);
+
+        return redirect()
+            ->route('client.contracts.show', $contract)
+            ->with(
+                'success',
+                'Bạn đã xác nhận nhận phòng. Hợp đồng đã được kích hoạt.'
+            );
     }
 }
