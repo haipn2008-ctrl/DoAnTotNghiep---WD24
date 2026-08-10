@@ -57,7 +57,18 @@
                 <div>
                     <p class="text-sm font-semibold text-indigo-700">Xác nhận đã chuyển khoản</p>
                     <h3 class="mt-1 text-xl font-bold text-slate-950">Gửi biên lai cho ban quản lý</h3>
-                    <p class="mt-2 text-sm leading-6 text-slate-500">Sau khi chuyển khoản theo thông tin do ban quản lý cung cấp, hãy gửi mã giao dịch và ảnh biên lai. Tiền chỉ được ghi nhận sau khi được duyệt.</p>
+                    <p class="mt-2 text-sm leading-6 text-slate-500">Quét mã VietQR để chuyển đúng số tiền và nội dung. Sau đó chỉ cần gửi ảnh biên lai; ngày gửi được hệ thống ghi tự động và tiền chỉ được ghi nhận sau khi quản trị viên duyệt.</p>
+                    @if($paymentCode)<div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"><p class="font-semibold">Mã thanh toán cố định của bạn: <span class="font-mono text-base">{{ $paymentCode }}</span></p><p class="mt-1 text-xs leading-5">Khi chuyển tiền ghi rõ mã thanh toán + nội dung chuyển tiền.</p></div>@endif
+                    @if ($bankSetting->bank_id && $bankSetting->bank_account_no && $bankSetting->bank_account_name)
+                        @php($qrBase = 'https://img.vietqr.io/image/'.$bankSetting->bank_id.'-'.$bankSetting->bank_account_no.'-compact2.png')
+                        <div class="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-center">
+                            <img id="paymentQr" src="{{ $qrBase }}?amount={{ (int) $availableAmount }}&addInfo={{ urlencode($paymentContent) }}&accountName={{ urlencode($bankSetting->bank_account_name) }}" alt="Mã VietQR thanh toán hóa đơn" class="mx-auto w-56 rounded-lg bg-white">
+                            <p class="mt-2 text-xs text-slate-600">{{ $bankSetting->bank_account_name }} · {{ $bankSetting->bank_account_no }}</p>
+                            <p class="mt-1 text-xs font-semibold text-indigo-700">Nội dung: {{ $paymentContent }}</p>
+                        </div>
+                    @else
+                        <div class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Ban quản lý chưa cấu hình tài khoản nhận tiền. Vui lòng liên hệ trước khi chuyển khoản.</div>
+                    @endif
                     @if ($pendingAmount > 0)
                         <div class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Đang chờ xác nhận: <strong>{{ number_format($pendingAmount, 0, ',', '.') }}đ</strong></div>
                     @endif
@@ -65,13 +76,10 @@
                 @if ($availableAmount > 0)
                     <form method="POST" action="{{ route('client.invoices.payments.store', $invoice) }}" enctype="multipart/form-data" class="grid gap-4 sm:grid-cols-2">
                         @csrf
-                        <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Số tiền đã chuyển</label><input type="number" name="amount_paid" min="1" max="{{ (int) $availableAmount }}" value="{{ old('amount_paid', (int) $availableAmount) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
-                        <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày chuyển</label><input type="date" name="payment_date" max="{{ now()->toDateString() }}" value="{{ old('payment_date', now()->toDateString()) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
-                        <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Hình thức</label><select name="payment_method" class="h-11 w-full rounded-lg border border-slate-200 px-3"><option value="bank_transfer">Chuyển khoản</option><option value="qr">Quét mã QR</option></select></div>
-                        <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Mã giao dịch</label><input name="transaction_code" value="{{ old('transaction_code') }}" required maxlength="255" placeholder="VD: FT260809123456" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
+                        <div class="sm:col-span-2"><label class="mb-1.5 block text-sm font-semibold text-slate-700">Số tiền thanh toán</label><input id="paymentAmount" type="number" inputmode="numeric" step="1" name="amount_paid" min="1" max="{{ (int) $availableAmount }}" value="{{ old('amount_paid', (int) $availableAmount) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"><p id="paymentAmountHint" class="mt-1 text-xs text-slate-500">Tối đa {{ number_format($availableAmount, 0, ',', '.') }}đ. Chỉ nhập số nguyên dương.</p></div>
                         <div class="sm:col-span-2"><label class="mb-1.5 block text-sm font-semibold text-slate-700">Ảnh biên lai</label><input type="file" name="proof_image" accept="image/*" capture="environment" required class="block w-full rounded-lg border border-slate-200 p-2 text-sm"></div>
                         <div class="sm:col-span-2"><label class="mb-1.5 block text-sm font-semibold text-slate-700">Ghi chú (nếu có)</label><textarea name="note" rows="2" maxlength="1000" class="w-full rounded-lg border border-slate-200 px-3 py-2">{{ old('note') }}</textarea></div>
-                        <div class="sm:col-span-2"><button class="inline-flex h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700">Gửi xác nhận thanh toán</button></div>
+                        <div class="sm:col-span-2"><button id="paymentSubmit" class="inline-flex h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300">Gửi xác nhận thanh toán</button></div>
                     </form>
                 @else
                     <div class="flex items-center justify-center rounded-lg bg-amber-50 p-5 text-center text-sm font-medium text-amber-800">Toàn bộ số tiền còn lại đang chờ ban quản lý xác nhận.</div>
@@ -91,3 +99,42 @@
         </section>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        const amountInput = document.getElementById('paymentAmount');
+        const qrImage = document.getElementById('paymentQr');
+        if (amountInput) {
+            const baseUrl = @json($qrBase ?? null);
+            const content = @json($paymentContent);
+            const accountName = @json($bankSetting->bank_account_name);
+            const maximum = Number(amountInput.max);
+            const hint = document.getElementById('paymentAmountHint');
+            const submit = document.getElementById('paymentSubmit');
+            const normalHint = `Tối đa ${new Intl.NumberFormat('vi-VN').format(maximum)}đ. Chỉ nhập số nguyên dương.`;
+
+            const validateAmount = () => {
+                const amount = Number(amountInput.value);
+                const valid = Number.isInteger(amount) && amount >= 1 && amount <= maximum;
+                const message = amount > maximum
+                    ? `Số tiền không được vượt quá ${new Intl.NumberFormat('vi-VN').format(maximum)}đ.`
+                    : 'Vui lòng nhập số tiền nguyên dương hợp lệ.';
+                amountInput.setCustomValidity(valid ? '' : message);
+                amountInput.classList.toggle('border-rose-400', !valid);
+                hint.textContent = valid ? normalHint : message;
+                hint.className = `mt-1 text-xs ${valid ? 'text-slate-500' : 'font-semibold text-rose-600'}`;
+                submit.disabled = !valid;
+
+                if (valid && qrImage && baseUrl) {
+                    qrImage.src = `${baseUrl}?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
+                }
+            };
+
+            amountInput.addEventListener('keydown', event => {
+                if (['e', 'E', '+', '-', '.', ','].includes(event.key)) event.preventDefault();
+            });
+            amountInput.addEventListener('input', validateAmount);
+            validateAmount();
+        }
+    </script>
+@endpush

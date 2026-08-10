@@ -51,6 +51,9 @@ class Contract extends Model
         'deposit_paid_at',
 
         'number_of_people',
+        'internet_enabled',
+        'service_enabled',
+        'parking_quantity',
 
         'signed_at',
 
@@ -89,6 +92,9 @@ class Contract extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'actual_end_date' => 'date',
+        'internet_enabled' => 'boolean',
+        'service_enabled' => 'boolean',
+        'parking_quantity' => 'integer',
 
         'extend_start_date' => 'date',
         'extend_end_date' => 'date',
@@ -125,7 +131,7 @@ class Contract extends Model
 
     public function utilityReadings()
     {
-        return $this->hasMany(UtilityReading::class, 'room_id', 'room_id');
+        return $this->hasMany(UtilityReading::class, 'contract_id');
     }
 
     public function payments()

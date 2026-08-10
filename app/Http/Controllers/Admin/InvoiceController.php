@@ -196,7 +196,7 @@ class InvoiceController extends Controller
             'room',
             'tenant',
         ])
-            ->where('status', 'active')
+            ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_TERMINATED])
             ->whereDate(
                 'start_date',
                 '<=',
@@ -210,9 +210,9 @@ class InvoiceController extends Controller
             ->orderBy('id')
             ->get();
 
-        $issuedRoomIds = Invoice::where('month', $month)
+        $issuedContractIds = Invoice::where('month', $month)
             ->where('year', $year)
-            ->pluck('room_id')
+            ->pluck('contract_id')
             ->toArray();
 
         return view(
@@ -222,7 +222,7 @@ class InvoiceController extends Controller
                 'month',
                 'year',
                 'years',
-                'issuedRoomIds'
+                'issuedContractIds'
             )
         );
     }

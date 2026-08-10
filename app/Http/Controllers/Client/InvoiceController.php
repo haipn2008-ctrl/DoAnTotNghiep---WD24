@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\Setting;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
@@ -63,12 +63,13 @@ class InvoiceController extends Controller
     public function storePayment(Request $request, int $invoice): RedirectResponse
     {
         $invoice = $this->findOwnedInvoice($request, $invoice);
+        $reservedAmount = (float) $invoice->payments
+            ->whereIn('status', [Payment::STATUS_SUCCESS, Payment::STATUS_PENDING])
+            ->sum('amount_paid');
+        $availableAmount = max(0, (float) $invoice->total_amount - $reservedAmount);
 
         $data = $request->validate([
-            'amount_paid' => 'required|numeric|min:1',
-            'payment_date' => 'required|date|before_or_equal:today',
-            'payment_method' => 'required|in:bank_transfer,qr',
-            'transaction_code' => ['required', 'string', 'max:255', Rule::unique('payments', 'transaction_code')],
+            'amount_paid' => ['required', 'integer', 'min:1', 'max:'.(int) floor($availableAmount)],
             'proof_image' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'note' => 'nullable|string|max:1000',
         ]);
@@ -92,9 +93,9 @@ class InvoiceController extends Controller
                 Payment::create([
                     'invoice_id' => $lockedInvoice->id,
                     'amount_paid' => $data['amount_paid'],
-                    'payment_date' => $data['payment_date'],
-                    'payment_method' => $data['payment_method'],
-                    'transaction_code' => $data['transaction_code'],
+                    'payment_date' => now()->toDateString(),
+                    'payment_method' => Payment::METHOD_QR,
+                    'transaction_code' => null,
                     'status' => Payment::STATUS_PENDING,
                     'submitted_by' => $request->user()->id,
                     'proof_image' => $proofPath,
@@ -134,7 +135,11 @@ class InvoiceController extends Controller
             ->sum('amount_paid');
         $availableAmount = max(0, $remainingAmount - $pendingAmount);
 
-        return compact('invoice', 'paidAmount', 'remainingAmount', 'pendingAmount', 'availableAmount');
+        $bankSetting = Setting::currentOrCreate();
+        $paymentCode = $invoice->contract?->tenant?->payment_code;
+        $paymentContent = trim('TT '.$invoice->invoice_code.' '.$paymentCode);
+
+        return compact('invoice', 'paidAmount', 'remainingAmount', 'pendingAmount', 'availableAmount', 'bankSetting', 'paymentContent', 'paymentCode');
     }
 
     private function invoiceQuery(Request $request): Builder

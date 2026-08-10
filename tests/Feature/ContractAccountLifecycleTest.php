@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UtilityReading;
 use App\Services\TenantAccountLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -37,6 +38,8 @@ class ContractAccountLifecycleTest extends TestCase
             'actual_end_date' => '2026-08-10',
             'termination_reason' => 'expired',
             'confirm_end' => '1',
+            'checkout_electricity' => 120,
+            'checkout_water' => 55,
         ])->assertRedirect(route('admin.contracts.end.list'));
 
         $this->assertSame(User::STATUS_SETTLING, $client->fresh()->status);
@@ -82,6 +85,8 @@ class ContractAccountLifecycleTest extends TestCase
             'tenant_id' => $tenant->id,
             'start_date' => '2026-09-01',
             'end_date' => '2027-09-01',
+            'handover_electricity' => 100,
+            'handover_water' => 50,
         ])->assertSessionHasErrors('tenant_id');
 
         $this->assertDatabaseMissing('contracts', ['room_id' => $newRoom->id]);
@@ -95,6 +100,8 @@ class ContractAccountLifecycleTest extends TestCase
             'actual_end_date' => '2026-08-10',
             'termination_reason' => 'expired',
             'confirm_end' => '1',
+            'checkout_electricity' => 120,
+            'checkout_water' => 55,
         ])->assertRedirect(route('admin.contracts.end.list'));
 
         $this->assertSame(User::STATUS_INACTIVE, $client->fresh()->status);
@@ -126,6 +133,8 @@ class ContractAccountLifecycleTest extends TestCase
             'actual_end_date' => '2026-08-10',
             'termination_reason' => 'other',
             'confirm_end' => '1',
+            'checkout_electricity' => 120,
+            'checkout_water' => 55,
         ])->assertRedirect(route('admin.contracts.end.list'));
 
         $this->assertSame(User::STATUS_ACTIVE, $client->fresh()->status);
@@ -195,6 +204,8 @@ class ContractAccountLifecycleTest extends TestCase
                     'actual_end_date' => $actualEndDate,
                     'termination_reason' => 'expired',
                     'confirm_end' => '1',
+                    'checkout_electricity' => 120,
+                    'checkout_water' => 55,
                 ]
             )->assertRedirect(route('admin.contracts.end.form', $contract))
                 ->assertSessionHasErrors('actual_end_date');
@@ -247,6 +258,12 @@ class ContractAccountLifecycleTest extends TestCase
             'start_date' => '2025-08-10',
             'end_date' => '2026-08-10',
             'status' => 'active',
+        ]);
+        UtilityReading::create([
+            'room_id' => $room->id, 'contract_id' => $contract->id,
+            'month' => 8, 'year' => 2025, 'record_date' => '2025-08-10', 'reading_type' => 'handover',
+            'electricity_old' => 100, 'electricity_new' => 100,
+            'water_old' => 50, 'water_new' => 50, 'status' => 'confirmed',
         ]);
 
         return [$admin, $client, $tenant, $room, $contract];

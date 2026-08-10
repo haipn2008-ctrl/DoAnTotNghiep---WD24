@@ -75,6 +75,11 @@
                         <textarea id="termination_note" name="termination_note" rows="5" placeholder="Nhập ghi chú nếu có..." class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('termination_note') }}</textarea>
                     </div>
 
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div><label for="checkout_electricity" class="mb-1.5 block text-sm font-semibold text-slate-700">Chỉ số điện khi trả phòng</label><input id="checkout_electricity" type="number" min="{{ $latestReading?->electricity_new ?? 0 }}" name="checkout_electricity" value="{{ old('checkout_electricity', $latestReading?->electricity_new) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"><p class="mt-1 text-xs text-slate-500">Gần nhất: {{ $latestReading?->electricity_new ?? 0 }} kWh</p></div>
+                        <div><label for="checkout_water" class="mb-1.5 block text-sm font-semibold text-slate-700">Chỉ số nước khi trả phòng</label><input id="checkout_water" type="number" min="{{ $latestReading?->water_new ?? 0 }}" name="checkout_water" value="{{ old('checkout_water', $latestReading?->water_new) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"><p class="mt-1 text-xs text-slate-500">Gần nhất: {{ $latestReading?->water_new ?? 0 }} m³</p></div>
+                    </div>
+
                     <label class="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-700">
                         <input id="confirmEnd" type="checkbox" name="confirm_end" value="1" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                         Tôi xác nhận người thuê đã hoàn tất trả phòng và đồng ý kết thúc hợp đồng.

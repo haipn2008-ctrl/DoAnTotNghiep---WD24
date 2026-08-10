@@ -42,7 +42,8 @@
                     <select id="room_id" name="room_id" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         <option value="">Chọn phòng</option>
                         @foreach ($rooms as $room)
-                            <option value="{{ $room->id }}" @selected((string) old('room_id') === (string) $room->id)>
+                            @php($suggestion = $handoverSuggestions->get($room->id))
+                            <option value="{{ $room->id }}" data-electricity="{{ $suggestion['electricity'] ?? '' }}" data-water="{{ $suggestion['water'] ?? '' }}" @selected((string) old('room_id') === (string) $room->id)>
                                 {{ $room->room_code }} - {{ number_format($room->price, 0, ',', '.') }}đ/tháng
                             </option>
                         @endforeach
@@ -86,6 +87,25 @@
                     <input id="number_of_people" type="number" min="1" max="20" name="number_of_people" value="{{ old('number_of_people', 1) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                     @error('number_of_people') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
+
+                <div class="md:col-span-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+                    <h4 class="font-semibold text-indigo-950">Chỉ số bàn giao phòng</h4>
+                    <p class="mt-1 text-sm text-indigo-700">Nhập chỉ số đồng hồ tại ngày bắt đầu hợp đồng; hệ thống không mặc định chỉ số đầu tiên bằng 0.</p>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div><label for="handover_electricity" class="mb-1.5 block text-sm font-semibold">Chỉ số điện bàn giao (kWh)</label><input id="handover_electricity" type="number" min="0" name="handover_electricity" value="{{ old('handover_electricity') }}" required class="h-11 w-full rounded-lg border border-indigo-200 px-3"><p id="handoverElectricityHint" class="mt-1 text-xs text-indigo-700">Chọn phòng để lấy chỉ số gần nhất.</p>@error('handover_electricity')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror</div>
+                        <div><label for="handover_water" class="mb-1.5 block text-sm font-semibold">Chỉ số nước bàn giao (m³)</label><input id="handover_water" type="number" min="0" name="handover_water" value="{{ old('handover_water') }}" required class="h-11 w-full rounded-lg border border-indigo-200 px-3"><p id="handoverWaterHint" class="mt-1 text-xs text-indigo-700">Chọn phòng để lấy chỉ số gần nhất.</p>@error('handover_water')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror</div>
+                    </div>
+                </div>
+
+                <div class="md:col-span-2 rounded-lg border border-slate-200 p-4">
+                    <h4 class="font-semibold text-slate-950">Dịch vụ đăng ký</h4>
+                    <p class="mt-1 text-sm text-slate-500">Chỉ dịch vụ được chọn mới được cộng vào hóa đơn.</p>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-3">
+                        <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="internet_enabled" value="1" @checked(old('internet_enabled'))> Internet</label>
+                        <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="service_enabled" value="1" @checked(old('service_enabled'))> Dịch vụ chung</label>
+                        <div><label for="parking_quantity" class="mb-1 block text-sm font-medium">Số xe đăng ký</label><input id="parking_quantity" type="number" min="0" max="20" name="parking_quantity" value="{{ old('parking_quantity', 0) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3"></div>
+                    </div>
+                </div>
             </div>
 
             <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
@@ -97,4 +117,37 @@
             </div>
         </form>
     </div>
+
+    @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const room = document.getElementById('room_id');
+                const electricity = document.getElementById('handover_electricity');
+                const water = document.getElementById('handover_water');
+                const electricityHint = document.getElementById('handoverElectricityHint');
+                const waterHint = document.getElementById('handoverWaterHint');
+
+                const applySuggestion = (overwrite) => {
+                    const option = room.options[room.selectedIndex];
+                    const suggestedElectricity = option?.dataset.electricity ?? '';
+                    const suggestedWater = option?.dataset.water ?? '';
+
+                    electricity.min = suggestedElectricity || '0';
+                    water.min = suggestedWater || '0';
+                    if (overwrite || electricity.value === '') electricity.value = suggestedElectricity;
+                    if (overwrite || water.value === '') water.value = suggestedWater;
+
+                    electricityHint.textContent = suggestedElectricity === ''
+                        ? 'Phòng chưa có chỉ số trước đó; hãy nhập số trên đồng hồ.'
+                        : `Gần nhất của phòng: ${suggestedElectricity} kWh`;
+                    waterHint.textContent = suggestedWater === ''
+                        ? 'Phòng chưa có chỉ số trước đó; hãy nhập số trên đồng hồ.'
+                        : `Gần nhất của phòng: ${suggestedWater} m³`;
+                };
+
+                room.addEventListener('change', () => applySuggestion(true));
+                applySuggestion(false);
+            });
+        </script>
+    @endpush
 @endsection

@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\Payment;
 use App\Models\Room;
+use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UtilityReading;
 use App\Services\TenantAccountLifecycle;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -34,13 +37,23 @@ class ContractController extends Controller
             ->orderBy('room_code')
             ->get();
 
+        $handoverSuggestions = UtilityReading::whereIn('room_id', $rooms->pluck('id'))
+            ->orderByDesc('record_date')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('room_id')
+            ->mapWithKeys(fn (UtilityReading $reading) => [$reading->room_id => [
+                'electricity' => $reading->electricity_new,
+                'water' => $reading->water_new,
+            ]]);
+
         $tenants = Tenant::select('id', 'full_name as name')
             ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
             ->whereDoesntHave('contracts', fn ($query) => $query->whereIn('status', ['pending', 'active']))
             ->orderBy('full_name')
             ->get();
 
-        return view('admin.contracts.create', compact('rooms', 'tenants'));
+        return view('admin.contracts.create', compact('rooms', 'tenants', 'handoverSuggestions'));
     }
 
     public function store(Request $request)
@@ -52,6 +65,11 @@ class ContractController extends Controller
             'end_date' => ['required', 'date', 'after:start_date'],
             'deposit_amount' => ['nullable', 'numeric', 'min:0'],
             'number_of_people' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'handover_electricity' => ['required', 'integer', 'min:0'],
+            'handover_water' => ['required', 'integer', 'min:0'],
+            'internet_enabled' => ['nullable', 'boolean'],
+            'service_enabled' => ['nullable', 'boolean'],
+            'parking_quantity' => ['nullable', 'integer', 'min:0', 'max:20'],
         ], $this->messages());
 
         DB::transaction(function () use ($data) {
@@ -61,6 +79,22 @@ class ContractController extends Controller
             if ($room->status !== 'available' || $room->contracts()->whereIn('status', ['pending', 'active'])->exists()) {
                 throw ValidationException::withMessages([
                     'room_id' => 'Phòng đang có người thuê hoặc không sẵn sàng cho thuê.',
+                ]);
+            }
+
+
+            $latestRoomReading = UtilityReading::where('room_id', $room->id)
+                ->latest('record_date')
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+
+            if ($latestRoomReading
+                && ($data['handover_electricity'] < $latestRoomReading->electricity_new
+                    || $data['handover_water'] < $latestRoomReading->water_new)) {
+                throw ValidationException::withMessages([
+                    'handover_electricity' => 'Chỉ số bàn giao không được nhỏ hơn chỉ số gần nhất của phòng.',
+                    'handover_water' => 'Chỉ số bàn giao không được nhỏ hơn chỉ số gần nhất của phòng.',
                 ]);
             }
 
@@ -93,12 +127,31 @@ class ContractController extends Controller
                 'monthly_rent' => $room->price,
                 'deposit_amount' => $data['deposit_amount'] ?? 0,
                 'number_of_people' => $numberOfPeople,
+                'internet_enabled' => (bool) ($data['internet_enabled'] ?? false),
+                'service_enabled' => (bool) ($data['service_enabled'] ?? false),
+                'parking_quantity' => $data['parking_quantity'] ?? 0,
                 'signed_at' => now(),
                 'status' => Contract::STATUS_ACTIVE,
             ]);
 
             $contract->update([
                 'contract_code' => 'HD'.str_pad((string) $contract->id, 3, '0', STR_PAD_LEFT),
+            ]);
+
+            $handoverDate = Carbon::parse($data['start_date']);
+            UtilityReading::create([
+                'room_id' => $room->id,
+                'contract_id' => $contract->id,
+                'month' => $handoverDate->month,
+                'year' => $handoverDate->year,
+                'record_date' => $handoverDate->toDateString(),
+                'reading_type' => 'handover',
+                'electricity_old' => $data['handover_electricity'],
+                'electricity_new' => $data['handover_electricity'],
+                'water_old' => $data['handover_water'],
+                'water_new' => $data['handover_water'],
+                'status' => 'confirmed',
+                'note' => 'Chỉ số bàn giao khi nhận phòng.',
             ]);
 
             $room->update([
@@ -114,30 +167,70 @@ class ContractController extends Controller
 
     public function show(Contract $contract)
     {
-        $contract->load(['room', 'tenant']);
+        $contract->load(['room', 'tenant', 'invoices.payments']);
+        $readings = UtilityReading::where('room_id', $contract->room_id)
+            ->where('contract_id', $contract->id)
+            ->orderBy('record_date')->orderBy('id')->get();
+        $handoverReading = $readings->firstWhere('reading_type', 'handover');
+        $checkoutReading = $readings->where('reading_type', 'checkout')->last();
+        $latestReading = $readings->last();
+        $setting = Setting::currentOrCreate();
+        $totalInvoiced = (float) $contract->invoices->sum('total_amount');
+        $totalPaid = (float) $contract->invoices->flatMap->payments
+            ->where('status', Payment::STATUS_SUCCESS)->sum('amount_paid');
+        $totalOutstanding = max(0, $totalInvoiced - $totalPaid);
 
-        return view('admin.contracts.show', compact('contract'));
+        return view('admin.contracts.show', compact(
+            'contract', 'handoverReading', 'checkoutReading', 'latestReading', 'setting',
+            'totalInvoiced', 'totalPaid', 'totalOutstanding'
+        ));
     }
 
     public function edit(Contract $contract)
     {
         $contract->load('tenant');
+        $handoverReading = $contract->utilityReadings()->where('contract_id', $contract->id)
+            ->where('reading_type', 'handover')->oldest('record_date')->first();
 
-        return view('admin.contracts.edit', compact('contract'));
+        return view('admin.contracts.edit', compact('contract', 'handoverReading'));
     }
 
     public function update(Request $request, Contract $contract)
     {
         $tenant = $contract->tenant;
+        $handoverReading = $contract->utilityReadings()->where('contract_id', $contract->id)
+            ->where('reading_type', 'handover')->first();
         $data = $request->validate([
             'full_name' => ['required', 'max:255'],
             'cccd' => ['required', 'digits:12', Rule::unique('tenants', 'cccd')->ignore($tenant->id)],
             'phone' => ['required', 'regex:/^[0-9]{10,15}$/', Rule::unique('tenants', 'phone')->ignore($tenant->id)],
             'email' => ['nullable', 'email', Rule::unique('tenants', 'email')->ignore($tenant->id)],
             'address' => ['nullable', 'string'],
+            'internet_enabled' => ['nullable', 'boolean'],
+            'service_enabled' => ['nullable', 'boolean'],
+            'parking_quantity' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'handover_electricity' => [$handoverReading ? 'nullable' : 'required', 'integer', 'min:0'],
+            'handover_water' => [$handoverReading ? 'nullable' : 'required', 'integer', 'min:0'],
         ], $this->messages());
 
-        $tenant->update($data);
+        $tenant->update(collect($data)->only(['full_name', 'cccd', 'phone', 'email', 'address'])->all());
+        $contract->update([
+            'internet_enabled' => (bool) ($data['internet_enabled'] ?? false),
+            'service_enabled' => (bool) ($data['service_enabled'] ?? false),
+            'parking_quantity' => $data['parking_quantity'] ?? 0,
+        ]);
+
+        if (! $handoverReading) {
+            $handoverDate = Carbon::parse($contract->start_date);
+            UtilityReading::create([
+                'room_id' => $contract->room_id, 'contract_id' => $contract->id,
+                'month' => $handoverDate->month, 'year' => $handoverDate->year,
+                'record_date' => $handoverDate->toDateString(), 'reading_type' => 'handover',
+                'electricity_old' => $data['handover_electricity'], 'electricity_new' => $data['handover_electricity'],
+                'water_old' => $data['handover_water'], 'water_new' => $data['handover_water'],
+                'status' => 'confirmed', 'note' => 'Bổ sung chỉ số bàn giao cho hợp đồng hiện có.',
+            ]);
+        }
 
         return redirect()
             ->route('admin.contracts.show', $contract)
@@ -151,6 +244,8 @@ class ContractController extends Controller
             'termination_reason' => ['required', Rule::in(['expired', 'early', 'violation', 'other'])],
             'termination_note' => ['nullable', 'string'],
             'confirm_end' => ['accepted'],
+            'checkout_electricity' => ['required', 'integer', 'min:0'],
+            'checkout_water' => ['required', 'integer', 'min:0'],
         ], $this->messages());
 
         $accountStatus = DB::transaction(function () use ($data, $id) {
@@ -169,6 +264,34 @@ class ContractController extends Controller
                     'actual_end_date' => 'Ngày trả phòng phải từ ngày bắt đầu hợp đồng đến ngày hiện tại.',
                 ]);
             }
+
+            $lastReading = UtilityReading::where('room_id', $contract->room_id)
+                ->where('contract_id', $contract->id)
+                ->whereDate('record_date', '<=', $actualEndDate)
+                ->latest('record_date')->latest('id')->first();
+
+            if (! $lastReading
+                || $data['checkout_electricity'] < $lastReading->electricity_new
+                || $data['checkout_water'] < $lastReading->water_new) {
+                throw ValidationException::withMessages([
+                    'checkout_electricity' => 'Chỉ số trả phòng không được nhỏ hơn chỉ số gần nhất của hợp đồng.',
+                ]);
+            }
+
+            UtilityReading::create([
+                'room_id' => $contract->room_id,
+                'contract_id' => $contract->id,
+                'month' => $actualEndDate->month,
+                'year' => $actualEndDate->year,
+                'record_date' => $actualEndDate->toDateString(),
+                'reading_type' => 'checkout',
+                'electricity_old' => $lastReading->electricity_new,
+                'electricity_new' => $data['checkout_electricity'],
+                'water_old' => $lastReading->water_new,
+                'water_new' => $data['checkout_water'],
+                'status' => 'confirmed',
+                'note' => 'Chỉ số chốt khi trả phòng.',
+            ]);
 
             $contract->update([
                 'status' => 'terminated',
@@ -226,7 +349,13 @@ class ContractController extends Controller
 
         abort_unless($contract->status === Contract::STATUS_ACTIVE, 409, 'Chỉ hợp đồng đang hiệu lực mới có thể kết thúc.');
 
-        return view('admin.contracts.end-form', compact('contract'));
+        $latestReading = UtilityReading::where('room_id', $contract->room_id)
+            ->where('contract_id', $contract->id)
+            ->latest('record_date')
+            ->latest('id')
+            ->first();
+
+        return view('admin.contracts.end-form', compact('contract', 'latestReading'));
     }
 
     public function extendList(Request $request)

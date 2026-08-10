@@ -60,6 +60,7 @@
                 ['label' => 'Sinh hóa đơn', 'route' => 'admin.invoices.generate', 'active' => request()->routeIs('admin.invoices.generate')],
                 ['label' => 'Danh sách hóa đơn', 'route' => 'admin.invoices.index', 'active' => request()->routeIs('admin.invoices.index')],
                 ['label' => 'Thanh toán', 'route' => 'admin.invoices.payments', 'active' => request()->routeIs('admin.invoices.payments')],
+                ['label' => 'Đối soát ngân hàng', 'route' => 'admin.payment-webhooks.index', 'active' => request()->routeIs('admin.payment-webhooks.*')],
                 ['label' => 'Xuất hóa đơn', 'route' => 'admin.invoices.export', 'active' => request()->routeIs('admin.invoices.export*')],
             ],
         ],
@@ -82,6 +83,8 @@
                 ['label' => 'Đơn giá nước', 'route' => 'admin.settings.edit', 'params' => ['type' => 'water'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'water']))],
                 ['label' => 'Đơn giá internet', 'route' => 'admin.settings.edit', 'params' => ['type' => 'internet'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'internet']))],
                 ['label' => 'Đơn giá dịch vụ', 'route' => 'admin.settings.edit', 'params' => ['type' => 'service'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'service']))],
+                ['label' => 'Phí gửi xe', 'route' => 'admin.settings.edit', 'params' => ['type' => 'parking'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'parking']))],
+                ['label' => 'Tài khoản nhận tiền', 'route' => 'admin.settings.edit', 'params' => ['type' => 'bank'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'bank']))],
             ],
         ],
     ];

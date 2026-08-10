@@ -61,12 +61,17 @@ class UtilityController extends Controller
                 return;
             }
 
+            $query->whereIn('contract_id', $contracts->pluck('id'));
+
+            // Tương thích dữ liệu cũ chưa gắn contract_id. Chỉ dùng phòng và thời gian
+            // cho các bản ghi legacy, không để lịch sử người thuê trước lọt vào hợp đồng mới.
             foreach ($contracts as $contract) {
                 $start = $contract->start_date;
                 $end = $contract->actual_end_date ?? $contract->extend_end_date ?? $contract->end_date;
 
                 $query->orWhere(function ($query) use ($contract, $start, $end) {
-                    $query->where('room_id', $contract->room_id)
+                    $query->whereNull('contract_id')
+                        ->where('room_id', $contract->room_id)
                         ->where(function ($query) use ($start) {
                             $query->where('year', '>', $start->year)
                                 ->orWhere(fn ($query) => $query->where('year', $start->year)->where('month', '>=', $start->month));

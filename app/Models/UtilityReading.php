@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 class UtilityReading extends Model
 {
     protected $fillable = [
-        'room_id', 'month', 'year',
+        'room_id', 'contract_id', 'month', 'year', 'reading_type',
         'record_date',
         'electricity_old', 'electricity_new',
         'electricity_image',
@@ -37,6 +37,11 @@ class UtilityReading extends Model
     public function room()
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function contract()
+    {
+        return $this->belongsTo(Contract::class);
     }
 
     public function invoice()

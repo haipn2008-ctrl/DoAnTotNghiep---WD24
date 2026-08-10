@@ -62,6 +62,26 @@
                     <label for="address" class="mb-1.5 block text-sm font-semibold text-slate-700">Địa chỉ</label>
                     <textarea id="address" name="address" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('address', $contract->tenant->address) }}</textarea>
                 </div>
+
+                <div class="md:col-span-2 rounded-lg border border-slate-200 p-4">
+                    <h4 class="font-semibold text-slate-950">Dịch vụ của hợp đồng</h4>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-3">
+                        <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="internet_enabled" value="1" @checked(old('internet_enabled', $contract->internet_enabled))> Internet</label>
+                        <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="service_enabled" value="1" @checked(old('service_enabled', $contract->service_enabled))> Dịch vụ chung</label>
+                        <div><label class="mb-1 block text-sm font-medium">Số xe đăng ký</label><input type="number" name="parking_quantity" min="0" max="20" value="{{ old('parking_quantity', $contract->parking_quantity) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3"></div>
+                    </div>
+                </div>
+
+                @if (! $handoverReading)
+                    <div class="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                        <h4 class="font-semibold text-amber-950">Bổ sung chỉ số bàn giao</h4>
+                        <p class="mt-1 text-sm text-amber-800">Hợp đồng cũ chưa có mốc bàn giao. Cần bổ sung trước khi chốt kỳ tiếp theo.</p>
+                        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                            <div><label class="mb-1 block text-sm font-medium">Chỉ số điện bàn giao</label><input type="number" name="handover_electricity" min="0" required class="h-10 w-full rounded-lg border border-amber-200 px-3"></div>
+                            <div><label class="mb-1 block text-sm font-medium">Chỉ số nước bàn giao</label><input type="number" name="handover_water" min="0" required class="h-10 w-full rounded-lg border border-amber-200 px-3"></div>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">

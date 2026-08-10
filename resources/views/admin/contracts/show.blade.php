@@ -25,7 +25,7 @@
             <div class="flex flex-wrap gap-2">
                 <a href="{{ route('admin.contracts.edit', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                     <i class="bx bx-edit text-lg"></i>
-                    Sửa người thuê
+                    Cập nhật hợp đồng
                 </a>
                 <a href="{{ route('admin.contracts.print', $contract->id) }}" target="_blank" class="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-100">
                     <i class="bx bx-printer text-lg"></i>
@@ -63,6 +63,48 @@
                     <p class="text-sm font-medium text-slate-500">Số người</p>
                     <p class="mt-2 text-lg font-semibold text-slate-950">{{ $contract->number_of_people ?? 1 }} người</p>
                 </div>
+            </div>
+        </section>
+
+        <div class="grid gap-6 xl:grid-cols-3">
+            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Thông tin hợp đồng</h3></div>
+                <dl class="divide-y divide-slate-100 px-5 text-sm">
+                    <div class="flex justify-between gap-4 py-3"><dt class="text-slate-500">Ngày ký</dt><dd class="font-semibold text-slate-950">{{ $contract->signed_at?->format('d/m/Y') ?? 'Chưa cập nhật' }}</dd></div>
+                    <div class="flex justify-between gap-4 py-3"><dt class="text-slate-500">Trạng thái tiền cọc</dt><dd class="font-semibold text-slate-950">{{ ['pending' => 'Chưa thu', 'paid' => 'Đã thu', 'returned' => 'Đã hoàn trả'][$contract->deposit_status] ?? 'Chưa xác định' }}</dd></div>
+                    <div class="flex justify-between gap-4 py-3"><dt class="text-slate-500">Ngày thu tiền cọc</dt><dd class="font-semibold text-slate-950">{{ $contract->deposit_paid_at?->format('d/m/Y H:i') ?? 'Chưa thu' }}</dd></div>
+                    <div class="flex justify-between gap-4 py-3"><dt class="text-slate-500">Ngày kết thúc thực tế</dt><dd class="font-semibold text-slate-950">{{ $contract->actual_end_date?->format('d/m/Y') ?? 'Chưa kết thúc' }}</dd></div>
+                    <div class="flex justify-between gap-4 py-3"><dt class="text-slate-500">Tệp hợp đồng</dt><dd>@if($contract->contractFileExists())<a href="{{ route('admin.contracts.file', $contract) }}" class="font-semibold text-indigo-700">Xem tệp</a>@else<span class="text-slate-400">Chưa đính kèm</span>@endif</dd></div>
+                </dl>
+            </section>
+
+            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Dịch vụ đăng ký</h3></div>
+                <div class="space-y-3 p-5 text-sm">
+                    <div class="flex items-center justify-between rounded-lg bg-slate-50 p-3"><span>Internet</span><span class="font-semibold {{ $contract->internet_enabled ? 'text-emerald-700' : 'text-slate-400' }}">{{ $contract->internet_enabled ? number_format($setting->internet_fee, 0, ',', '.').'đ/tháng' : 'Không đăng ký' }}</span></div>
+                    <div class="flex items-center justify-between rounded-lg bg-slate-50 p-3"><span>Dịch vụ chung</span><span class="font-semibold {{ $contract->service_enabled ? 'text-emerald-700' : 'text-slate-400' }}">{{ $contract->service_enabled ? number_format($setting->service_fee, 0, ',', '.').'đ/tháng' : 'Không đăng ký' }}</span></div>
+                    <div class="flex items-center justify-between rounded-lg bg-slate-50 p-3"><span>Gửi xe</span><span class="font-semibold {{ $contract->parking_quantity > 0 ? 'text-emerald-700' : 'text-slate-400' }}">{{ $contract->parking_quantity > 0 ? $contract->parking_quantity.' xe · '.number_format($setting->parking_fee * $contract->parking_quantity, 0, ',', '.').'đ/tháng' : 'Không đăng ký' }}</span></div>
+                </div>
+            </section>
+
+            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Tình hình tài chính</h3></div>
+                <div class="grid grid-cols-2 gap-3 p-5 text-sm">
+                    <div class="rounded-lg bg-slate-50 p-3"><p class="text-slate-500">Số hóa đơn</p><p class="mt-1 text-lg font-bold">{{ $contract->invoices->count() }}</p></div>
+                    <div class="rounded-lg bg-slate-50 p-3"><p class="text-slate-500">Tổng đã lập</p><p class="mt-1 font-bold">{{ number_format($totalInvoiced, 0, ',', '.') }}đ</p></div>
+                    <div class="rounded-lg bg-emerald-50 p-3"><p class="text-emerald-700">Đã thanh toán</p><p class="mt-1 font-bold text-emerald-800">{{ number_format($totalPaid, 0, ',', '.') }}đ</p></div>
+                    <div class="rounded-lg bg-rose-50 p-3"><p class="text-rose-700">Còn phải thu</p><p class="mt-1 font-bold text-rose-800">{{ number_format($totalOutstanding, 0, ',', '.') }}đ</p></div>
+                    <a href="{{ route('admin.invoices.index', ['keyword' => $contract->contract_code]) }}" class="col-span-2 text-center font-semibold text-indigo-700">Xem các hóa đơn liên quan →</a>
+                </div>
+            </section>
+        </div>
+
+        <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Bàn giao và chỉ số điện nước</h3></div>
+            <div class="grid gap-4 p-5 md:grid-cols-3">
+                <div class="rounded-lg bg-indigo-50 p-4"><p class="text-sm font-semibold text-indigo-800">Chỉ số bàn giao</p><p class="mt-2 text-sm text-slate-600">Ngày {{ $handoverReading?->record_date?->format('d/m/Y') ?? 'chưa ghi nhận' }}</p><div class="mt-3 flex gap-5"><span>Điện: <strong>{{ $handoverReading?->electricity_new ?? '—' }}</strong> kWh</span><span>Nước: <strong>{{ $handoverReading?->water_new ?? '—' }}</strong> m³</span></div></div>
+                <div class="rounded-lg bg-sky-50 p-4"><p class="text-sm font-semibold text-sky-800">Lần ghi gần nhất</p><p class="mt-2 text-sm text-slate-600">Ngày {{ $latestReading?->record_date?->format('d/m/Y') ?? 'chưa ghi nhận' }}</p><div class="mt-3 flex gap-5"><span>Điện: <strong>{{ $latestReading?->electricity_new ?? '—' }}</strong> kWh</span><span>Nước: <strong>{{ $latestReading?->water_new ?? '—' }}</strong> m³</span></div></div>
+                <div class="rounded-lg bg-amber-50 p-4"><p class="text-sm font-semibold text-amber-800">Chỉ số trả phòng</p><p class="mt-2 text-sm text-slate-600">Ngày {{ $checkoutReading?->record_date?->format('d/m/Y') ?? 'chưa trả phòng' }}</p><div class="mt-3 flex gap-5"><span>Điện: <strong>{{ $checkoutReading?->electricity_new ?? '—' }}</strong> kWh</span><span>Nước: <strong>{{ $checkoutReading?->water_new ?? '—' }}</strong> m³</span></div></div>
             </div>
         </section>
 
@@ -119,5 +161,16 @@
                 </div>
             </section>
         </div>
+
+        @if($contract->note || $contract->termination_reason || $contract->termination_note || $contract->extend_reason || $contract->extend_note)
+            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Ghi chú và lịch sử hợp đồng</h3></div>
+                <dl class="grid gap-4 p-5 text-sm md:grid-cols-2">
+                    @if($contract->note)<div><dt class="font-semibold text-slate-700">Ghi chú hợp đồng</dt><dd class="mt-1 whitespace-pre-line text-slate-600">{{ $contract->note }}</dd></div>@endif
+                    @if($contract->extend_reason || $contract->extend_note)<div><dt class="font-semibold text-slate-700">Gia hạn</dt><dd class="mt-1 text-slate-600">{{ $contract->extend_reason }} {{ $contract->extend_note }}</dd></div>@endif
+                    @if($contract->termination_reason || $contract->termination_note)<div><dt class="font-semibold text-slate-700">Kết thúc hợp đồng</dt><dd class="mt-1 text-slate-600">{{ ['expired' => 'Hết hạn hợp đồng', 'early' => 'Trả phòng trước hạn', 'violation' => 'Vi phạm hợp đồng', 'other' => 'Lý do khác'][$contract->termination_reason] ?? $contract->termination_reason }} {{ $contract->termination_note }}</dd></div>@endif
+                </dl>
+            </section>
+        @endif
     </div>
 @endsection

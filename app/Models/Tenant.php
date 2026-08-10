@@ -10,6 +10,8 @@ class Tenant extends Model
 
         'user_id',
 
+        'payment_code',
+
         'full_name',
 
         'date_of_birth',
@@ -31,6 +33,17 @@ class Tenant extends Model
 
         'cccd_issue_date' => 'date',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (Tenant $tenant) {
+            if (! $tenant->payment_code) {
+                $tenant->updateQuietly([
+                    'payment_code' => 'KH'.str_pad((string) $tenant->id, 8, '0', STR_PAD_LEFT),
+                ]);
+            }
+        });
+    }
 
     /*
     |--------------------------------------------------------------------------

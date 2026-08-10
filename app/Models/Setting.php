@@ -26,6 +26,9 @@ class Setting extends Model
         'invoice_day',
 
         'payment_due_days',
+        'bank_id',
+        'bank_account_no',
+        'bank_account_name',
 
         'is_active',
     ];

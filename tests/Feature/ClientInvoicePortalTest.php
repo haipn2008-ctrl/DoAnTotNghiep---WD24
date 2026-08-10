@@ -193,7 +193,24 @@ class ClientInvoicePortalTest extends TestCase
         Storage::disk('public')->assertMissing('payment-proofs/reserve-3.jpg');
     }
 
-    public function test_client_payment_rejects_duplicate_transaction_code_and_future_date(): void
+    public function test_client_payment_rejects_huge_fractional_and_non_positive_amounts_before_storing_proof(): void
+    {
+        Storage::fake('public');
+        [$client, $contract, $room] = $this->createClientContext('AMOUNT-VALIDATION');
+        $invoice = $this->createInvoice($contract, $room, 'INV-AMOUNT-VALIDATION');
+
+        foreach (['999999999999999999999999', '1.5', 0] as $index => $amount) {
+            $this->actingAs($client)->post('/client/invoices/'.$invoice->id.'/payments', [
+                'amount_paid' => $amount,
+                'proof_image' => UploadedFile::fake()->image("invalid-{$index}.jpg"),
+            ])->assertSessionHasErrors('amount_paid');
+        }
+
+        $this->assertDatabaseCount('payments', 0);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_client_payment_uses_server_date_and_qr_method_instead_of_untrusted_fields(): void
     {
         Storage::fake('public');
         [$client, $contract, $room] = $this->createClientContext('DUPLICATE');
@@ -215,9 +232,13 @@ class ClientInvoicePortalTest extends TestCase
             'proof_image' => UploadedFile::fake()->image('invalid.jpg'),
         ]);
 
-        $response->assertSessionHasErrors(['payment_date', 'payment_method', 'transaction_code']);
-        $this->assertDatabaseCount('payments', 1);
-        Storage::disk('public')->assertDirectoryEmpty('payment-proofs');
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('payments', 2);
+        $submitted = Payment::latest('id')->firstOrFail();
+        $this->assertSame(now()->toDateString(), $submitted->payment_date->toDateString());
+        $this->assertSame(Payment::METHOD_QR, $submitted->payment_method);
+        $this->assertNull($submitted->transaction_code);
+        $this->assertSame(Payment::STATUS_PENDING, $submitted->status);
     }
 
     public function test_admin_payment_is_atomic_and_cannot_overpay_or_use_future_date(): void
