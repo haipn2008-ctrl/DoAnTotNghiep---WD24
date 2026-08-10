@@ -14,7 +14,7 @@ return new class extends Migration
             $table->dropForeign(['room_id']);
 
             // Xóa unique cũ
-            $table->dropUnique('invoices_room_month_year_unique');
+            $table->dropUnique(['room_id', 'month', 'year']);
 
             // Tạo unique mới
             $table->unique(
