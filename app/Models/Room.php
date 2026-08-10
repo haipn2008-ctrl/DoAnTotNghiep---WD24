@@ -63,13 +63,22 @@ class Room extends Model
     public function currentContract()
     {
         return $this->hasOne(Contract::class)
-            ->whereIn('status',[
+            ->whereIn('status', [
                 Contract::STATUS_DRAFT,
                 Contract::STATUS_PENDING_SIGNATURE,
                 Contract::STATUS_SIGNED,
                 Contract::STATUS_DEPOSIT_PAID,
                 Contract::STATUS_ACTIVE
             ]);
+    }
+
+    /**
+     * Chỉ hợp đồng đang hoạt động
+     */
+    public function activeContract()
+    {
+        return $this->hasOne(Contract::class)
+            ->where('status', Contract::STATUS_ACTIVE);
     }
 
     /**
