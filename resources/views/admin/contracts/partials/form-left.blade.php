@@ -228,7 +228,7 @@ Tiền cọc
 type="number"
 name="deposit_amount"
 id="deposit"
-class="form-control">
+class="form-control" readonly>
 
 <span class="input-group-text">
 
@@ -314,7 +314,9 @@ id="previewImage"
 
 src=""
 
-alt="preview">
+alt="preview"
+
+style="display:none; max-width:100%; max-height:300px; object-fit:contain; border-radius:10px; border:1px solid #ddd;">
 
 </div>
 
