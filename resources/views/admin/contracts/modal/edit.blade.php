@@ -42,7 +42,9 @@
 
                 <form
                     id="editContractForm"
-                    method="POST">
+                    method="POST"
+                    enctype="multipart/form-data"
+                    autocomplete="off">
 
                     @csrf
                     @method('PUT')
