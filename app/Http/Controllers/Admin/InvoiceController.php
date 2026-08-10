@@ -854,117 +854,200 @@ class InvoiceController extends Controller
         Request $request,
         Invoice $invoice
     ) {
-
         $data = $request->validate([
             'amount_paid' => 'required|numeric|min:1',
             'payment_date' => 'required|date|before_or_equal:today',
             'payment_method' => 'required|in:'
-                .Payment::METHOD_CASH.','
-                .Payment::METHOD_BANK_TRANSFER.','
-                .Payment::METHOD_QR,
-            'transaction_code' => ['nullable', 'string', 'max:255', Rule::unique('payments', 'transaction_code')],
+                . Payment::METHOD_CASH . ','
+                . Payment::METHOD_BANK_TRANSFER . ','
+                . Payment::METHOD_QR,
+            'transaction_code' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('payments', 'transaction_code'),
+            ],
             'note' => 'nullable|string|max:1000',
         ]);
 
-        DB::transaction(function () use ($data, $invoice) {
-            $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
+        DB::transaction(function () use ($data, $invoice, $request) {
+
+            $lockedInvoice = Invoice::query()
+                ->lockForUpdate()
+                ->findOrFail($invoice->getKey());
+
             $remainingAmount = $lockedInvoice->remaining_amount;
 
-            if ($remainingAmount <= 0 || (float) $data['amount_paid'] > $remainingAmount) {
+            if (
+                $remainingAmount <= 0
+                || (float) $data['amount_paid'] > (float) $remainingAmount
+            ) {
                 throw ValidationException::withMessages([
                     'amount_paid' => 'Số tiền thanh toán vượt quá số tiền còn phải trả của hóa đơn.',
                 ]);
             }
 
             Payment::create([
-                'invoice_id' => $lockedInvoice->id,
+                'invoice_id' => $lockedInvoice->getKey(),
                 'amount_paid' => $data['amount_paid'],
                 'payment_date' => $data['payment_date'],
                 'payment_method' => $data['payment_method'],
                 'transaction_code' => $data['transaction_code'] ?? null,
                 'status' => Payment::STATUS_SUCCESS,
-                'confirmed_by' => auth()->id(),
+                'confirmed_by' => $request->user()->getAuthIdentifier(),
                 'note' => $data['note'] ?? null,
             ]);
 
+            // Cập nhật trạng thái hóa đơn
             $lockedInvoice->refreshStatus();
-            $this->syncTenantAccountAfterPayment($lockedInvoice);
         });
 
-        // Đồng bộ lại model bên ngoài transaction để kiểm tra trạng thái mới nhất.
+        // Đồng bộ lại model bên ngoài transaction
         $invoice->refresh();
 
         /*
         |--------------------------------------------------------------------------
-        | Quy trình tiền cọc -> chờ khách ký hợp đồng
+        | TIỀN CỌC -> CHỜ KHÁCH KÝ HỢP ĐỒNG
         |--------------------------------------------------------------------------
-        | Khi hóa đơn tiền cọc đã được thanh toán đủ:
-        | - Hợp đồng đang ở trạng thái Bản nháp
-        | - Chuyển hợp đồng sang Chờ ký
-        | - Đánh dấu tiền cọc đã thanh toán
-        | - Lưu thời điểm thanh toán cọc
         |
-        | Không chuyển sang ACTIVE ở bước này.
-        | User phải ký hợp đồng và xác nhận vào ở theo đúng quy trình.
+        | Khi hóa đơn tiền cọc đã thanh toán đủ:
+        |
+        | DRAFT
+        |    ↓
+        | PENDING_SIGNATURE
+        |
+        | Không chuyển ACTIVE ở bước này.
+        |--------------------------------------------------------------------------
         */
+
         if (
             $invoice->invoice_type === 'deposit'
             && $invoice->status === Invoice::STATUS_PAID
         ) {
             $contract = $invoice->contract;
 
-            if ($contract && $contract->status === Contract::STATUS_DRAFT) {
+            if (
+                $contract
+                && $contract->status === Contract::STATUS_DRAFT
+            ) {
                 $contract->update([
                     'status' => Contract::STATUS_PENDING_SIGNATURE,
                     'deposit_status' => Contract::DEPOSIT_PAID,
                     'deposit_paid_at' => now(),
                 ]);
             }
+
+            return redirect()
+                ->route('admin.invoices.show', $invoice)
+                ->with(
+                    'success',
+                    'Thanh toán tiền cọc thành công. Hợp đồng đã chuyển sang trạng thái Chờ ký.'
+                );
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | HÓA ĐƠN TIỀN THUÊ / HÓA ĐƠN KHÁC
+        |--------------------------------------------------------------------------
+        */
+
+        $this->syncTenantAccountAfterPayment($invoice);
+
         return redirect()
-            ->route(
-                'admin.invoices.show',
-                $invoice
-            )
+            ->route('admin.invoices.show', $invoice)
             ->with(
                 'success',
-                'Thanh toán thành công. Hợp đồng đã chuyển sang trạng thái Chờ ký.'
+                'Thanh toán thành công.'
             );
     }
 
-    public function approvePayment(Payment $payment)
+   public function approvePayment(Request $request, Payment $payment)
     {
-        DB::transaction(function () use ($payment) {
-            $payment = Payment::lockForUpdate()->findOrFail($payment->id);
+        DB::transaction(function () use ($payment, $request) {
 
-            if (! $payment->isPending()) {
+            $lockedPayment = Payment::query()
+                ->lockForUpdate()
+                ->findOrFail($payment->getKey());
+
+            if (! $lockedPayment->isPending()) {
                 throw ValidationException::withMessages([
                     'payment' => 'Xác nhận thanh toán này đã được xử lý trước đó.',
                 ]);
             }
 
-            $invoice = Invoice::lockForUpdate()->findOrFail($payment->invoice_id);
+            $invoice = Invoice::query()
+                ->lockForUpdate()
+                ->findOrFail($lockedPayment->invoice_id);
+
             $remainingAmount = $invoice->remaining_amount;
 
-            if ((float) $payment->amount_paid > $remainingAmount) {
+            if ((float) $lockedPayment->amount_paid > (float) $remainingAmount) {
                 throw ValidationException::withMessages([
                     'payment' => 'Số tiền xác nhận vượt quá số tiền còn phải trả của hóa đơn.',
                 ]);
             }
 
-            $payment->update([
+            // 1. Xác nhận thanh toán
+            $lockedPayment->update([
                 'status' => Payment::STATUS_SUCCESS,
-                'confirmed_by' => auth()->id(),
+                'confirmed_by' => $request->user()->getAuthIdentifier(),
                 'reviewed_at' => now(),
                 'review_note' => null,
             ]);
 
+            // 2. Cập nhật trạng thái hóa đơn
             $invoice->refreshStatus();
+
+            /*
+            |--------------------------------------------------------------------------
+            | TIỀN CỌC
+            |--------------------------------------------------------------------------
+            | Khi Admin xác nhận đủ tiền cọc:
+            |
+            | DRAFT
+            |   ↓
+            | PENDING_SIGNATURE
+            |
+            | Không ACTIVE ở bước này.
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                $invoice->invoice_type === 'deposit'
+                && $invoice->status === Invoice::STATUS_PAID
+            ) {
+                $contract = Contract::query()
+                    ->lockForUpdate()
+                    ->find($invoice->contract_id);
+
+                if (
+                    $contract
+                    && $contract->status === Contract::STATUS_DRAFT
+                ) {
+                    $contract->update([
+                        'status' => Contract::STATUS_PENDING_SIGNATURE,
+                        'deposit_status' => Contract::DEPOSIT_PAID,
+                        'deposit_paid_at' => now(),
+                    ]);
+                }
+
+                // Không sync TenantAccountLifecycle khi thanh toán tiền cọc.
+                return;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | HÓA ĐƠN TIỀN THUÊ / HÓA ĐƠN KHÁC
+            |--------------------------------------------------------------------------
+            */
+
             $this->syncTenantAccountAfterPayment($invoice);
         });
 
-        return back()->with('success', 'Đã duyệt xác nhận thanh toán.');
+        return back()->with(
+            'success',
+            'Đã duyệt thanh toán thành công.'
+        );
     }
 
     public function rejectPayment(Request $request, Payment $payment)
@@ -973,8 +1056,10 @@ class InvoiceController extends Controller
             'review_note' => 'required|string|max:1000',
         ]);
 
-        DB::transaction(function () use ($data, $payment) {
-            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
+        DB::transaction(function () use ($data, $payment, $request) {
+            $lockedPayment = Payment::query()
+                ->lockForUpdate()
+                ->findOrFail($payment->getKey());
 
             if (! $lockedPayment->isPending()) {
                 throw ValidationException::withMessages([
@@ -984,7 +1069,7 @@ class InvoiceController extends Controller
 
             $lockedPayment->update([
                 'status' => Payment::STATUS_FAILED,
-                'confirmed_by' => auth()->id(),
+                'confirmed_by' => $request->user()->getKey(),
                 'reviewed_at' => now(),
                 'review_note' => $data['review_note'],
             ]);
@@ -995,7 +1080,15 @@ class InvoiceController extends Controller
 
     private function syncTenantAccountAfterPayment(Invoice $invoice): void
     {
-        $tenant = $invoice->contract()->with('tenant.user')->first()?->tenant;
+        // Hóa đơn tiền cọc không được làm thay đổi trạng thái tài khoản.
+        // Khách vẫn cần đăng nhập để ký hợp đồng và xác nhận nhận phòng.
+        if ($invoice->invoice_type === 'deposit') {
+            return;
+        }
+
+        $tenant = $invoice->contract()
+            ->with('tenant.user')
+            ->first()?->tenant;
 
         if ($tenant) {
             app(TenantAccountLifecycle::class)->sync($tenant);
