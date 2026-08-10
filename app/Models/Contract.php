@@ -38,15 +38,16 @@ class Contract extends Model
     */
 
     const DEPOSIT_PENDING = 'pending';
-
     const DEPOSIT_PAID = 'paid';
 
+    const DEPOSIT_REFUND_REQUESTED = 'refund_requested';
+    const DEPOSIT_REFUND_APPROVED = 'refund_approved';
+    const DEPOSIT_REFUND_REJECTED = 'refund_rejected';
+    const DEPOSIT_REFUND_PROCESSING = 'refund_processing';
+
     const DEPOSIT_RETURNED = 'returned';
-
     const DEPOSIT_PARTIAL = 'partial_returned';
-
     const DEPOSIT_FORFEITED = 'forfeited';
-
     /**
      * Các trường được phép ghi dữ liệu
      */
@@ -69,7 +70,18 @@ class Contract extends Model
         'deposit_processed_at',
         'deposit_process_reason',
         'deposit_process_note',
-
+        'deposit_bank_name',
+        'deposit_bank_account_number',
+        'deposit_bank_account_name',
+        'deposit_qr_image',
+        'deposit_refund_requested_at',
+        'deposit_refund_approved_at',
+        'deposit_transfer_amount',
+        'deposit_transferred_at',
+        'deposit_transfer_proof',
+        'deposit_damage_proof',
+        'deposit_admin_note',
+        
         'number_of_people',
 
         'signed_at',
@@ -111,10 +123,16 @@ class Contract extends Model
         'planned_move_in_date' => 'date',
         'move_in_date'      => 'date',
         'move_in_confirmed_at' => 'datetime',
+
         'deposit_paid_at'   => 'datetime',
         'deposit_processed_at' => 'datetime',
         'deposit_refund_amount' => 'decimal:2',
         'deposit_deduction_amount' => 'decimal:2',
+        'deposit_refund_requested_at' => 'datetime',
+        'deposit_refund_approved_at' => 'datetime',
+        'deposit_transfer_amount' => 'decimal:2',
+        'deposit_transferred_at' => 'datetime',
+
         'extended_at'       => 'datetime',
         'terminated_at'     => 'datetime',
 
@@ -341,10 +359,42 @@ class Contract extends Model
     {
         return $this->status === self::STATUS_DEPOSIT_PAID;
     }
-    public function canReturnDeposit()
+    public function canReturnDeposit(): bool
     {
         return $this->status === self::STATUS_TERMINATED
-            && $this->deposit_status === self::DEPOSIT_PAID;
+            && in_array($this->deposit_status, [
+                self::DEPOSIT_REFUND_REQUESTED,
+                self::DEPOSIT_REFUND_APPROVED,
+                self::DEPOSIT_REFUND_PROCESSING,
+            ], true);
+    }
+
+    public function canRequestDepositRefund(): bool
+    {
+        return $this->status === self::STATUS_TERMINATED
+            && in_array($this->deposit_status, [
+                self::DEPOSIT_PAID,
+                self::DEPOSIT_REFUND_REJECTED,
+            ], true);
+    }
+
+    public function isRefundRequested(): bool
+    {
+        return $this->deposit_status === self::DEPOSIT_REFUND_REQUESTED;
+    }
+
+    public function isRefundApproved(): bool
+    {
+        return $this->deposit_status === self::DEPOSIT_REFUND_APPROVED;
+    }
+
+    public function isRefundCompleted(): bool
+    {
+        return in_array($this->deposit_status, [
+            self::DEPOSIT_RETURNED,
+            self::DEPOSIT_PARTIAL,
+            self::DEPOSIT_FORFEITED,
+        ], true);
     }
 
     public function isCompleted(): bool
@@ -398,5 +448,20 @@ class Contract extends Model
     public function extensionRequests()
     {
         return $this->hasMany(ContractExtensionRequest::class);
+    }
+    public function getDepositStatusTextAttribute(): string
+    {
+        return match ($this->deposit_status) {
+            self::DEPOSIT_PENDING => 'Chưa đóng cọc',
+            self::DEPOSIT_PAID => 'Đã đóng cọc',
+            self::DEPOSIT_REFUND_REQUESTED => 'Chờ duyệt hoàn cọc',
+            self::DEPOSIT_REFUND_APPROVED => 'Đã duyệt hoàn cọc',
+            self::DEPOSIT_REFUND_REJECTED => 'Từ chối hoàn cọc',
+            self::DEPOSIT_REFUND_PROCESSING => 'Đang chuyển khoản',
+            self::DEPOSIT_RETURNED => 'Đã hoàn toàn bộ',
+            self::DEPOSIT_PARTIAL => 'Đã hoàn một phần',
+            self::DEPOSIT_FORFEITED => 'Không hoàn cọc',
+            default => 'Không xác định',
+        };
     }
 }
