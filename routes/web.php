@@ -14,9 +14,12 @@ use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\ContractExtensionRequestController as AdminContractExtensionRequestController;
 use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminContractTerminationRequestController;
+use App\Http\Controllers\Admin\DepositRefundController as AdminDepositRefundController;
+
 
 // Client routes
 use App\Http\Controllers\Client\AccountController as ClientAccountController;
+use App\Http\Controllers\Client\DepositRefundController as ClientDepositRefundController;
 use App\Http\Controllers\Client\ContractController as ClientContractController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
@@ -83,15 +86,40 @@ Route::middleware('auth')->group(function () {
             [ContractController::class, 'extend']
         )->name('contracts.extend');
 
-        Route::post(
-            'contracts/{contract}/return-deposit',
-            [ContractController::class, 'returnDeposit']
-        )->name('contracts.return-deposit');
-
         Route::get(
             'contracts/{id}/print',
             [ContractController::class, 'print']
         )->name('contracts.print');
+        // Hoàn cọc
+        Route::get(
+            'deposit-refunds',
+            [AdminDepositRefundController::class, 'index']
+        )->name('deposit-refunds.index');
+
+        Route::post(
+            'deposit-refunds/{contract}/approve',
+            [AdminDepositRefundController::class, 'approve']
+        )->name('deposit-refunds.approve');
+
+        Route::post(
+            'deposit-refunds/{contract}/complete',
+            [AdminDepositRefundController::class, 'complete']
+        )->name('deposit-refunds.complete');
+
+        Route::post(
+            'deposit-refunds/{contract}/reject',
+            [AdminDepositRefundController::class, 'reject']
+        )->name('deposit-refunds.reject');
+
+        Route::get(
+            'deposit-refunds/{contract}/qr',
+            [AdminDepositRefundController::class, 'qr']
+        )->name('deposit-refunds.qr');
+
+        Route::get(
+            'deposit-refunds/{contract}/proof',
+            [AdminDepositRefundController::class, 'proof']
+        )->name('deposit-refunds.proof');
 
         Route::post(
             'contracts/{contract}/send-signature',
@@ -169,12 +197,6 @@ Route::middleware('auth')->group(function () {
         // Resource hợp đồng đặt sau các route cụ thể
         Route::resource('contracts', ContractController::class);
         //
-        // Chức năng điện nước
-        Route::get('/utilities/create', [UtilityController::class, 'create'])
-            ->name('utilities.create');
-
-            // Resource phải đặt SAU CÙNG
-            Route::resource('contracts', ContractController::class);
             //
             // Chức năng điện nước
             Route::get('/utilities/create', [UtilityController::class, 'create'])
@@ -333,6 +355,27 @@ Route::middleware('auth')->group(function () {
                 ->name('contracts.schedule-move-in');
             Route::post('/contracts/{contract}/confirm-move-in', [ClientContractController::class, 'confirmMoveIn'])
                 ->name('contracts.confirm-move-in');
+            // Yêu cầu hoàn cọc
+            Route::get(
+                '/deposit-refunds/{contract}',
+                [ClientDepositRefundController::class, 'index']
+            )->name('deposit-refunds.index');
+
+            Route::post(
+                '/contracts/{contract}/deposit-refund',
+                [ClientDepositRefundController::class, 'store']
+            )->name('deposit-refunds.store');
+
+            Route::get(
+                '/contracts/{contract}/deposit-refund/qr',
+                [ClientDepositRefundController::class, 'qr']
+            )->name('deposit-refunds.qr');
+
+            // Bằng chứng Admin đã chuyển tiền hoàn cọc
+            Route::get(
+                '/contracts/{contract}/deposit-refund/proof',
+                [ClientDepositRefundController::class, 'proof']
+            )->name('deposit-refunds.proof');
 
             // Yêu cầu gia hạn
             Route::get('/extension-requests', [ClientContractExtensionRequestController::class, 'index'])
