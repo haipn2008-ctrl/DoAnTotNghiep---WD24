@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class ContractController extends Controller
@@ -42,7 +44,7 @@ class ContractController extends Controller
                 Contract::STATUS_ACTIVE,
                 Contract::STATUS_EXPIRED,
                 Contract::STATUS_TERMINATED,
-                Contract::STATUS_DEPOSIT_RETURNED,
+                Contract::STATUS_COMPLETED,
             ])
             ->latest('id')
             ->get();
@@ -235,5 +237,127 @@ class ContractController extends Controller
         return redirect()
             ->route('client.contracts.show', $contract)
             ->with('success', 'Bạn đã ký hợp đồng thành công.');
+    }
+
+    /**
+     * Khách thuê đăng ký ngày dự kiến nhận phòng
+     */
+    public function scheduleMoveIn(Request $request, Contract $contract)
+    {
+        $user = Auth::user();
+
+        if ($user->role_id !== 2) {
+            abort(403);
+        }
+
+        $tenant = $user->tenant;
+
+        if (!$tenant || $contract->tenant_id !== $tenant->id) {
+            abort(403, 'Bạn không có quyền cập nhật hợp đồng này.');
+        }
+
+        // Chỉ được đăng ký sau khi đã ký
+        if (!$contract->isSigned()) {
+            return back()->with(
+                'error',
+                'Hợp đồng chưa được ký nên chưa thể đăng ký ngày nhận phòng.'
+            );
+        }
+
+        // Không cho đăng ký lại nếu đã nhận phòng
+        if ($contract->move_in_date) {
+            return back()->with(
+                'error',
+                'Hợp đồng này đã xác nhận nhận phòng.'
+            );
+        }
+
+        $request->validate([
+            'planned_move_in_date' => [
+                'required',
+                'date',
+                'after_or_equal:' . max(
+                    now()->toDateString(),
+                    optional($contract->start_date)->format('Y-m-d')
+                ),
+                'before_or_equal:' . optional(
+                    $contract->extend_end_date ?? $contract->end_date
+                )->format('Y-m-d'),
+            ],
+        ]);
+
+        $contract->update([
+            'planned_move_in_date' => $request->planned_move_in_date,
+        ]);
+
+        return redirect()
+            ->route('client.contracts.show', $contract)
+            ->with(
+                'success',
+                'Đã đăng ký ngày dự kiến nhận phòng: ' .
+                \Carbon\Carbon::parse($request->planned_move_in_date)->format('d/m/Y')
+            );
+    }
+    /**
+     * Khách thuê xác nhận đã thực tế nhận phòng
+     */
+    public function confirmMoveIn(Request $request, Contract $contract)
+    {
+        $user = Auth::user();
+
+        if ($user->role_id !== 2) {
+            abort(403);
+        }
+
+        $tenant = $user->tenant;
+
+        if (!$tenant || $contract->tenant_id !== $tenant->id) {
+            abort(403, 'Bạn không có quyền xác nhận hợp đồng này.');
+        }
+
+        if (!$contract->isSigned()) {
+            return back()->with(
+                'error',
+                'Hợp đồng chưa được ký nên chưa thể xác nhận nhận phòng.'
+            );
+        }
+
+        if (!$contract->planned_move_in_date) {
+            return back()->with(
+                'error',
+                'Bạn chưa đăng ký ngày dự kiến nhận phòng.'
+            );
+        }
+
+        if ($contract->move_in_date) {
+            return back()->with(
+                'error',
+                'Hợp đồng này đã xác nhận nhận phòng.'
+            );
+        }
+
+        $request->validate([
+            'move_in_date' => [
+                'required',
+                'date',
+                'after_or_equal:' .
+                    $contract->planned_move_in_date->format('Y-m-d'),
+                'before_or_equal:' . now()->toDateString(),
+            ],
+        ]);
+
+        $contract->update([
+            'move_in_date' => $request->move_in_date,
+            'move_in_confirmed_at' => now(),
+            'move_in_confirmed_by' => $user->id,
+            'status' => Contract::STATUS_ACTIVE,
+        ]);
+
+        return redirect()
+            ->route('client.contracts.show', $contract)
+            ->with(
+                'success',
+                'Bạn đã xác nhận nhận phòng. Hợp đồng đã được kích hoạt.'
+            );
     }
 }

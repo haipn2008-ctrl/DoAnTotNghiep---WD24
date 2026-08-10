@@ -238,29 +238,38 @@
 
 
                     {{-- BUTTON --}}
-                    <div class="flex justify-end border-t border-slate-100 pt-5">
+                    
+<div class="flex justify-end border-t border-slate-200 pt-5">
 
-                        <button type="submit"
-                                class="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 hover:shadow-md">
+    <button
+        type="submit"
+        id="submitTerminationBtn"
+        style="
+            background-color: #dc2626;
+            color: #ffffff;
+            border: none;
+            min-width: 190px;
+        "
+        class="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-bold shadow-sm transition hover:opacity-90"
+    >
 
-                            <svg class="h-4 w-4"
-                                 fill="none"
-                                 viewBox="0 0 24 24"
-                                 stroke="currentColor"
-                                 stroke-width="2">
+        <svg xmlns="http://www.w3.org/2000/svg"
+             viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="2"
+             class="h-4 w-4">
 
-                                <path stroke-linecap="round"
-                                      stroke-linejoin="round"
-                                      d="M6 12 3 3l18 9-18 9 3-9Zm0 0h8"/>
+            <path stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 12 3 3l18 9-18 9 3-9Zm0 0h8"/>
+        </svg>
 
-                            </svg>
+        <span>Gửi yêu cầu trả phòng</span>
 
-                            Gửi yêu cầu trả phòng
+    </button>
 
-                        </button>
-
-                    </div>
-
+</div>
                 </form>
 
             @endif

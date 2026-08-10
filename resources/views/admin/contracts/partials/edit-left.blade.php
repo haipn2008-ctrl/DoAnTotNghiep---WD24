@@ -1,4 +1,4 @@
-<div class="col-lg-6">
+<div class="col-lg-12">
 
     <div class="card h-100">
 

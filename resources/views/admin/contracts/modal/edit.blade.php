@@ -51,8 +51,6 @@
 
                         @include('admin.contracts.partials.edit-left')
 
-                        @include('admin.contracts.partials.edit-right')
-
                     </div>
 
                 </form>

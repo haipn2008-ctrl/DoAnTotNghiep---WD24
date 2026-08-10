@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminCont
 
 // Client routes
 use App\Http\Controllers\Client\ContractController as ClientContractController;
+use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
 use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
@@ -234,6 +235,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
             ->name('invoices.issue');
 
+        Route::post('/contracts/{contract}/deposit-invoice', [InvoiceController::class, 'createDepositInvoice'])
+            ->name('contracts.deposit-invoice');
+
         Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
             ->name('invoices.payments.store');
 
@@ -360,6 +364,30 @@ Route::middleware('auth')->group(function () {
     ->name('client.')
     ->group(function () {
 
+        // ================================
+        // HÓA ĐƠN CỦA KHÁCH THUÊ
+        // ================================
+
+        Route::get('/invoices', [
+            ClientInvoiceController::class,
+            'index'
+        ])->name('invoices.index');
+
+        Route::get('/invoices/{invoice}', [
+            ClientInvoiceController::class,
+            'show'
+        ])->name('invoices.show');
+
+        Route::get('/invoices/{invoice}/print', [
+            ClientInvoiceController::class,
+            'print'
+        ])->name('invoices.print');
+
+        Route::post('/invoices/{invoice}/payments', [
+            ClientInvoiceController::class,
+            'storePayment'
+        ])->name('invoices.payments.store');
+
         // Hợp đồng của tôi
         Route::get('/contracts', [
             ClientContractController::class,
@@ -389,6 +417,18 @@ Route::middleware('auth')->group(function () {
             ClientContractController::class,
             'sign'
         ])->name('contracts.sign');
+
+        // Khách thuê đăng ký ngày dự kiến nhận phòng
+        Route::post('/contracts/{contract}/schedule-move-in', [
+            ClientContractController::class,
+            'scheduleMoveIn'
+        ])->name('contracts.schedule-move-in');
+
+        // Khách thuê xác nhận đã vào ở
+        Route::post('/contracts/{contract}/confirm-move-in', [
+            ClientContractController::class,
+            'confirmMoveIn'
+        ])->name('contracts.confirm-move-in');
 
         Route::get('/extension-requests', [ClientContractExtensionRequestController::class, 'index'])
             ->name('extension-requests.index');

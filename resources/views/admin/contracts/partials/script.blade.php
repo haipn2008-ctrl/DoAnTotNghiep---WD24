@@ -1,4 +1,4 @@
-<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
+
 
 <script>
 // =========================
@@ -120,179 +120,139 @@ if (uploadBox && contractImage) {
     });
 
 }
-let editor = null;
+// =========================
+// TẠO NỘI DUNG HỢP ĐỒNG
+// =========================
+const contractForm = document.getElementById("contractForm");
+const contractContent = document.getElementById("contractContent");
 
-// Giữ nguyên mẫu hợp đồng gốc để khi đóng/mở modal không bị mất.
-let defaultContractTemplate = "";
-const initialContractEditor = document.getElementById("contractEditor");
-if (initialContractEditor) {
-    defaultContractTemplate = initialContractEditor.value;
-}
+if (contractForm && contractContent) {
 
-function contractDateParts(value) {
-    if (!value) return { day: "", month: "", year: "" };
-    const [year, month, day] = value.split("-");
-    return { day: day || "", month: month || "", year: year || "" };
-}
+    contractForm.addEventListener("submit", function () {
 
-function contractMoney(value) {
-    if (value === null || value === undefined || value === "") return "";
-    const n = Number(String(value).replace(/[^0-9-]/g, ""));
-    return Number.isFinite(n) ? n.toLocaleString("vi-VN") : value;
-}
+        let html = contractContent.value;
 
-function renderContractPlaceholders(html) {
-    const tenantSelect = document.getElementById("tenantSelect");
-    const roomSelectEl = document.getElementById("roomSelect");
-    const tenantOption = tenantSelect?.options[tenantSelect.selectedIndex];
-    const roomOption = roomSelectEl?.options[roomSelectEl.selectedIndex];
+        const tenantSelect = document.getElementById("tenantSelect");
+        const roomSelect = document.getElementById("roomSelect");
 
-    const start = contractDateParts(document.getElementById("startDate")?.value || "");
-    const end = contractDateParts(document.getElementById("endDate")?.value || "");
-    const now = new Date();
+        const tenantOption =
+            tenantSelect?.options[tenantSelect.selectedIndex];
 
-    const data = {
-        created_day: String(now.getDate()).padStart(2, "0"),
-        created_month: String(now.getMonth() + 1).padStart(2, "0"),
-        created_year: String(now.getFullYear()),
-        house_address: "Cầu Giấy - Hà Nội",
+        const roomOption =
+            roomSelect?.options[roomSelect.selectedIndex];
 
-        tenant_name: tenantOption?.dataset.name || tenantOption?.textContent?.trim() || "",
-        tenant_dob: tenantOption?.dataset.dob || "",
-        tenant_address: tenantOption?.dataset.address || "",
-        tenant_cccd: tenantOption?.dataset.cccd || "",
-        tenant_cccd_issue_date: tenantOption?.dataset.cccdIssueDate || "",
-        tenant_cccd_issue_place: tenantOption?.dataset.cccdIssuePlace || "",
-        tenant_phone: tenantOption?.dataset.phone || "",
+        const startValue =
+            document.getElementById("startDate")?.value || "";
 
-        room: roomOption?.dataset.room || roomOption?.textContent?.trim() || "",
-        price: contractMoney(roomOption?.dataset.price || document.getElementById("monthlyRent")?.value || ""),
-        deposit: contractMoney(document.getElementById("deposit")?.value || ""),
+        const endValue =
+            document.getElementById("endDate")?.value || "";
 
-        start_day: start.day,
-        start_month: start.month,
-        start_year: start.year,
-        end_day: end.day,
-        end_month: end.month,
-        end_year: end.year
-    };
+        function dateParts(value) {
+            if (!value) {
+                return {
+                    day: "",
+                    month: "",
+                    year: ""
+                };
+            }
 
-    Object.entries(data).forEach(([key, value]) => {
-        html = html.replace(
-            new RegExp("\\{\\{\\s*" + key + "\\s*\\}\\}", "g"),
-            value ?? ""
-        );
-    });
+            const [year, month, day] = value.split("-");
 
-    return html;
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-
-    function initEditor() {
-        console.count("CREATE");
-        if (editor) return;
-
-        const textarea = document.getElementById("contractEditor");
-        if (!textarea) {
-            console.error("Không tìm thấy #contractEditor");
-            return;
+            return {
+                day: day || "",
+                month: month || "",
+                year: year || ""
+            };
         }
 
-        ClassicEditor.create(textarea,{
-            toolbar: [
-                'heading',
-                '|',
-                'bold',
-                'italic',
-                '|',
-                'bulletedList',
-                'numberedList',
-                '|',
-                'undo',
-                'redo'
-            ]
-        }).then(ed=>{
-            editor = ed;
-            console.log("CKEditor Ready");
-        }).catch(error => {
-            console.error("CKEditor Error:", error);
-            console.log("ClassicEditor:", ClassicEditor);
-        });
-    }
+        function money(value) {
+            if (!value) return "";
 
-    const createModal = document.getElementById("createContractModal");
+            return Number(value).toLocaleString("vi-VN");
+        }
 
-    if (createModal) {
+        const start = dateParts(startValue);
+        const end = dateParts(endValue);
 
-        createModal.addEventListener("shown.bs.modal", async function () {
+        const now = new Date();
 
-            await initEditor();
+        // Format ngày từ DB về dd/mm/yyyy
+        function formatDate(value) {
+            if (!value) return "";
 
-        });
+            const date = new Date(value);
 
-        createModal.addEventListener("hidden.bs.modal", async function () {
-
-            if (editor) {
-
-                await editor.destroy();
-
-                editor = null;
-
+            if (isNaN(date.getTime())) {
+                return value;
             }
 
-            document.getElementById("contractForm").reset();
+            const day = String(date.getDate()).padStart(2, "0");
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const year = date.getFullYear();
 
-            document.getElementById("editorWrapper").innerHTML = `
-                <textarea id="contractEditor" name="contract_content"></textarea>
-            `;
+            return `${day}/${month}/${year}`;
+        }
 
-            const resetEditor = document.getElementById("contractEditor");
-            if (resetEditor) {
-                resetEditor.value = defaultContractTemplate;
-            }
+        const data = {
+            created_day: String(now.getDate()).padStart(2, "0"),
+            created_month: String(now.getMonth() + 1).padStart(2, "0"),
+            created_year: String(now.getFullYear()),
+
+            house_address: "Cầu Giấy - Hà Nội",
+
+            tenant_name:
+                tenantOption?.dataset.name ||
+                tenantOption?.textContent.trim() ||
+                "",
+
+            tenant_dob:
+                formatDate(tenantOption?.dataset.dob),
+
+            tenant_address:
+                tenantOption?.dataset.address || "",
+
+            tenant_cccd:
+                tenantOption?.dataset.cccd || "",
+
+            tenant_cccd_issue_date:
+                formatDate(tenantOption?.dataset.cccdIssueDate),
+
+            tenant_cccd_issue_place:
+                tenantOption?.dataset.cccdIssuePlace || "",
+
+            tenant_phone:
+                tenantOption?.dataset.phone || "",
+
+            room:
+                roomOption?.textContent.trim() || "",
+
+            price:
+                money(document.getElementById("monthlyRent")?.value),
+
+            deposit:
+                money(document.getElementById("deposit")?.value),
+
+            start_day: start.day,
+            start_month: start.month,
+            start_year: start.year,
+
+            end_day: end.day,
+            end_month: end.month,
+            end_year: end.year
+        };
+
+        Object.entries(data).forEach(([key, value]) => {
+
+            html = html.replace(
+                new RegExp("\\{\\{\\s*" + key + "\\s*\\}\\}", "g"),
+                value || ""
+            );
 
         });
 
-    }
-
-    const contractForm=document.getElementById("contractForm");
-    if(contractForm){
-        contractForm.addEventListener("submit",function(){
-            if(editor){
-                document.getElementById("contractEditor").value =
-                    renderContractPlaceholders(editor.getData());
-            }
-        });
-    }
-
-    const editorBtn=document.getElementById("editorBtn");
-    const previewBtn=document.getElementById("previewBtn");
-    const editorWrapper=document.getElementById("editorWrapper");
-    const previewWrapper=document.getElementById("previewWrapper");
-    const previewContent=document.getElementById("previewContent");
-
-    if(previewBtn){
-        previewBtn.addEventListener("click",function(){
-            if(!editor) return;
-            editorWrapper.style.display="none";
-            previewWrapper.style.display="block";
-            previewContent.innerHTML =
-                renderContractPlaceholders(editor.getData());
-            editorBtn.classList.remove("active");
-            previewBtn.classList.add("active");
-        });
-    }
-
-    if(editorBtn){
-        editorBtn.addEventListener("click",function(){
-            previewWrapper.style.display="none";
-            editorWrapper.style.display="block";
-            previewBtn.classList.remove("active");
-            editorBtn.classList.add("active");
-        });
-    }
-});
+        contractContent.value = html;
+    });
+}
 document.addEventListener("DOMContentLoaded", function () {
 
     document.addEventListener("click", async function (e) {

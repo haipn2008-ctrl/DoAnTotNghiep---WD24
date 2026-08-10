@@ -110,6 +110,15 @@ class ContractTerminationRequestController extends Controller
             })
             ->where('status', Contract::STATUS_ACTIVE)
             ->firstOrFail();
+        // Yêu cầu trả phòng chỉ dành cho trường hợp trả trước hạn
+        if ($validated['requested_end_date'] >= $contract->end_date) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'requested_end_date' =>
+                        'Ngày dự kiến trả phòng phải trước ngày kết thúc hợp đồng.'
+                ]);
+        }
 
         /*
         |--------------------------------------------------------------------------

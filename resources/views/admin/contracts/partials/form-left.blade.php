@@ -1,4 +1,4 @@
-<div class="col-lg-6">
+<div class="col-lg-12">
 
 <div class="card h-100">
 
@@ -73,10 +73,14 @@
 
                 <option
                     value="{{ $tenant->id }}"
-                    data-name="{{ $tenant->name }}">
-
+                    data-name="{{ $tenant->name }}"
+                    data-dob="{{ $tenant->date_of_birth }}"
+                    data-address="{{ $tenant->address }}"
+                    data-cccd="{{ $tenant->cccd }}"
+                    data-cccd-issue-date="{{ $tenant->cccd_issue_date }}"
+                    data-cccd-issue-place="{{ $tenant->cccd_issue_place }}"
+                    data-phone="{{ $tenant->phone }}">
                     {{ $tenant->name }}
-
                 </option>
 
             @endforeach

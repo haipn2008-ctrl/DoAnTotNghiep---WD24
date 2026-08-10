@@ -337,44 +337,42 @@ Thông tin hợp đồng
 
                 <td>
 
-                    @switch( $contract->status_text)
+                    @switch($contract->status)
 
-                        @case('active')
-
+                        @case(\App\Models\Contract::STATUS_ACTIVE)
                             <span class="badge bg-success">
-
                                 Đang hoạt động
-
                             </span>
-
                             @break
 
-                        @case('expired')
-
+                        @case(\App\Models\Contract::STATUS_EXPIRED)
                             <span class="badge bg-danger">
-
                                 Hết hạn
-
                             </span>
-
                             @break
 
-                        @case('draft')
-
+                        @case(\App\Models\Contract::STATUS_DRAFT)
                             <span class="badge bg-secondary">
-
                                 Bản nháp
-
                             </span>
+                            @break
 
+                        @case(\App\Models\Contract::STATUS_TERMINATED)
+                            <span class="badge bg-dark">
+                                Đã kết thúc
+                            </span>
+                            @break
+
+                        @case(\App\Models\Contract::STATUS_COMPLETED)
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle me-1"></i>
+                                Hoàn tất
+                            </span>
                             @break
 
                         @default
-
                             <span class="badge bg-warning text-dark">
-
-                                {{ ucfirst( $contract->status_text) }}
-
+                                {{ $contract->status_text }}
                             </span>
 
                     @endswitch
@@ -432,19 +430,36 @@ Thông tin hợp đồng
             </tr>
 
             <tr>
-
+                <th class="text-muted">Ngày tạo</th>
+                <td>{{ optional($contract->created_at)->format('d/m/Y H:i') }}</td>
+            </tr>
+            <tr>
                 <th class="text-muted">
-
-                    Ngày tạo
-
+                    Ngày nhận phòng thực tế
                 </th>
-
                 <td>
-
-                    {{ optional($contract->created_at)->format('d/m/Y H:i') }}
-
+                    @if($contract->move_in_date)
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-success">
+                                {{ optional($contract->move_in_date)->format('d/m/Y') }}
+                            </span>
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle">
+                                <i class="bi bi-check-circle-fill me-1"></i>Đã nhận phòng
+                            </span>
+                        </div>
+                    @elseif($contract->planned_move_in_date)
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-warning">
+                                {{ optional($contract->planned_move_in_date)->format('d/m/Y') }}
+                            </span>
+                            <span class="badge bg-warning bg-opacity-10 text-dark border border-warning-subtle">
+                                <i class="bi bi-clock me-1"></i>Dự kiến
+                            </span>
+                        </div>
+                    @else
+                        <span class="text-muted">Chưa xác nhận</span>
+                    @endif
                 </td>
-
             </tr>
 
         </table>
@@ -1047,7 +1062,143 @@ Thông tin hợp đồng
         </div>
     </div>
 </div>
+@if($contract->isCompleted())
 
+<div class="card border-0 shadow-sm mt-4">
+
+    <div class="card-header bg-white">
+        <h5 class="fw-bold mb-0 text-success">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            Thanh lý & hoàn tất hợp đồng
+        </h5>
+    </div>
+
+    <div class="card-body">
+
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            <strong>Hợp đồng đã hoàn tất.</strong>
+            Khách thuê đã trả phòng và tiền cọc đã được xử lý.
+        </div>
+
+        <div class="row">
+
+            {{-- KẾT THÚC HỢP ĐỒNG --}}
+            <div class="col-md-6">
+
+                <h6 class="fw-bold mb-3">
+                    <i class="bi bi-door-open me-2"></i>
+                    Thông tin trả phòng
+                </h6>
+
+                <table class="table table-borderless">
+
+                    <tr>
+                        <th>Ngày kết thúc theo HĐ</th>
+                        <td>
+                            {{ optional($contract->end_date)->format('d/m/Y') }}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th>Ngày trả phòng thực tế</th>
+                        <td class="fw-bold">
+                            {{ optional($contract->actual_end_date)->format('d/m/Y') ?? '-' }}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th>Lý do kết thúc</th>
+                        <td>
+                            {{ $contract->termination_reason ?? '-' }}
+                        </td>
+                    </tr>
+
+                </table>
+
+            </div>
+
+            {{-- TIỀN CỌC --}}
+            <div class="col-md-6">
+
+                <h6 class="fw-bold mb-3">
+                    <i class="bi bi-wallet2 me-2"></i>
+                    Xử lý tiền cọc
+                </h6>
+
+                <table class="table table-borderless">
+
+                    <tr>
+                        <th>Tiền cọc ban đầu</th>
+                        <td class="fw-bold">
+                            {{ number_format($contract->deposit_amount) }} VNĐ
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th>Khấu trừ</th>
+                        <td class="text-danger fw-bold">
+                            {{ number_format($contract->deposit_deduction_amount ?? 0) }} VNĐ
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th>Đã hoàn khách</th>
+                        <td class="text-success fw-bold">
+                            {{ number_format($contract->deposit_refund_amount ?? 0) }} VNĐ
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th>Trạng thái cọc</th>
+                        <td>
+                            @if($contract->deposit_status === \App\Models\Contract::DEPOSIT_RETURNED)
+
+                                <span class="badge bg-success">
+                                    Đã hoàn toàn bộ
+                                </span>
+
+                            @elseif($contract->deposit_status === \App\Models\Contract::DEPOSIT_PARTIAL)
+
+                                <span class="badge bg-warning text-dark">
+                                    Hoàn một phần
+                                </span>
+
+                            @elseif($contract->deposit_status === \App\Models\Contract::DEPOSIT_FORFEITED)
+
+                                <span class="badge bg-danger">
+                                    Không hoàn cọc
+                                </span>
+
+                            @endif
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th>Ngày xử lý</th>
+                        <td>
+                            {{ optional($contract->deposit_processed_at)->format('d/m/Y H:i') ?? '-' }}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th>Lý do xử lý</th>
+                        <td>
+                            {{ $contract->deposit_process_reason ?? '-' }}
+                        </td>
+                    </tr>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+@endif
 {{-- ========================= --}}
 {{-- TAB NỘI DUNG HỢP ĐỒNG --}}
 {{-- ========================= --}}
@@ -1169,80 +1320,6 @@ Thông tin hợp đồng
         In hợp đồng
 
     </a>
-    @if($contract->isPendingSignature())
-
-    <button
-        type="button"
-        class="btn btn-danger recallContractBtn"
-
-        data-code="{{ $contract->contract_code }}"
-        data-action="{{ route('admin.contracts.recall-signature', $contract) }}"
-
-        data-bs-toggle="modal"
-        data-bs-target="#recallContractModal">
-
-        <i class="bi bi-arrow-counterclockwise me-1"></i>
-        Thu hồi
-
-    </button>
-
-    @endif
-    @if($contract->isDraft())
-
-    <form
-        action="{{ route('admin.contracts.send-signature', $contract) }}"
-        method="POST"
-        class="d-inline">
-
-        @csrf
-
-        <button
-            type="submit"
-            class="btn btn-warning"
-            onclick="return confirm('Gửi hợp đồng cho khách thuê ký?')">
-
-            <i class="bi bi-send me-1"></i>
-
-            Gửi hợp đồng
-
-        </button>
-
-    </form>
-
-    @endif
-
-    @if($contract->isSigned())
-    <form action="{{ route('admin.contracts.confirm-deposit', $contract) }}" method="POST" class="d-inline">
-        @csrf
-        <button type="submit" class="btn btn-warning"
-                onclick="return confirm('Xác nhận đã nhận đủ tiền cọc của khách thuê?')">
-            <i class="bi bi-cash-coin me-1"></i>
-            Xác nhận tiền cọc
-        </button>
-    </form>
-    @endif
-
-    @if($contract->status === \App\Models\Contract::STATUS_DEPOSIT_PAID)
-
-        <form
-            action="{{ route('admin.contracts.activate', $contract) }}"
-            method="POST"
-            class="d-inline"
-        >
-            @csrf
-
-            <button
-                type="submit"
-                class="btn btn-success"
-                onclick="return confirm('Kích hoạt hợp đồng này?')"
-            >
-                <i class="bi bi-check-circle me-1"></i>
-                Kích hoạt hợp đồng
-            </button>
-
-        </form>
-
-    @endif
 
     @if(in_array($contract->status,['draft','active']))
 
@@ -1271,6 +1348,26 @@ Thông tin hợp đồng
 
     </button>
 
+    @endif
+    
+    @if(
+        $contract->status === \App\Models\Contract::STATUS_DRAFT &&
+        (float) $contract->deposit_amount > 0 &&
+        !$contract->invoices->contains('invoice_type', 'deposit')
+    )
+        <form
+            action="{{ route('admin.contracts.deposit-invoice', $contract) }}"
+            method="POST"
+            class="d-inline"
+            onsubmit="return confirm('Tạo hóa đơn tiền cọc cho hợp đồng này?')"
+        >
+            @csrf
+
+            <button type="submit" class="btn btn-warning">
+                <i class="bi bi-receipt me-1"></i>
+                Tạo hóa đơn tiền cọc
+            </button>
+        </form>
     @endif
 
     @if($contract->canExtend())

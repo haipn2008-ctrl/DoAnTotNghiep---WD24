@@ -99,10 +99,10 @@
                         'class' => 'bg-rose-100 text-rose-700 ring-rose-200',
                         'dot' => 'bg-rose-500'
                     ],
-                    'deposit_returned' => [
-                        'text' => 'Đã hoàn cọc',
-                        'class' => 'bg-sky-100 text-sky-700 ring-sky-200',
-                        'dot' => 'bg-sky-500'
+                    'completed' => [
+                        'text' => 'Hoàn tất',
+                        'class' => 'bg-emerald-100 text-emerald-700 ring-emerald-200',
+                        'dot' => 'bg-emerald-500'
                     ],
                     default => [
                         'text' => 'Không xác định',

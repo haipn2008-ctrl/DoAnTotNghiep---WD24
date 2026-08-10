@@ -1,79 +1,56 @@
-<div class="col-lg-6">
+@verbatim
+<style>
+.contract-paper{
+    font-family:"Times New Roman",serif;
+    font-size:16px;
+    line-height:1.65;
+    color:#1f2937;
+    background:#fff;
+    max-width:820px;
+    margin:0 auto;
+    padding:56px 64px 70px;
+    box-sizing:border-box;
+    border:1px solid #e5e7eb;
+    box-shadow:0 8px 28px rgba(15,23,42,.10);
+}
+.contract-paper p{margin:0 0 12px;text-align:justify;}
+.contract-paper .national-title{
+    text-align:center;font-weight:700;font-size:18px;margin:0;color:#111827;
+}
+.contract-paper .national-subtitle{
+    text-align:center;font-size:17px;margin:7px 0 38px;
+}
+.contract-paper .contract-title{
+    text-align:center;font-weight:700;font-size:20px;text-transform:uppercase;
+    margin:38px 0 34px;color:#111827;
+}
+.contract-paper .section-title{
+    font-size:19px;font-weight:700;margin:30px 0 14px;color:#111827;
+}
+.contract-paper .party-title{font-weight:700;margin-top:18px;}
+.contract-paper .intro{font-weight:700;margin-top:18px;}
+.contract-paper u{text-underline-offset:2px;}
+.contract-paper .signature-table{
+    width:100%;text-align:center;margin-top:55px;border-collapse:collapse;
+}
+.contract-paper .signature-table td{width:50%;border:0;padding:0;}
+.contract-paper .signature-space{height:110px;vertical-align:bottom;}
+@media(max-width:900px){
+    .contract-paper{max-width:100%;padding:36px 30px 48px;box-shadow:none;border:0;}
+}
+</style>
 
-    <div class="card shadow-sm border-0 h-100 contract-editor-card">
+<div class="contract-paper">
 
-        {{-- Header --}}
-        <div class="card-header bg-white border-bottom">
-
-            <label class="form-label fw-semibold mb-2">
-                Mẫu hợp đồng
-            </label>
-
-            <select
-                class="form-select"
-                id="templateSelect"
-                name="template_id">
-
-                <option value="">
-                    Hợp đồng thuê phòng trọ tiêu chuẩn
-                </option>
-
-                @foreach($templates ?? [] as $template)
-                    <option value="{{ $template->id }}">
-                        {{ $template->name }}
-                    </option>
-                @endforeach
-
-            </select>
-
-        </div>
-
-        {{-- Body --}}
-        <div class="card-body p-0 d-flex flex-column">
-
-            <div class="px-3 py-2 border-bottom">
-                <label class="form-label fw-semibold mb-0">
-                    Nội dung hợp đồng
-                </label>
-            </div>
-
-            <div class="editor-toolbar">
-                <div class="btn-group">
-
-                    <button
-                        type="button"
-                        class="btn btn-success active"
-                        id="editorBtn">
-                        Soạn thảo
-                    </button>
-
-                    <button
-                        type="button"
-                        class="btn btn-outline-success"
-                        id="previewBtn">
-                        Xem trước
-                    </button>
-
-                </div>
-            </div>
-
-            {{-- CKEditor --}}
-            <div id="editorWrapper" class="flex-grow-1">
-
-                <textarea
-                    id="contractEditor"
-                    name="contract_content">@if(old('contract_content')){!! old('contract_content') !!}@else@verbatim
-<div style="font-family:'Times New Roman',serif;font-size:16px;line-height:1.5;color:#000;">
-
-    <p style="text-align:center;font-weight:bold;font-size:18px;margin:0;">
+    <p class="national-title">
         CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
     </p>
 
-    <p style="text-align:center;font-size:17px;margin:6px 0 40px;">
+    <p class="national-subtitle">
         <strong>Độc lập – Tự do – Hạnh phúc</strong>
     </p>
 
-    <p style="text-align:center;font-weight:bold;font-size:18px;text-transform:uppercase;margin:45px 0 35px;">
+    <p class="contract-title">
         HỢP ĐỒNG THUÊ PHÒNG TRỌ
     </p>
 
@@ -86,7 +63,7 @@
 
     <p><strong>Chúng tôi gồm:</strong></p>
 
-    <p><strong>1. Đại diện bên cho thuê phòng trọ (Bên A):</strong></p>
+    <p class="party-title"><strong>1. Đại diện bên cho thuê phòng trọ (Bên A):</strong></p>
 
     <p>
         Ông/bà: <u>Nguyễn Văn A</u>
@@ -112,7 +89,7 @@
         Số điện thoại: <u>0865819798</u>
     </p>
 
-    <p><strong>2. Bên thuê phòng trọ (Bên B):</strong></p>
+    <p class="party-title"><strong>2. Bên thuê phòng trọ (Bên B):</strong></p>
 
     <p>
         Ông/bà: <u>{{tenant_name}}</u>
@@ -179,7 +156,7 @@
         <u>{{end_day}}</u> tháng <u>{{end_month}}</u> năm <u>{{end_year}}</u>
     </p>
 
-    <h3 style="font-size:20px;font-weight:bold;margin-top:40px;margin-bottom:15px;">
+    <h3 class="section-title">
         TRÁCH NHIỆM CỦA CÁC BÊN
     </h3>
 
@@ -216,7 +193,7 @@
         pháp luật của khách trong thời gian ở lại.
     </p>
 
-    <h3 style="font-size:20px;font-weight:bold;margin-top:30px;margin-bottom:15px;">
+    <h3 class="section-title">
         TRÁCH NHIỆM CHUNG
     </h3>
 
@@ -245,24 +222,24 @@
         mỗi bên giữ một bản.
     </p>
 
-    <table style="width:100%;text-align:center;margin-top:60px;border-collapse:collapse;">
+    <table class="signature-table">
         <tbody>
             <tr>
-                <td style="width:50%;border:0;">
+                <td>
                     <strong>ĐẠI DIỆN BÊN A</strong><br>
                     <span>(Bên cho thuê)</span>
                 </td>
-                <td style="width:50%;border:0;">
+                <td>
                     <strong>ĐẠI DIỆN BÊN B</strong><br>
                     <span>(Bên thuê)</span>
                 </td>
             </tr>
             <tr>
-                <td style="height:120px;vertical-align:bottom;border:0;">
+                <td class="signature-space">
                     <strong>Nguyễn Văn A</strong><br>
                     <small>Chủ nhà trọ</small>
                 </td>
-                <td style="height:120px;vertical-align:bottom;border:0;">
+                <td class="signature-space">
                     <strong>{{tenant_name}}</strong><br>
                     <small>Khách thuê</small>
                 </td>
@@ -271,25 +248,4 @@
     </table>
 
 </div>
-@endverbatim@endif</textarea>
-
-            </div>
-
-            {{-- Preview --}}
-            <div
-                id="previewWrapper"
-                class="flex-grow-1"
-                style="display:none">
-
-                <div
-                    id="previewContent"
-                    class="contract-preview">
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
+@endverbatim

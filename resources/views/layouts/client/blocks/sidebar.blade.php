@@ -187,10 +187,16 @@
 
 
         {{-- HÓA ĐƠN --}}
-        <a href="#invoices"
-           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
+        <a href="{{ route('client.invoices.index') }}"
+        class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition
+        {{ request()->routeIs('client.invoices.*')
+                ? 'bg-indigo-50 text-indigo-700'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
 
-            <span class="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100">
+            <span class="flex h-7 w-7 items-center justify-center rounded-md
+                {{ request()->routeIs('client.invoices.*')
+                    ? 'bg-indigo-100'
+                    : 'bg-slate-100' }}">
                 ₫
             </span>
 

@@ -34,7 +34,6 @@ class Payment extends Model
      * Các trường được phép gán dữ liệu.
      */
     protected $fillable = [
-
         'invoice_id',
 
         'amount_paid',
@@ -49,8 +48,12 @@ class Payment extends Model
 
         'confirmed_by',
 
-        'note',
+        'submitted_by',
 
+        'proof_image',
+
+        'note',
+        
     ];
 
     /**

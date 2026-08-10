@@ -137,6 +137,8 @@ class ContractController extends Controller
 
             'contract_content'=>'nullable|string',
 
+            'confirm_contract_accuracy'=>'required|accepted',
+
         ]);
 
         $room = Room::findOrFail($request->room_id);

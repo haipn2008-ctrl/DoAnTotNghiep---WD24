@@ -47,13 +47,39 @@
                     id="contractForm">
 
                     @csrf
-
+                    <textarea
+                        id="contractContent"
+                        name="contract_content"
+                        hidden
+                    >@include('admin.contracts.partials.contract-template')</textarea>
                     <div class="row">
 
                         @include('admin.contracts.partials.form-left')
 
-                        @include('admin.contracts.partials.editor-right')
+                    </div>
 
+                    {{-- Xác nhận đã kiểm tra thông tin hợp đồng với bản cứng --}}
+                    <div class="mt-4 p-3 border rounded bg-light">
+                        <div class="form-check">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                name="confirm_contract_accuracy"
+                                id="confirmContractAccuracy"
+                                value="1"
+                                required
+                                {{ old('confirm_contract_accuracy') ? 'checked' : '' }}
+                            >
+                            <label class="form-check-label fw-semibold" for="confirmContractAccuracy">
+                                Tôi đã kiểm tra kỹ thông tin hợp đồng và xác nhận thông tin đã khớp với bản cứng.
+                            </label>
+                        </div>
+
+                        @error('confirm_contract_accuracy')
+                            <div class="text-danger small mt-2">
+                                {{ $message }}
+                            </div>
+                        @enderror
                     </div>
 
                 </form>

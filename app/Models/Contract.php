@@ -26,7 +26,7 @@ class Contract extends Model
 
     const STATUS_TERMINATED = 'terminated';
 
-    const STATUS_DEPOSIT_RETURNED = 'deposit_returned';
+    // const STATUS_DEPOSIT_RETURNED = 'deposit_returned';
 
     const STATUS_COMPLETED = 'completed';
 
@@ -73,6 +73,10 @@ class Contract extends Model
 
         'signed_at',
         'tenant_signature',
+        'planned_move_in_date',
+        'move_in_date',
+        'move_in_confirmed_at',
+        'move_in_confirmed_by',
         'start_date',
         'end_date',
         'actual_end_date',
@@ -103,6 +107,9 @@ class Contract extends Model
     protected $casts = [
 
         'signed_at'         => 'datetime',
+        'planned_move_in_date' => 'date',
+        'move_in_date'      => 'date',
+        'move_in_confirmed_at' => 'datetime',
         'deposit_paid_at'   => 'datetime',
         'deposit_processed_at' => 'datetime',
         'deposit_refund_amount' => 'decimal:2',
@@ -139,6 +146,14 @@ class Contract extends Model
         return $this->belongsTo(
             Tenant::class,
             'representative_tenant_id'
+        );
+    }
+
+    public function moveInConfirmedBy()
+    {
+        return $this->belongsTo(
+            User::class,
+            'move_in_confirmed_by'
         );
     }
 
@@ -206,10 +221,10 @@ class Contract extends Model
         return $query->where('status', self::STATUS_DEPOSIT_PAID);
     }
 
-    public function scopeDepositReturned($query)
-    {
-        return $query->where('status', self::STATUS_DEPOSIT_RETURNED);
-    }
+    // public function scopeDepositReturned($query)
+    // {
+    //     return $query->where('status', self::STATUS_DEPOSIT_RETURNED);
+    // }
 
     /*
     |--------------------------------------------------------------------------
@@ -231,15 +246,23 @@ class Contract extends Model
     {
         return $this->status === self::STATUS_SIGNED;
     }
+
+    public function isMoveInConfirmed(): bool
+    {
+        return !empty($this->move_in_date)
+            && !empty($this->move_in_confirmed_at)
+            && !empty($this->move_in_confirmed_by);
+    }
+
     public function isDepositPaidStatus()
     {
         return $this->status === self::STATUS_DEPOSIT_PAID;
     }
 
-    public function isDepositReturnedStatus()
-    {
-        return $this->status === self::STATUS_DEPOSIT_RETURNED;
-    }
+    // public function isDepositReturnedStatus()
+    // {
+    //     return $this->status === self::STATUS_DEPOSIT_RETURNED;
+    // }
 
     public function isActive()
     {
@@ -344,7 +367,7 @@ class Contract extends Model
             self::STATUS_ACTIVE => 'Đang hoạt động',
             self::STATUS_EXPIRED => 'Hết hạn',
             self::STATUS_TERMINATED => 'Đã kết thúc',
-            self::STATUS_DEPOSIT_RETURNED => 'Đã hoàn cọc',
+            // self::STATUS_DEPOSIT_RETURNED => 'Đã hoàn cọc',
             self::STATUS_COMPLETED => 'Hoàn tất',
             default => 'Không xác định',
         };

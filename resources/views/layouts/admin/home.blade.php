@@ -1,8 +1,4 @@
 @extends('layouts.admin.index')
-<<<<<<< HEAD
-<link rel="stylesheet"
-href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-=======
 
 @section('title', 'Dashboard | Quản lý phòng trọ')
 @section('page_title', 'Dashboard quản lý phòng trọ')
@@ -23,7 +19,6 @@ href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.m
     ];
 @endphp
 
->>>>>>> 3bb66892adb64dbcdda16ab528fbe3ec6422a225
 @section('content')
     <div class="space-y-6">
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">

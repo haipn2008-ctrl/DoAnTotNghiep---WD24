@@ -432,8 +432,8 @@
                         Nội dung của hợp đồng thuê phòng đã hết hạn.
                     @elseif($contract->isTerminated())
                         Nội dung của hợp đồng thuê phòng đã chấm dứt.
-                    @elseif($contract->isDepositReturnedStatus())
-                        Hợp đồng đã chấm dứt và tiền đặt cọc đã được hoàn trả.
+                    @elseif($contract->isCompleted())
+                        Hợp đồng đã hoàn tất và tiền đặt cọc đã được xử lý.
                     @else
                         Nội dung và các điều khoản của hợp đồng thuê phòng.
                     @endif
@@ -666,6 +666,215 @@
 
     @endif
     
+    {{-- =========================
+        ĐĂNG KÝ / XÁC NHẬN NHẬN PHÒNG
+    ========================= --}}
+    @if($contract->isSigned() && !$contract->move_in_date)
+
+        @php
+            $today = now()->toDateString();
+            $startDate = optional($contract->start_date)->format('Y-m-d');
+            $endDate = optional(
+                $contract->extend_end_date ?? $contract->end_date
+            )->format('Y-m-d');
+
+            // Nếu chưa đăng ký ngày dự kiến:
+            // cho chọn từ ngày bắt đầu hợp đồng trở đi.
+            $minDate = max($today, $startDate);
+        @endphp
+
+        <div class="mt-6 overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
+
+            <div class="border-b border-blue-100 bg-blue-50 px-6 py-5">
+                <div class="flex items-start gap-4">
+
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-xl">
+                        🏠
+                    </div>
+
+                    <div>
+                        <h2 class="text-lg font-bold text-blue-950">
+                            Xác nhận nhận phòng
+                        </h2>
+
+                        <p class="mt-1 text-sm leading-6 text-blue-700">
+                            Hợp đồng đã được ký. Bạn có thể đăng ký ngày dự kiến nhận phòng.
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+
+
+            <div class="p-6">
+
+                {{-- THÔNG TIN HỢP ĐỒNG --}}
+                <div class="grid gap-4 md:grid-cols-3 mb-6">
+
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p class="text-xs text-slate-500">
+                            Phòng
+                        </p>
+
+                        <p class="mt-1 font-bold text-slate-900">
+                            {{ $contract->room->room_code ?? '---' }}
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p class="text-xs text-slate-500">
+                            Ngày bắt đầu hợp đồng
+                        </p>
+
+                        <p class="mt-1 font-bold text-slate-900">
+                            {{ optional($contract->start_date)->format('d/m/Y') }}
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p class="text-xs text-slate-500">
+                            Ngày kết thúc hợp đồng
+                        </p>
+
+                        <p class="mt-1 font-bold text-slate-900">
+                            {{ optional($contract->extend_end_date ?? $contract->end_date)->format('d/m/Y') }}
+                        </p>
+                    </div>
+
+                </div>
+
+
+                @if(!$contract->planned_move_in_date)
+
+                    {{-- CHƯA CHỌN NGÀY --}}
+                    <form
+                        method="POST"
+                        action="{{ route('client.contracts.schedule-move-in', $contract) }}"
+                    >
+                        @csrf
+
+                        <div>
+                            <label
+                                for="planned_move_in_date"
+                                class="mb-2 block text-sm font-bold text-slate-700"
+                            >
+                                Ngày dự kiến nhận phòng
+                                <span class="text-red-500">*</span>
+                            </label>
+
+                            <input
+                                type="date"
+                                id="planned_move_in_date"
+                                name="planned_move_in_date"
+                                value="{{ old('planned_move_in_date') }}"
+                                min="{{ $minDate }}"
+                                max="{{ $endDate }}"
+                                required
+                                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:ring-blue-500"
+                            >
+
+                            <p class="mt-2 text-xs text-slate-500">
+                                Bạn có thể nhận phòng sau ngày bắt đầu hợp đồng.
+                                Ví dụ: hợp đồng bắt đầu 10/08 nhưng bạn có thể đăng ký nhận phòng ngày 30/08.
+                            </p>
+                        </div>
+
+                        <div class="mt-5 flex justify-end">
+                            <button
+                                type="submit"
+                                class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+                            >
+                                📅 Đăng ký ngày nhận phòng
+                            </button>
+                        </div>
+
+                    </form>
+
+                @else
+
+                    {{-- ĐÃ ĐĂNG KÝ NGÀY DỰ KIẾN --}}
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-5">
+
+                        <div class="flex items-start gap-3">
+
+                            <div class="text-2xl">
+                                ⏳
+                            </div>
+
+                            <div>
+                                <h3 class="font-bold text-amber-900">
+                                    Chờ nhận phòng
+                                </h3>
+
+                                <p class="mt-1 text-sm text-amber-800">
+                                    Ngày dự kiến nhận phòng:
+                                    <strong>
+                                        {{ $contract->planned_move_in_date->format('d/m/Y') }}
+                                    </strong>
+                                </p>
+
+                                @if(now()->toDateString() < $contract->planned_move_in_date->format('Y-m-d'))
+
+                                    <p class="mt-2 text-xs text-amber-700">
+                                        Chưa đến ngày nhận phòng.
+                                        Khi đến ngày dự kiến, bạn mới có thể xác nhận đã nhận phòng.
+                                    </p>
+
+                                @else
+
+                                    <form
+                                        method="POST"
+                                        action="{{ route('client.contracts.confirm-move-in', $contract) }}"
+                                        class="mt-4"
+                                        onsubmit="return confirm('Bạn xác nhận hôm nay đã thực tế nhận phòng?');"
+                                    >
+                                        @csrf
+
+                                        <label
+                                            for="move_in_date"
+                                            class="mb-2 block text-sm font-bold text-slate-700"
+                                        >
+                                            Ngày thực tế nhận phòng
+                                        </label>
+
+                                        <input
+                                            type="date"
+                                            id="move_in_date"
+                                            name="move_in_date"
+                                            value="{{ now()->toDateString() }}"
+                                            min="{{ $contract->planned_move_in_date->format('Y-m-d') }}"
+                                            max="{{ now()->toDateString() }}"
+                                            required
+                                            class="w-full rounded-xl border border-slate-300 px-4 py-3"
+                                        >
+
+                                        <button
+                                            type="submit"
+                                            id="confirmMoveInBtn"
+                                            class="mt-4 inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-sm transition-all duration-200"
+                                            style="background-color:#16a34a !important; color:#fff !important; opacity:1 !important; cursor:pointer !important;"
+                                        >
+                                            🏠 Xác nhận đã nhận phòng
+                                        </button>
+
+                                    </form>
+                                    
+
+                                @endif
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                @endif
+
+            </div>
+
+        </div>
+
+    @endif
     
     {{-- UPDATED --}}
     <p class="mt-5 text-right text-xs text-slate-400">

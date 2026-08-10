@@ -178,11 +178,11 @@
             Đã chấm dứt
         </option>
 
-        <option
+        {{-- <option
             value="{{ \App\Models\Contract::STATUS_DEPOSIT_RETURNED }}"
             {{ request('status') == \App\Models\Contract::STATUS_DEPOSIT_RETURNED ? 'selected' : '' }}>
             Đã hoàn cọc
-        </option>
+        </option> --}}
 
         <option
             value="{{ \App\Models\Contract::STATUS_COMPLETED }}"
@@ -449,11 +449,11 @@ Tạo ngày
             Đã chấm dứt
         </span>
 
-    @elseif($contract->status === \App\Models\Contract::STATUS_DEPOSIT_RETURNED)
+    {{-- @elseif($contract->status === \App\Models\Contract::STATUS_DEPOSIT_RETURNED)
 
         <span class="badge rounded-pill bg-info px-3">
             Đã hoàn cọc
-        </span>
+        </span> --}}
 
     @elseif($contract->status === \App\Models\Contract::STATUS_COMPLETED)
 

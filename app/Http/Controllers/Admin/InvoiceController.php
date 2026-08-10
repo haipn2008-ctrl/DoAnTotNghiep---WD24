@@ -162,7 +162,52 @@ class InvoiceController extends Controller
             )
         );
     }
+    public function createDepositInvoice(Contract $contract)
+    {
+        if ($contract->status !== Contract::STATUS_DRAFT) {
+            return back()->with('error', 'Chỉ có thể tạo hóa đơn cọc cho hợp đồng bản nháp.');
+        }
 
+        if ((float) $contract->deposit_amount <= 0) {
+            return back()->with('error', 'Hợp đồng chưa có tiền cọc.');
+        }
+
+        $exists = Invoice::where('contract_id', $contract->id)
+            ->where('invoice_type', 'deposit')
+            ->exists();
+
+        if ($exists) {
+            return back()->with('error', 'Hợp đồng này đã có hóa đơn tiền cọc.');
+        }
+
+        $invoice = Invoice::create([
+            'contract_id'       => $contract->id,
+            'room_id'           => $contract->room_id,
+            'invoice_code'      => 'DEP-' . $contract->contract_code,
+            'utility_reading_id'=> null,
+
+            'month'             => now()->month,
+            'year'              => now()->year,
+
+            'invoice_date'      => now()->toDateString(),
+            'due_date'          => now()->addDays(3)->toDateString(),
+
+            'room_fee'          => 0,
+            'electricity_fee'  => 0,
+            'water_fee'        => 0,
+            'internet_fee'     => 0,
+            'service_fee'      => 0,
+
+            'total_amount'      => $contract->deposit_amount,
+            'status'            => 'unpaid',
+            'invoice_type'     => 'deposit',
+        ]);
+
+        return back()->with(
+            'success',
+            'Tạo hóa đơn tiền cọc thành công: ' . $invoice->invoice_code
+        );
+    }
     /**
      * Alias for the invoice generation form route.
      */
@@ -856,7 +901,36 @@ class InvoiceController extends Controller
 
         ]);
 
+        // Cập nhật trạng thái hóa đơn sau khi ghi nhận thanh toán
         $invoice->refreshStatus();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Quy trình tiền cọc -> chờ khách ký hợp đồng
+        |--------------------------------------------------------------------------
+        | Khi hóa đơn tiền cọc đã được thanh toán đủ:
+        | - Hợp đồng đang ở trạng thái Bản nháp
+        | - Chuyển hợp đồng sang Chờ ký
+        | - Đánh dấu tiền cọc đã thanh toán
+        | - Lưu thời điểm thanh toán cọc
+        |
+        | Không chuyển sang ACTIVE ở bước này.
+        | User phải ký hợp đồng và xác nhận vào ở theo đúng quy trình.
+        */
+        if (
+            $invoice->invoice_type === 'deposit'
+            && $invoice->status === Invoice::STATUS_PAID
+        ) {
+            $contract = $invoice->contract;
+
+            if ($contract && $contract->status === Contract::STATUS_DRAFT) {
+                $contract->update([
+                    'status' => Contract::STATUS_PENDING_SIGNATURE,
+                    'deposit_status' => Contract::DEPOSIT_PAID,
+                    'deposit_paid_at' => now(),
+                ]);
+            }
+        }
 
         return redirect()
             ->route(
@@ -865,7 +939,7 @@ class InvoiceController extends Controller
             )
             ->with(
                 'success',
-                'Thanh toán thành công.'
+                'Thanh toán thành công. Hợp đồng đã chuyển sang trạng thái Chờ ký.'
             );
     }
 
