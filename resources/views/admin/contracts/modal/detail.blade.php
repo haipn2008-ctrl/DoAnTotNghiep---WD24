@@ -1014,42 +1014,60 @@ Thông tin hợp đồng
 
             <div class="card-body">
 
-                @if(!empty($contract->contract_file))
+                @php
+                    $contractImage = $contract->contract_file ?? null;
 
-                    <div class="text-center">
+                    if ($contractImage) {
+                        if (filter_var($contractImage, FILTER_VALIDATE_URL)) {
+                            $contractImageUrl = $contractImage;
+                        } elseif (str_starts_with($contractImage, 'storage/')) {
+                            $contractImageUrl = asset($contractImage);
+                        } elseif (str_starts_with($contractImage, '/storage/')) {
+                            $contractImageUrl = asset(ltrim($contractImage, '/'));
+                        } elseif (str_starts_with($contractImage, 'public/')) {
+                            $contractImageUrl = asset('storage/' . substr($contractImage, 7));
+                        } else {
+                            $contractImageUrl = asset('storage/' . ltrim($contractImage, '/'));
+                        }
+                    } else {
+                        $contractImageUrl = null;
+                    }
+                @endphp
 
-                        <img
+                @if($contractImageUrl)
+                    <div class="contract-image text-center">
+                        <a href="{{ $contractImageUrl }}" target="_blank" rel="noopener">
+                            <img
+                                src="{{ $contractImageUrl }}"
+                                alt="Hình ảnh hợp đồng"
+                                class="img-fluid rounded shadow"
+                                style="max-width:100%;max-height:650px;object-fit:contain;">
+                        </a>
 
-                            src="{{ asset($contract->contract_file) }}"
-
-                            class="img-fluid rounded shadow"
-
-                            style="max-height:500px;">
-
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                Nhấn vào ảnh để xem kích thước đầy đủ
+                            </small>
+                        </div>
                     </div>
-
                 @else
-
                     <div
                         class="border rounded bg-light d-flex
                         justify-content-center align-items-center"
-
                         style="height:320px;">
 
                         <div class="text-center">
-
                             <i class="bi bi-image display-1 text-secondary"></i>
 
                             <h5 class="mt-3 text-muted">
-
                                 Chưa có hình ảnh hợp đồng
-
                             </h5>
 
+                            <small class="text-muted">
+                                Vui lòng tải ảnh hợp đồng khi tạo hoặc chỉnh sửa.
+                            </small>
                         </div>
-
                     </div>
-
                 @endif
 
             </div>
@@ -1407,27 +1425,6 @@ Thông tin hợp đồng
 
         <i class="bi bi-slash-circle me-1"></i>
         Kết thúc
-    </button>
-
-    @endif
-    @if($contract->canReturnDeposit())
-
-    <button
-        type="button"
-        class="btn btn-info returnDepositBtn"
-
-        data-id="{{ $contract->id }}"
-        data-code="{{ $contract->contract_code }}"
-        data-deposit="{{ $contract->deposit_amount }}"
-        data-action="{{ route('admin.contracts.return-deposit', $contract) }}"
-
-        data-bs-toggle="modal"
-        data-bs-target="#returnDepositModal">
-
-        <i class="bi bi-cash-coin me-1"></i>
-
-        Xử lý tiền cọc
-
     </button>
 
     @endif
