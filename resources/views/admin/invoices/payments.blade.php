@@ -30,11 +30,11 @@
 
         <div class="space-y-4">
             @forelse($payments as $payment)
-                @php($status = $statuses[$payment->status] ?? ['label' => $payment->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                @php($status = $statuses[$payment->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
                 <article class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="flex flex-col justify-between gap-4 lg:flex-row">
                         <div class="grid flex-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                            <div><p class="text-xs font-semibold uppercase text-slate-500">Giao dịch</p><p class="mt-1 font-bold text-slate-950">{{ $payment->transaction_code ?? 'GD-'.$payment->id }}</p><p class="mt-1 text-xs text-slate-500">{{ $methods[$payment->payment_method] ?? $payment->payment_method }} · {{ $payment->payment_date?->format('d/m/Y') }}</p></div>
+                            <div><p class="text-xs font-semibold uppercase text-slate-500">Giao dịch</p><p class="mt-1 font-bold text-slate-950">{{ $payment->transaction_code ?? 'GD-'.$payment->id }}</p><p class="mt-1 text-xs text-slate-500">{{ $methods[$payment->payment_method] ?? 'Không xác định' }} · {{ $payment->payment_date?->format('d/m/Y') }}</p></div>
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Hóa đơn</p><a href="{{ route('admin.invoices.show', $payment->invoice) }}" class="mt-1 block font-bold text-indigo-700">{{ $payment->invoice->invoice_code }}</a><p class="mt-1 text-xs text-slate-500">Phòng {{ $payment->invoice->room->room_code ?? '-' }}</p></div>
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Khách thuê</p><p class="mt-1 font-bold text-slate-950">{{ $payment->invoice->contract->tenant->full_name ?? '-' }}</p><p class="mt-1 text-xs text-slate-500">{{ $payment->submitter?->email ?? 'Admin ghi nhận' }}</p></div>
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Số tiền</p><p class="mt-1 text-xl font-bold text-emerald-700">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</p><span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span></div>

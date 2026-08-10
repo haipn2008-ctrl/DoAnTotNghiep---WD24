@@ -66,7 +66,7 @@
                                             'locked' => ['Đã khóa', 'bg-rose-50 text-rose-700 ring-rose-200'],
                                             'inactive' => ['Ngừng sử dụng', 'bg-slate-100 text-slate-600 ring-slate-200'],
                                         ];
-                                        $accountStatus = $statusLabels[$user->status] ?? [$user->status, 'bg-slate-100 text-slate-600 ring-slate-200'];
+                                        $accountStatus = $statusLabels[$user->status] ?? ['Không xác định', 'bg-slate-100 text-slate-600 ring-slate-200'];
                                     @endphp
                                     <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $accountStatus[1] }}">{{ $accountStatus[0] }}</span>
                                 </td>

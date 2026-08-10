@@ -29,7 +29,7 @@ Artisan::command('payments:audit-transaction-codes', function () {
 
     $this->error('Phát hiện mã giao dịch trùng. Không tự động thay đổi dữ liệu tài chính.');
     $this->table(
-        ['Mã giao dịch', 'Số bản ghi', 'Payment IDs'],
+        ['Mã giao dịch', 'Số bản ghi', 'ID thanh toán'],
         $duplicates->map(function ($duplicate) {
             $ids = DB::table('payments')
                 ->where('transaction_code', $duplicate->transaction_code)
@@ -40,7 +40,7 @@ Artisan::command('payments:audit-transaction-codes', function () {
             return [$duplicate->transaction_code, $duplicate->occurrences, $ids];
         })->all()
     );
-    $this->warn('Hãy đối soát các payment ID trên và sửa dữ liệu có xác nhận trước khi chạy migration.');
+    $this->warn('Hãy đối soát các ID thanh toán trên và sửa dữ liệu có xác nhận trước khi chạy migration.');
 
     return 1;
 })->purpose('Kiểm tra mã giao dịch thanh toán trùng mà không thay đổi dữ liệu');
@@ -60,7 +60,7 @@ Artisan::command('support:audit-attachments', function () {
 
     $this->error('Phát hiện bản ghi hỗ trợ có tệp đính kèm bị thiếu. Dữ liệu đường dẫn được giữ nguyên để đối soát.');
     $this->table(
-        ['Support Request ID', 'Đường dẫn được lưu'],
+        ['ID yêu cầu hỗ trợ', 'Đường dẫn được lưu'],
         $missing->map(fn ($supportRequest) => [$supportRequest->id, $supportRequest->attachment])->all()
     );
 
@@ -74,12 +74,12 @@ Artisan::command('settings:audit-active', function () {
         ->get(['id', 'electric_price', 'water_price', 'internet_fee', 'service_fee', 'updated_at']);
 
     if ($active->count() <= 1) {
-        $this->info('Cấu hình đơn giá active hợp lệ: '.$active->count().' bản ghi.');
+        $this->info('Cấu hình đơn giá đang hoạt động hợp lệ: '.$active->count().' bản ghi.');
 
         return 0;
     }
 
-    $this->error('Phát hiện nhiều cấu hình đơn giá active. Không tự động thay đổi dữ liệu tài chính.');
+    $this->error('Phát hiện nhiều cấu hình đơn giá đang hoạt động. Không tự động thay đổi dữ liệu tài chính.');
     $this->table(
         ['ID', 'Điện', 'Nước', 'Internet', 'Dịch vụ', 'Cập nhật lúc'],
         $active->map(fn ($setting) => [
@@ -93,7 +93,7 @@ Artisan::command('settings:audit-active', function () {
     );
 
     return 1;
-})->purpose('Kiểm tra có nhiều cấu hình đơn giá active mà không thay đổi dữ liệu');
+})->purpose('Kiểm tra có nhiều cấu hình đơn giá đang hoạt động mà không thay đổi dữ liệu');
 
 Artisan::command('portal:audit-private-files', function () {
     $missing = collect();

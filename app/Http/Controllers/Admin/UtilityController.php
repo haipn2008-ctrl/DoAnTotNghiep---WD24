@@ -70,7 +70,7 @@ class UtilityController extends Controller
             $currentReading = $currentReadings->get($room->id);
             $previousReading = $previousReadings->get($room->id);
             $activeContract = $room->contracts->first();
-            $startDate = $activeContract ? Carbon::parse($activeContract->start_date)->format('d/m/Y') : 'N/A';
+            $startDate = $activeContract ? Carbon::parse($activeContract->start_date)->format('d/m/Y') : 'Không có';
 
             $readings[] = [
                 'room_id' => $room->id,

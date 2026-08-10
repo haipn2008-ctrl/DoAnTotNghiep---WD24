@@ -79,7 +79,7 @@
                                     @if ($activeContract)
                                         <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
                                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                            Phòng {{ $activeContract->room->room_code ?? 'N/A' }}
+                                            Phòng {{ $activeContract->room->room_code ?? 'Không có' }}
                                         </span>
                                     @else
                                         <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">

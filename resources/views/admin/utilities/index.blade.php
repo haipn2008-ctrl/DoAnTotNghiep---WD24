@@ -101,7 +101,7 @@
                                 $activeContract = $item->room ? $item->room->contracts->first() : null;
                                 $startDate = $activeContract && $activeContract->start_date
                                     ? \Carbon\Carbon::parse($activeContract->start_date)->format('d/m/Y')
-                                    : 'N/A';
+                                    : 'Không có';
                             @endphp
                             <tr class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">

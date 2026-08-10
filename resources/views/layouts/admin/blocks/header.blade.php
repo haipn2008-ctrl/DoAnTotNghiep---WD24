@@ -6,14 +6,14 @@
             </button>
 
             <div class="min-w-0">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Stay Master</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Quản lý lưu trú</p>
                 <h1 class="truncate text-lg font-semibold text-slate-900">@yield('page_title', 'Quản lý phòng trọ')</h1>
             </div>
         </div>
 
         <div class="relative flex items-center gap-3">
             <div class="hidden text-right sm:block">
-                <p class="text-sm font-semibold text-slate-900">{{ Auth::user()->name ?? 'Admin' }}</p>
+                <p class="text-sm font-semibold text-slate-900">{{ Auth::user()->name ?? 'Quản trị viên' }}</p>
                 <p class="text-xs text-slate-500">Quản trị hệ thống</p>
             </div>
 

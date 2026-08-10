@@ -11,7 +11,7 @@
     ];
 
     $recentInvoiceStatus = $recentInvoice
-        ? ($invoiceStatusLabels[$recentInvoice->status] ?? ['label' => $recentInvoice->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+        ? ($invoiceStatusLabels[$recentInvoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
         : null;
 @endphp
 
@@ -92,11 +92,11 @@
                 @if ($recentInvoice)
                     <div class="divide-y divide-slate-100">
                         @foreach ($openInvoices->take(5) as $invoice)
-                            @php($status = $invoiceStatusLabels[$invoice->status] ?? ['label' => $invoice->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                            @php($status = $invoiceStatusLabels[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
                             <a href="{{ route('client.invoices.show', $invoice) }}" class="flex flex-col justify-between gap-3 px-5 py-4 hover:bg-slate-50 sm:flex-row sm:items-center">
                                 <div>
                                     <p class="font-semibold text-slate-950">Hóa đơn kỳ {{ $invoice->month }}/{{ $invoice->year }}</p>
-                                    <p class="mt-1 text-sm text-slate-500">Phòng {{ $invoice->room->room_code ?? 'N/A' }} · Hạn {{ \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') }}</p>
+                                    <p class="mt-1 text-sm text-slate-500">Phòng {{ $invoice->room->room_code ?? 'Không có' }} · Hạn {{ \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') }}</p>
                                 </div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-bold text-slate-950">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</span>

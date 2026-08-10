@@ -1,7 +1,7 @@
 @extends('layouts.admin.index')
 
-@section('title', 'Dashboard | Quản lý phòng trọ')
-@section('page_title', 'Dashboard quản lý phòng trọ')
+@section('title', 'Bảng điều khiển | Quản lý phòng trọ')
+@section('page_title', 'Bảng điều khiển quản lý phòng trọ')
 
 @php
     $roomTotal = max((int) ($stats['total_rooms'] ?? 0), 1);
@@ -23,7 +23,7 @@
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
                 <p class="text-sm font-medium text-slate-500">Tổng quan vận hành hôm nay</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Xin chào, {{ Auth::user()->name ?? 'Admin' }}</h2>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Xin chào, {{ Auth::user()->name ?? 'Quản trị viên' }}</h2>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -108,9 +108,9 @@
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @forelse ($recentInvoices as $invoice)
-                                @php($invoiceStatus = $statusLabels[$invoice->status] ?? ['label' => $invoice->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                                @php($invoiceStatus = $statusLabels[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
                                 <tr>
-                                    <td class="px-5 py-4 font-medium text-slate-900">{{ $invoice->room->room_code ?? 'N/A' }}</td>
+                                    <td class="px-5 py-4 font-medium text-slate-900">{{ $invoice->room->room_code ?? 'Không có' }}</td>
                                     <td class="px-5 py-4 text-slate-600">{{ $invoice->month }}/{{ $invoice->year }}</td>
                                     <td class="px-5 py-4 font-semibold text-slate-900">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</td>
                                     <td class="px-5 py-4">
@@ -138,12 +138,12 @@
 
                 <div class="divide-y divide-slate-100">
                     @forelse ($recentContracts as $contract)
-                        @php($contractStatus = $statusLabels[$contract->status] ?? ['label' => $contract->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                        @php($contractStatus = $statusLabels[$contract->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
                         <div class="flex items-center justify-between gap-4 px-5 py-4">
                             <div class="min-w-0">
                                 <p class="truncate font-semibold text-slate-950">{{ $contract->contract_code }}</p>
                                 <p class="mt-1 text-sm text-slate-500">
-                                    {{ $contract->tenant->full_name ?? 'Chưa có khách' }} · Phòng {{ $contract->room->room_code ?? 'N/A' }}
+                                    {{ $contract->tenant->full_name ?? 'Chưa có khách' }} · Phòng {{ $contract->room->room_code ?? 'Không có' }}
                                 </p>
                             </div>
                             <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $contractStatus['class'] }}">{{ $contractStatus['label'] }}</span>

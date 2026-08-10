@@ -57,7 +57,7 @@
                     @if ($activeContract)
                         <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                            Đang thuê phòng {{ $activeContract->room->room_code ?? 'N/A' }}
+                            Đang thuê phòng {{ $activeContract->room->room_code ?? 'Không có' }}
                         </span>
                     @else
                         <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
@@ -93,12 +93,12 @@
 
             <div class="divide-y divide-slate-100">
                 @forelse ($tenant->contracts as $contract)
-                    @php($contractStatus = $contractStatusLabels[$contract->status] ?? ['label' => $contract->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                    @php($contractStatus = $contractStatusLabels[$contract->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
                     <div class="flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center">
                         <div>
                             <p class="font-semibold text-slate-950">{{ $contract->contract_code }}</p>
                             <p class="mt-1 text-sm text-slate-500">
-                                Phòng {{ $contract->room->room_code ?? 'N/A' }} ·
+                                Phòng {{ $contract->room->room_code ?? 'Không có' }} ·
                                 {{ $contract->start_date ? \Carbon\Carbon::parse($contract->start_date)->format('d/m/Y') : '---' }}
                                 -
                                 {{ $contract->end_date ? \Carbon\Carbon::parse($contract->end_date)->format('d/m/Y') : '---' }}

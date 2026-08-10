@@ -157,14 +157,14 @@ class SettingManagementTest extends TestCase
     {
         $first = $this->createSetting(['is_active' => true]);
         $this->artisan('settings:audit-active')
-            ->expectsOutput('Cấu hình đơn giá active hợp lệ: 1 bản ghi.')
+            ->expectsOutput('Cấu hình đơn giá đang hoạt động hợp lệ: 1 bản ghi.')
             ->assertSuccessful();
         DB::statement('DROP INDEX settings_single_active_unique');
 
         try {
             $second = $this->createSetting(['is_active' => true, 'electric_price' => 9999]);
             $this->artisan('settings:audit-active')
-                ->expectsOutput('Phát hiện nhiều cấu hình đơn giá active. Không tự động thay đổi dữ liệu tài chính.')
+                ->expectsOutput('Phát hiện nhiều cấu hình đơn giá đang hoạt động. Không tự động thay đổi dữ liệu tài chính.')
                 ->assertFailed();
             $this->assertTrue($first->fresh()->is_active);
             $this->assertTrue($second->fresh()->is_active);

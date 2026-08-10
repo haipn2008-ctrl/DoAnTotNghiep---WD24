@@ -27,7 +27,7 @@
         <section class="space-y-4">
             <div><p class="text-sm font-medium text-slate-500">Tiến độ xử lý</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Yêu cầu của tôi</h2></div>
             @forelse($requests as $supportRequest)
-                @php($status = $statuses[$supportRequest->status] ?? [$supportRequest->status, 'bg-slate-100 text-slate-700'])
+                @php($status = $statuses[$supportRequest->status] ?? ['Không xác định', 'bg-slate-100 text-slate-700'])
                 <article class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><div class="flex flex-wrap items-center gap-2"><span class="text-xs font-semibold uppercase text-indigo-600">{{ $categories[$supportRequest->category] ?? $supportRequest->category }}</span><span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $status[1] }}">{{ $status[0] }}</span></div><h3 class="mt-2 text-lg font-bold text-slate-950">{{ $supportRequest->subject }}</h3><p class="mt-1 text-xs text-slate-500">Gửi lúc {{ $supportRequest->created_at->format('d/m/Y H:i') }}</p></div>@if($supportRequest->attachmentExists())<a href="{{ route('client.support.attachment', $supportRequest) }}" target="_blank" class="text-sm font-semibold text-indigo-700">Xem ảnh</a>@elseif($supportRequest->attachment)<span class="text-sm font-medium text-amber-700">Tệp đính kèm không còn tồn tại</span>@endif</div>
                     <p class="mt-4 whitespace-pre-line text-sm leading-6 text-slate-600">{{ $supportRequest->description }}</p>

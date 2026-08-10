@@ -5,7 +5,7 @@
             'icon' => 'bx bx-home-alt',
             'active' => request()->routeIs('admin.overview*') || request()->routeIs('admin.home'),
             'items' => [
-                ['label' => 'Dashboard', 'route' => 'admin.home', 'active' => request()->routeIs('admin.home')],
+                ['label' => 'Bảng điều khiển', 'route' => 'admin.home', 'active' => request()->routeIs('admin.home')],
                 ['label' => 'Biểu đồ doanh thu', 'route' => 'admin.overview.revenue-chart', 'active' => request()->routeIs('admin.overview.revenue-chart')],
                 ['label' => 'Thống kê doanh thu', 'route' => 'admin.overview.revenue-stats', 'active' => request()->routeIs('admin.overview.revenue-stats')],
                 ['label' => 'Thống kê phòng', 'route' => 'admin.overview.room-stats', 'active' => request()->routeIs('admin.overview.room-stats')],
@@ -92,7 +92,7 @@
         <a href="{{ route('admin.home') }}" class="flex items-center gap-3">
             <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-xl font-bold text-white">S</span>
             <span>
-                <span class="block text-sm font-bold text-slate-900">Stay Master</span>
+                <span class="block text-sm font-bold text-slate-900">Quản lý lưu trú</span>
                 <span class="block text-xs text-slate-500">Quản lý phòng trọ</span>
             </span>
         </a>

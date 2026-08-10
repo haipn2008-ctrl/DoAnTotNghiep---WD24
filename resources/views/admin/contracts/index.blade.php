@@ -81,7 +81,7 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($contracts as $contract)
                             @php
-                                $status = $statusOptions[$contract->status] ?? ['label' => $contract->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'];
+                                $status = $statusOptions[$contract->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'];
                             @endphp
                             <tr class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">
@@ -89,12 +89,12 @@
                                     <p class="mt-1 text-xs text-slate-500">Tiền cọc {{ number_format($contract->deposit_amount ?? 0, 0, ',', '.') }}đ</p>
                                 </td>
                                 <td class="px-5 py-4">
-                                    <p class="font-medium text-slate-900">{{ $contract->tenant->full_name ?? 'N/A' }}</p>
+                                    <p class="font-medium text-slate-900">{{ $contract->tenant->full_name ?? 'Không có' }}</p>
                                     <p class="mt-1 text-xs text-slate-500">{{ $contract->tenant->phone ?? 'Chưa có SĐT' }}</p>
                                 </td>
                                 <td class="px-5 py-4">
                                     <span class="inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
-                                        Phòng {{ $contract->room->room_code ?? 'N/A' }}
+                                        Phòng {{ $contract->room->room_code ?? 'Không có' }}
                                     </span>
                                 </td>
                                 <td class="px-5 py-4 text-slate-600">

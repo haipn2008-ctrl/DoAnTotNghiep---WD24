@@ -62,11 +62,11 @@
                             @php($hasInvoice = in_array($contract->room_id, $issuedRoomIds))
                             <tr id="contract-row-{{ $contract->id }}" class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">
-                                    <p class="font-semibold text-slate-950">{{ $contract->room->room_code ?? 'N/A' }}</p>
+                                    <p class="font-semibold text-slate-950">{{ $contract->room->room_code ?? 'Không có' }}</p>
                                     <p class="mt-1 text-xs text-slate-500">Số người: {{ $contract->number_of_people }}</p>
                                 </td>
                                 <td class="px-5 py-4">
-                                    <p class="font-medium text-slate-900">{{ $contract->tenant->full_name ?? 'N/A' }}</p>
+                                    <p class="font-medium text-slate-900">{{ $contract->tenant->full_name ?? 'Không có' }}</p>
                                     <p class="mt-1 text-xs text-slate-500">{{ $contract->tenant->phone ?? '' }}</p>
                                 </td>
                                 <td class="px-5 py-4">

@@ -347,7 +347,7 @@ class InvoiceController extends Controller
                 'contract_id' => $preview['contract']->id,
                 'contract_code' => $preview['contract']->contract_code,
                 'room_code' => $preview['room']->room_code,
-                'tenant_name' => $preview['tenant']->full_name ?? 'N/A',
+                'tenant_name' => $preview['tenant']->full_name ?? 'Không có',
                 'month' => $preview['month'],
                 'year' => $preview['year'],
                 'invoice_date' => $preview['invoice_date'],

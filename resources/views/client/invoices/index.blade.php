@@ -63,7 +63,7 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($invoices as $invoice)
                             @php
-                                $status = $statuses[$invoice->status] ?? ['label' => $invoice->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
+                                $status = $statuses[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
                                 $remaining = max(0, (float) $invoice->total_amount - (float) ($invoice->paid_amount ?? 0));
                             @endphp
                             <tr class="hover:bg-slate-50">
@@ -85,7 +85,7 @@
             <div class="divide-y divide-slate-100 md:hidden">
                 @forelse ($invoices as $invoice)
                     @php
-                        $status = $statuses[$invoice->status] ?? ['label' => $invoice->status, 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
+                        $status = $statuses[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
                         $remaining = max(0, (float) $invoice->total_amount - (float) ($invoice->paid_amount ?? 0));
                     @endphp
                     <a href="{{ route('client.invoices.show', $invoice) }}" class="block space-y-3 p-4 hover:bg-slate-50">

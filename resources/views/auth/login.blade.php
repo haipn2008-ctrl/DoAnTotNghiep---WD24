@@ -16,7 +16,7 @@
                     <img src="{{ asset('assets/images/logo-sm.svg') }}" alt="Logo" class="h-7 w-7">
                 </span>
                 <span>
-                    <span class="block text-lg font-bold">Rental Admin</span>
+                    <span class="block text-lg font-bold">Quản trị nhà trọ</span>
                     <span class="text-sm text-slate-300">Quản lý phòng trọ</span>
                 </span>
             </a>

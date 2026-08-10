@@ -66,7 +66,7 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($rooms as $room)
-                            @php($status = $statusOptions[$room->status] ?? ['label' => ucfirst($room->status), 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
+                            @php($status = $statusOptions[$room->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
                             <tr class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4 font-semibold text-slate-950">{{ $room->room_code }}</td>
                                 <td class="px-5 py-4 text-slate-600">Tầng {{ $room->floor }}</td>

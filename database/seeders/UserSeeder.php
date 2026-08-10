@@ -27,13 +27,13 @@ class UserSeeder extends Seeder
             ['name' => 'Ngô Phương Uyên', 'email' => 'phuonguyen@example.test', 'phone' => '0912345608', 'password' => 'Tenant@123456', 'role' => 'User'],
 
             // Manual QA accounts for AUTH-01 through AUTH-13. Password: Auth@123456.
-            ['name' => 'AUTH Active Admin', 'email' => 'auth.admin@example.test', 'password' => 'Auth@123456', 'role' => 'Admin'],
-            ['name' => 'AUTH Active Client', 'email' => 'auth.client@example.test', 'password' => 'Auth@123456', 'role' => 'User'],
-            ['name' => 'AUTH Pending Client', 'email' => 'auth.pending@example.test', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_PENDING],
-            ['name' => 'AUTH Settling Client', 'email' => 'auth.settling@example.test', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_SETTLING],
-            ['name' => 'AUTH Locked Client', 'email' => 'auth.locked@example.test', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_LOCKED],
-            ['name' => 'AUTH Inactive Client', 'email' => 'auth.inactive@example.test', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_INACTIVE],
-            ['name' => 'AUTH Unsupported Role', 'email' => 'auth.unsupported-role@example.test', 'password' => 'Auth@123456', 'role' => 'Auditor'],
+            ['name' => 'AUTH Quản trị viên đang hoạt động', 'email' => 'auth.admin@example.test', 'password' => 'Auth@123456', 'role' => 'Admin'],
+            ['name' => 'AUTH Khách thuê đang hoạt động', 'email' => 'auth.client@example.test', 'password' => 'Auth@123456', 'role' => 'User'],
+            ['name' => 'AUTH Khách thuê chờ kích hoạt', 'email' => 'auth.pending@example.test', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_PENDING],
+            ['name' => 'AUTH Khách thuê đang quyết toán', 'email' => 'auth.settling@example.test', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_SETTLING],
+            ['name' => 'AUTH Khách thuê bị khóa', 'email' => 'auth.locked@example.test', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_LOCKED],
+            ['name' => 'AUTH Khách thuê ngừng hoạt động', 'email' => 'auth.inactive@example.test', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_INACTIVE],
+            ['name' => 'AUTH Vai trò không được hỗ trợ', 'email' => 'auth.unsupported-role@example.test', 'password' => 'Auth@123456', 'role' => 'Auditor'],
         ];
 
         foreach ($users as $userData) {
