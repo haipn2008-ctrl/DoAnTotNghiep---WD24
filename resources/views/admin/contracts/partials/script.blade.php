@@ -1,52 +1,66 @@
-
-
 <script>
 // =========================
-// Lấy giá phòng
+// Lấy giá phòng + tiền cọc
 // =========================
 const roomSelect = document.getElementById("roomSelect");
 const monthlyRent = document.getElementById("monthlyRent");
+const deposit = document.getElementById("deposit");
 
 const roomWarning = document.getElementById("roomWarning");
 const submitBtn = document.getElementById("submitContract");
 
-if (roomSelect && monthlyRent) {
+if (roomSelect) {
 
-    roomSelect.addEventListener("change", function () {
+    function updateRoomInfo() {
 
-        const option = this.options[this.selectedIndex];
+        const option = roomSelect.options[roomSelect.selectedIndex];
 
-        monthlyRent.value = option.dataset.price || "";
+        if (!option) return;
 
+        const price = option.dataset.price || "";
         const status = option.dataset.status;
 
-        if (status === "occupied") {
-
-            roomWarning.classList.remove("d-none");
-            roomWarning.innerHTML = "⚠️ Phòng này đang có người thuê.";
-
-            submitBtn.disabled = true;
-
-        }
-        else if (status === "maintenance") {
-
-            roomWarning.classList.remove("d-none");
-            roomWarning.innerHTML = "⚠️ Phòng này đang bảo trì.";
-
-            submitBtn.disabled = true;
-
-        }
-        else {
-
-            roomWarning.classList.add("d-none");
-            roomWarning.innerHTML = "";
-
-            submitBtn.disabled = false;
-
+        // Giá thuê = giá phòng
+        if (monthlyRent) {
+            monthlyRent.value = price;
         }
 
-    });
+        // Tiền cọc mặc định = đúng giá thuê
+        if (deposit) {
+            deposit.value = price;
+        }
 
+        // Kiểm tra trạng thái phòng
+        if (roomWarning && submitBtn) {
+
+            if (status === "occupied") {
+
+                roomWarning.classList.remove("d-none");
+                roomWarning.innerHTML = "⚠️ Phòng này đang có người thuê.";
+
+                submitBtn.disabled = true;
+
+            } else if (status === "maintenance") {
+
+                roomWarning.classList.remove("d-none");
+                roomWarning.innerHTML = "⚠️ Phòng này đang bảo trì.";
+
+                submitBtn.disabled = true;
+
+            } else {
+
+                roomWarning.classList.add("d-none");
+                roomWarning.innerHTML = "";
+
+                submitBtn.disabled = false;
+            }
+        }
+    }
+
+    roomSelect.addEventListener("change", updateRoomInfo);
+
+    // Nếu modal mở lại mà phòng đã được chọn
+    updateRoomInfo();
 }
 
 // =========================
@@ -87,7 +101,7 @@ radios.forEach(r => {
 });
 
 // =========================
-// Upload ảnh
+// Upload + preview ảnh hợp đồng
 // =========================
 const uploadBox = document.getElementById("uploadBox");
 const contractImage = document.getElementById("contractImage");
@@ -95,30 +109,64 @@ const previewImage = document.getElementById("previewImage");
 
 if (uploadBox && contractImage) {
 
-    uploadBox.addEventListener("click", function () {
+    uploadBox.addEventListener("click", function (e) {
+
+        // Không mở file picker lần 2 nếu click trực tiếp vào input
+        if (e.target === contractImage) return;
 
         contractImage.click();
-
     });
 
     contractImage.addEventListener("change", function () {
 
-        if (!this.files.length) return;
+        const file = this.files && this.files[0];
+
+        if (!file) {
+            if (previewImage) {
+                previewImage.src = "";
+                previewImage.style.display = "none";
+            }
+            return;
+        }
+
+        if (!file.type || !file.type.startsWith("image/")) {
+
+            alert("Vui lòng chọn file hình ảnh (PNG, JPG hoặc JPEG).");
+
+            this.value = "";
+
+            if (previewImage) {
+                previewImage.src = "";
+                previewImage.style.display = "none";
+            }
+
+            return;
+        }
 
         const reader = new FileReader();
 
         reader.onload = function (e) {
 
+            if (!previewImage) return;
+
             previewImage.src = e.target.result;
-
             previewImage.style.display = "block";
-
         };
 
-        reader.readAsDataURL(this.files[0]);
+        reader.onerror = function () {
 
+            alert("Không thể đọc ảnh. Vui lòng chọn lại file.");
+
+            contractImage.value = "";
+
+            if (previewImage) {
+                previewImage.src = "";
+                previewImage.style.display = "none";
+            }
+        };
+
+        reader.readAsDataURL(file);
     });
-
 }
 // =========================
 // TẠO NỘI DUNG HỢP ĐỒNG
@@ -531,145 +579,35 @@ document.addEventListener('change', function (e) {
 
 });
 
-// =========================
-// THU HỒI HỢP ĐỒNG
-// =========================
-
-document.addEventListener('click', function (e) {
-
-    const btn = e.target.closest('.recallContractBtn');
-
-    if (!btn) return;
-
-    const action = btn.dataset.action;
-    const code = btn.dataset.code;
-
-    const form = document.getElementById('recallContractForm');
-    const codeText = document.getElementById('recallContractCode');
-    const reason = document.getElementById('recallReason');
-    const counter = document.getElementById('recallReasonCount');
-    const error = document.getElementById('recallReasonError');
-    const submitBtn = document.getElementById('btnSubmitRecall');
-
-    // Gán đúng route của hợp đồng
-    if (form) {
-        form.action = action;
+// Dùng event delegation để vẫn hoạt động nếu modal được render lại
+document.addEventListener('change', function (e) {
+    if (e.target.id === 'depositProcessType') {
+        updateDepositPreview();
     }
-
-    // Hiện mã hợp đồng
-    if (codeText) {
-        codeText.textContent = code || '';
-    }
-
-    // Reset dữ liệu cũ
-    if (reason) {
-        reason.value = '';
-    }
-
-    if (counter) {
-        counter.textContent = '0/500';
-    }
-
-    if (error) {
-        error.classList.add('d-none');
-    }
-
-    if (submitBtn) {
-        submitBtn.disabled = true;
-    }
-
 });
-
-
-// =========================
-// VALIDATE LÝ DO THU HỒI
-// =========================
 
 document.addEventListener('input', function (e) {
-
-    if (e.target.id !== 'recallReason') {
-        return;
+    if (e.target.id === 'deductionAmount') {
+        updateDepositPreview();
     }
-
-    const reason = e.target;
-
-    const counter =
-        document.getElementById('recallReasonCount');
-
-    const error =
-        document.getElementById('recallReasonError');
-
-    const submitBtn =
-        document.getElementById('btnSubmitRecall');
-
-    const length = reason.value.trim().length;
-
-    // Đếm ký tự
-    if (counter) {
-        counter.textContent =
-            reason.value.length + '/500';
-    }
-
-    // Validate
-    if (length >= 5) {
-
-        if (submitBtn) {
-            submitBtn.disabled = false;
-        }
-
-        if (error) {
-            error.classList.add('d-none');
-        }
-
-    } else {
-
-        if (submitBtn) {
-            submitBtn.disabled = true;
-        }
-
-        if (length > 0 && error) {
-            error.classList.remove('d-none');
-        } else if (error) {
-            error.classList.add('d-none');
-        }
-    }
-
 });
 
-// =========================
-// Hoàn tiền cọc
-// =========================
-document.addEventListener('click', function (e) {
-
-    const btn = e.target.closest('.returnDepositBtn');
-
-    if (!btn) return;
-
-    const id = btn.dataset.id;
-
-    const form = document.getElementById('returnDepositForm');
-
-    if (!form) {
-        console.error('Không tìm thấy returnDepositForm');
-        return;
-    }
-
-    form.action = '/admin/contracts/' + id + '/return-deposit';
-});
 
 // =========================
-// Kết thúc hợp đồng
+// KẾT THÚC HỢP ĐỒNG
 // =========================
-
 document.addEventListener('click', function (e) {
 
     const btn = e.target.closest('.terminateBtn');
 
     if (!btn) return;
 
-    const id = btn.dataset.id;
+    const action = btn.dataset.action;
 
-    console.log('Contract terminate ID:', id);
+    console.log('Terminate contract:', {
+        id: btn.dataset.id,
+        action: action
+    });
 
     const form = document.getElementById('terminateContractForm');
 
@@ -678,12 +616,19 @@ document.addEventListener('click', function (e) {
         return;
     }
 
-    form.action = '/admin/contracts/' + id + '/terminate';
+    // Gán đúng route Laravel
+    form.action = action;
 
+    // Reset ngày trả phòng
     const dateInput = document.getElementById('actual_end_date');
 
     if (dateInput) {
         dateInput.value = '';
+
+        // Không cho chọn trước ngày bắt đầu
+        if (btn.dataset.start) {
+            dateInput.min = btn.dataset.start;
+        }
     }
 
 });
