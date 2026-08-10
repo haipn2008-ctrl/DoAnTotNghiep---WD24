@@ -10,9 +10,24 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    protected $attributes = [
+        'status' => 'active',
+        'must_change_password' => false,
+    ];
+
     public const ROLE_ADMIN = 1;
 
     public const ROLE_CLIENT = 2;
+
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_ACTIVE = 'active';
+
+    public const STATUS_SETTLING = 'settling';
+
+    public const STATUS_LOCKED = 'locked';
+
+    public const STATUS_INACTIVE = 'inactive';
 
     protected $fillable = [
         'name',
@@ -20,6 +35,11 @@ class User extends Authenticatable
         'phone',
         'role_id',
         'password',
+        'status',
+        'activated_at',
+        'terms_accepted_at',
+        'last_login_at',
+        'must_change_password',
     ];
 
     protected $hidden = [
@@ -32,6 +52,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'activated_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
+            'last_login_at' => 'datetime',
+            'must_change_password' => 'boolean',
         ];
     }
 
@@ -61,5 +85,15 @@ class User extends Authenticatable
     public function isClient(): bool
     {
         return $this->hasRole('user', 'client');
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
+    }
+
+    public function canAccessPortal(): bool
+    {
+        return in_array($this->status, [self::STATUS_ACTIVE, self::STATUS_SETTLING], true);
     }
 }

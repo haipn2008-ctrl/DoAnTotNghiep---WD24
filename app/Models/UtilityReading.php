@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class UtilityReading extends Model
 {
@@ -20,6 +21,17 @@ class UtilityReading extends Model
     protected $casts = [
         'record_date' => 'date',
     ];
+
+    public function meterImageExists(string $type): bool
+    {
+        if (! in_array($type, ['electricity', 'water'], true)) {
+            return false;
+        }
+
+        $path = $this->{$type.'_image'};
+
+        return filled($path) && Storage::disk('local')->exists($path);
+    }
 
     // Lấy thông tin phòng tương ứng
     public function room()

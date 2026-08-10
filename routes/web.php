@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\SupportController as AdminSupportController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
+use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Client\AccountController as ClientAccountController;
 use App\Http\Controllers\Client\ContractController as ClientContractController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
@@ -41,192 +43,205 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // Các route BẮT BUỘC phải đăng nhập mới được vào
 Route::middleware('auth')->group(function () {
-    Route::get('/dashboard', [LoginController::class, 'dashboard'])->name('dashboard');
+    Route::get('/activate-account', [AccountActivationController::class, 'show'])->name('account.activation.show');
+    Route::post('/activate-account', [AccountActivationController::class, 'activate'])->name('account.activation.activate');
 
-    // Nhóm route dành riêng cho Admin
-    Route::prefix('admin')->name('admin.')->middleware('role:admin')->group(function () {
+    Route::middleware('account.active')->group(function () {
+        Route::get('/dashboard', [LoginController::class, 'dashboard'])->name('dashboard');
 
-        Route::resource('users', UserController::class)->except(['show']);
+        // Nhóm route dành riêng cho Admin
+        Route::prefix('admin')->name('admin.')->middleware('role:admin')->group(function () {
 
-        // Chức năng thêm phòng
-        Route::get('rooms/export', [RoomController::class, 'exportForm'])
-            ->name('rooms.export');
-        Route::get('rooms/export/download', [RoomController::class, 'export'])
-            ->name('rooms.export.download');
-        Route::resource('rooms', RoomController::class);
+            Route::resource('users', UserController::class)->except(['show']);
 
-        // Chức năng thêm sửa xoá khách thuê
-        Route::get('tenants/export', [TenantController::class, 'exportForm'])
-            ->name('tenants.export');
-        Route::get('tenants/export/download', [TenantController::class, 'export'])
-            ->name('tenants.export.download');
-        Route::resource('tenants', TenantController::class);
+            // Chức năng thêm phòng
+            Route::get('rooms/export', [RoomController::class, 'exportForm'])
+                ->name('rooms.export');
+            Route::get('rooms/export/download', [RoomController::class, 'export'])
+                ->name('rooms.export.download');
+            Route::resource('rooms', RoomController::class);
 
-        // Quản lý hợp đồng thuê phòng
+            // Chức năng thêm sửa xoá khách thuê
+            Route::get('tenants/export', [TenantController::class, 'exportForm'])
+                ->name('tenants.export');
+            Route::get('tenants/export/download', [TenantController::class, 'export'])
+                ->name('tenants.export.download');
+            Route::resource('tenants', TenantController::class);
 
-        // Danh sách kết thúc hợp đồng (ĐẶT TRƯỚC resource)
-        Route::get('contracts/end', [ContractController::class, 'endList'])
-            ->name('contracts.end.list');
+            // Quản lý hợp đồng thuê phòng
 
-        // Xử lý kết thúc hợp đồng
-        Route::post('contracts/{id}/end', [ContractController::class, 'end'])
-            ->name('contracts.end');
+            // Danh sách kết thúc hợp đồng (ĐẶT TRƯỚC resource)
+            Route::get('contracts/end', [ContractController::class, 'endList'])
+                ->name('contracts.end.list');
 
-        // Form kết thúc hợp đồng
-        Route::get('contracts/{id}/end-form', [ContractController::class, 'endForm'])->name('contracts.end.form');
+            // Xử lý kết thúc hợp đồng
+            Route::post('contracts/{id}/end', [ContractController::class, 'end'])
+                ->name('contracts.end');
 
-        // Danh sách gia hạn hợp đồng
-        Route::get('contracts/extend', [ContractController::class, 'extendList'])
-            ->name('contracts.extend.list');
+            // Form kết thúc hợp đồng
+            Route::get('contracts/{id}/end-form', [ContractController::class, 'endForm'])->name('contracts.end.form');
 
-        // Form gia hạn
-        Route::get('contracts/{id}/extend-form', [ContractController::class, 'extendForm'])
-            ->name('contracts.extend.form');
+            // Danh sách gia hạn hợp đồng
+            Route::get('contracts/extend', [ContractController::class, 'extendList'])
+                ->name('contracts.extend.list');
 
-        // Xử lý gia hạn
-        Route::post('contracts/{id}/extend', [ContractController::class, 'extend'])
-            ->name('contracts.extend');
+            // Form gia hạn
+            Route::get('contracts/{id}/extend-form', [ContractController::class, 'extendForm'])
+                ->name('contracts.extend.form');
 
-        // In hợp đồng
-        Route::get('contracts/{id}/print', [ContractController::class, 'print'])
-            ->name('contracts.print');
+            // Xử lý gia hạn
+            Route::post('contracts/{id}/extend', [ContractController::class, 'extend'])
+                ->name('contracts.extend');
 
-        // Resource phải đặt SAU CÙNG
-        Route::resource('contracts', ContractController::class);
-        //
-        // Chức năng điện nước
-        Route::get('/utilities/create', [UtilityController::class, 'create'])
-            ->name('utilities.create');
+            // In hợp đồng
+            Route::get('contracts/{id}/print', [ContractController::class, 'print'])
+                ->name('contracts.print');
+            Route::get('contracts/{contract}/file', [ContractController::class, 'file'])
+                ->name('contracts.file');
 
-        Route::post('/utilities/store', [UtilityController::class, 'store'])
-            ->name('utilities.store');
+            // Resource phải đặt SAU CÙNG
+            Route::resource('contracts', ContractController::class);
+            //
+            // Chức năng điện nước
+            Route::get('/utilities/create', [UtilityController::class, 'create'])
+                ->name('utilities.create');
 
-        Route::get('/utilities', [UtilityController::class, 'index'])
-            ->name('utilities.index');
+            Route::post('/utilities/store', [UtilityController::class, 'store'])
+                ->name('utilities.store');
 
-        // Quản lý hóa đơn và công nợ
-        // Các route cụ thể phải đặt TRƯỚC resource để tránh bị {invoice} chiếm
-        Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
-            ->name('invoices.generate');
+            Route::get('/utilities', [UtilityController::class, 'index'])
+                ->name('utilities.index');
+            Route::get('/utilities/{reading}/{type}-image', [UtilityController::class, 'image'])
+                ->name('utilities.image');
 
-        Route::post('/invoices/generate', [InvoiceController::class, 'generateStore'])
-            ->name('invoices.generate.store');
+            // Quản lý hóa đơn và công nợ
+            // Các route cụ thể phải đặt TRƯỚC resource để tránh bị {invoice} chiếm
+            Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
+                ->name('invoices.generate');
 
-        Route::get('/invoices/export', [InvoiceController::class, 'exportForm'])
-            ->name('invoices.export');
+            Route::post('/invoices/generate', [InvoiceController::class, 'generateStore'])
+                ->name('invoices.generate.store');
 
-        Route::get('/invoices/export/download', [InvoiceController::class, 'export'])
-            ->name('invoices.export.download');
+            Route::get('/invoices/export', [InvoiceController::class, 'exportForm'])
+                ->name('invoices.export');
 
-        Route::get('/invoices/payments', [InvoiceController::class, 'payments'])
-            ->name('invoices.payments');
+            Route::get('/invoices/export/download', [InvoiceController::class, 'export'])
+                ->name('invoices.export.download');
 
-        Route::get('/invoices/payments/export', [InvoiceController::class, 'exportPaymentsForm'])
-            ->name('invoices.payments.export');
+            Route::get('/invoices/payments', [InvoiceController::class, 'payments'])
+                ->name('invoices.payments');
 
-        Route::get('/invoices/payments/export/download', [InvoiceController::class, 'exportPayments'])
-            ->name('invoices.payments.export.download');
+            Route::get('/invoices/payments/export', [InvoiceController::class, 'exportPaymentsForm'])
+                ->name('invoices.payments.export');
 
-        Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
-            ->name('invoices.preview');
+            Route::get('/invoices/payments/export/download', [InvoiceController::class, 'exportPayments'])
+                ->name('invoices.payments.export.download');
 
-        Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
-            ->name('invoices.issue');
+            Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
+                ->name('invoices.preview');
 
-        Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
-            ->name('invoices.payments.store');
+            Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
+                ->name('invoices.issue');
 
-        Route::post('/invoices/payments/{payment}/approve', [InvoiceController::class, 'approvePayment'])
-            ->name('invoices.payments.approve');
+            Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
+                ->name('invoices.payments.store');
 
-        Route::post('/invoices/payments/{payment}/reject', [InvoiceController::class, 'rejectPayment'])
-            ->name('invoices.payments.reject');
+            Route::post('/invoices/payments/{payment}/approve', [InvoiceController::class, 'approvePayment'])
+                ->name('invoices.payments.approve');
 
-        Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
-            ->name('invoices.print');
+            Route::post('/invoices/payments/{payment}/reject', [InvoiceController::class, 'rejectPayment'])
+                ->name('invoices.payments.reject');
 
-        Route::resource('invoices', InvoiceController::class)
-            ->except(['create', 'store']);
+            Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
+                ->name('invoices.print');
 
-        // Tổng Quan Dashboard
-        Route::get('/overview', [OverviewController::class, 'index'])
-            ->name('overview');
+            Route::resource('invoices', InvoiceController::class)
+                ->except(['create', 'store']);
 
-        Route::get('/overview/revenue-chart', [OverviewController::class, 'revenueChart'])
-            ->name('overview.revenue-chart');
+            // Tổng Quan Dashboard
+            Route::get('/overview', [OverviewController::class, 'index'])
+                ->name('overview');
 
-        Route::get('/overview/revenue-stats', [OverviewController::class, 'revenueStats'])
-            ->name('overview.revenue-stats');
+            Route::get('/overview/revenue-chart', [OverviewController::class, 'revenueChart'])
+                ->name('overview.revenue-chart');
 
-        Route::get('/overview/room-stats', [OverviewController::class, 'roomStats'])
-            ->name('overview.room-stats');
+            Route::get('/overview/revenue-stats', [OverviewController::class, 'revenueStats'])
+                ->name('overview.revenue-stats');
 
-        Route::get('/overview/fill-rate', [OverviewController::class, 'fillRate'])
-            ->name('overview.fill-rate');
+            Route::get('/overview/room-stats', [OverviewController::class, 'roomStats'])
+                ->name('overview.room-stats');
 
-        Route::get('/settings/{type}', [SettingController::class, 'edit'])
-            ->where('type', 'electricity|water|internet|service')
-            ->name('settings.edit');
+            Route::get('/overview/fill-rate', [OverviewController::class, 'fillRate'])
+                ->name('overview.fill-rate');
 
-        Route::put('/settings/{type}', [SettingController::class, 'update'])
-            ->where('type', 'electricity|water|internet|service')
-            ->name('settings.update');
+            Route::get('/settings/{type}', [SettingController::class, 'edit'])
+                ->where('type', 'electricity|water|internet|service')
+                ->name('settings.edit');
 
-        Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');
-        Route::put('/support/{supportRequest}', [AdminSupportController::class, 'update'])->name('support.update');
+            Route::put('/settings/{type}', [SettingController::class, 'update'])
+                ->where('type', 'electricity|water|internet|service')
+                ->name('settings.update');
 
-        Route::get('/roles', function () {
-            $roles = Role::all();
+            Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');
+            Route::get('/support/{supportRequest}/attachment', [AdminSupportController::class, 'attachment'])->name('support.attachment');
+            Route::put('/support/{supportRequest}', [AdminSupportController::class, 'update'])->name('support.update');
 
-            return view('admin.roles.index', compact('roles'));
-        })->name('roles');
+            Route::get('/roles', function () {
+                $roles = Role::all();
 
-        Route::get('/', function () {
-            $currentMonth = now()->month;
-            $currentYear = now()->year;
+                return view('admin.roles.index', compact('roles'));
+            })->name('roles');
 
-            $stats = [
-                'total_rooms' => Room::count(),
-                'available_rooms' => Room::where('status', 'available')->count(),
-                'occupied_rooms' => Room::where('status', 'occupied')->count(),
-                'maintenance_rooms' => Room::where('status', 'maintenance')->count(),
-                'total_tenants' => Tenant::count(),
-                'active_contracts' => Contract::where('status', 'active')->count(),
-                'unpaid_invoices' => Invoice::whereIn('status', ['unpaid', 'partial'])->count(),
-                'monthly_revenue' => Invoice::where('status', 'paid')
-                    ->where('month', $currentMonth)
-                    ->where('year', $currentYear)
-                    ->sum('total_amount'),
-            ];
+            Route::get('/', function () {
+                $currentMonth = now()->month;
+                $currentYear = now()->year;
 
-            $recentInvoices = Invoice::with(['room', 'contract.tenant'])
-                ->latest()
-                ->take(5)
-                ->get();
+                $stats = [
+                    'total_rooms' => Room::count(),
+                    'available_rooms' => Room::where('status', 'available')->count(),
+                    'occupied_rooms' => Room::where('status', 'occupied')->count(),
+                    'maintenance_rooms' => Room::where('status', 'maintenance')->count(),
+                    'total_tenants' => Tenant::count(),
+                    'active_contracts' => Contract::where('status', 'active')->count(),
+                    'unpaid_invoices' => Invoice::whereIn('status', ['unpaid', 'partial'])->count(),
+                    'monthly_revenue' => Payment::success()
+                        ->whereMonth('payment_date', $currentMonth)
+                        ->whereYear('payment_date', $currentYear)
+                        ->sum('amount_paid'),
+                ];
 
-            $recentContracts = Contract::with(['room', 'tenant'])
-                ->latest()
-                ->take(5)
-                ->get();
+                $recentInvoices = Invoice::with(['room', 'contract.tenant'])
+                    ->latest()
+                    ->take(5)
+                    ->get();
 
-            return view('layouts.admin.home', compact('stats', 'recentInvoices', 'recentContracts'));
-        })->name('home');
-    });
+                $recentContracts = Contract::with(['room', 'tenant'])
+                    ->latest()
+                    ->take(5)
+                    ->get();
 
-    Route::prefix('client')->name('client.')->middleware('role:client')->group(function () {
-        Route::get('/', [ClientDashboardController::class, 'index'])->name('home');
-        Route::get('/invoices', [ClientInvoiceController::class, 'index'])->name('invoices.index');
-        Route::get('/invoices/{invoice}', [ClientInvoiceController::class, 'show'])->name('invoices.show');
-        Route::get('/invoices/{invoice}/print', [ClientInvoiceController::class, 'print'])->name('invoices.print');
-        Route::post('/invoices/{invoice}/payments', [ClientInvoiceController::class, 'storePayment'])->name('invoices.payments.store');
-        Route::get('/utilities', [ClientUtilityController::class, 'index'])->name('utilities.index');
-        Route::get('/room', [ClientRoomController::class, 'show'])->name('room.show');
-        Route::get('/contracts', [ClientContractController::class, 'index'])->name('contracts.index');
-        Route::get('/contracts/{contract}', [ClientContractController::class, 'show'])->name('contracts.show');
-        Route::get('/support', [ClientSupportController::class, 'index'])->name('support.index');
-        Route::post('/support', [ClientSupportController::class, 'store'])->name('support.store');
-        Route::get('/account', [ClientAccountController::class, 'edit'])->name('account.edit');
-        Route::put('/account', [ClientAccountController::class, 'update'])->name('account.update');
-        Route::put('/account/password', [ClientAccountController::class, 'updatePassword'])->name('account.password.update');
+                return view('layouts.admin.home', compact('stats', 'recentInvoices', 'recentContracts'));
+            })->name('home');
+        });
+
+        Route::prefix('client')->name('client.')->middleware('role:client')->group(function () {
+            Route::get('/', [ClientDashboardController::class, 'index'])->name('home');
+            Route::get('/invoices', [ClientInvoiceController::class, 'index'])->name('invoices.index');
+            Route::get('/invoices/{invoice}', [ClientInvoiceController::class, 'show'])->name('invoices.show');
+            Route::get('/invoices/{invoice}/print', [ClientInvoiceController::class, 'print'])->name('invoices.print');
+            Route::post('/invoices/{invoice}/payments', [ClientInvoiceController::class, 'storePayment'])->name('invoices.payments.store');
+            Route::get('/utilities', [ClientUtilityController::class, 'index'])->middleware('rental.active')->name('utilities.index');
+            Route::get('/utilities/{reading}/{type}-image', [ClientUtilityController::class, 'image'])->middleware('rental.active')->name('utilities.image');
+            Route::get('/room', [ClientRoomController::class, 'show'])->middleware('rental.active')->name('room.show');
+            Route::get('/contracts', [ClientContractController::class, 'index'])->name('contracts.index');
+            Route::get('/contracts/{contract}', [ClientContractController::class, 'show'])->name('contracts.show');
+            Route::get('/contracts/{contract}/file', [ClientContractController::class, 'file'])->name('contracts.file');
+            Route::get('/support', [ClientSupportController::class, 'index'])->middleware('rental.active')->name('support.index');
+            Route::post('/support', [ClientSupportController::class, 'store'])->middleware('rental.active')->name('support.store');
+            Route::get('/support/{supportRequest}/attachment', [ClientSupportController::class, 'attachment'])->middleware('rental.active')->name('support.attachment');
+            Route::get('/account', [ClientAccountController::class, 'edit'])->name('account.edit');
+            Route::put('/account', [ClientAccountController::class, 'update'])->name('account.update');
+            Route::put('/account/password', [ClientAccountController::class, 'updatePassword'])->name('account.password.update');
+        });
     });
 });

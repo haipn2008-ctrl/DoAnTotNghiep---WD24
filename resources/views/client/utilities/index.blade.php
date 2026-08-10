@@ -36,14 +36,14 @@
 
                     <div class="grid divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                         <div class="p-5">
-                            <div class="flex items-center justify-between"><p class="font-semibold text-indigo-700">Điện</p>@if($reading->electricity_image)<a href="{{ asset('storage/'.$reading->electricity_image) }}" target="_blank" class="text-xs font-semibold text-indigo-600">Xem ảnh đồng hồ</a>@endif</div>
+                            <div class="flex items-center justify-between"><p class="font-semibold text-indigo-700">Điện</p>@if($reading->meterImageExists('electricity'))<a href="{{ route('client.utilities.image', [$reading, 'electricity']) }}" target="_blank" class="text-xs font-semibold text-indigo-600">Xem ảnh đồng hồ</a>@elseif($reading->electricity_image)<span class="text-xs font-medium text-amber-700">Ảnh không còn tồn tại</span>@endif</div>
                             <p class="mt-3 text-3xl font-bold text-slate-950">{{ number_format($reading->electricity_usage, 0, ',', '.') }} <span class="text-sm font-medium text-slate-500">kWh</span></p>
                             @if($electricityDetail)
                                 <div class="mt-3 space-y-1 text-sm"><div class="flex justify-between text-slate-500"><span>Đơn giá</span><span>{{ number_format($electricityDetail->unit_price, 0, ',', '.') }}đ/kWh</span></div><div class="flex justify-between font-bold text-slate-950"><span>Tiền điện</span><span>{{ number_format($electricityDetail->amount, 0, ',', '.') }}đ</span></div></div>
                             @else<p class="mt-3 text-sm text-slate-400">Chi phí sẽ có khi phát hành hóa đơn.</p>@endif
                         </div>
                         <div class="p-5">
-                            <div class="flex items-center justify-between"><p class="font-semibold text-sky-700">Nước</p>@if($reading->water_image)<a href="{{ asset('storage/'.$reading->water_image) }}" target="_blank" class="text-xs font-semibold text-sky-600">Xem ảnh đồng hồ</a>@endif</div>
+                            <div class="flex items-center justify-between"><p class="font-semibold text-sky-700">Nước</p>@if($reading->meterImageExists('water'))<a href="{{ route('client.utilities.image', [$reading, 'water']) }}" target="_blank" class="text-xs font-semibold text-sky-600">Xem ảnh đồng hồ</a>@elseif($reading->water_image)<span class="text-xs font-medium text-amber-700">Ảnh không còn tồn tại</span>@endif</div>
                             <p class="mt-3 text-3xl font-bold text-slate-950">{{ number_format($reading->water_usage, 0, ',', '.') }} <span class="text-sm font-medium text-slate-500">m³</span></p>
                             @if($waterDetail)
                                 <div class="mt-3 space-y-1 text-sm"><div class="flex justify-between text-slate-500"><span>Đơn giá</span><span>{{ number_format($waterDetail->unit_price, 0, ',', '.') }}đ/m³</span></div><div class="flex justify-between font-bold text-slate-950"><span>Tiền nước</span><span>{{ number_format($waterDetail->amount, 0, ',', '.') }}đ</span></div></div>

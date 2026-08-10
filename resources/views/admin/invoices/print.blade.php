@@ -39,6 +39,14 @@
                         <th colspan="3" class="border border-slate-200 px-4 py-4 text-right">Tổng cộng</th>
                         <th class="border border-slate-200 px-4 py-4 text-right text-lg text-emerald-700">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</th>
                     </tr>
+                    <tr>
+                        <th colspan="3" class="border border-slate-200 px-4 py-3 text-right">Đã thanh toán</th>
+                        <th class="border border-slate-200 px-4 py-3 text-right">{{ number_format($invoice->paid_amount, 0, ',', '.') }}đ</th>
+                    </tr>
+                    <tr>
+                        <th colspan="3" class="border border-slate-200 px-4 py-3 text-right">Còn lại</th>
+                        <th class="border border-slate-200 px-4 py-3 text-right font-bold text-rose-700">{{ number_format($invoice->remaining_amount, 0, ',', '.') }}đ</th>
+                    </tr>
                 </tfoot>
             </table>
         </article>

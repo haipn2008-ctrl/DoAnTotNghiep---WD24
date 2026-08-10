@@ -53,6 +53,17 @@
         </div>
 
         <div>
+            <label for="gender" class="mb-1.5 block text-sm font-semibold text-slate-700">Giới tính</label>
+            <select id="gender" name="gender" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
+                <option value="">Chưa cập nhật</option>
+                <option value="male" @selected(old('gender', $tenant->gender ?? '') === 'male')>Nam</option>
+                <option value="female" @selected(old('gender', $tenant->gender ?? '') === 'female')>Nữ</option>
+                <option value="other" @selected(old('gender', $tenant->gender ?? '') === 'other')>Khác</option>
+            </select>
+            @error('gender') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+        </div>
+
+        <div>
             <label for="cccd" class="mb-1.5 block text-sm font-semibold text-slate-700">CCCD</label>
             <input id="cccd" type="text" name="cccd" value="{{ old('cccd', $tenant->cccd ?? '') }}" placeholder="012345678901" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
             @error('cccd') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror

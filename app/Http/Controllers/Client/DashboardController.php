@@ -20,20 +20,19 @@ class DashboardController extends Controller
             ->latest('start_date')
             ->first();
 
-        $invoices = $tenant
-            ? Invoice::with(['room', 'contract'])
-                ->whereHas('contract', fn ($query) => $query->where('tenant_id', $tenant->id))
-                ->latest('year')
-                ->latest('month')
-                ->latest('id')
-                ->get()
-            : collect();
-
-        $recentInvoice = $invoices->first();
-        $openInvoices = $invoices->whereIn('status', [
-            Invoice::STATUS_UNPAID,
-            Invoice::STATUS_PARTIAL,
-        ]);
+        $invoiceQuery = Invoice::with(['room', 'contract'])
+            ->when(
+                $tenant,
+                fn ($query) => $query->whereHas('contract', fn ($query) => $query->where('tenant_id', $tenant->id)),
+                fn ($query) => $query->whereRaw('1 = 0')
+            );
+        $recentInvoice = (clone $invoiceQuery)
+            ->latest('year')->latest('month')->latest('id')->first();
+        $openInvoices = (clone $invoiceQuery)
+            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+            ->latest('year')->latest('month')->latest('id')
+            ->limit(5)
+            ->get();
 
         $supportRequests = SupportRequest::where('user_id', $request->user()->id)
             ->whereIn('status', [SupportRequest::STATUS_NEW, SupportRequest::STATUS_IN_PROGRESS])

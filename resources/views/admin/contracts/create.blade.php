@@ -83,7 +83,7 @@
 
                 <div>
                     <label for="number_of_people" class="mb-1.5 block text-sm font-semibold text-slate-700">Số người ở</label>
-                    <input id="number_of_people" type="number" min="1" max="4" name="number_of_people" value="{{ old('number_of_people', 1) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <input id="number_of_people" type="number" min="1" max="20" name="number_of_people" value="{{ old('number_of_people', 1) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                     @error('number_of_people') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
             </div>

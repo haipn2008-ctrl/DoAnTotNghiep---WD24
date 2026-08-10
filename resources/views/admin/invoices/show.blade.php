@@ -16,7 +16,7 @@
     <div class="space-y-6">
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-                <p class="text-sm font-medium text-slate-500">HDON{{ str_pad($invoice->id, 5, '0', STR_PAD_LEFT) }}</p>
+                <p class="text-sm font-medium text-slate-500">{{ $invoice->invoice_code ?? 'HDON'.str_pad($invoice->id, 5, '0', STR_PAD_LEFT) }}</p>
                 <h2 class="mt-1 text-2xl font-bold text-slate-950">Chi tiết hóa đơn</h2>
             </div>
 
@@ -24,10 +24,6 @@
                 <a href="{{ route('admin.invoices.print', $invoice) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
                     <i class="bx bx-printer text-lg"></i>
                     In hóa đơn
-                </a>
-                <a href="{{ route('admin.invoices.edit', $invoice) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-                    <i class="bx bx-edit text-lg"></i>
-                    Cập nhật
                 </a>
                 <a href="{{ route('admin.invoices.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
                     <i class="bx bx-arrow-back text-lg"></i>

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class SupportRequest extends Model
 {
@@ -15,6 +16,7 @@ class SupportRequest extends Model
     public const STATUS_REJECTED = 'rejected';
 
     protected $fillable = [
+        'submission_token',
         'user_id',
         'tenant_id',
         'contract_id',
@@ -50,5 +52,10 @@ class SupportRequest extends Model
     public function handler()
     {
         return $this->belongsTo(User::class, 'handled_by');
+    }
+
+    public function attachmentExists(): bool
+    {
+        return filled($this->attachment) && Storage::disk('local')->exists($this->attachment);
     }
 }

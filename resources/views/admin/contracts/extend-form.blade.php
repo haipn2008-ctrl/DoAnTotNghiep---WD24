@@ -65,7 +65,7 @@
                     </div>
 
                     <label class="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-700">
-                        <input id="confirmExtend" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        <input id="confirmExtend" type="checkbox" name="confirm_extend" value="1" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                         Tôi xác nhận hai bên đã thống nhất gia hạn hợp đồng.
                     </label>
                 </div>

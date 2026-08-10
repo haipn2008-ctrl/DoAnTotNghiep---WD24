@@ -7,11 +7,14 @@ use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Services\InvoiceGenerator;
+use App\Services\TenantAccountLifecycle;
+use App\Support\Csv;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
@@ -21,17 +24,16 @@ class InvoiceController extends Controller
      */
     public function index(Request $request)
     {
-        $month = $request->filled('month')
-            ? (int) $request->month
-            : null;
-
-        $year = $request->filled('year')
-            ? (int) $request->year
-            : null;
-
-        $status = $request->status;
-
-        $keyword = trim($request->keyword ?? '');
+        $filters = $request->validate([
+            'month' => ['nullable', 'integer', 'between:1,12'],
+            'year' => ['nullable', 'integer', 'between:2000,2100'],
+            'status' => ['nullable', 'in:unpaid,partial,paid'],
+            'keyword' => ['nullable', 'string', 'max:100'],
+        ]);
+        $month = isset($filters['month']) ? (int) $filters['month'] : null;
+        $year = isset($filters['year']) ? (int) $filters['year'] : null;
+        $status = $filters['status'] ?? null;
+        $keyword = trim($filters['keyword'] ?? '');
 
         $query = Invoice::with([
             'contract.tenant',
@@ -83,19 +85,10 @@ class InvoiceController extends Controller
             });
         }
 
+        $summaryQuery = clone $query;
         $invoices = $query
             ->paginate(15)
             ->withQueryString();
-
-        $summaryQuery = Invoice::query();
-
-        if ($month) {
-            $summaryQuery->where('month', $month);
-        }
-
-        if ($year) {
-            $summaryQuery->where('year', $year);
-        }
 
         $summary = [
 
@@ -176,15 +169,12 @@ class InvoiceController extends Controller
      */
     public function generate(Request $request)
     {
-        $month = (int) $request->input(
-            'month',
-            now()->month
-        );
-
-        $year = (int) $request->input(
-            'year',
-            now()->year
-        );
+        $period = $request->validate([
+            'month' => ['nullable', 'integer', 'between:1,12'],
+            'year' => ['nullable', 'integer', 'between:2000,2100'],
+        ]);
+        $month = (int) ($period['month'] ?? now()->month);
+        $year = (int) ($period['year'] ?? now()->year);
 
         // danh sách năm để hiển thị combobox
         $years = range(
@@ -271,16 +261,11 @@ class InvoiceController extends Controller
      */
     public function exportForm(Request $request)
     {
-        $month = $request->filled('month')
-            ? (int) $request->month
-            : null;
-
-        $year = $request->filled('year')
-            ? (int) $request->year
-            : null;
-
-        $status = $request->status;
-        $keyword = trim($request->keyword ?? '');
+        $filters = $this->invoiceExportFilters($request);
+        $month = isset($filters['month']) ? (int) $filters['month'] : null;
+        $year = isset($filters['year']) ? (int) $filters['year'] : null;
+        $status = $filters['status'] ?? null;
+        $keyword = trim($filters['keyword'] ?? '');
 
         $query = Invoice::with([
             'contract.tenant',
@@ -469,7 +454,20 @@ class InvoiceController extends Controller
      */
     public function destroy(Invoice $invoice)
     {
-        if ($invoice->payments()->exists()) {
+        $deleted = DB::transaction(function () use ($invoice) {
+            $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
+
+            if ($lockedInvoice->payments()->exists()) {
+                return false;
+            }
+
+            $lockedInvoice->details()->delete();
+            $lockedInvoice->delete();
+
+            return true;
+        });
+
+        if (! $deleted) {
 
             return redirect()
                 ->route('admin.invoices.index')
@@ -478,13 +476,6 @@ class InvoiceController extends Controller
                     'Không thể xóa hóa đơn đã phát sinh thanh toán.'
                 );
         }
-
-        DB::transaction(function () use ($invoice) {
-
-            $invoice->details()->delete();
-
-            $invoice->delete();
-        });
 
         return redirect()
             ->route('admin.invoices.index')
@@ -499,17 +490,11 @@ class InvoiceController extends Controller
      */
     public function export(Request $request)
     {
-        $month = $request->filled('month')
-            ? (int) $request->month
-            : null;
-
-        $year = $request->filled('year')
-            ? (int) $request->year
-            : null;
-
-        $status = $request->status;
-
-        $keyword = trim($request->keyword ?? '');
+        $filters = $this->invoiceExportFilters($request);
+        $month = isset($filters['month']) ? (int) $filters['month'] : null;
+        $year = isset($filters['year']) ? (int) $filters['year'] : null;
+        $status = $filters['status'] ?? null;
+        $keyword = trim($filters['keyword'] ?? '');
 
         $query = Invoice::with([
             'contract.tenant',
@@ -555,7 +540,7 @@ class InvoiceController extends Controller
             });
         }
 
-        $invoices = $query->get();
+        $invoices = $query->lazy(500);
 
         $filename = 'danh_sach_hoa_don_'.now()->format('Ymd_His').'.csv';
 
@@ -576,32 +561,30 @@ class InvoiceController extends Controller
             'Ngày phát hành',
         ];
 
-        $file = fopen('php://temp', 'w+');
-        fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-        fputcsv($file, $columns);
+        return response()->stream(function () use ($invoices, $columns) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            Csv::writeRow($file, $columns);
 
-        foreach ($invoices as $invoice) {
-            $paidAmount = $invoice->paid_amount ?? $invoice->payments()->success()->sum('amount_paid');
-            $remainingAmount = max(0, $invoice->total_amount - $paidAmount);
+            foreach ($invoices as $invoice) {
+                $paidAmount = $invoice->paid_amount ?? $invoice->payments()->success()->sum('amount_paid');
+                $remainingAmount = max(0, $invoice->total_amount - $paidAmount);
 
-            fputcsv($file, [
-                $invoice->invoice_code,
-                sprintf('%02d', $invoice->month).'/'.$invoice->year,
-                $invoice->room->room_code ?? '-',
-                $invoice->contract->tenant->full_name ?? '-',
-                number_format($invoice->total_amount, 0, ',', '.'),
-                number_format($paidAmount, 0, ',', '.'),
-                number_format($remainingAmount, 0, ',', '.'),
-                $invoice->status_label,
-                $invoice->invoice_date?->format('d/m/Y') ?? '-',
-            ]);
-        }
+                Csv::writeRow($file, [
+                    $invoice->invoice_code,
+                    sprintf('%02d', $invoice->month).'/'.$invoice->year,
+                    $invoice->room->room_code ?? '-',
+                    $invoice->contract->tenant->full_name ?? '-',
+                    number_format($invoice->total_amount, 0, ',', '.'),
+                    number_format($paidAmount, 0, ',', '.'),
+                    number_format($remainingAmount, 0, ',', '.'),
+                    $invoice->status_label,
+                    $invoice->invoice_date?->format('d/m/Y') ?? '-',
+                ]);
+            }
 
-        rewind($file);
-        $csv = stream_get_contents($file);
-        fclose($file);
-
-        return response($csv, 200, $headers);
+            fclose($file);
+        }, 200, $headers);
     }
 
     /**
@@ -609,6 +592,11 @@ class InvoiceController extends Controller
      */
     public function payments(Request $request)
     {
+        $filters = $request->validate([
+            'status' => ['nullable', Rule::in([Payment::STATUS_PENDING, Payment::STATUS_SUCCESS, Payment::STATUS_FAILED])],
+            'method' => ['nullable', Rule::in([Payment::METHOD_CASH, Payment::METHOD_BANK_TRANSFER, Payment::METHOD_QR])],
+            'keyword' => ['nullable', 'string', 'max:100'],
+        ]);
         $query = Payment::with([
             'invoice.contract.tenant',
             'invoice.room',
@@ -616,20 +604,20 @@ class InvoiceController extends Controller
             'submitter',
         ])->latest('payment_date');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if (! empty($filters['status'])) {
+            $query->where('status', $filters['status']);
         }
 
-        if ($request->filled('method')) {
+        if (! empty($filters['method'])) {
             $query->where(
                 'payment_method',
-                $request->input('method')
+                $filters['method']
             );
         }
 
-        if ($request->filled('keyword')) {
+        if (! empty($filters['keyword'])) {
 
-            $keyword = trim($request->keyword);
+            $keyword = trim($filters['keyword']);
 
             $query->where(function ($q) use ($keyword) {
 
@@ -679,25 +667,26 @@ class InvoiceController extends Controller
      */
     public function exportPaymentsForm(Request $request)
     {
+        $filters = $this->paymentExportFilters($request);
         $query = Payment::with([
             'invoice.contract.tenant',
             'invoice.room',
             'confirmer',
         ])->latest('payment_date');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if (! empty($filters['status'])) {
+            $query->where('status', $filters['status']);
         }
 
-        if ($request->filled('method')) {
+        if (! empty($filters['method'])) {
             $query->where(
                 'payment_method',
-                $request->input('method')
+                $filters['method']
             );
         }
 
-        if ($request->filled('keyword')) {
-            $keyword = trim($request->keyword);
+        if (! empty($filters['keyword'])) {
+            $keyword = trim($filters['keyword']);
 
             $query->where(function ($q) use ($keyword) {
                 $q->where('transaction_code', 'like', "%{$keyword}%")
@@ -725,22 +714,23 @@ class InvoiceController extends Controller
      */
     public function exportPayments(Request $request)
     {
+        $filters = $this->paymentExportFilters($request);
         $query = Payment::with([
             'invoice.contract.tenant',
             'invoice.room',
             'confirmer',
         ])->latest('payment_date');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if (! empty($filters['status'])) {
+            $query->where('status', $filters['status']);
         }
 
-        if ($request->filled('method')) {
-            $query->where('payment_method', $request->input('method'));
+        if (! empty($filters['method'])) {
+            $query->where('payment_method', $filters['method']);
         }
 
-        if ($request->filled('keyword')) {
-            $keyword = trim($request->keyword);
+        if (! empty($filters['keyword'])) {
+            $keyword = trim($filters['keyword']);
 
             $query->where(function ($q) use ($keyword) {
                 $q->where('transaction_code', 'like', "%{$keyword}%")
@@ -756,7 +746,7 @@ class InvoiceController extends Controller
             });
         }
 
-        $payments = $query->get();
+        $payments = $query->lazy(500);
 
         $filename = 'danh_sach_thanh_toan_'.now()->format('Ymd_His').'.csv';
 
@@ -777,41 +767,39 @@ class InvoiceController extends Controller
             'Ghi chú',
         ];
 
-        $file = fopen('php://temp', 'w+');
-        fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-        fputcsv($file, $columns);
+        return response()->stream(function () use ($payments, $columns) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            Csv::writeRow($file, $columns);
 
-        foreach ($payments as $payment) {
-            $methodLabel = match ($payment->payment_method) {
-                Payment::METHOD_BANK_TRANSFER => 'Chuyển khoản',
-                Payment::METHOD_QR => 'QR',
-                default => 'Tiền mặt',
-            };
+            foreach ($payments as $payment) {
+                $methodLabel = match ($payment->payment_method) {
+                    Payment::METHOD_BANK_TRANSFER => 'Chuyển khoản',
+                    Payment::METHOD_QR => 'QR',
+                    default => 'Tiền mặt',
+                };
 
-            $statusLabel = match ($payment->status) {
-                Payment::STATUS_SUCCESS => 'Thành công',
-                Payment::STATUS_PENDING => 'Chờ xử lý',
-                default => 'Thất bại',
-            };
+                $statusLabel = match ($payment->status) {
+                    Payment::STATUS_SUCCESS => 'Thành công',
+                    Payment::STATUS_PENDING => 'Chờ xử lý',
+                    default => 'Thất bại',
+                };
 
-            fputcsv($file, [
-                $payment->transaction_code ?? '-',
-                $payment->invoice->invoice_code ?? '-',
-                $payment->invoice->room->room_code ?? '-',
-                $payment->invoice->contract->tenant->full_name ?? '-',
-                number_format($payment->amount_paid, 0, ',', '.'),
-                $methodLabel,
-                $payment->payment_date?->format('d/m/Y') ?? '-',
-                $statusLabel,
-                $payment->note ?? '-',
-            ]);
-        }
+                Csv::writeRow($file, [
+                    $payment->transaction_code ?? '-',
+                    $payment->invoice->invoice_code ?? '-',
+                    $payment->invoice->room->room_code ?? '-',
+                    $payment->invoice->contract->tenant->full_name ?? '-',
+                    number_format($payment->amount_paid, 0, ',', '.'),
+                    $methodLabel,
+                    $payment->payment_date?->format('d/m/Y') ?? '-',
+                    $statusLabel,
+                    $payment->note ?? '-',
+                ]);
+            }
 
-        rewind($file);
-        $csv = stream_get_contents($file);
-        fclose($file);
-
-        return response($csv, 200, $headers);
+            fclose($file);
+        }, 200, $headers);
     }
 
     /**
@@ -822,50 +810,41 @@ class InvoiceController extends Controller
         Invoice $invoice
     ) {
 
-        $remainingAmount = $invoice->remaining_amount;
-
-        if ($remainingAmount <= 0) {
-            return back()->with('error', 'Hóa đơn đã được thanh toán đủ.');
-        }
-
         $data = $request->validate([
-
-            'amount_paid' => 'required|numeric|min:1|max:'.$remainingAmount,
-
-            'payment_date' => 'required|date',
-
+            'amount_paid' => 'required|numeric|min:1',
+            'payment_date' => 'required|date|before_or_equal:today',
             'payment_method' => 'required|in:'
                 .Payment::METHOD_CASH.','
                 .Payment::METHOD_BANK_TRANSFER.','
                 .Payment::METHOD_QR,
-
-            'transaction_code' => 'nullable|max:255',
-
-            'note' => 'nullable|string',
-
+            'transaction_code' => ['nullable', 'string', 'max:255', Rule::unique('payments', 'transaction_code')],
+            'note' => 'nullable|string|max:1000',
         ]);
 
-        Payment::create([
+        DB::transaction(function () use ($data, $invoice) {
+            $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
+            $remainingAmount = $lockedInvoice->remaining_amount;
 
-            'invoice_id' => $invoice->id,
+            if ($remainingAmount <= 0 || (float) $data['amount_paid'] > $remainingAmount) {
+                throw ValidationException::withMessages([
+                    'amount_paid' => 'Số tiền thanh toán vượt quá số tiền còn phải trả của hóa đơn.',
+                ]);
+            }
 
-            'amount_paid' => $data['amount_paid'],
+            Payment::create([
+                'invoice_id' => $lockedInvoice->id,
+                'amount_paid' => $data['amount_paid'],
+                'payment_date' => $data['payment_date'],
+                'payment_method' => $data['payment_method'],
+                'transaction_code' => $data['transaction_code'] ?? null,
+                'status' => Payment::STATUS_SUCCESS,
+                'confirmed_by' => auth()->id(),
+                'note' => $data['note'] ?? null,
+            ]);
 
-            'payment_date' => $data['payment_date'],
-
-            'payment_method' => $data['payment_method'],
-
-            'transaction_code' => $data['transaction_code'] ?? null,
-
-            'status' => Payment::STATUS_SUCCESS,
-
-            'confirmed_by' => auth()->id(),
-
-            'note' => $data['note'] ?? null,
-
-        ]);
-
-        $invoice->refreshStatus();
+            $lockedInvoice->refreshStatus();
+            $this->syncTenantAccountAfterPayment($lockedInvoice);
+        });
 
         return redirect()
             ->route(
@@ -906,6 +885,7 @@ class InvoiceController extends Controller
             ]);
 
             $invoice->refreshStatus();
+            $this->syncTenantAccountAfterPayment($invoice);
         });
 
         return back()->with('success', 'Đã duyệt xác nhận thanh toán.');
@@ -917,18 +897,52 @@ class InvoiceController extends Controller
             'review_note' => 'required|string|max:1000',
         ]);
 
-        if (! $payment->isPending()) {
-            return back()->with('error', 'Xác nhận thanh toán này đã được xử lý trước đó.');
-        }
+        DB::transaction(function () use ($data, $payment) {
+            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->id);
 
-        $payment->update([
-            'status' => Payment::STATUS_FAILED,
-            'confirmed_by' => auth()->id(),
-            'reviewed_at' => now(),
-            'review_note' => $data['review_note'],
-        ]);
+            if (! $lockedPayment->isPending()) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Xác nhận thanh toán này đã được xử lý trước đó.',
+                ]);
+            }
+
+            $lockedPayment->update([
+                'status' => Payment::STATUS_FAILED,
+                'confirmed_by' => auth()->id(),
+                'reviewed_at' => now(),
+                'review_note' => $data['review_note'],
+            ]);
+        });
 
         return back()->with('success', 'Đã từ chối xác nhận thanh toán.');
+    }
+
+    private function syncTenantAccountAfterPayment(Invoice $invoice): void
+    {
+        $tenant = $invoice->contract()->with('tenant.user')->first()?->tenant;
+
+        if ($tenant) {
+            app(TenantAccountLifecycle::class)->sync($tenant);
+        }
+    }
+
+    private function invoiceExportFilters(Request $request): array
+    {
+        return $request->validate([
+            'month' => ['nullable', 'integer', 'between:1,12'],
+            'year' => ['nullable', 'integer', 'between:2000,2100'],
+            'status' => ['nullable', Rule::in([Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL, Invoice::STATUS_PAID])],
+            'keyword' => ['nullable', 'string', 'max:100'],
+        ]);
+    }
+
+    private function paymentExportFilters(Request $request): array
+    {
+        return $request->validate([
+            'status' => ['nullable', Rule::in([Payment::STATUS_PENDING, Payment::STATUS_SUCCESS, Payment::STATUS_FAILED])],
+            'method' => ['nullable', Rule::in([Payment::METHOD_CASH, Payment::METHOD_BANK_TRANSFER, Payment::METHOD_QR])],
+            'keyword' => ['nullable', 'string', 'max:100'],
+        ]);
     }
 
     /**

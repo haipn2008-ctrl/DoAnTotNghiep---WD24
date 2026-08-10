@@ -8,6 +8,9 @@
         ['label' => 'Hỗ trợ', 'href' => route('client.support.index'), 'active' => request()->routeIs('client.support.*'), 'icon' => '?'],
         ['label' => 'Tài khoản', 'href' => route('client.account.edit'), 'active' => request()->routeIs('client.account.*'), 'icon' => '○'],
     ];
+    $restrictedRentalPaths = ['/client/room', '/client/utilities', '/client/support'];
+    $menuItems = array_filter($menuItems, fn ($item) => auth()->user()?->isActive()
+        || ! in_array(parse_url($item['href'], PHP_URL_PATH), $restrictedRentalPaths, true));
 @endphp
 
 <aside id="clientSidebar" class="fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform lg:translate-x-0">

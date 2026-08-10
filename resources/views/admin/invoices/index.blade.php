@@ -122,7 +122,7 @@
                             @endphp
                             <tr class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">
-                                    <p class="font-semibold text-slate-950">HDON{{ str_pad($invoice->id, 5, '0', STR_PAD_LEFT) }}</p>
+                                    <p class="font-semibold text-slate-950">{{ $invoice->invoice_code ?? 'HDON'.str_pad($invoice->id, 5, '0', STR_PAD_LEFT) }}</p>
                                     <p class="mt-1 text-xs text-slate-500">Tháng {{ $invoice->month }}/{{ $invoice->year }}</p>
                                 </td>
                                 <td class="px-5 py-4 text-slate-700">{{ $invoice->room->room_code ?? $invoice->contract->room->room_code ?? 'N/A' }}</td>

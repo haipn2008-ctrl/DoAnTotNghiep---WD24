@@ -8,6 +8,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class UtilityController extends Controller
 {
@@ -37,6 +39,17 @@ class UtilityController extends Controller
             ->pluck('year');
 
         return view('client.utilities.index', compact('readings', 'years'));
+    }
+
+    public function image(Request $request, int $reading, string $type): StreamedResponse
+    {
+        abort_unless(in_array($type, ['electricity', 'water'], true), 404);
+        $contracts = $request->user()->tenant?->contracts()->get() ?? collect();
+        $reading = $this->readingsForContracts($contracts)->findOrFail($reading);
+        $path = $reading->{$type.'_image'};
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path);
     }
 
     private function readingsForContracts(Collection $contracts): Builder

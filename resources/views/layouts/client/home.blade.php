@@ -26,8 +26,8 @@
                         Cổng khách thuê giúp bạn xem nhanh hợp đồng, hóa đơn, chỉ số điện nước và thông báo từ ban quản lý.
                     </p>
                 </div>
-                <a href="{{ route('client.support.index') }}" class="inline-flex h-11 w-fit items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">
-                    Gửi yêu cầu hỗ trợ
+                <a href="{{ auth()->user()->isActive() ? route('client.support.index') : route('client.invoices.index') }}" class="inline-flex h-11 w-fit items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">
+                    {{ auth()->user()->isActive() ? 'Gửi yêu cầu hỗ trợ' : 'Xem hóa đơn quyết toán' }}
                 </a>
             </div>
         </section>
@@ -40,7 +40,7 @@
         @endunless
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <a href="{{ route('client.room.show') }}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-indigo-200">
+            <a href="{{ auth()->user()->isActive() ? route('client.room.show') : route('client.contracts.index') }}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-indigo-200">
                 <p class="text-sm font-medium text-slate-500">Phòng hiện tại</p>
                 <p class="mt-3 text-2xl font-bold text-slate-950">{{ $activeContract?->room?->room_code ?? 'Chưa có' }}</p>
                 <p class="mt-1 text-xs text-slate-500">
@@ -130,7 +130,7 @@
                     <p class="mt-1 text-sm text-slate-500">Liên hệ ban quản lý khi cần xử lý vấn đề phát sinh.</p>
                 </div>
                 <div class="space-y-3 p-5 text-sm">
-                    <a href="{{ route('client.support.index') }}" class="block rounded-lg bg-indigo-50 p-4 font-semibold text-indigo-700">Gửi và theo dõi yêu cầu hỗ trợ →</a>
+                    <a href="{{ auth()->user()->isActive() ? route('client.support.index') : route('client.invoices.index') }}" class="block rounded-lg bg-indigo-50 p-4 font-semibold text-indigo-700">{{ auth()->user()->isActive() ? 'Gửi và theo dõi yêu cầu hỗ trợ →' : 'Xem hóa đơn cần quyết toán →' }}</a>
                     <div class="rounded-lg bg-slate-50 p-4">
                         <p class="font-semibold text-slate-950">Hotline</p>
                         <p class="mt-1 text-slate-500">1900 xxxx</p>

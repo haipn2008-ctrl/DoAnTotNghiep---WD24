@@ -9,7 +9,11 @@ use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class UtilityReadingEntryTest extends TestCase
@@ -69,6 +73,38 @@ class UtilityReadingEntryTest extends TestCase
             ->assertSee('Số cũ từ 5/2026')
             ->assertSee('<span class="elec-old">125</span>', false)
             ->assertSee('<span class="water-old">45</span>', false);
+    }
+
+    public function test_only_admin_can_access_entry_pages_and_direct_store(): void
+    {
+        $this->get('/admin/utilities')->assertRedirect('/login');
+        $this->post('/admin/utilities/store', [])->assertRedirect('/login');
+        $clientRole = Role::create(['role_name' => 'User']);
+        $client = User::create(['name' => 'Client', 'email' => 'utility-client@example.test',
+            'role_id' => $clientRole->id, 'password' => 'password', 'status' => User::STATUS_ACTIVE]);
+        $this->actingAs($client)->get('/admin/utilities')->assertForbidden();
+        $this->post('/admin/utilities/store', [])->assertForbidden();
+        $this->assertDatabaseCount('utility_readings', 0);
+    }
+
+    public function test_invalid_period_empty_selection_duplicate_room_and_nonexistent_room_are_rejected(): void
+    {
+        $room = $this->createOccupiedRoom('P-VALIDATION');
+        $this->createActiveContract($room, 'HD-VALIDATION');
+        $this->actingAs($this->admin)->get('/admin/utilities?month=13&year=1999')
+            ->assertSessionHasErrors(['month', 'year']);
+        $this->get('/admin/utilities/create?month=0')->assertSessionHasErrors('month');
+        $this->post('/admin/utilities/store', ['month' => 8, 'year' => 2026, 'readings' => [[
+            'room_id' => $room->id, 'electricity_new' => 1, 'water_new' => 1,
+        ]]])->assertSessionHasErrors('readings');
+        $this->post('/admin/utilities/store', ['month' => 8, 'year' => 2026, 'readings' => [
+            ['selected' => 1, 'room_id' => $room->id, 'electricity_new' => 1, 'water_new' => 1],
+            ['selected' => 1, 'room_id' => $room->id, 'electricity_new' => 2, 'water_new' => 2],
+        ]])->assertSessionHasErrors('readings.0.room_id');
+        $this->post('/admin/utilities/store', ['month' => 8, 'year' => 2026, 'readings' => [[
+            'selected' => 1, 'room_id' => 999999, 'electricity_new' => 1, 'water_new' => 1,
+        ]]])->assertSessionHasErrors('readings.0.room_id');
+        $this->assertDatabaseCount('utility_readings', 0);
     }
 
     public function test_admin_can_save_only_the_rooms_completed_during_the_meter_round(): void
@@ -165,6 +201,128 @@ class UtilityReadingEntryTest extends TestCase
             'electricity_new' => 130,
             'water_new' => 25,
         ]);
+    }
+
+    public function test_decreasing_reading_ineligible_room_and_incomplete_selected_row_change_nothing(): void
+    {
+        $room = $this->createOccupiedRoom('P400');
+        $this->createActiveContract($room, 'HD-400');
+        UtilityReading::create(['room_id' => $room->id, 'month' => 7, 'year' => 2026,
+            'record_date' => '2026-07-31', 'electricity_old' => 90, 'electricity_new' => 100,
+            'water_old' => 10, 'water_new' => 20, 'status' => 'confirmed']);
+
+        $this->actingAs($this->admin)->post('/admin/utilities/store', ['month' => 8, 'year' => 2026, 'readings' => [[
+            'selected' => 1, 'room_id' => $room->id, 'electricity_new' => 99, 'water_new' => 19,
+        ]]])->assertSessionHasErrors('readings.0.electricity_new');
+        $this->post('/admin/utilities/store', ['month' => 8, 'year' => 2026, 'readings' => [[
+            'selected' => 1, 'room_id' => $room->id, 'electricity_new' => null, 'water_new' => 25,
+        ]]])->assertSessionHasErrors('readings.0.electricity_new');
+        $room->update(['status' => Room::STATUS_MAINTENANCE]);
+        $this->post('/admin/utilities/store', ['month' => 8, 'year' => 2026, 'readings' => [[
+            'selected' => 1, 'room_id' => $room->id, 'electricity_new' => 110, 'water_new' => 25,
+        ]]])->assertSessionHasErrors('readings.0.room_id');
+        $this->assertDatabaseMissing('utility_readings', ['room_id' => $room->id, 'month' => 8, 'year' => 2026]);
+    }
+
+    public function test_earlier_period_cannot_break_the_opening_values_of_a_later_period(): void
+    {
+        $room = $this->createOccupiedRoom('P500');
+        $this->createActiveContract($room, 'HD-500');
+        UtilityReading::create(['room_id' => $room->id, 'month' => 9, 'year' => 2026,
+            'record_date' => '2026-09-30', 'electricity_old' => 150, 'electricity_new' => 170,
+            'water_old' => 30, 'water_new' => 35, 'status' => 'confirmed']);
+        $this->actingAs($this->admin)->post('/admin/utilities/store', ['month' => 8, 'year' => 2026, 'readings' => [[
+            'selected' => 1, 'room_id' => $room->id, 'electricity_new' => 149, 'water_new' => 29,
+        ]]])->assertSessionHasErrors('readings.0.electricity_new');
+        $this->assertDatabaseMissing('utility_readings', ['room_id' => $room->id, 'month' => 8]);
+    }
+
+    public function test_meter_images_are_replaced_after_commit_and_new_files_are_cleaned_on_rollback(): void
+    {
+        Storage::fake('local');
+        $first = $this->createOccupiedRoom('P601');
+        $second = $this->createOccupiedRoom('P602');
+        $this->createActiveContract($first, 'HD-601');
+        $this->createActiveContract($second, 'HD-602');
+        Storage::disk('local')->put('utility-readings/electricity/old.jpg', 'old');
+        UtilityReading::create(['room_id' => $first->id, 'month' => 8, 'year' => 2026,
+            'record_date' => '2026-08-31', 'electricity_old' => 0, 'electricity_new' => 10,
+            'electricity_image' => 'utility-readings/electricity/old.jpg', 'water_old' => 0,
+            'water_new' => 10, 'status' => 'confirmed']);
+        UtilityReading::create(['room_id' => $second->id, 'month' => 7, 'year' => 2026,
+            'record_date' => '2026-07-31', 'electricity_old' => 0, 'electricity_new' => 10,
+            'water_old' => 0, 'water_new' => 10, 'status' => 'confirmed']);
+
+        $this->actingAs($this->admin)->post('/admin/utilities/store', ['month' => 8, 'year' => 2026,
+            'readings' => [
+                ['selected' => 1, 'room_id' => $first->id, 'electricity_new' => 12, 'water_new' => 12,
+                    'electricity_image' => UploadedFile::fake()->image('new.jpg')],
+                ['selected' => 1, 'room_id' => $second->id, 'electricity_new' => 5, 'water_new' => 5],
+            ]])->assertSessionHasErrors('readings.1.electricity_new');
+        Storage::disk('local')->assertExists('utility-readings/electricity/old.jpg');
+        $this->assertCount(1, Storage::disk('local')->allFiles());
+
+        $this->post('/admin/utilities/store', ['month' => 8, 'year' => 2026, 'readings' => [[
+            'selected' => 1, 'room_id' => $first->id, 'electricity_new' => 12, 'water_new' => 12,
+            'electricity_image' => UploadedFile::fake()->image('replacement.jpg'),
+        ]]])->assertRedirect('/admin/utilities?month=8&year=2026');
+        Storage::disk('local')->assertMissing('utility-readings/electricity/old.jpg');
+        Storage::disk('local')->assertExists(UtilityReading::where('room_id', $first->id)->value('electricity_image'));
+    }
+
+    public function test_invalid_or_oversized_meter_images_are_rejected_without_files_or_rows(): void
+    {
+        Storage::fake('local');
+        $room = $this->createOccupiedRoom('P-IMAGE-INVALID');
+        $this->createActiveContract($room, 'HD-IMAGE-INVALID');
+        $base = ['month' => 8, 'year' => 2026, 'readings' => [[
+            'selected' => 1, 'room_id' => $room->id, 'electricity_new' => 10, 'water_new' => 10,
+        ]]];
+
+        $invalid = $base;
+        $invalid['readings'][0]['electricity_image'] = UploadedFile::fake()->create('meter.pdf', 20, 'application/pdf');
+        $this->actingAs($this->admin)->post('/admin/utilities/store', $invalid)
+            ->assertSessionHasErrors('readings.0.electricity_image');
+
+        $oversized = $base;
+        $oversized['readings'][0]['water_image'] = UploadedFile::fake()->image('water.jpg')->size(5000);
+        $this->post('/admin/utilities/store', $oversized)
+            ->assertSessionHasErrors('readings.0.water_image');
+
+        $this->assertDatabaseCount('utility_readings', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_database_rejects_invalid_period_and_meter_sequences_even_for_direct_sql(): void
+    {
+        $room = $this->createOccupiedRoom('P-DB-CHECK');
+        $base = [
+            'room_id' => $room->id, 'month' => 8, 'year' => 2026, 'record_date' => '2026-08-31',
+            'electricity_old' => 10, 'electricity_new' => 20, 'water_old' => 5, 'water_new' => 8,
+            'status' => 'confirmed', 'created_at' => now(), 'updated_at' => now(),
+        ];
+
+        foreach ([
+            ['month' => 0], ['month' => 13], ['year' => 1999], ['year' => 2101],
+            ['electricity_old' => -1], ['electricity_new' => 9],
+            ['water_old' => -1], ['water_new' => 4],
+        ] as $invalid) {
+            try {
+                DB::table('utility_readings')->insert(array_merge($base, $invalid));
+                $this->fail('Database accepted an invalid utility reading.');
+            } catch (QueryException) {
+                $this->assertDatabaseCount('utility_readings', 0);
+            }
+        }
+
+        DB::table('utility_readings')->insert($base);
+        $this->assertDatabaseHas('utility_readings', [
+            'room_id' => $room->id, 'month' => 8, 'year' => 2026,
+            'electricity_old' => 10, 'electricity_new' => 20, 'water_old' => 5, 'water_new' => 8,
+        ]);
+
+        $this->expectException(QueryException::class);
+        DB::table('utility_readings')->where('room_id', $room->id)->update(['electricity_new' => 9]);
     }
 
     private function createOccupiedRoom(string $code): Room

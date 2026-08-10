@@ -155,12 +155,15 @@ class InvoiceGenerator
     public function issue(Contract $contract, int $month, int $year): Invoice
     {
         return DB::transaction(function () use ($contract, $month, $year) {
+            $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+            $contract->room()->lockForUpdate()->firstOrFail();
             $preview = $this->preview($contract, $month, $year);
+            UtilityReading::query()->lockForUpdate()->findOrFail($preview['reading']->id);
 
             $invoice = Invoice::create([
                 'contract_id' => $preview['contract']->id,
                 'room_id' => $preview['room']->id,
-                'invoice_code' => $this->nextInvoiceCode($month, $year),
+                'invoice_code' => null,
                 'utility_reading_id' => $preview['reading']->id,
                 'month' => $month,
                 'year' => $year,
@@ -173,6 +176,10 @@ class InvoiceGenerator
                 'service_fee' => $preview['service_fee'],
                 'total_amount' => $preview['total_amount'],
                 'status' => 'unpaid',
+            ]);
+
+            $invoice->update([
+                'invoice_code' => sprintf('INV-%04d%02d-%06d', $year, $month, $invoice->id),
             ]);
 
             foreach ($preview['lines'] as $line) {
@@ -217,20 +224,5 @@ class InvoiceGenerator
         }
 
         return Carbon::parse($contract->end_date)->endOfDay();
-    }
-
-    private function nextInvoiceCode(int $month, int $year): string
-    {
-        $prefix = sprintf('INV-%04d%02d-', $year, $month);
-        $latestCode = Invoice::where('invoice_code', 'like', $prefix.'%')
-            ->lockForUpdate()
-            ->orderByDesc('invoice_code')
-            ->value('invoice_code');
-
-        $sequence = $latestCode
-            ? ((int) substr($latestCode, -4)) + 1
-            : 1;
-
-        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
     }
 }

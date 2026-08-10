@@ -7,6 +7,10 @@ use App\Models\SupportRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SupportController extends Controller
 {
@@ -39,13 +43,31 @@ class SupportController extends Controller
             return back()->withErrors(['admin_response' => 'Cần nhập phản hồi khi hoàn thành hoặc từ chối yêu cầu.']);
         }
 
-        $supportRequest->update([
-            'status' => $data['status'],
-            'admin_response' => $data['admin_response'] ?? null,
-            'handled_by' => $request->user()->id,
-            'responded_at' => now(),
-        ]);
+        DB::transaction(function () use ($data, $request, $supportRequest) {
+            $lockedRequest = SupportRequest::query()->lockForUpdate()->findOrFail($supportRequest->id);
+
+            if (in_array($lockedRequest->status, [SupportRequest::STATUS_RESOLVED, SupportRequest::STATUS_REJECTED], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Yêu cầu đã kết thúc và không thể cập nhật lại.',
+                ]);
+            }
+
+            $response = filled($data['admin_response'] ?? null) ? $data['admin_response'] : null;
+            $lockedRequest->update([
+                'status' => $data['status'],
+                'admin_response' => $response,
+                'handled_by' => $request->user()->id,
+                'responded_at' => $response ? now() : null,
+            ]);
+        });
 
         return back()->with('success', 'Đã cập nhật yêu cầu hỗ trợ.');
+    }
+
+    public function attachment(SupportRequest $supportRequest): StreamedResponse
+    {
+        abort_unless($supportRequest->attachment && Storage::disk('local')->exists($supportRequest->attachment), 404);
+
+        return Storage::disk('local')->download($supportRequest->attachment);
     }
 }

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class UtilityController extends Controller
 {
@@ -100,7 +101,7 @@ class UtilityController extends Controller
             'year' => 'required|integer|between:2000,2100',
             'readings' => 'required|array',
             'readings.*.selected' => 'nullable|boolean',
-            'readings.*.room_id' => 'required|exists:rooms,id',
+            'readings.*.room_id' => 'required|distinct|exists:rooms,id',
             'readings.*.electricity_new' => 'nullable|integer|min:0',
             'readings.*.electricity_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
             'readings.*.water_new' => 'nullable|integer|min:0',
@@ -118,85 +119,114 @@ class UtilityController extends Controller
 
         $periodStart = Carbon::createFromDate($data['year'], $data['month'], 1)->startOfMonth();
         $periodEnd = $periodStart->copy()->endOfMonth();
-        $eligibleRoomIds = Room::where('status', 'occupied')
-            ->whereHas('contracts', function ($query) use ($periodStart, $periodEnd) {
-                $query->where('status', 'active')
-                    ->whereDate('start_date', '<=', $periodEnd)
-                    ->whereDate('end_date', '>=', $periodStart);
-            })
-            ->pluck('id');
+        $newImages = [];
+        $replacedImages = [];
 
-        DB::transaction(function () use ($request, $data, $selectedReadings, $eligibleRoomIds) {
-            foreach ($selectedReadings as $index => $readingData) {
-                $roomId = (int) $readingData['room_id'];
+        try {
+            DB::transaction(function () use ($request, $data, $selectedReadings, $periodStart, $periodEnd, &$newImages, &$replacedImages) {
+                foreach ($selectedReadings as $index => $readingData) {
+                    $roomId = (int) $readingData['room_id'];
 
-                if (! $eligibleRoomIds->contains($roomId)) {
-                    throw ValidationException::withMessages([
-                        "readings.{$index}.room_id" => 'Phòng không còn hợp đồng hợp lệ trong kỳ đã chọn.',
-                    ]);
-                }
+                    $room = Room::query()->lockForUpdate()->findOrFail($roomId);
+                    $eligible = $room->status === Room::STATUS_OCCUPIED
+                        && $room->contracts()->where('status', 'active')
+                            ->whereDate('start_date', '<=', $periodEnd)
+                            ->whereDate('end_date', '>=', $periodStart)
+                            ->exists();
 
-                if ($readingData['electricity_new'] === null || $readingData['water_new'] === null) {
-                    throw ValidationException::withMessages([
-                        "readings.{$index}.electricity_new" => 'Phòng đã chọn phải có đủ chỉ số điện và nước mới.',
-                    ]);
-                }
-
-                $reading = UtilityReading::firstOrNew([
-                    'room_id' => $roomId,
-                    'month' => $data['month'],
-                    'year' => $data['year'],
-                ]);
-
-                if ($reading->exists && $reading->invoice()->exists()) {
-                    throw ValidationException::withMessages([
-                        "readings.{$index}.room_id" => 'Không thể sửa chỉ số vì phòng này đã phát hành hóa đơn.',
-                    ]);
-                }
-
-                $previousReading = UtilityReading::where('room_id', $roomId)
-                    ->where(function ($query) use ($data) {
-                        $query->where('year', '<', $data['year'])
-                            ->orWhere(function ($query) use ($data) {
-                                $query->where('year', $data['year'])->where('month', '<', $data['month']);
-                            });
-                    })
-                    ->orderByDesc('year')
-                    ->orderByDesc('month')
-                    ->first();
-
-                $electricityOld = $reading->exists ? $reading->electricity_old : ($previousReading?->electricity_new ?? 0);
-                $waterOld = $reading->exists ? $reading->water_old : ($previousReading?->water_new ?? 0);
-
-                if ($readingData['electricity_new'] < $electricityOld || $readingData['water_new'] < $waterOld) {
-                    throw ValidationException::withMessages([
-                        "readings.{$index}.electricity_new" => 'Chỉ số mới không được nhỏ hơn lần ghi gần nhất.',
-                    ]);
-                }
-
-                $payload = [
-                    'electricity_old' => $electricityOld,
-                    'electricity_new' => $readingData['electricity_new'],
-                    'water_old' => $waterOld,
-                    'water_new' => $readingData['water_new'],
-                    'record_date' => now()->toDateString(),
-                    'status' => 'confirmed',
-                ];
-
-                foreach (['electricity', 'water'] as $type) {
-                    $image = $request->file("readings.{$index}.{$type}_image");
-                    $column = "{$type}_image";
-                    if ($image) {
-                        if ($reading->{$column}) {
-                            Storage::disk('public')->delete($reading->{$column});
-                        }
-                        $payload[$column] = $image->store("utility-readings/{$type}", 'public');
+                    if (! $eligible) {
+                        throw ValidationException::withMessages([
+                            "readings.{$index}.room_id" => 'Phòng không còn hợp đồng hợp lệ trong kỳ đã chọn.',
+                        ]);
                     }
-                }
 
-                $reading->fill($payload)->save();
-            }
-        });
+                    if ($readingData['electricity_new'] === null || $readingData['water_new'] === null) {
+                        throw ValidationException::withMessages([
+                            "readings.{$index}.electricity_new" => 'Phòng đã chọn phải có đủ chỉ số điện và nước mới.',
+                        ]);
+                    }
+
+                    $reading = UtilityReading::query()->where([
+                        'room_id' => $roomId,
+                        'month' => $data['month'],
+                        'year' => $data['year'],
+                    ])->lockForUpdate()->first() ?? new UtilityReading([
+                        'room_id' => $roomId,
+                        'month' => $data['month'],
+                        'year' => $data['year'],
+                    ]);
+
+                    if ($reading->exists && $reading->invoice()->exists()) {
+                        throw ValidationException::withMessages([
+                            "readings.{$index}.room_id" => 'Không thể sửa chỉ số vì phòng này đã phát hành hóa đơn.',
+                        ]);
+                    }
+
+                    $previousReading = UtilityReading::where('room_id', $roomId)
+                        ->where(function ($query) use ($data) {
+                            $query->where('year', '<', $data['year'])
+                                ->orWhere(function ($query) use ($data) {
+                                    $query->where('year', $data['year'])->where('month', '<', $data['month']);
+                                });
+                        })
+                        ->orderByDesc('year')
+                        ->orderByDesc('month')
+                        ->first();
+
+                    $electricityOld = $reading->exists ? $reading->electricity_old : ($previousReading?->electricity_new ?? 0);
+                    $waterOld = $reading->exists ? $reading->water_old : ($previousReading?->water_new ?? 0);
+
+                    if ($readingData['electricity_new'] < $electricityOld || $readingData['water_new'] < $waterOld) {
+                        throw ValidationException::withMessages([
+                            "readings.{$index}.electricity_new" => 'Chỉ số mới không được nhỏ hơn lần ghi gần nhất.',
+                        ]);
+                    }
+
+                    $nextReading = UtilityReading::where('room_id', $roomId)
+                        ->where(function ($query) use ($data) {
+                            $query->where('year', '>', $data['year'])
+                                ->orWhere(function ($query) use ($data) {
+                                    $query->where('year', $data['year'])->where('month', '>', $data['month']);
+                                });
+                        })
+                        ->orderBy('year')->orderBy('month')->lockForUpdate()->first();
+
+                    if ($nextReading && ((int) $readingData['electricity_new'] !== $nextReading->electricity_old
+                        || (int) $readingData['water_new'] !== $nextReading->water_old)) {
+                        throw ValidationException::withMessages([
+                            "readings.{$index}.electricity_new" => 'Không thể thay đổi vì chỉ số đầu kỳ tiếp theo phải khớp kỳ này.',
+                        ]);
+                    }
+
+                    $payload = [
+                        'electricity_old' => $electricityOld,
+                        'electricity_new' => $readingData['electricity_new'],
+                        'water_old' => $waterOld,
+                        'water_new' => $readingData['water_new'],
+                        'record_date' => now()->toDateString(),
+                        'status' => 'confirmed',
+                    ];
+
+                    foreach (['electricity', 'water'] as $type) {
+                        $image = $request->file("readings.{$index}.{$type}_image");
+                        $column = "{$type}_image";
+                        if ($image) {
+                            if ($reading->{$column}) {
+                                $replacedImages[] = $reading->{$column};
+                            }
+                            $newImages[] = $payload[$column] = $image->store("utility-readings/{$type}", 'local');
+                        }
+                    }
+
+                    $reading->fill($payload)->save();
+                }
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($newImages);
+            throw $exception;
+        }
+
+        Storage::disk('local')->delete($replacedImages);
 
         $savedCount = $selectedReadings->count();
         $message = "Đã lưu chỉ số cho {$savedCount} phòng. Bạn có thể tiếp tục nhập các phòng còn lại bất cứ lúc nào.";
@@ -209,9 +239,12 @@ class UtilityController extends Controller
     // Màn hình 2: KIỂM TRA CHỈ SỐ
     public function index(Request $request)
     {
-        // Lấy tháng/năm từ request (mặc định là tháng hiện tại)
-        $month = $request->input('month', Carbon::now()->month);
-        $year = $request->input('year', Carbon::now()->year);
+        $period = $request->validate([
+            'month' => 'nullable|integer|between:1,12',
+            'year' => 'nullable|integer|between:2000,2100',
+        ]);
+        $month = (int) ($period['month'] ?? Carbon::now()->month);
+        $year = (int) ($period['year'] ?? Carbon::now()->year);
 
         // Lấy ngày cuối cùng của kỳ chốt số
         $billingPeriodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
@@ -277,5 +310,14 @@ class UtilityController extends Controller
             'setting',
             'readings'
         ));
+    }
+
+    public function image(UtilityReading $reading, string $type): StreamedResponse
+    {
+        abort_unless(in_array($type, ['electricity', 'water'], true), 404);
+        $path = $reading->{$type.'_image'};
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path);
     }
 }

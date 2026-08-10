@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ContractController extends Controller
 {
@@ -28,5 +30,16 @@ class ContractController extends Controller
             ->findOrFail($contract);
 
         return view('client.contracts.show', compact('contract'));
+    }
+
+    public function file(Request $request, int $contract): StreamedResponse
+    {
+        $tenantId = $request->user()->tenant?->id;
+        $contract = Contract::query()
+            ->when($tenantId, fn ($query) => $query->where('tenant_id', $tenantId), fn ($query) => $query->whereRaw('1 = 0'))
+            ->findOrFail($contract);
+        abort_unless($contract->contract_file && Storage::disk('local')->exists($contract->contract_file), 404);
+
+        return Storage::disk('local')->response($contract->contract_file);
     }
 }

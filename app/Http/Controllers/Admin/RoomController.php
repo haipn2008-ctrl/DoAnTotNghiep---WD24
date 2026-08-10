@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RoomRequest;
 use App\Models\Amenity;
-use App\Models\Contract;
 use App\Models\Room;
+use App\Support\Csv;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class RoomController extends Controller
 {
@@ -33,7 +36,7 @@ class RoomController extends Controller
     public function export(Request $request)
     {
         $rooms = $this->roomQuery($request)
-            ->get();
+            ->reorder('id');
 
         $filename = 'danh_sach_phong_'.now()->format('Ymd_His').'.csv';
 
@@ -55,9 +58,9 @@ class RoomController extends Controller
         $callback = function () use ($rooms, $columns) {
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($file, $columns);
+            Csv::writeRow($file, $columns);
 
-            foreach ($rooms as $room) {
+            foreach ($rooms->lazy(500) as $room) {
                 $status = match ($room->status) {
                     'available' => 'Trống',
                     'occupied' => 'Đang thuê',
@@ -70,7 +73,7 @@ class RoomController extends Controller
                     ->filter()
                     ->implode(', ');
 
-                fputcsv($file, [
+                Csv::writeRow($file, [
                     $room->room_code,
                     $room->floor,
                     number_format($room->price),
@@ -100,20 +103,27 @@ class RoomController extends Controller
     public function store(RoomRequest $request)
     {
         $data = $request->validated();
+        $storedImage = null;
 
         if ($request->hasFile('image')) {
-            $data['thumbnail'] = $request
+            $storedImage = $data['thumbnail'] = $request
                 ->file('image')
                 ->store('rooms', 'public');
         }
 
         unset($data['image']);
 
-        $room = Room::create($data);
-
-        $room->amenities()->sync(
-            $request->input('amenities', [])
-        );
+        try {
+            DB::transaction(function () use ($data, $request) {
+                $room = Room::create($data);
+                $room->amenities()->sync($request->input('amenities', []));
+            });
+        } catch (\Throwable $exception) {
+            if ($storedImage) {
+                Storage::disk('public')->delete($storedImage);
+            }
+            throw $exception;
+        }
 
         return redirect()
             ->route('admin.rooms.index')
@@ -145,20 +155,32 @@ class RoomController extends Controller
     public function update(RoomRequest $request, Room $room)
     {
         $data = $request->validated();
+        $oldImage = $room->thumbnail;
+        $storedImage = null;
 
         if ($request->hasFile('image')) {
-            $data['thumbnail'] = $request
+            $storedImage = $data['thumbnail'] = $request
                 ->file('image')
                 ->store('rooms', 'public');
         }
 
         unset($data['image']);
 
-        $room->update($data);
+        try {
+            DB::transaction(function () use ($data, $request, $room) {
+                $room->update($data);
+                $room->amenities()->sync($request->input('amenities', []));
+            });
+        } catch (\Throwable $exception) {
+            if ($storedImage) {
+                Storage::disk('public')->delete($storedImage);
+            }
+            throw $exception;
+        }
 
-        $room->amenities()->sync(
-            $request->input('amenities', [])
-        );
+        if ($storedImage && $oldImage) {
+            Storage::disk('public')->delete($oldImage);
+        }
 
         return redirect()
             ->route('admin.rooms.index')
@@ -167,9 +189,18 @@ class RoomController extends Controller
 
     public function destroy(Room $room)
     {
-        $hasActiveContract = $room->contracts()
-            ->where('status', Contract::STATUS_ACTIVE)
-            ->exists();
+        $image = $room->thumbnail;
+        $hasActiveContract = DB::transaction(function () use ($room) {
+            $lockedRoom = Room::query()->lockForUpdate()->findOrFail($room->id);
+
+            if ($lockedRoom->contracts()->exists() || $lockedRoom->utilityReadings()->exists()) {
+                return true;
+            }
+
+            $lockedRoom->delete();
+
+            return false;
+        });
 
         if ($hasActiveContract) {
             return redirect()
@@ -177,7 +208,9 @@ class RoomController extends Controller
                 ->with('error', 'Không thể xóa phòng đang có người thuê');
         }
 
-        $room->delete();
+        if ($image) {
+            Storage::disk('public')->delete($image);
+        }
 
         return redirect()
             ->route('admin.rooms.index')
@@ -186,20 +219,25 @@ class RoomController extends Controller
 
     private function roomQuery(Request $request)
     {
-        $query = Room::with('amenities');
+        $filters = $request->validate([
+            'room_code' => ['nullable', 'string', 'max:50'],
+            'status' => ['nullable', Rule::in([Room::STATUS_AVAILABLE, Room::STATUS_OCCUPIED, Room::STATUS_MAINTENANCE])],
+        ]);
+        $query = Room::with('amenities')
+            ->withCount(['contracts', 'utilityReadings']);
 
-        if ($request->room_code) {
+        if (! empty($filters['room_code'])) {
             $query->where(
                 'room_code',
                 'like',
-                '%'.$request->room_code.'%'
+                '%'.$filters['room_code'].'%'
             );
         }
 
-        if ($request->status) {
+        if (! empty($filters['status'])) {
             $query->where(
                 'status',
-                $request->status
+                $filters['status']
             );
         }
 
