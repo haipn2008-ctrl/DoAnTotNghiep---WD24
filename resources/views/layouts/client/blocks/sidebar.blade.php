@@ -158,7 +158,7 @@
                     Yêu cầu trả phòng
                 </a>
 
-                <a href="{{ route('requests.history') }}"
+                <a href="{{ route('client.requests.history') }}"
                 class="block rounded-lg px-3 py-2 text-sm font-medium transition
                 {{ request()->routeIs('requests.history')
                         ? 'bg-indigo-50 text-indigo-700'
