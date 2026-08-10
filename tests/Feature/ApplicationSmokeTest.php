@@ -48,6 +48,7 @@ class ApplicationSmokeTest extends TestCase
             '/admin/users/create',
             '/admin/roles',
             '/admin/settings/electricity',
+            '/admin/support',
         ];
 
         foreach ($pages as $page) {
@@ -55,13 +56,25 @@ class ApplicationSmokeTest extends TestCase
         }
     }
 
-    public function test_client_dashboard_renders_without_a_tenant_profile(): void
+    public function test_client_pages_render_without_a_tenant_profile(): void
     {
         $client = $this->createUser('Client', 2);
 
-        $this->actingAs($client)
-            ->get('/client')
-            ->assertSuccessful();
+        $pages = [
+            '/client',
+            '/client/room',
+            '/client/contracts',
+            '/client/utilities',
+            '/client/invoices',
+            '/client/support',
+            '/client/account',
+        ];
+
+        foreach ($pages as $page) {
+            $this->actingAs($client)
+                ->get($page)
+                ->assertSuccessful();
+        }
     }
 
     public function test_room_list_uses_tailwind_pagination(): void

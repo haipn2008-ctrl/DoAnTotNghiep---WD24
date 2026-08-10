@@ -37,7 +37,7 @@ class SettingController extends Controller
 
     public function edit(string $type)
     {
-        if (!array_key_exists($type, self::$types)) {
+        if (! array_key_exists($type, self::$types)) {
             abort(404);
         }
 
@@ -50,7 +50,7 @@ class SettingController extends Controller
 
     public function update(Request $request, string $type)
     {
-        if (!array_key_exists($type, self::$types)) {
+        if (! array_key_exists($type, self::$types)) {
             abort(404);
         }
 
@@ -58,19 +58,19 @@ class SettingController extends Controller
         $setting = $this->setting();
 
         $data = $request->validate([
-            $typeData['field'] => 'required|numeric|min:0',
+            $typeData['field'] => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
         ]);
 
         $setting->update([$typeData['field'] => $data[$typeData['field']]]);
 
         return redirect()
             ->route('admin.settings.edit', ['type' => $type])
-            ->with('success', 'Đã cập nhật ' . mb_strtolower($typeData['label']) . ' thành công.');
+            ->with('success', 'Đã cập nhật '.mb_strtolower($typeData['label']).' thành công.');
     }
 
     private function setting(): Setting
     {
-        return Setting::firstOrCreate([], [
+        return Setting::currentOrCreate([
             'electric_price' => 0,
             'water_price' => 0,
             'internet_fee' => 0,

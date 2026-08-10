@@ -7,10 +7,17 @@ use App\Models\Contract;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Services\ContractHistoryService;
+use App\Models\User;
+use App\Services\TenantAccountLifecycle;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ContractController extends Controller
 {
@@ -110,8 +117,11 @@ class ContractController extends Controller
         ->select('id', 'room_code', 'price')
         ->get();
 
-        // lấy danh sách người thuê
-        $tenants = Tenant::select('id', 'full_name as name')->get();
+        $tenants = Tenant::select('id', 'full_name as name')
+            ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
+            ->whereDoesntHave('contracts', fn ($query) => $query->whereIn('status', ['pending', 'active']))
+            ->orderBy('full_name')
+            ->get();
 
         return redirect()
         ->route('admin.contracts.index');
@@ -122,100 +132,130 @@ class ContractController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'room_id'=>'required|exists:rooms,id',
-
-            'tenant_id'=>'required|exists:tenants,id',
-
-            'start_date'=>'required|date',
-
-            'end_date'=>'required|date|after:start_date',
-
-            'deposit_amount'=>'nullable|numeric|min:0',
-
-            'note'=>'nullable|string',
-
-            'contract_content'=>'nullable|string',
-
-            'confirm_contract_accuracy'=>'required|accepted',
-
+        $data = $request->validate([
+            'room_id' => ['required', 'exists:rooms,id'],
+            'tenant_id' => ['required', 'exists:tenants,id'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after:start_date'],
+            'deposit_amount' => ['nullable', 'numeric', 'min:0'],
+            'number_of_people' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'note' => ['nullable', 'string'],
+            'contract_content' => ['nullable', 'string'],
+            'confirm_contract_accuracy' => ['required', 'accepted'],
         ]);
 
-        $room = Room::findOrFail($request->room_id);
-        $tenant = Tenant::findOrFail($request->tenant_id);
+        $contract = DB::transaction(function () use ($data) {
+            $room = Room::lockForUpdate()->findOrFail($data['room_id']);
+            $tenant = Tenant::with('user')->lockForUpdate()->findOrFail($data['tenant_id']);
 
-        // Thay placeholder bằng dữ liệu thật ở server.
-        $content = $request->contract_content ?? '';
+            if (
+                $room->status !== Room::STATUS_AVAILABLE ||
+                $room->contracts()->whereIn('status', [
+                    Contract::STATUS_DRAFT,
+                    Contract::STATUS_PENDING_SIGNATURE,
+                    Contract::STATUS_SIGNED,
+                    Contract::STATUS_DEPOSIT_PAID,
+                    Contract::STATUS_ACTIVE,
+                ])->exists()
+            ) {
+                throw ValidationException::withMessages([
+                    'room_id' => 'Phòng đang có người thuê hoặc không sẵn sàng cho thuê.',
+                ]);
+            }
 
-        $startDate = \Carbon\Carbon::parse($request->start_date);
-        $endDate = \Carbon\Carbon::parse($request->end_date);
-        $createdDate = now();
+            $numberOfPeople = $data['number_of_people'] ?? 1;
+            $maxPeople = (int) ($room->max_people ?? 1);
 
-        $content = strtr($content, [
-            '{{created_day}}' => $createdDate->format('d'),
-            '{{created_month}}' => $createdDate->format('m'),
-            '{{created_year}}' => $createdDate->format('Y'),
-            '{{house_address}}' => 'Cầu Giấy - Hà Nội',
+            if ($numberOfPeople > $maxPeople) {
+                throw ValidationException::withMessages([
+                    'number_of_people' => 'Số người không được vượt quá sức chứa của phòng.',
+                ]);
+            }
 
-            '{{tenant_name}}' => $tenant->full_name ?? '',
-            '{{tenant_dob}}' => $tenant->date_of_birth
-                ? \Carbon\Carbon::parse($tenant->date_of_birth)->format('d/m/Y') : '',
-            '{{tenant_address}}' => $tenant->address ?? '',
-            '{{tenant_cccd}}' => $tenant->cccd ?? '',
-            '{{tenant_cccd_issue_date}}' => $tenant->cccd_issue_date
-                ? \Carbon\Carbon::parse($tenant->cccd_issue_date)->format('d/m/Y') : '',
-            '{{tenant_cccd_issue_place}}' => $tenant->cccd_issue_place ?? '',
-            '{{tenant_phone}}' => $tenant->phone ?? '',
+            if (
+                !$tenant->user ||
+                !in_array($tenant->user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)
+            ) {
+                throw ValidationException::withMessages([
+                    'tenant_id' => 'Tài khoản khách thuê không còn hợp lệ. Hãy tạo hồ sơ và tài khoản mới cho khách mới.',
+                ]);
+            }
 
-            '{{room}}' => $room->room_code ?? '',
-            '{{price}}' => number_format((float) $room->price, 0, ',', '.'),
-            '{{deposit}}' => number_format((float) ($request->deposit_amount ?? 0), 0, ',', '.'),
-
-            '{{start_day}}' => $startDate->format('d'),
-            '{{start_month}}' => $startDate->format('m'),
-            '{{start_year}}' => $startDate->format('Y'),
-            '{{end_day}}' => $endDate->format('d'),
-            '{{end_month}}' => $endDate->format('m'),
-            '{{end_year}}' => $endDate->format('Y'),
-        ]);
-
-        $exists = Contract::where('room_id', $request->room_id)
-            ->whereIn('status', [
-                Contract::STATUS_DRAFT,
+            if ($tenant->contracts()->whereIn('status', [
                 Contract::STATUS_PENDING_SIGNATURE,
                 Contract::STATUS_SIGNED,
                 Contract::STATUS_DEPOSIT_PAID,
                 Contract::STATUS_ACTIVE,
-            ])
-            ->exists();
+            ])->exists()) {
+                throw ValidationException::withMessages([
+                    'tenant_id' => 'Khách thuê đã có hợp đồng đang hoạt động hoặc đang trong quy trình ký.',
+                ]);
+            }
 
-        if ($exists) {
+            $startDate = Carbon::parse($data['start_date']);
+            $endDate = Carbon::parse($data['end_date']);
+            $createdDate = now();
+            $content = $data['contract_content'] ?? '';
 
-            return back()
-                ->withInput()
-                ->with('error', 'Phòng này đang có hợp đồng.');
+            $content = strtr($content, [
+                '{{created_day}}' => $createdDate->format('d'),
+                '{{created_month}}' => $createdDate->format('m'),
+                '{{created_year}}' => $createdDate->format('Y'),
+                '{{house_address}}' => 'Cầu Giấy - Hà Nội',
+                '{{tenant_name}}' => $tenant->full_name ?? '',
+                '{{tenant_dob}}' => $tenant->date_of_birth
+                    ? Carbon::parse($tenant->date_of_birth)->format('d/m/Y') : '',
+                '{{tenant_address}}' => $tenant->address ?? '',
+                '{{tenant_cccd}}' => $tenant->cccd ?? '',
+                '{{tenant_cccd_issue_date}}' => $tenant->cccd_issue_date
+                    ? Carbon::parse($tenant->cccd_issue_date)->format('d/m/Y') : '',
+                '{{tenant_cccd_issue_place}}' => $tenant->cccd_issue_place ?? '',
+                '{{tenant_phone}}' => $tenant->phone ?? '',
+                '{{room}}' => $room->room_code ?? '',
+                '{{price}}' => number_format((float) $room->price, 0, ',', '.'),
+                '{{deposit}}' => number_format((float) ($data['deposit_amount'] ?? 0), 0, ',', '.'),
+                '{{start_day}}' => $startDate->format('d'),
+                '{{start_month}}' => $startDate->format('m'),
+                '{{start_year}}' => $startDate->format('Y'),
+                '{{end_day}}' => $endDate->format('d'),
+                '{{end_month}}' => $endDate->format('m'),
+                '{{end_year}}' => $endDate->format('Y'),
+            ]);
 
-        }
+            $contract = Contract::create([
+                'contract_code' => 'TMP-' . Str::uuid(),
+                'room_id' => $room->id,
+                'tenant_id' => $tenant->id,
+                'representative_tenant_id' => $tenant->id,
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
+                'monthly_rent' => $room->price,
+                'deposit_amount' => $data['deposit_amount'] ?? 0,
+                'number_of_people' => $numberOfPeople,
+                'contract_content' => $content,
+                'note' => $data['note'] ?? null,
+                'status' => Contract::STATUS_DRAFT,
+                'deposit_status' => Contract::DEPOSIT_PENDING,
+            ]);
 
-        $lastId = (Contract::max('id') ?? 0) + 1;
+            $contract->update([
+                'contract_code' => 'HD' . str_pad((string) $contract->id, 3, '0', STR_PAD_LEFT),
+            ]);
 
-        $contract = Contract::create([
-            'contract_code' => 'HD' . str_pad($lastId, 3, '0', STR_PAD_LEFT),
-            'room_id' => $request->room_id,
-            'tenant_id' => $request->tenant_id,
-            'representative_tenant_id' => $request->tenant_id,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-            'monthly_rent' => $room->price,
-            'deposit_amount' => $request->deposit_amount,
+            // Giữ phòng ở trạng thái đã được giữ cho hợp đồng mới.
+            $room->update([
+                'status' => Room::STATUS_OCCUPIED,
+                'current_people' => $numberOfPeople,
+            ]);
 
-            // Lưu nội dung đã có dữ liệu thật
-            'contract_content' => $content,
-            'note' => $request->note,
+            return $contract;
+        });
 
-            'status' => Contract::STATUS_DRAFT,
-            'deposit_status' => Contract::DEPOSIT_PENDING,
-        ]);
+        ContractHistoryService::created($contract);
+
+        return redirect()
+            ->route('admin.contracts.index')
+            ->with('success', 'Tạo hợp đồng thành công. Đang chờ khách thuê ký hợp đồng.');
 
         $room->update([
             'status' => Room::STATUS_OCCUPIED,
@@ -387,37 +427,32 @@ class ContractController extends Controller
         }
 
         $request->validate([
-
-            'actual_end_date' => [
-
-                'required',
-
-                'date',
-
-                'after_or_equal:' . $contract->start_date->format('Y-m-d'),
-
-            ],
-
+            'actual_end_date' => ['required', 'date'],
             'termination_reason' => 'required|string|max:255',
-
             'termination_note' => 'nullable|string',
-
+            'confirm_end' => 'nullable|accepted',
         ]);
+
+        $actualEndDate = Carbon::parse($request->actual_end_date)->startOfDay();
+
+        if (
+            $actualEndDate->lt($contract->start_date->startOfDay()) ||
+            $actualEndDate->isFuture()
+        ) {
+            return back()
+                ->withInput()
+                ->with('error', 'Ngày trả phòng phải từ ngày bắt đầu hợp đồng đến ngày hiện tại.');
+        }
         $oldStatus = $contract->status;
 
         $oldRoomStatus = $contract->room->status;
 
-        DB::transaction(function () use (
-
-                $contract,
-
-                $request,
-
-                $oldStatus,
-
-                $oldRoomStatus
-
-            ) {
+        $accountStatus = DB::transaction(function () use (
+            $contract,
+            $request,
+            $oldStatus,
+            $oldRoomStatus
+        ) {
 
             // Cập nhật hợp đồng
             $contract->update([
@@ -463,19 +498,18 @@ class ContractController extends Controller
                 ]
             );
 
+            return app(TenantAccountLifecycle::class)->sync($contract->tenant);
         });
 
+        $message = match ($accountStatus) {
+            User::STATUS_SETTLING => 'Kết thúc hợp đồng thành công. Tài khoản khách được giữ ở chế độ quyết toán do còn công nợ.',
+            User::STATUS_ACTIVE, User::STATUS_PENDING => 'Kết thúc hợp đồng thành công. Tài khoản khách vẫn được giữ do còn hợp đồng khác.',
+            default => 'Kết thúc hợp đồng thành công. Tài khoản khách đã ngừng hoạt động.',
+        };
+
         return redirect()
-
             ->route('admin.contracts.index')
-
-            ->with(
-
-                'success',
-
-                'Kết thúc hợp đồng thành công.'
-
-            );
+            ->with('success', $message);
     }
 
     
@@ -544,6 +578,31 @@ class ContractController extends Controller
         );
     }
 
+    /**
+     * Cập nhật thông tin người thuê.
+     *
+     * Tách riêng khỏi update() để không xung đột với chức năng
+     * chỉnh sửa thông tin hợp đồng của luồng hiện tại.
+     */
+    public function updateTenant(Request $request, Contract $contract)
+    {
+        $tenant = $contract->tenant;
+
+        $data = $request->validate([
+            'full_name' => ['required', 'max:255'],
+            'cccd' => ['required', 'digits:12', Rule::unique('tenants', 'cccd')->ignore($tenant->id)],
+            'phone' => ['required', 'regex:/^[0-9]{10,15}$/', Rule::unique('tenants', 'phone')->ignore($tenant->id)],
+            'email' => ['nullable', 'email', Rule::unique('tenants', 'email')->ignore($tenant->id)],
+            'address' => ['nullable', 'string'],
+        ], $this->messages());
+
+        $tenant->update($data);
+
+        return redirect()
+            ->route('admin.contracts.index')
+            ->with('success', 'Cập nhật thông tin người thuê thành công.');
+    }
+
     public function print($id)
     {
         $contract = Contract::with([
@@ -587,6 +646,50 @@ class ContractController extends Controller
             'success',
             'Đã gửi hợp đồng cho khách thuê ký.'
         );
+    }
+
+    public function endList(Request $request)
+    {
+        $contracts = $this->activeContractQuery($request)
+            ->orderBy('end_date')
+            ->get();
+
+        return view('admin.contracts.end', compact('contracts'));
+    }
+
+    public function endForm($id)
+    {
+        $contract = Contract::with(['room', 'tenant'])->findOrFail($id);
+
+        abort_unless(
+            $contract->status === Contract::STATUS_ACTIVE,
+            409,
+            'Chỉ hợp đồng đang hiệu lực mới có thể kết thúc.'
+        );
+
+        return view('admin.contracts.end-form', compact('contract'));
+    }
+
+    public function extendList(Request $request)
+    {
+        $contracts = $this->activeContractQuery($request)
+            ->orderBy('end_date')
+            ->get();
+
+        return view('admin.contracts.extend', compact('contracts'));
+    }
+
+    public function extendForm($id)
+    {
+        $contract = Contract::with(['room', 'tenant'])->findOrFail($id);
+
+        abort_unless(
+            $contract->status === Contract::STATUS_ACTIVE,
+            409,
+            'Chỉ hợp đồng đang hiệu lực mới có thể gia hạn.'
+        );
+
+        return view('admin.contracts.extend-form', compact('contract'));
     }
 
     public function recallSignature(Request $request, Contract $contract)
@@ -943,6 +1046,9 @@ class ContractController extends Controller
     public function destroy(Contract $contract)
     {
         $room = $contract->room;
+        if ($contract->invoices()->exists()) {
+            return back()->with('error', 'Không thể xóa hợp đồng đã phát sinh hóa đơn.');
+        }
 
         $contract->delete();
 
@@ -967,84 +1073,100 @@ class ContractController extends Controller
     }
     
 
-//     private function contractQuery(Request $request)
-//     {
-//         $query = Contract::with(['room', 'tenant']);
 
-//         if ($request->filled('keyword')) {
-//             $keyword = trim($request->keyword);
-//             $normalizedCode = strtoupper($keyword);
+    private function contractQuery(Request $request)
+    {
+        $filters = $request->validate([
+            'keyword' => ['nullable', 'string', 'max:100'],
+            'status' => [
+                'nullable',
+                Rule::in([
+                    Contract::STATUS_DRAFT,
+                    Contract::STATUS_PENDING_SIGNATURE,
+                    Contract::STATUS_SIGNED,
+                    Contract::STATUS_DEPOSIT_PAID,
+                    Contract::STATUS_ACTIVE,
+                    Contract::STATUS_EXPIRED,
+                    Contract::STATUS_TERMINATED,
+                ]),
+            ],
+        ]);
 
-//             $query->where(function ($q) use ($keyword, $normalizedCode) {
-//                 $q->where('contract_code', 'like', "%{$keyword}%")
-//                     ->orWhere('id', $keyword)
-//                     ->orWhereHas('tenant', function ($tenant) use ($keyword) {
-//                         $tenant->where('full_name', 'like', "%{$keyword}%")
-//                             ->orWhere('phone', 'like', "%{$keyword}%")
-//                             ->orWhere('cccd', 'like', "%{$keyword}%");
-//                     })
-//                     ->orWhereHas('room', function ($room) use ($keyword) {
-//                         $room->where('room_code', 'like', "%{$keyword}%");
-//                     });
+        $query = Contract::with(['room', 'tenant']);
 
-//                 if (str_starts_with($normalizedCode, 'HD')) {
-//                     $q->orWhere('contract_code', $normalizedCode);
-//                 }
-//             });
-//         }
+        if (!empty($filters['keyword'])) {
+            $keyword = trim($filters['keyword']);
+            $normalizedCode = strtoupper($keyword);
 
-//         if ($request->filled('status')) {
-//             $query->where('status', $request->status);
-//         }
+            $query->where(function ($q) use ($keyword, $normalizedCode) {
+                $q->where('contract_code', 'like', "%{$keyword}%")
+                    ->orWhere('id', $keyword)
+                    ->orWhereHas('tenant', function ($tenant) use ($keyword) {
+                        $tenant->where('full_name', 'like', "%{$keyword}%")
+                            ->orWhere('phone', 'like', "%{$keyword}%")
+                            ->orWhere('cccd', 'like', "%{$keyword}%");
+                    })
+                    ->orWhereHas('room', function ($room) use ($keyword) {
+                        $room->where('room_code', 'like', "%{$keyword}%");
+                    });
 
-//         return $query;
-//     }
+                if (str_starts_with($normalizedCode, 'HD')) {
+                    $q->orWhere('contract_code', $normalizedCode);
+                }
+            });
+        }
 
-//     private function activeContractQuery(Request $request)
-//     {
-//         return $this->contractQuery($request)->where('status', 'active');
-//     }
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
 
-//     private function nextContractCode(): string
-//     {
-//         $lastId = (int) Contract::max('id');
+        return $query;
+    }
 
-//         do {
-//             $lastId++;
-//             $code = 'HD' . str_pad($lastId, 3, '0', STR_PAD_LEFT);
-//         } while (Contract::where('contract_code', $code)->exists());
+    private function activeContractQuery(Request $request)
+    {
+        return $this->contractQuery($request)
+            ->where('status', Contract::STATUS_ACTIVE);
+    }
 
-//         return $code;
-//     }
+    private function nextContractCode(): string
+    {
+        $lastId = (int) Contract::max('id');
 
-//     private function messages(): array
-//     {
-//         return [
-//             'room_id.required' => 'Vui lòng chọn phòng.',
-//             'room_id.exists' => 'Phòng đã chọn không tồn tại.',
-//             'tenant_id.required' => 'Vui lòng chọn người thuê.',
-//             'tenant_id.exists' => 'Người thuê đã chọn không tồn tại.',
-//             'start_date.required' => 'Vui lòng nhập ngày bắt đầu.',
-//             'start_date.date' => 'Ngày bắt đầu không hợp lệ.',
-//             'end_date.required' => 'Vui lòng nhập ngày kết thúc.',
-//             'end_date.date' => 'Ngày kết thúc không hợp lệ.',
-//             'end_date.after' => 'Ngày kết thúc phải sau ngày bắt đầu.',
-//             'deposit_amount.numeric' => 'Tiền cọc phải là số.',
-//             'deposit_amount.min' => 'Tiền cọc không được nhỏ hơn 0.',
-//             'number_of_people.integer' => 'Số người phải là số nguyên.',
-//             'number_of_people.min' => 'Số người phải lớn hơn 0.',
-//             'number_of_people.max' => 'Số người không được vượt quá 4.',
-//             'full_name.required' => 'Vui lòng nhập họ tên người thuê.',
-//             'cccd.required' => 'Vui lòng nhập CCCD.',
-//             'phone.required' => 'Vui lòng nhập số điện thoại.',
-//             'email.email' => 'Email không hợp lệ.',
-//             'actual_end_date.required' => 'Vui lòng nhập ngày trả phòng thực tế.',
-//             'actual_end_date.date' => 'Ngày trả phòng thực tế không hợp lệ.',
-//             'termination_reason.required' => 'Vui lòng chọn lý do kết thúc.',
-//             'termination_reason.in' => 'Lý do kết thúc không hợp lệ.',
-//             'new_end_date.required' => 'Vui lòng nhập ngày kết thúc mới.',
-//             'new_end_date.date' => 'Ngày kết thúc mới không hợp lệ.',
-//             'extend_reason.required' => 'Vui lòng nhập lý do gia hạn.',
-//         ];
-//     }
- }
+        do {
+            $lastId++;
+            $code = 'HD' . str_pad((string) $lastId, 3, '0', STR_PAD_LEFT);
+        } while (Contract::where('contract_code', $code)->exists());
+
+        return $code;
+    }
+
+    private function messages(): array
+    {
+        return [
+            'room_id.required' => 'Vui lòng chọn phòng.',
+            'room_id.exists' => 'Phòng đã chọn không tồn tại.',
+            'tenant_id.required' => 'Vui lòng chọn người thuê.',
+            'tenant_id.exists' => 'Người thuê đã chọn không tồn tại.',
+            'start_date.required' => 'Vui lòng nhập ngày bắt đầu.',
+            'start_date.date' => 'Ngày bắt đầu không hợp lệ.',
+            'end_date.required' => 'Vui lòng nhập ngày kết thúc.',
+            'end_date.date' => 'Ngày kết thúc không hợp lệ.',
+            'end_date.after' => 'Ngày kết thúc phải sau ngày bắt đầu.',
+            'deposit_amount.numeric' => 'Tiền cọc phải là số.',
+            'deposit_amount.min' => 'Tiền cọc không được nhỏ hơn 0.',
+            'number_of_people.integer' => 'Số người phải là số nguyên.',
+            'number_of_people.min' => 'Số người phải lớn hơn 0.',
+            'number_of_people.max' => 'Số người không được vượt quá 20.',
+            'full_name.required' => 'Vui lòng nhập họ tên người thuê.',
+            'cccd.required' => 'Vui lòng nhập CCCD.',
+            'phone.required' => 'Vui lòng nhập số điện thoại.',
+            'email.email' => 'Email không hợp lệ.',
+            'actual_end_date.required' => 'Vui lòng nhập ngày trả phòng thực tế.',
+            'actual_end_date.date' => 'Ngày trả phòng thực tế không hợp lệ.',
+            'new_end_date.required' => 'Vui lòng nhập ngày kết thúc mới.',
+            'new_end_date.date' => 'Ngày kết thúc mới không hợp lệ.',
+            'extend_reason.required' => 'Vui lòng nhập lý do gia hạn.',
+        ];
+    }
+}

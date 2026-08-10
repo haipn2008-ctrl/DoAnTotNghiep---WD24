@@ -37,6 +37,7 @@
                             <th class="px-5 py-3">Người dùng</th>
                             <th class="px-5 py-3">Email</th>
                             <th class="px-5 py-3">Vai trò</th>
+                            <th class="px-5 py-3">Trạng thái</th>
                             <th class="px-5 py-3">Thời gian tạo</th>
                             <th class="px-5 py-3 text-right">Hành động</th>
                         </tr>
@@ -56,25 +57,40 @@
                                 <td class="px-5 py-4">
                                     <span class="inline-flex rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{{ $user->role->role_name ?? '-' }}</span>
                                 </td>
+                                <td class="px-5 py-4">
+                                    @php
+                                        $statusLabels = [
+                                            'pending' => ['Chờ kích hoạt', 'bg-amber-50 text-amber-700 ring-amber-200'],
+                                            'active' => ['Đang hoạt động', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+                                            'settling' => ['Đang quyết toán', 'bg-sky-50 text-sky-700 ring-sky-200'],
+                                            'locked' => ['Đã khóa', 'bg-rose-50 text-rose-700 ring-rose-200'],
+                                            'inactive' => ['Ngừng sử dụng', 'bg-slate-100 text-slate-600 ring-slate-200'],
+                                        ];
+                                        $accountStatus = $statusLabels[$user->status] ?? [$user->status, 'bg-slate-100 text-slate-600 ring-slate-200'];
+                                    @endphp
+                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $accountStatus[1] }}">{{ $accountStatus[0] }}</span>
+                                </td>
                                 <td class="px-5 py-4 text-slate-600">{{ optional($user->created_at)->format('d/m/Y H:i') }}</td>
                                 <td class="px-5 py-4">
                                     <div class="flex justify-end gap-2">
                                         <a href="{{ route('admin.users.edit', $user) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Sửa">
                                             <i class="bx bx-edit text-lg"></i>
                                         </a>
-                                        <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="return confirm('Xác nhận xóa tài khoản này?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Xóa">
-                                                <i class="bx bx-trash text-lg"></i>
-                                            </button>
-                                        </form>
+                                        @if (! auth()->user()->is($user))
+                                            <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="return confirm('Xác nhận xóa tài khoản này?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Xóa">
+                                                    <i class="bx bx-trash text-lg"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-5 py-12 text-center text-slate-500">Chưa có tài khoản nào.</td>
+                                <td colspan="6" class="px-5 py-12 text-center text-slate-500">Chưa có tài khoản nào.</td>
                             </tr>
                         @endforelse
                     </tbody>

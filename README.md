@@ -21,37 +21,6 @@ Tài khoản có sẵn:
 | Quản trị | `admin@gmail.com` | `123456` |
 | Khách thuê | `user@gmail.com` | `123456` |
 
-### Bộ dữ liệu lớn
-
-```bash
-php artisan migrate:fresh --seed --seeder='Database\Seeders\LargeTestDataSeeder' --force
-```
-Bộ dữ liệu lớn tạo cố định:
-
-- 8 tài khoản quản trị và 70 tài khoản khách thuê.
-- 90 phòng: 60 đang thuê, 20 phòng trống và 10 phòng bảo trì.
-- 130 hợp đồng: 60 đang hoạt động, 20 chờ ký, 25 hết hạn và 25 đã kết thúc.
-- 1.080 bản ghi điện nước trong 12 tháng.
-- 1.080 hóa đơn và 5.400 chi tiết hóa đơn.
-- 965 giao dịch gồm thành công, chờ xử lý và thất bại.
-- Hóa đơn đã trả đủ, trả một phần, chưa trả và quá hạn.
-- Dữ liệu biên như mức tiêu thụ bằng 0, mức tiêu thụ rất cao, nội dung dài và
-  tiếng Việt có dấu.
-
-> **Cảnh báo:** `migrate:fresh` xóa toàn bộ bảng và dữ liệu của database đang
-> được cấu hình trong `.env`. Chỉ chạy trên database cá nhân dành cho phát
-> triển hoặc kiểm thử. Tuyệt đối không chạy trên database dùng chung hoặc
-> production.
-
-
-Tài khoản mẫu đều dùng mật khẩu `password`:
-
-| Quyền | Email | Ghi chú |
-| --- | --- | --- |
-| Quản trị | `admin01@test.local` | Có thể dùng `admin01` đến `admin08` |
-| Khách thuê | `tenant001@test.local` | Có thể dùng `tenant001` đến `tenant070` |
-
-
 ## Gợi ý kịch bản test thủ công
 
 ### Tài khoản quản trị
@@ -71,7 +40,7 @@ Tài khoản mẫu đều dùng mật khẩu `password`:
 
 ### Tài khoản khách thuê
 
-1. Đăng nhập bằng một tài khoản `tenant...@test.local`.
+1. Đăng nhập bằng tài khoản mẫu `user@gmail.com`.
 2. Kiểm tra phòng và hợp đồng đang gắn với đúng khách thuê.
 3. Kiểm tra hóa đơn gần nhất, hóa đơn chưa thanh toán và số tiền còn nợ.
 4. Thử tài khoản chưa có hồ sơ khách thuê để bảo đảm dashboard không lỗi.
@@ -173,8 +142,6 @@ Chỉ trên database cá nhân có thể xóa:
 php artisan migrate:fresh --seed
 ```
 
-Hoặc tạo lại bộ dữ liệu lớn bằng lệnh ở phần “Bộ dữ liệu lớn”.
-
 ## Các khu vực chính trong mã nguồn
 
 | Thư mục | Nội dung |
@@ -183,7 +150,7 @@ Hoặc tạo lại bộ dữ liệu lớn bằng lệnh ở phần “Bộ dữ 
 | `app/Models` | Model và quan hệ dữ liệu |
 | `app/Services` | Nghiệp vụ dùng chung, gồm tạo hóa đơn |
 | `database/migrations` | Lịch sử cấu trúc database |
-| `database/seeders` | Dữ liệu mẫu cơ bản và dữ liệu lớn |
+| `database/seeders` | Dữ liệu mẫu cơ bản |
 | `resources/views` | Giao diện Blade/Tailwind |
 | `routes/web.php` | Route quản trị, khách thuê và đăng nhập |
 | `tests/Feature` | Test luồng chức năng chính |

@@ -149,9 +149,7 @@
                             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                                 <tr>
                                     <th class="px-4 py-3">Khoản thu</th>
-                                    <th class="px-4 py-3 text-center">Chỉ số cũ</th>
-                                    <th class="px-4 py-3 text-center">Chỉ số mới</th>
-                                    <th class="px-4 py-3 text-center">Số lượng</th>
+                                    <th class="px-4 py-3 text-center">Đã sử dụng</th>
                                     <th class="px-4 py-3 text-right">Đơn giá</th>
                                     <th class="px-4 py-3 text-right">Thành tiền</th>
                                 </tr>
@@ -159,7 +157,7 @@
                             <tbody id="previewLines" class="divide-y divide-slate-100"></tbody>
                             <tfoot class="bg-slate-50">
                                 <tr>
-                                    <th colspan="5" class="px-4 py-3 text-right text-slate-700">Tổng cộng</th>
+                                    <th colspan="3" class="px-4 py-3 text-right text-slate-700">Tổng cộng</th>
                                     <th class="px-4 py-3 text-right text-lg font-bold text-emerald-700" id="previewTotal"></th>
                                 </tr>
                             </tfoot>
@@ -231,21 +229,14 @@
                 document.getElementById('previewTotal').textContent = money(data.total_amount);
 
                 const rows = data.lines.map(function(line) {
-                    const indexText = line.old_index !== null && line.new_index !== null
-                        ? `${line.old_index} -> ${line.new_index}`
-                        : '';
-
                     return `
                         <tr>
                             <td class="px-4 py-3">
                                 <span class="font-semibold text-slate-950">${line.name}</span>
                                 ${line.note ? `<p class="mt-1 text-xs text-slate-500">${line.note}</p>` : ''}
                             </td>
-                            <td class="px-4 py-3 text-center text-slate-600">${line.old_index ?? '-'}</td>
-                            <td class="px-4 py-3 text-center text-slate-600">${line.new_index ?? '-'}</td>
-                            <td class="px-4 py-3 text-center text-slate-600">
+                            <td class="px-4 py-3 text-center font-medium text-slate-700">
                                 ${formatter.format(Number(line.quantity) || 0)} ${line.unit ?? ''}
-                                ${indexText ? `<p class="mt-1 text-xs text-slate-500">${indexText}</p>` : ''}
                             </td>
                             <td class="px-4 py-3 text-right text-slate-600">${money(line.unit_price)}</td>
                             <td class="px-4 py-3 text-right font-semibold text-slate-950">${money(line.amount)}</td>

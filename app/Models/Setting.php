@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
 
 class Setting extends Model
@@ -64,11 +65,11 @@ class Setting extends Model
     {
         $query = self::query();
 
-        if (Schema::hasColumn((new self())->getTable(), 'is_active')) {
+        if (Schema::hasColumn((new self)->getTable(), 'is_active')) {
             $query->where('is_active', true);
         }
 
-        return $query->first();
+        return $query->latest('id')->first();
     }
 
     public static function currentOrCreate(array $defaults = []): self
@@ -89,10 +90,20 @@ class Setting extends Model
             'payment_due_days' => 10,
         ], $defaults);
 
-        if (Schema::hasColumn((new self())->getTable(), 'is_active')) {
+        if (Schema::hasColumn((new self)->getTable(), 'is_active')) {
             $payload['is_active'] = true;
         }
 
-        return self::create($payload);
+        try {
+            return self::create($payload);
+        } catch (QueryException $exception) {
+            $setting = self::current();
+
+            if ($setting) {
+                return $setting;
+            }
+
+            throw $exception;
+        }
     }
 }

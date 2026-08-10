@@ -1,8 +1,3 @@
-@extends('layouts.client.index')
-
-@section('title', 'Chi tiết hợp đồng | Cổng khách thuê')
-@section('page_title', 'Chi tiết hợp đồng')
-
 @section('content')
 
 @php
@@ -49,6 +44,14 @@
     };
 @endphp
 
+@php
+    $effectiveEnd = $contract->extend_end_date ?? $contract->end_date;
+    $depositStatuses = [
+        'pending' => 'Chưa thu',
+        'paid' => 'Đã thu',
+        'returned' => 'Đã hoàn trả',
+    ];
+@endphp
 
 <div class="mx-auto max-w-6xl">
     {{-- =========================
@@ -202,6 +205,14 @@
                 <span>Tải PDF</span>
             </a>
 
+            @if(method_exists($contract, 'contractFileExists') && $contract->contractFileExists())
+                <a href="{{ route('client.contracts.file', $contract) }}" target="_blank" class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
+                    Xem file hợp đồng
+                </a>
+            @elseif($contract->contract_file)
+                <span class="text-sm font-medium text-amber-700">File hợp đồng không còn tồn tại</span>
+            @endif
+
         </div>
 
     </div>
@@ -266,11 +277,22 @@
             </p>
 
             <p class="mt-2 text-lg font-bold text-slate-900">
-                {{ optional($contract->end_date)->format('d/m/Y') }}
+                {{ optional($effectiveEnd)->format('d/m/Y') }}
             </p>
 
         </div>
 
+    </div>
+
+    <div class="mb-6 grid gap-4 sm:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-slate-400">Trạng thái tiền cọc</p>
+            <p class="mt-2 text-base font-bold text-slate-900">{{ $depositStatuses[$contract->deposit_status] ?? 'Chưa cập nhật' }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-slate-400">Số người</p>
+            <p class="mt-2 text-base font-bold text-slate-900">{{ $contract->number_of_people ?? '---' }} người</p>
+        </div>
     </div>
 
 
@@ -876,6 +898,13 @@
 
     @endif
     
+    @if($contract->note)
+        <section class="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="font-bold text-slate-900">Ghi chú hợp đồng</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-600">{{ $contract->note }}</p>
+        </section>
+    @endif
+
     {{-- UPDATED --}}
     <p class="mt-5 text-right text-xs text-slate-400">
         Cập nhật lần cuối:

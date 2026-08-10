@@ -18,9 +18,21 @@ return new class extends Migration
 
             $table->string('email')->unique();
 
+            $table->string('phone', 20)->nullable();
+
             $table->timestamp('email_verified_at')->nullable();
 
             $table->string('password');
+
+            $table->string('status', 20)->default('active')->index();
+
+            $table->timestamp('activated_at')->nullable();
+
+            $table->timestamp('terms_accepted_at')->nullable();
+
+            $table->timestamp('last_login_at')->nullable();
+
+            $table->boolean('must_change_password')->default(false);
 
             $table->foreignId('role_id')
                 ->constrained('roles')

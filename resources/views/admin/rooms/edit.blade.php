@@ -68,7 +68,10 @@
 
                 <div>
                     <label for="current_people" class="mb-1.5 block text-sm font-semibold text-slate-700">Số người hiện tại</label>
-                    <input id="current_people" type="number" min="0" max="4" name="current_people" value="{{ old('current_people', $room->current_people) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <input id="current_people" type="number" min="0" name="current_people" value="{{ old('current_people', $room->current_people) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <label for="max_people" class="mt-3 mb-1.5 block text-sm font-semibold text-slate-700">Sức chứa tối đa</label>
+                    <input id="max_people" type="number" min="1" max="20" name="max_people" value="{{ old('max_people', $room->max_people) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    @error('max_people') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                     @error('current_people') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 

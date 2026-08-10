@@ -14,6 +14,7 @@
     ];
     $infoItems = [
         ['label' => 'Ngày sinh', 'value' => $tenant->date_of_birth ? \Carbon\Carbon::parse($tenant->date_of_birth)->format('d/m/Y') : 'Chưa cập nhật'],
+        ['label' => 'Giới tính', 'value' => ['male' => 'Nam', 'female' => 'Nữ', 'other' => 'Khác'][$tenant->gender] ?? 'Chưa cập nhật'],
         ['label' => 'CCCD', 'value' => $tenant->cccd],
         ['label' => 'Ngày cấp CCCD', 'value' => $tenant->cccd_issue_date ? \Carbon\Carbon::parse($tenant->cccd_issue_date)->format('d/m/Y') : 'Chưa cập nhật'],
         ['label' => 'Nơi cấp CCCD', 'value' => $tenant->cccd_issue_place ?: 'Chưa cập nhật'],

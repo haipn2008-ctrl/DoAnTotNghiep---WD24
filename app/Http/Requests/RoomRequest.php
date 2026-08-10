@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Room;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class RoomRequest extends FormRequest
 {
@@ -44,7 +46,14 @@ class RoomRequest extends FormRequest
             'current_people' => [
                 'required',
                 'integer',
-                'between:0,4',
+                'min:0',
+                'lte:max_people',
+            ],
+
+            'max_people' => [
+                'required',
+                'integer',
+                'between:1,20',
             ],
 
             'status' => [
@@ -74,9 +83,33 @@ class RoomRequest extends FormRequest
             ],
 
             'amenities.*' => [
+                'distinct',
                 'exists:amenities,id',
             ],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            /** @var Room|null $room */
+            $room = $this->route('room');
+            $hasActiveContract = $room?->activeContract()->exists() ?? false;
+
+            if ($this->input('status') === Room::STATUS_OCCUPIED && ! $hasActiveContract) {
+                $validator->errors()->add('status', 'Chỉ hợp đồng đang hoạt động mới được chuyển phòng sang trạng thái đang thuê.');
+            }
+
+            if ($hasActiveContract) {
+                if ($this->input('status') !== Room::STATUS_OCCUPIED) {
+                    $validator->errors()->add('status', 'Phòng có hợp đồng đang hoạt động phải ở trạng thái đang thuê.');
+                }
+
+                if ((int) $this->input('current_people') < 1) {
+                    $validator->errors()->add('current_people', 'Phòng có hợp đồng đang hoạt động phải có ít nhất một người.');
+                }
+            }
+        });
     }
 
     public function messages(): array

@@ -111,9 +111,9 @@
                                 <td class="px-5 py-4 text-center text-slate-600">{{ $item->electricity_old }}</td>
                                 <td class="px-5 py-4 text-center font-semibold text-indigo-700">{{ $item->electricity_new }}</td>
                                 <td class="px-5 py-4 text-center">
-                                    @if ($item->electricity_image)
-                                        <a href="{{ asset('storage/' . $item->electricity_image) }}" target="_blank">
-                                            <img src="{{ asset('storage/' . $item->electricity_image) }}" alt="Ảnh đồng hồ điện" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
+                                    @if ($item->meterImageExists('electricity'))
+                                        <a href="{{ route('admin.utilities.image', [$item, 'electricity']) }}" target="_blank">
+                                            <img src="{{ route('admin.utilities.image', [$item, 'electricity']) }}" alt="Ảnh đồng hồ điện" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
                                         </a>
                                     @else
                                         <span class="text-xs text-slate-400">Chưa có</span>
@@ -124,9 +124,9 @@
                                 <td class="px-5 py-4 text-center text-slate-600">{{ $item->water_old }}</td>
                                 <td class="px-5 py-4 text-center font-semibold text-sky-700">{{ $item->water_new }}</td>
                                 <td class="px-5 py-4 text-center">
-                                    @if ($item->water_image)
-                                        <a href="{{ asset('storage/' . $item->water_image) }}" target="_blank">
-                                            <img src="{{ asset('storage/' . $item->water_image) }}" alt="Ảnh đồng hồ nước" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
+                                    @if ($item->meterImageExists('water'))
+                                        <a href="{{ route('admin.utilities.image', [$item, 'water']) }}" target="_blank">
+                                            <img src="{{ route('admin.utilities.image', [$item, 'water']) }}" alt="Ảnh đồng hồ nước" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
                                         </a>
                                     @else
                                         <span class="text-xs text-slate-400">Chưa có</span>

@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class UserRequest extends FormRequest
 {
@@ -32,11 +32,21 @@ class UserRequest extends FormRequest
 
             'phone' => 'nullable|max:20',
 
-            'role_id' => 'required|exists:roles,id',
+            'role_id' => [
+                'required',
+                Rule::exists('roles', 'id')->where(
+                    fn ($query) => $query->whereIn('role_name', ['Admin', 'User', 'Client'])
+                ),
+            ],
+
+            'status' => [
+                Rule::requiredIf($this->isMethod('put') || $this->isMethod('patch')),
+                Rule::in(['pending', 'active', 'settling', 'locked', 'inactive']),
+            ],
 
             'password' => $this->isMethod('post')
-                ? 'required|min:6|confirmed'
-                : 'nullable|min:6|confirmed',
+                ? ['required', 'confirmed', Password::min(8)]
+                : ['nullable', 'confirmed', Password::min(8)],
         ];
     }
 }

@@ -178,7 +178,7 @@
                                 <span>
                                     {{ $contract->start_date?->format('d/m/Y') ?? '---' }}
                                     →
-                                    {{ $contract->end_date?->format('d/m/Y') ?? '---' }}
+                                    {{ ($contract->extend_end_date ?? $contract->end_date)?->format('d/m/Y') ?? '---' }}
                                 </span>
 
                             </div>
@@ -297,7 +297,7 @@
                                 </p>
 
                                 <p class="mt-1 text-sm font-semibold text-slate-800">
-                                    {{ $contract->end_date?->format('d/m/Y') ?? '---' }}
+                                    {{ ($contract->extend_end_date ?? $contract->end_date)?->format('d/m/Y') ?? '---' }}
                                 </p>
                             </div>
 
@@ -393,4 +393,5 @@
     </div>
 @endif
 </div>
+
 @endsection

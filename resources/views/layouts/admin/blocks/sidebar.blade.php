@@ -78,6 +78,14 @@
             ],
         ],
         [
+            'label' => 'Hỗ trợ',
+            'icon' => 'bx bx-support',
+            'active' => request()->routeIs('admin.support*'),
+            'items' => [
+                ['label' => 'Yêu cầu khách thuê', 'route' => 'admin.support.index', 'active' => request()->routeIs('admin.support*')],
+            ],
+        ],
+        [
             'label' => 'Hệ thống',
             'icon' => 'bx bx-cog',
             'active' => request()->routeIs('admin.users*') || request()->routeIs('admin.roles') || request()->routeIs('admin.settings*'),

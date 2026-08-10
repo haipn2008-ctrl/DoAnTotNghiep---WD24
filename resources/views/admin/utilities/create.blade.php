@@ -4,38 +4,38 @@
 @section('page_title', 'Nhập chỉ số điện nước')
 
 @section('content')
-    <div class="space-y-6">
+    <div class="space-y-5">
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
-                <p class="text-sm font-medium text-slate-500">Điện nước và dịch vụ</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Nhập chỉ số điện/nước</h2>
+                <p class="text-sm font-medium text-slate-500">Ghi đồng hồ theo từng phòng, lưu đến đâu chắc đến đó</p>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Kỳ tháng {{ $month }}/{{ $year }}</h2>
             </div>
 
-            <form action="{{ route('admin.utilities.create') }}" method="GET" class="flex flex-wrap items-end gap-2">
+            <form action="{{ route('admin.utilities.create') }}" method="GET" class="flex items-end gap-2">
                 <div>
-                    <label for="month" class="mb-1.5 block text-sm font-semibold text-slate-700">Tháng</label>
-                    <select id="month" name="month" onchange="this.form.submit()" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <label for="month" class="mb-1 block text-xs font-semibold text-slate-600">Tháng</label>
+                    <select id="month" name="month" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
                         @for ($m = 1; $m <= 12; $m++)
-                            <option value="{{ $m }}" @selected($month == $m)>Tháng {{ $m }}</option>
+                            <option value="{{ $m }}" @selected($month === $m)>Tháng {{ $m }}</option>
                         @endfor
                     </select>
                 </div>
-
                 <div>
-                    <label for="year" class="mb-1.5 block text-sm font-semibold text-slate-700">Năm</label>
-                    <select id="year" name="year" onchange="this.form.submit()" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                        @for ($y = date('Y'); $y >= date('Y') - 2; $y--)
-                            <option value="{{ $y }}" @selected($year == $y)>Năm {{ $y }}</option>
+                    <label for="year" class="mb-1 block text-xs font-semibold text-slate-600">Năm</label>
+                    <select id="year" name="year" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+                        @for ($y = date('Y') + 1; $y >= date('Y') - 3; $y--)
+                            <option value="{{ $y }}" @selected($year === $y)>Năm {{ $y }}</option>
                         @endfor
                     </select>
                 </div>
+                <button class="h-10 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white">Xem kỳ</button>
             </form>
         </div>
 
         @if ($errors->any())
             <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                <p class="font-semibold">Vui lòng kiểm tra lại thông tin.</p>
-                <ul class="mt-2 list-disc space-y-1 pl-5">
+                <p class="font-semibold">Chưa thể lưu chỉ số</p>
+                <ul class="mt-1 list-disc pl-5">
                     @foreach ($errors->all() as $error)
                         <li>{{ $error }}</li>
                     @endforeach
@@ -43,79 +43,119 @@
             </div>
         @endif
 
-        <form action="{{ route('admin.utilities.store') }}" method="POST" enctype="multipart/form-data" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="grid gap-3 sm:grid-cols-3">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Tiến độ</p>
+                <p class="mt-1 text-2xl font-bold text-slate-950"><span id="savedCount">{{ $savedCount }}</span>/{{ count($readings) }} phòng</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 sm:col-span-2">
+                <p class="text-sm font-semibold text-slate-800">Cách nhập nhanh</p>
+                <p class="mt-1 text-sm text-slate-500">Nhập điện mới → Enter → nước mới → Enter để sang phòng kế tiếp. Bạn có thể chỉ nhập vài phòng rồi lưu, không cần hoàn thành tất cả cùng lúc.</p>
+            </div>
+        </div>
+
+        <form id="utilityForm" action="{{ route('admin.utilities.store') }}" method="POST" enctype="multipart/form-data" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             @csrf
             <input type="hidden" name="month" value="{{ $month }}">
             <input type="hidden" name="year" value="{{ $year }}">
 
-            <div class="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
-                <div>
-                    <h3 class="font-semibold text-slate-950">Danh sách phòng</h3>
-                    <p class="text-sm text-slate-500">Kỳ chốt tháng {{ $month }}/{{ $year }}</p>
+            <div class="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex flex-1 flex-col gap-2 sm:flex-row">
+                    <label class="relative max-w-md flex-1">
+                        <i class="bx bx-search absolute left-3 top-2.5 text-xl text-slate-400"></i>
+                        <input id="roomSearch" type="search" placeholder="Tìm mã phòng..." class="h-10 w-full rounded-lg border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-indigo-500">
+                    </label>
+                    <select id="statusFilter" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+                        <option value="all">Tất cả phòng</option>
+                        <option value="pending">Chưa nhập</option>
+                        <option value="saved">Đã lưu</option>
+                        <option value="locked">Đã xuất hóa đơn</option>
+                    </select>
                 </div>
-                <a href="{{ route('admin.utilities.index', ['month' => $month, 'year' => $year]) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                    <i class="bx bx-list-check text-lg"></i>
-                    Kiểm tra chỉ số
+                <a href="{{ route('admin.utilities.index', ['month' => $month, 'year' => $year]) }}" class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    <i class="bx bx-list-check text-lg"></i>Xem bảng đã chốt
                 </a>
             </div>
 
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                <table class="min-w-[980px] w-full divide-y divide-slate-200 text-sm">
+                    <thead class="sticky top-0 z-10 bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                         <tr>
-                            <th class="px-5 py-3">Phòng</th>
-                            <th class="px-5 py-3 text-center">Điện cũ</th>
-                            <th class="px-5 py-3 text-center">Điện mới</th>
-                            <th class="px-5 py-3">Ảnh điện</th>
-                            <th class="px-5 py-3 text-center">Nước cũ</th>
-                            <th class="px-5 py-3 text-center">Nước mới</th>
-                            <th class="px-5 py-3">Ảnh nước</th>
+                            <th class="sticky left-0 z-20 bg-slate-50 px-4 py-3">Phòng</th>
+                            <th class="px-3 py-3">Điện cũ</th>
+                            <th class="px-3 py-3">Điện mới</th>
+                            <th class="px-3 py-3">Tiêu thụ</th>
+                            <th class="px-3 py-3">Nước cũ</th>
+                            <th class="px-3 py-3">Nước mới</th>
+                            <th class="px-3 py-3">Tiêu thụ</th>
+                            <th class="px-3 py-3">Ảnh / trạng thái</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($readings as $index => $item)
-                            <tr>
-                                <td class="px-5 py-4">
-                                    <p class="font-semibold text-slate-950">{{ $item['room_name'] }}</p>
-                                    <p class="mt-1 text-xs text-slate-500">Ngày thuê: {{ $item['start_date'] }}</p>
-                                    <input type="hidden" name="readings[{{ $index }}][room_id]" value="{{ $item['room_id'] }}">
+                            @php
+                                $electricityNew = old("readings.$index.electricity_new", $item['electricity_new']);
+                                $waterNew = old("readings.$index.water_new", $item['water_new']);
+                                $state = $item['locked'] ? 'locked' : ($item['saved'] ? 'saved' : 'pending');
+                            @endphp
+                            <tr class="utility-row {{ $item['locked'] ? 'bg-slate-50' : 'hover:bg-indigo-50/30' }}" data-room="{{ strtolower($item['room_name']) }}" data-state="{{ $state }}">
+                                <td class="sticky left-0 z-[5] bg-inherit px-4 py-4">
+                                    <div class="flex items-start gap-3">
+                                        <input type="hidden" name="readings[{{ $index }}][room_id]" value="{{ $item['room_id'] }}">
+                                        <input class="row-selector mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600" type="checkbox" name="readings[{{ $index }}][selected]" value="1" @checked(old("readings.$index.selected")) @disabled($item['locked']) aria-label="Chọn phòng {{ $item['room_name'] }} để lưu">
+                                        <div>
+                                            <p class="font-bold text-slate-950">{{ $item['room_name'] }}</p>
+                                            <p class="mt-0.5 text-xs text-slate-500">Thuê từ {{ $item['start_date'] }}</p>
+                                            @if ($item['last_period'])
+                                                <p class="text-xs text-slate-400">Số cũ từ {{ $item['last_period'] }}</p>
+                                            @endif
+                                        </div>
+                                    </div>
                                 </td>
-                                <td class="px-5 py-4 text-center">
-                                    <input type="number" class="elec-old w-24 rounded-lg border border-transparent bg-slate-50 px-3 py-2 text-center font-semibold text-slate-700" name="readings[{{ $index }}][electricity_old]" value="{{ $item['electricity_old'] }}" readonly tabindex="-1">
+                                <td class="px-3 py-4 font-semibold text-slate-600"><span class="elec-old">{{ $item['electricity_old'] }}</span></td>
+                                <td class="px-3 py-4">
+                                    <input type="number" inputmode="numeric" min="{{ $item['electricity_old'] }}" name="readings[{{ $index }}][electricity_new]" value="{{ $electricityNew }}" class="meter-input elec-new h-11 w-32 rounded-lg border border-slate-200 px-3 text-lg font-bold text-indigo-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" placeholder="Nhập số" @readonly($item['locked'])>
                                 </td>
-                                <td class="px-5 py-4 text-center">
-                                    <input type="number" class="calc-input elec-new w-32 rounded-lg border border-slate-200 px-3 py-2 text-center font-semibold text-indigo-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" name="readings[{{ $index }}][electricity_new]" min="{{ $item['electricity_old'] }}" placeholder="Nhập số..." required>
-                                    <small class="elec-usage mt-1 block h-5 text-xs"></small>
+                                <td class="px-3 py-4"><span class="elec-usage rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">—</span></td>
+                                <td class="px-3 py-4 font-semibold text-slate-600"><span class="water-old">{{ $item['water_old'] }}</span></td>
+                                <td class="px-3 py-4">
+                                    <input type="number" inputmode="numeric" min="{{ $item['water_old'] }}" name="readings[{{ $index }}][water_new]" value="{{ $waterNew }}" class="meter-input water-new h-11 w-32 rounded-lg border border-slate-200 px-3 text-lg font-bold text-sky-700 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100" placeholder="Nhập số" @readonly($item['locked'])>
                                 </td>
-                                <td class="px-5 py-4">
-                                    <input type="file" class="block w-48 rounded-lg border border-slate-200 text-xs text-slate-600 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700" name="readings[{{ $index }}][electricity_image]" accept="image/jpeg,image/png,image/webp">
-                                </td>
-                                <td class="px-5 py-4 text-center">
-                                    <input type="number" class="water-old w-24 rounded-lg border border-transparent bg-slate-50 px-3 py-2 text-center font-semibold text-slate-700" name="readings[{{ $index }}][water_old]" value="{{ $item['water_old'] }}" readonly tabindex="-1">
-                                </td>
-                                <td class="px-5 py-4 text-center">
-                                    <input type="number" class="calc-input water-new w-32 rounded-lg border border-slate-200 px-3 py-2 text-center font-semibold text-sky-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" name="readings[{{ $index }}][water_new]" min="{{ $item['water_old'] }}" placeholder="Nhập số..." required>
-                                    <small class="water-usage mt-1 block h-5 text-xs"></small>
-                                </td>
-                                <td class="px-5 py-4">
-                                    <input type="file" class="block w-48 rounded-lg border border-slate-200 text-xs text-slate-600 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700" name="readings[{{ $index }}][water_image]" accept="image/jpeg,image/png,image/webp">
+                                <td class="px-3 py-4"><span class="water-usage rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">—</span></td>
+                                <td class="px-3 py-4">
+                                    @if ($item['locked'])
+                                        <span class="inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Đã xuất hóa đơn</span>
+                                    @else
+                                        <div class="flex items-center gap-2">
+                                            <button type="button" class="zero-usage rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Không phát sinh</button>
+                                            <details class="relative">
+                                                <summary class="cursor-pointer list-none rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600">Chụp ảnh</summary>
+                                                <div class="absolute right-0 z-30 mt-2 w-72 space-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                                                    <label class="block text-xs font-semibold text-slate-700">Ảnh đồng hồ điện
+                                                        <input type="file" name="readings[{{ $index }}][electricity_image]" accept="image/*" capture="environment" class="mt-1 block w-full text-xs">
+                                                    </label>
+                                                    <label class="block text-xs font-semibold text-slate-700">Ảnh đồng hồ nước
+                                                        <input type="file" name="readings[{{ $index }}][water_image]" accept="image/*" capture="environment" class="mt-1 block w-full text-xs">
+                                                    </label>
+                                                </div>
+                                            </details>
+                                        </div>
+                                        <p class="mt-2 text-xs {{ $item['saved'] ? 'text-emerald-600' : 'text-amber-600' }}">{{ $item['saved'] ? 'Đã lưu — có thể sửa' : 'Chưa nhập' }}</p>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="7" class="px-5 py-12 text-center text-slate-500">Không có phòng đang thuê cần nhập chỉ số trong kỳ này.</td>
-                            </tr>
+                            <tr><td colspan="8" class="px-5 py-12 text-center text-slate-500">Không có phòng đang thuê trong kỳ này.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
 
             @if (count($readings) > 0)
-                <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                    <a href="{{ route('admin.utilities.index') }}" class="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Hủy</a>
-                    <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-                        <i class="bx bx-save text-lg"></i>
-                        Lưu tất cả chỉ số
+                <div class="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-sm text-slate-500"><strong id="selectedCount" class="text-slate-900">0</strong> phòng sẽ được lưu. Phòng chưa chọn sẽ được giữ nguyên.</p>
+                    <button id="saveButton" type="submit" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>
+                        <i class="bx bx-save text-lg"></i>Lưu các phòng đã nhập
                     </button>
                 </div>
             @endif
@@ -125,50 +165,96 @@
 
 @push('scripts')
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const inputs = document.querySelectorAll('.calc-input');
+        document.addEventListener('DOMContentLoaded', () => {
+            const rows = [...document.querySelectorAll('.utility-row')];
+            const inputs = [...document.querySelectorAll('.meter-input:not([readonly])')];
+            const search = document.getElementById('roomSearch');
+            const filter = document.getElementById('statusFilter');
+            const selectedCount = document.getElementById('selectedCount');
+            const saveButton = document.getElementById('saveButton');
 
-            inputs.forEach((input, index) => {
-                input.addEventListener('focus', function() {
-                    this.select();
-                });
+            const updateRow = (row, autoSelect = false) => {
+                const selector = row.querySelector('.row-selector');
+                const pairs = [
+                    ['.elec-old', '.elec-new', '.elec-usage', 'kWh'],
+                    ['.water-old', '.water-new', '.water-usage', 'm³'],
+                ];
+                let complete = true;
+                let valid = true;
 
-                input.addEventListener('input', function() {
-                    const row = this.closest('tr');
-                    const isElec = this.classList.contains('elec-new');
-                    const oldVal = parseFloat(row.querySelector(isElec ? '.elec-old' : '.water-old').value) || 0;
-                    const newVal = parseFloat(this.value);
-                    const usageDisplay = row.querySelector(isElec ? '.elec-usage' : '.water-usage');
-
-                    this.classList.remove('border-rose-400', 'ring-rose-100', 'border-emerald-400', 'ring-emerald-100');
-
-                    if (isNaN(newVal)) {
-                        usageDisplay.textContent = '';
+                pairs.forEach(([oldSelector, newSelector, usageSelector, unit]) => {
+                    const oldValue = Number(row.querySelector(oldSelector).textContent);
+                    const input = row.querySelector(newSelector);
+                    const output = row.querySelector(usageSelector);
+                    if (!input.value) {
+                        output.textContent = '—';
+                        output.className = output.className.replace(/bg-\S+|text-\S+/g, '').trim() + ' bg-slate-100 text-slate-500';
+                        complete = false;
                         return;
                     }
-
-                    const usage = newVal - oldVal;
-                    if (usage < 0) {
-                        this.classList.add('border-rose-400', 'ring-rose-100');
-                        usageDisplay.innerHTML = '<span class="text-rose-600">Nhỏ hơn số cũ</span>';
-                    } else {
-                        this.classList.add('border-emerald-400', 'ring-emerald-100');
-                        usageDisplay.innerHTML = `<span class="font-semibold text-emerald-700">Dùng: ${usage}</span>`;
-                    }
+                    const usage = Number(input.value) - oldValue;
+                    const ok = usage >= 0;
+                    valid = valid && ok;
+                    output.textContent = ok ? `+${usage} ${unit}` : 'Nhỏ hơn số cũ';
+                    output.className = output.className.replace(/bg-\S+|text-\S+/g, '').trim() + (ok ? ' bg-emerald-50 text-emerald-700' : ' bg-rose-50 text-rose-700');
+                    input.classList.toggle('border-rose-400', !ok);
                 });
 
-                input.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const nextInput = inputs[index + 1];
-                        if (nextInput) {
-                            nextInput.focus();
-                        } else {
-                            document.querySelector('button[type="submit"]')?.focus();
-                        }
+                if (selector && autoSelect) selector.checked = complete && valid;
+                refreshSelection();
+            };
+
+            const refreshSelection = () => {
+                const checked = document.querySelectorAll('.row-selector:checked').length;
+                selectedCount.textContent = checked;
+                saveButton.disabled = checked === 0;
+            };
+
+            const applyFilter = () => {
+                const keyword = search.value.trim().toLowerCase();
+                rows.forEach(row => {
+                    const matchesRoom = row.dataset.room.includes(keyword);
+                    const matchesState = filter.value === 'all' || row.dataset.state === filter.value;
+                    row.classList.toggle('hidden', !(matchesRoom && matchesState));
+                });
+            };
+
+            inputs.forEach((input, index) => {
+                input.addEventListener('focus', () => input.select());
+                input.addEventListener('input', () => updateRow(input.closest('tr'), true));
+                input.addEventListener('keydown', event => {
+                    if (event.key !== 'Enter') return;
+                    event.preventDefault();
+                    const next = inputs[index + 1];
+                    if (next) {
+                        next.focus();
+                        next.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    } else {
+                        saveButton.focus();
                     }
                 });
             });
+
+            document.querySelectorAll('.zero-usage').forEach(button => {
+                button.addEventListener('click', () => {
+                    const row = button.closest('tr');
+                    row.querySelector('.elec-new').value = row.querySelector('.elec-old').textContent.trim();
+                    row.querySelector('.water-new').value = row.querySelector('.water-old').textContent.trim();
+                    updateRow(row, true);
+                });
+            });
+
+            document.querySelectorAll('input[type="file"]').forEach(input => {
+                input.addEventListener('change', () => {
+                    if (input.files.length) input.closest('tr').querySelector('.row-selector').checked = true;
+                    refreshSelection();
+                });
+            });
+
+            document.querySelectorAll('.row-selector').forEach(input => input.addEventListener('change', refreshSelection));
+            rows.forEach(row => updateRow(row));
+            search.addEventListener('input', applyFilter);
+            filter.addEventListener('change', applyFilter);
         });
     </script>
 @endpush

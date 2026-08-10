@@ -123,6 +123,7 @@
                                         <a href="{{ route('admin.rooms.edit', $room) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa">
                                             <i class="bx bx-edit text-lg"></i>
                                         </a>
+                                        @if ($room->contracts_count === 0 && $room->utility_readings_count === 0)
                                         <form action="{{ route('admin.rooms.destroy', $room) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa phòng này?')">
                                             @csrf
                                             @method('DELETE')
@@ -130,6 +131,7 @@
                                                 <i class="bx bx-trash text-lg"></i>
                                             </button>
                                         </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

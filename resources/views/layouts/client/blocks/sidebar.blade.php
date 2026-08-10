@@ -8,11 +8,14 @@
         ],
         [
             'label' => 'Phòng của tôi',
-            'href' => '#room',
-            'active' => false,
+            'href' => route('client.room.show'),
+            'active' => request()->routeIs('client.room.*'),
             'icon' => '□'
         ],
     ];
+    $restrictedRentalPaths = ['/client/room', '/client/utilities', '/client/support'];
+    $menuItems = array_filter($menuItems, fn ($item) => auth()->user()?->isActive()
+        || ! in_array(parse_url($item['href'], PHP_URL_PATH), $restrictedRentalPaths, true));
 @endphp
 
 

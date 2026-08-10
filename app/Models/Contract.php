@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Contract extends Model
 {
@@ -311,6 +312,11 @@ class Contract extends Model
     {
         return $this->status === self::STATUS_ACTIVE
             && $this->deposit_status === self::DEPOSIT_PAID;
+    }
+
+    public function contractFileExists(): bool
+    {
+        return filled($this->contract_file) && Storage::disk('local')->exists($this->contract_file);
     }
 
     public function canCreateInvoice()

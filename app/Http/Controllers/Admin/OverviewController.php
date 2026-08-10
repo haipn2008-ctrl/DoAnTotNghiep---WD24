@@ -13,7 +13,7 @@ class OverviewController extends Controller
 {
     public function index()
     {
-        $currentYear  = now()->year;
+        $currentYear = now()->year;
         $previousYear = $currentYear - 1;
 
         // Tổng doanh thu (tổng tiền đã thu thành công)
@@ -23,46 +23,30 @@ class OverviewController extends Controller
         $activeContracts = Contract::where('status', Contract::STATUS_ACTIVE)->count();
 
         // Công nợ thực tế: tổng tiền hóa đơn trừ tổng thanh toán thành công
-        $totalBilledOut  = Invoice::sum('total_amount');
-        $totalPaidOut    = Payment::success()->sum('amount_paid');
-        $totalReceivable = max(0, $totalBilledOut - $totalPaidOut);
+        $totalBilledOut = Invoice::sum('total_amount');
+        $totalReceivable = max(0, $totalBilledOut - $totalRevenue);
 
         // Doanh thu theo tháng
-        $revenueByMonth = function (int $year): array {
-            $payments = Payment::success()
-                ->whereYear('payment_date', $year)
-                ->get(['payment_date', 'amount_paid']);
-
-            $grouped = $payments
-                ->groupBy(fn($p) => (int) $p->payment_date->format('n'))
-                ->map(fn($g) => $g->sum('amount_paid'));
-
-            $result = [];
-            for ($i = 1; $i <= 12; $i++) {
-                $result[] = (float) ($grouped[$i] ?? 0);
-            }
-            return $result;
-        };
-
-        $monthlyRevenueCurrentYear  = $revenueByMonth($currentYear);
-        $monthlyRevenuePreviousYear = $revenueByMonth($previousYear);
+        $monthlyRevenueCurrentYear = $this->monthlyRevenue($currentYear);
+        $monthlyRevenuePreviousYear = $this->monthlyRevenue($previousYear);
 
         // Tổng số phòng
         $totalRooms = Room::count();
 
         // Trạng thái phòng
-        $occupiedRooms    = Room::occupied()->count();
-        $availableRooms   = Room::available()->count();
+        $occupiedRooms = Room::occupied()->count();
+        $availableRooms = Room::available()->count();
         $maintenanceRooms = Room::maintenance()->count();
 
-        $occupiedPercent    = $totalRooms > 0 ? round(($occupiedRooms    / $totalRooms) * 100, 1) : 0;
-        $availablePercent   = $totalRooms > 0 ? round(($availableRooms   / $totalRooms) * 100, 1) : 0;
+        $occupiedPercent = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
+        $availablePercent = $totalRooms > 0 ? round(($availableRooms / $totalRooms) * 100, 1) : 0;
         $maintenancePercent = $totalRooms > 0 ? round(($maintenanceRooms / $totalRooms) * 100, 1) : 0;
 
         // Trạng thái hóa đơn
-        $paidInvoices    = Invoice::where('status', Invoice::STATUS_PAID)->count();
-        $unpaidInvoices  = Invoice::where('status', Invoice::STATUS_UNPAID)->count();
+        $paidInvoices = Invoice::where('status', Invoice::STATUS_PAID)->count();
+        $unpaidInvoices = Invoice::where('status', Invoice::STATUS_UNPAID)->count();
         $partialInvoices = Invoice::where('status', Invoice::STATUS_PARTIAL)->count();
+        $outstandingInvoices = $unpaidInvoices + $partialInvoices;
 
         // Doanh thu hôm nay & tháng này
         $todayRevenue = Payment::success()
@@ -92,6 +76,7 @@ class OverviewController extends Controller
             'paidInvoices',
             'unpaidInvoices',
             'partialInvoices',
+            'outstandingInvoices',
             'todayRevenue',
             'monthRevenue'
         ));
@@ -101,30 +86,16 @@ class OverviewController extends Controller
     {
         $currentYear = now()->year;
 
-        $payments = Payment::success()
-            ->whereYear('payment_date', $currentYear)
-            ->get(['payment_date', 'amount_paid']);
-
-        $grouped = $payments
-            ->groupBy(fn($p) => (int) $p->payment_date->format('n'))
-            ->map(fn($g) => $g->sum('amount_paid'));
-
-        $monthlyRevenue = [];
-        for ($i = 1; $i <= 12; $i++) {
-            $monthlyRevenue[] = (float) ($grouped[$i] ?? 0);
-        }
-
-        $allPayments = Payment::success()
+        $monthlyRevenue = $this->monthlyRevenue($currentYear);
+        $yearlyGrouped = Payment::success()
             ->whereNotNull('payment_date')
-            ->get(['payment_date', 'amount_paid']);
+            ->selectRaw($this->yearExpression().' as revenue_year, SUM(amount_paid) as total')
+            ->groupByRaw($this->yearExpression())
+            ->orderBy('revenue_year')
+            ->get();
 
-        $yearlyGrouped = $allPayments
-            ->groupBy(fn($p) => $p->payment_date->format('Y'))
-            ->map(fn($g) => $g->sum('amount_paid'))
-            ->sortKeys();
-
-        $yearLabels    = $yearlyGrouped->keys()->values()->toArray();
-        $yearlyRevenue = $yearlyGrouped->values()->map(fn($v) => (float) $v)->toArray();
+        $yearLabels = $yearlyGrouped->pluck('revenue_year')->map(fn ($year) => (string) $year)->all();
+        $yearlyRevenue = $yearlyGrouped->pluck('total')->map(fn ($total) => (float) $total)->all();
 
         return view('admin.overview.revenue-chart', compact(
             'currentYear',
@@ -138,12 +109,12 @@ class OverviewController extends Controller
     {
         $currentYear = now()->year;
 
-        $totalRevenue    = Payment::success()->sum('amount_paid');
-        $totalBilled     = Invoice::sum('total_amount');
+        $totalRevenue = Payment::success()->sum('amount_paid');
+        $totalBilled = Invoice::sum('total_amount');
         $totalReceivable = max(0, $totalBilled - $totalRevenue);
 
         $collectionRate = $totalBilled > 0
-            ? round(($totalRevenue / $totalBilled) * 100, 1)
+            ? min(100, round(($totalRevenue / $totalBilled) * 100, 1))
             : 0;
 
         $todayRevenue = Payment::success()
@@ -167,9 +138,9 @@ class OverviewController extends Controller
 
     public function roomStats()
     {
-        $totalRooms       = Room::count();
-        $occupiedRooms    = Room::occupied()->count();
-        $availableRooms   = Room::available()->count();
+        $totalRooms = Room::count();
+        $occupiedRooms = Room::occupied()->count();
+        $availableRooms = Room::available()->count();
         $maintenanceRooms = Room::maintenance()->count();
 
         return view('admin.overview.room-stats', compact(
@@ -182,13 +153,13 @@ class OverviewController extends Controller
 
     public function fillRate()
     {
-        $totalRooms       = Room::count();
-        $occupiedRooms    = Room::occupied()->count();
-        $availableRooms   = Room::available()->count();
+        $totalRooms = Room::count();
+        $occupiedRooms = Room::occupied()->count();
+        $availableRooms = Room::available()->count();
         $maintenanceRooms = Room::maintenance()->count();
 
-        $occupiedPercent    = $totalRooms > 0 ? round(($occupiedRooms    / $totalRooms) * 100, 1) : 0;
-        $availablePercent   = $totalRooms > 0 ? round(($availableRooms   / $totalRooms) * 100, 1) : 0;
+        $occupiedPercent = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
+        $availablePercent = $totalRooms > 0 ? round(($availableRooms / $totalRooms) * 100, 1) : 0;
         $maintenancePercent = $totalRooms > 0 ? round(($maintenanceRooms / $totalRooms) * 100, 1) : 0;
 
         return view('admin.overview.fill-rate', compact(
@@ -200,5 +171,36 @@ class OverviewController extends Controller
             'availablePercent',
             'maintenancePercent'
         ));
+    }
+
+    private function monthlyRevenue(int $year): array
+    {
+        $grouped = Payment::success()
+            ->whereYear('payment_date', $year)
+            ->selectRaw($this->monthExpression().' as revenue_month, SUM(amount_paid) as total')
+            ->groupByRaw($this->monthExpression())
+            ->pluck('total', 'revenue_month');
+
+        return collect(range(1, 12))
+            ->map(fn (int $month) => (float) ($grouped[$month] ?? 0))
+            ->all();
+    }
+
+    private function monthExpression(): string
+    {
+        return match (DB::getDriverName()) {
+            'sqlite' => "CAST(strftime('%m', payment_date) AS INTEGER)",
+            'pgsql' => 'EXTRACT(MONTH FROM payment_date)',
+            default => 'MONTH(payment_date)',
+        };
+    }
+
+    private function yearExpression(): string
+    {
+        return match (DB::getDriverName()) {
+            'sqlite' => "strftime('%Y', payment_date)",
+            'pgsql' => 'EXTRACT(YEAR FROM payment_date)',
+            default => 'YEAR(payment_date)',
+        };
     }
 }

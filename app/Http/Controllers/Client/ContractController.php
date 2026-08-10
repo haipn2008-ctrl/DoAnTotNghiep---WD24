@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ContractController extends Controller
 {
@@ -33,8 +35,7 @@ class ContractController extends Controller
             ]);
         }
 
-        // Lấy TẤT CẢ hợp đồng
-        // Hợp đồng mới nhất nằm trên cùng
+        // Lấy tất cả hợp đồng của khách, hợp đồng mới nhất nằm trên cùng.
         $contracts = Contract::with(['room', 'tenant'])
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', [
@@ -55,7 +56,6 @@ class ContractController extends Controller
         ));
     }
 
-
     /**
      * Xem chi tiết hợp đồng
      */
@@ -69,21 +69,11 @@ class ContractController extends Controller
 
         $tenant = $user->tenant;
 
-        /*
-        * QUAN TRỌNG:
-        * Không cho khách A xem hợp đồng khách B
-        * bằng cách nhập ID trên URL.
-        */
+        // Không cho khách A xem hợp đồng khách B.
         if (!$tenant || $contract->tenant_id !== $tenant->id) {
             abort(403, 'Bạn không có quyền xem hợp đồng này.');
         }
 
-        /*
-        * Load dữ liệu hợp đồng
-        * - room: phòng
-        * - tenant: khách thuê
-        * - histories.user: lịch sử + người thực hiện
-        */
         $contract->load([
             'room',
             'tenant',
@@ -103,14 +93,12 @@ class ContractController extends Controller
     {
         $user = Auth::user();
 
-        // Chỉ khách thuê
         if ($user->role_id !== 2) {
             abort(403);
         }
 
         $tenant = $user->tenant;
 
-        // Không cho khách xem/in hợp đồng của người khác
         if (!$tenant || $contract->tenant_id !== $tenant->id) {
             abort(403, 'Bạn không có quyền in hợp đồng này.');
         }
@@ -118,7 +106,7 @@ class ContractController extends Controller
         $contract->load([
             'room',
             'tenant',
-            'representative'
+            'representative',
         ]);
 
         return view('client.contracts.print', compact('contract'));
@@ -131,14 +119,12 @@ class ContractController extends Controller
     {
         $user = Auth::user();
 
-        // Chỉ khách thuê
         if ($user->role_id !== 2) {
             abort(403);
         }
 
         $tenant = $user->tenant;
 
-        // Không cho tải hợp đồng của khách khác
         if (!$tenant || $contract->tenant_id !== $tenant->id) {
             abort(403, 'Bạn không có quyền tải hợp đồng này.');
         }
@@ -146,11 +132,11 @@ class ContractController extends Controller
         $contract->load([
             'room',
             'tenant',
-            'representative'
+            'representative',
         ]);
 
         $pdf = Pdf::loadView('client.contracts.pdf', [
-            'contract' => $contract
+            'contract' => $contract,
         ]);
 
         $pdf->setPaper('a4', 'portrait');
@@ -160,7 +146,34 @@ class ContractController extends Controller
         return $pdf->download($fileName);
     }
 
-    public function sign(\Illuminate\Http\Request $request, Contract $contract)
+    /**
+     * Xem/tải file hợp đồng gốc được lưu trong hệ thống.
+     */
+    public function file(Request $request, int $contract): StreamedResponse
+    {
+        $tenantId = $request->user()->tenant?->id;
+
+        $contract = Contract::query()
+            ->when(
+                $tenantId,
+                fn ($query) => $query->where('tenant_id', $tenantId),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
+            ->findOrFail($contract);
+
+        abort_unless(
+            $contract->contract_file &&
+            Storage::disk('local')->exists($contract->contract_file),
+            404
+        );
+
+        return Storage::disk('local')->response($contract->contract_file);
+    }
+
+    /**
+     * Khách thuê ký hợp đồng
+     */
+    public function sign(Request $request, Contract $contract)
     {
         $user = Auth::user();
 
@@ -170,12 +183,11 @@ class ContractController extends Controller
 
         $tenant = $user->tenant;
 
-        // Không cho ký hợp đồng của người khác
         if (!$tenant || $contract->tenant_id !== $tenant->id) {
             abort(403, 'Bạn không có quyền ký hợp đồng này.');
         }
 
-        // Chỉ được ký khi Admin đã gửi
+        // Chỉ được ký khi Admin đã gửi.
         if (!$contract->isPendingSignature()) {
             return back()->with(
                 'error',
@@ -189,7 +201,7 @@ class ContractController extends Controller
 
         $signature = $request->signature;
 
-        // Kiểm tra đúng ảnh PNG base64 từ canvas
+        // Kiểm tra đúng ảnh PNG base64 từ canvas.
         if (!preg_match('/^data:image\/png;base64,/', $signature)) {
             return back()->with(
                 'error',
@@ -197,7 +209,6 @@ class ContractController extends Controller
             );
         }
 
-        // Bỏ phần data:image/png;base64,
         $imageData = preg_replace(
             '/^data:image\/png;base64,/',
             '',
@@ -213,7 +224,6 @@ class ContractController extends Controller
             );
         }
 
-        // Tên file
         $fileName =
             'contract_' .
             $contract->id .
@@ -223,11 +233,8 @@ class ContractController extends Controller
 
         $path = 'signatures/contracts/' . $fileName;
 
-        // Lưu vào storage/app/public
-        \Illuminate\Support\Facades\Storage::disk('public')
-            ->put($path, $imageData);
+        Storage::disk('public')->put($path, $imageData);
 
-        // Cập nhật hợp đồng
         $contract->update([
             'tenant_signature' => $path,
             'status' => Contract::STATUS_SIGNED,
@@ -256,7 +263,6 @@ class ContractController extends Controller
             abort(403, 'Bạn không có quyền cập nhật hợp đồng này.');
         }
 
-        // Chỉ được đăng ký sau khi đã ký
         if (!$contract->isSigned()) {
             return back()->with(
                 'error',
@@ -264,7 +270,6 @@ class ContractController extends Controller
             );
         }
 
-        // Không cho đăng ký lại nếu đã nhận phòng
         if ($contract->move_in_date) {
             return back()->with(
                 'error',
@@ -298,6 +303,7 @@ class ContractController extends Controller
                 \Carbon\Carbon::parse($request->planned_move_in_date)->format('d/m/Y')
             );
     }
+
     /**
      * Khách thuê xác nhận đã thực tế nhận phòng
      */
@@ -340,8 +346,7 @@ class ContractController extends Controller
             'move_in_date' => [
                 'required',
                 'date',
-                'after_or_equal:' .
-                    $contract->planned_move_in_date->format('Y-m-d'),
+                'after_or_equal:' . $contract->planned_move_in_date->format('Y-m-d'),
                 'before_or_equal:' . now()->toDateString(),
             ],
         ]);

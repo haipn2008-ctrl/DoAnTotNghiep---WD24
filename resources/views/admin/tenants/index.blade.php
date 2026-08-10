@@ -23,6 +23,16 @@
             </div>
         </div>
 
+        <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <form method="GET" action="{{ route('admin.tenants.index') }}" class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                <div>
+                    <label for="search" class="mb-1.5 block text-sm font-semibold text-slate-700">Tìm kiếm</label>
+                    <input id="search" name="search" value="{{ $search }}" maxlength="255" placeholder="Họ tên, CCCD, số điện thoại hoặc email" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
+                </div>
+                <button class="inline-flex h-11 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white">Tìm</button>
+            </form>
+        </section>
+
         <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
@@ -87,13 +97,15 @@
                                         <a href="{{ route('admin.tenants.edit', $tenant) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa">
                                             <i class="bx bx-edit text-lg"></i>
                                         </a>
-                                        <form action="{{ route('admin.tenants.destroy', $tenant) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa khách thuê này?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Xóa">
-                                                <i class="bx bx-trash text-lg"></i>
-                                            </button>
-                                        </form>
+                                        @if ($tenant->contracts->isEmpty())
+                                            <form action="{{ route('admin.tenants.destroy', $tenant) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa khách thuê này?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Xóa">
+                                                    <i class="bx bx-trash text-lg"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

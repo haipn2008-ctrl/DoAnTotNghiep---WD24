@@ -185,7 +185,7 @@ class InvoiceModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
-        $response->assertSeeText('Mã hóa đơn');
+        $this->assertStringContainsString('Mã hóa đơn', $response->streamedContent());
     }
 
     public function test_payment_export_downloads_csv_file(): void
@@ -267,6 +267,6 @@ class InvoiceModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
-        $response->assertSeeText('Mã giao dịch');
+        $this->assertStringContainsString('Mã giao dịch', $response->streamedContent());
     }
 }

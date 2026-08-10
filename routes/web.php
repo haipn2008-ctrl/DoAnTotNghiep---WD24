@@ -6,22 +6,29 @@ use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SupportController as AdminSupportController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
+use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\ContractExtensionRequestController as AdminContractExtensionRequestController;
 use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminContractTerminationRequestController;
 
-
 // Client routes
+use App\Http\Controllers\Client\AccountController as ClientAccountController;
 use App\Http\Controllers\Client\ContractController as ClientContractController;
+use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
+use App\Http\Controllers\Client\RoomController as ClientRoomController;
+use App\Http\Controllers\Client\SupportController as ClientSupportController;
+use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
 use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
@@ -44,136 +51,95 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // Các route BẮT BUỘC phải đăng nhập mới được vào
 Route::middleware('auth')->group(function () {
-    Route::get('/dashboard', [LoginController::class, 'dashboard'])->name('dashboard');
+    Route::get('/activate-account', [AccountActivationController::class, 'show'])->name('account.activation.show');
+    Route::post('/activate-account', [AccountActivationController::class, 'activate'])->name('account.activation.activate');
 
-    // Nhóm route dành riêng cho Admin
-    Route::prefix('admin')->name('admin.')->group(function () {
+    Route::middleware('account.active')->group(function () {
+        Route::get('/dashboard', [LoginController::class, 'dashboard'])->name('dashboard');
 
-        Route::resource('users', UserController::class)->except(['show']);
+        // Nhóm route dành riêng cho Admin
+        Route::prefix('admin')->name('admin.')->middleware('role:admin')->group(function () {
 
-        // Chức năng thêm phòng
-        Route::get('rooms/export', [RoomController::class, 'exportForm'])
-            ->name('rooms.export');
-        Route::get('rooms/export/download', [RoomController::class, 'export'])
-            ->name('rooms.export.download');
-        Route::resource('rooms', RoomController::class);
+            Route::resource('users', UserController::class)->except(['show']);
 
-        // Chức năng thêm sửa xoá khách thuê
-        Route::get('tenants/export', [TenantController::class, 'exportForm'])
-            ->name('tenants.export');
-        Route::get('tenants/export/download', [TenantController::class, 'export'])
-            ->name('tenants.export.download');
-        Route::resource('tenants', TenantController::class);
+            // Chức năng thêm phòng
+            Route::get('rooms/export', [RoomController::class, 'exportForm'])
+                ->name('rooms.export');
+            Route::get('rooms/export/download', [RoomController::class, 'export'])
+                ->name('rooms.export.download');
+            Route::resource('rooms', RoomController::class);
 
         // =====================================================
         // QUẢN LÝ HỢP ĐỒNG THUÊ PHÒNG
         // =====================================================
 
-        // 1. Kết thúc hợp đồng
         Route::post(
             'contracts/{contract}/terminate',
             [ContractController::class, 'end']
         )->name('contracts.terminate');
 
-
-        // 2. Gia hạn hợp đồng
         Route::post(
             'contracts/{contract}/extend',
             [ContractController::class, 'extend']
         )->name('contracts.extend');
 
-
-        // 3. Xử lý tiền cọc sau khi kết thúc hợp đồng
         Route::post(
             'contracts/{contract}/return-deposit',
             [ContractController::class, 'returnDeposit']
         )->name('contracts.return-deposit');
 
-
-        // 4. In hợp đồng
         Route::get(
             'contracts/{id}/print',
             [ContractController::class, 'print']
         )->name('contracts.print');
 
-
-        // =====================================================
-        // KÝ HỢP ĐỒNG & KÍCH HOẠT
-        // =====================================================
-
-        // 5. Gửi hợp đồng cho khách thuê ký
         Route::post(
             'contracts/{contract}/send-signature',
             [ContractController::class, 'sendSignature']
         )->name('contracts.send-signature');
 
-
-        // 6. Thu hồi yêu cầu ký
         Route::post(
             'contracts/{contract}/recall-signature',
             [ContractController::class, 'recallSignature']
         )->name('contracts.recall-signature');
 
-
-        // 7. Xác nhận khách thuê đã ký
         Route::post(
             'contracts/{contract}/confirm-signature',
             [ContractController::class, 'confirmSignature']
         )->name('contracts.confirm-signature');
 
-
-        // 8. Xác nhận đã đóng tiền cọc
         Route::post(
             'contracts/{contract}/confirm-deposit',
             [ContractController::class, 'confirmDeposit']
         )->name('contracts.confirm-deposit');
 
-
-        // 9. Kích hoạt hợp đồng
         Route::post(
             'contracts/{contract}/activate',
             [ContractController::class, 'activate']
         )->name('contracts.activate');
-
-
-        // =====================================================
-        // MODAL CHI TIẾT HỢP ĐỒNG
-        // =====================================================
 
         Route::get(
             'contracts/{contract}/modal',
             [ContractController::class, 'modal']
         )->name('contracts.modal');
 
-
-        // =====================================================
-        // YÊU CẦU GIA HẠN HỢP ĐỒNG
-        // =====================================================
-
-        // Danh sách yêu cầu gia hạn
+        // Yêu cầu gia hạn
         Route::get(
             'extension-requests',
             [AdminContractExtensionRequestController::class, 'index']
         )->name('extension-requests.index');
 
-
-        // Duyệt yêu cầu gia hạn
         Route::post(
             'extension-requests/{extensionRequest}/approve',
             [AdminContractExtensionRequestController::class, 'approve']
         )->name('extension-requests.approve');
 
-
-        // Từ chối yêu cầu gia hạn
         Route::post(
             'extension-requests/{extensionRequest}/reject',
             [AdminContractExtensionRequestController::class, 'reject']
         )->name('extension-requests.reject');
 
-        // =====================================================
-        // YÊU CẦU TRẢ PHÒNG
-        // =====================================================
-
+        // Yêu cầu trả phòng
         Route::get(
             'termination-requests',
             [AdminContractTerminationRequestController::class, 'index']
@@ -189,269 +155,214 @@ Route::middleware('auth')->group(function () {
             [AdminContractTerminationRequestController::class, 'reject']
         )->name('termination-requests.reject');
 
-        // =====================================================
-        // RESOURCE HỢP ĐỒNG
-        // Luôn đặt sau các route contracts cụ thể
-        // =====================================================
+        // Khách thuê
+        Route::get('tenants/export', [TenantController::class, 'exportForm'])
+            ->name('tenants.export');
+        Route::get('tenants/export/download', [TenantController::class, 'export'])
+            ->name('tenants.export.download');
+        Route::resource('tenants', TenantController::class);
 
+        // Tải file hợp đồng
+        Route::get('contracts/{contract}/file', [ContractController::class, 'file'])
+            ->name('contracts.file');
+
+        // Resource hợp đồng đặt sau các route cụ thể
         Route::resource('contracts', ContractController::class);
         //
         // Chức năng điện nước
         Route::get('/utilities/create', [UtilityController::class, 'create'])
             ->name('utilities.create');
 
-        Route::post('/utilities/store', [UtilityController::class, 'store'])
-            ->name('utilities.store');
+            // Resource phải đặt SAU CÙNG
+            Route::resource('contracts', ContractController::class);
+            //
+            // Chức năng điện nước
+            Route::get('/utilities/create', [UtilityController::class, 'create'])
+                ->name('utilities.create');
 
-        Route::get('/utilities', [UtilityController::class, 'index'])
-            ->name('utilities.index');
+            Route::post('/utilities/store', [UtilityController::class, 'store'])
+                ->name('utilities.store');
 
-        // Quản lý hóa đơn và công nợ
-        // Các route cụ thể phải đặt TRƯỚC resource để tránh bị {invoice} chiếm
-        Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
-            ->name('invoices.generate');
+            Route::get('/utilities', [UtilityController::class, 'index'])
+                ->name('utilities.index');
+            Route::get('/utilities/{reading}/{type}-image', [UtilityController::class, 'image'])
+                ->name('utilities.image');
 
-        Route::post('/invoices/generate', [InvoiceController::class, 'generateStore'])
-            ->name('invoices.generate.store');
+            // Quản lý hóa đơn và công nợ
+            // Các route cụ thể phải đặt TRƯỚC resource để tránh bị {invoice} chiếm
+            Route::get('/invoices/generate', [InvoiceController::class, 'generate'])
+                ->name('invoices.generate');
 
-        Route::get('/invoices/export', [InvoiceController::class, 'exportForm'])
-            ->name('invoices.export');
+            Route::post('/invoices/generate', [InvoiceController::class, 'generateStore'])
+                ->name('invoices.generate.store');
 
-        Route::get('/invoices/export/download', [InvoiceController::class, 'export'])
-            ->name('invoices.export.download');
+            Route::get('/invoices/export', [InvoiceController::class, 'exportForm'])
+                ->name('invoices.export');
 
-        Route::get('/invoices/payments', [InvoiceController::class, 'payments'])
-            ->name('invoices.payments');
+            Route::get('/invoices/export/download', [InvoiceController::class, 'export'])
+                ->name('invoices.export.download');
 
-        Route::get('/invoices/payments/export', [InvoiceController::class, 'exportPaymentsForm'])
-            ->name('invoices.payments.export');
+            Route::get('/invoices/payments', [InvoiceController::class, 'payments'])
+                ->name('invoices.payments');
 
-        Route::get('/invoices/payments/export/download', [InvoiceController::class, 'exportPayments'])
-            ->name('invoices.payments.export.download');
+            Route::get('/invoices/payments/export', [InvoiceController::class, 'exportPaymentsForm'])
+                ->name('invoices.payments.export');
 
-        Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
-            ->name('invoices.preview');
+            Route::get('/invoices/payments/export/download', [InvoiceController::class, 'exportPayments'])
+                ->name('invoices.payments.export.download');
 
-        Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
-            ->name('invoices.issue');
+            Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
+                ->name('invoices.preview');
 
-        Route::post('/contracts/{contract}/deposit-invoice', [InvoiceController::class, 'createDepositInvoice'])
-            ->name('contracts.deposit-invoice');
+            Route::post('/contracts/{contract}/deposit-invoice', [InvoiceController::class, 'createDepositInvoice'])
+                ->name('contracts.deposit-invoice');
 
-        Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
-            ->name('invoices.payments.store');
+            Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
+                ->name('invoices.issue');
 
-        Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
-            ->name('invoices.print');
+            Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])
+                ->name('invoices.payments.store');
 
-        Route::resource('invoices', InvoiceController::class)
-            ->except(['create', 'store']);
+            Route::post('/invoices/payments/{payment}/approve', [InvoiceController::class, 'approvePayment'])
+                ->name('invoices.payments.approve');
 
-        // Tổng Quan Dashboard
-        Route::get('/overview', [OverviewController::class, 'index'])
-            ->name('overview');
+            Route::post('/invoices/payments/{payment}/reject', [InvoiceController::class, 'rejectPayment'])
+                ->name('invoices.payments.reject');
 
-        Route::get('/overview/revenue-chart', [OverviewController::class, 'revenueChart'])
-            ->name('overview.revenue-chart');
+            Route::get('/invoices/{invoice}/print', [InvoiceController::class, 'print'])
+                ->name('invoices.print');
 
-        Route::get('/overview/revenue-stats', [OverviewController::class, 'revenueStats'])
-            ->name('overview.revenue-stats');
+            Route::resource('invoices', InvoiceController::class)
+                ->except(['create', 'store']);
 
-        Route::get('/overview/room-stats', [OverviewController::class, 'roomStats'])
-            ->name('overview.room-stats');
+            // Tổng Quan Dashboard
+            Route::get('/overview', [OverviewController::class, 'index'])
+                ->name('overview');
 
-        Route::get('/overview/fill-rate', [OverviewController::class, 'fillRate'])
-            ->name('overview.fill-rate');
+            Route::get('/overview/revenue-chart', [OverviewController::class, 'revenueChart'])
+                ->name('overview.revenue-chart');
 
-        Route::get('/settings/{type}', [SettingController::class, 'edit'])
-            ->where('type', 'electricity|water|internet|service')
-            ->name('settings.edit');
+            Route::get('/overview/revenue-stats', [OverviewController::class, 'revenueStats'])
+                ->name('overview.revenue-stats');
 
-        Route::put('/settings/{type}', [SettingController::class, 'update'])
-            ->where('type', 'electricity|water|internet|service')
-            ->name('settings.update');
+            Route::get('/overview/room-stats', [OverviewController::class, 'roomStats'])
+                ->name('overview.room-stats');
 
-        Route::get('/roles', function () {
-            $user = auth()->user();
+            Route::get('/overview/fill-rate', [OverviewController::class, 'fillRate'])
+                ->name('overview.fill-rate');
 
-            if ($user->role_id !== 1) {
-                return redirect()->route('dashboard');
-            }
+            Route::get('/settings/{type}', [SettingController::class, 'edit'])
+                ->where('type', 'electricity|water|internet|service')
+                ->name('settings.edit');
 
-            $roles = Role::all();
+            Route::put('/settings/{type}', [SettingController::class, 'update'])
+                ->where('type', 'electricity|water|internet|service')
+                ->name('settings.update');
 
-            return view('admin.roles.index', compact('roles'));
-        })->name('roles');
+            Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');
+            Route::get('/support/{supportRequest}/attachment', [AdminSupportController::class, 'attachment'])->name('support.attachment');
+            Route::put('/support/{supportRequest}', [AdminSupportController::class, 'update'])->name('support.update');
 
-        Route::get('/', function () {
-            $user = auth()->user();
+            Route::get('/roles', function () {
+                $roles = Role::all();
 
-            if ($user->role_id !== 1) {
-                return redirect()->route('dashboard');
-            }
+                return view('admin.roles.index', compact('roles'));
+            })->name('roles');
 
-            $currentMonth = now()->month;
-            $currentYear = now()->year;
+            Route::get('/', function () {
+                $currentMonth = now()->month;
+                $currentYear = now()->year;
 
-            $stats = [
-                'total_rooms' => Room::count(),
-                'available_rooms' => Room::where('status', 'available')->count(),
-                'occupied_rooms' => Room::where('status', 'occupied')->count(),
-                'maintenance_rooms' => Room::where('status', 'maintenance')->count(),
-                'total_tenants' => Tenant::count(),
-                'active_contracts' => Contract::where('status', 'active')->count(),
-                'unpaid_invoices' => Invoice::whereIn('status', ['unpaid', 'partial'])->count(),
-                'monthly_revenue' => Invoice::where('status', 'paid')
-                    ->where('month', $currentMonth)
-                    ->where('year', $currentYear)
-                    ->sum('total_amount'),
-            ];
+                $stats = [
+                    'total_rooms' => Room::count(),
+                    'available_rooms' => Room::where('status', 'available')->count(),
+                    'occupied_rooms' => Room::where('status', 'occupied')->count(),
+                    'maintenance_rooms' => Room::where('status', 'maintenance')->count(),
+                    'total_tenants' => Tenant::count(),
+                    'active_contracts' => Contract::where('status', 'active')->count(),
+                    'unpaid_invoices' => Invoice::whereIn('status', ['unpaid', 'partial'])->count(),
+                    'monthly_revenue' => Payment::success()
+                        ->whereMonth('payment_date', $currentMonth)
+                        ->whereYear('payment_date', $currentYear)
+                        ->sum('amount_paid'),
+                ];
 
-            $recentInvoices = Invoice::with(['room', 'contract.tenant'])
-                ->latest()
-                ->take(5)
-                ->get();
+                $recentInvoices = Invoice::with(['room', 'contract.tenant'])
+                    ->latest()
+                    ->take(5)
+                    ->get();
 
-            $recentContracts = Contract::with(['room', 'tenant'])
-                ->latest()
-                ->take(5)
-                ->get();
+                $recentContracts = Contract::with(['room', 'tenant'])
+                    ->latest()
+                    ->take(5)
+                    ->get();
 
-            return view('layouts.admin.home', compact('stats', 'recentInvoices', 'recentContracts'));
-        })->name('home');
+                return view('layouts.admin.home', compact('stats', 'recentInvoices', 'recentContracts'));
+            })->name('home');
+
     });
+        // Client portal
+        Route::prefix('client')->name('client.')->middleware('role:client')->group(function () {
+            Route::get('/', [ClientDashboardController::class, 'index'])->name('home');
 
-    // Nhóm route dành cho Client (Người dùng thường)
-    Route::get('/client', function () {
-        $user = auth()->user()->load([
-            'tenant.contracts.room',
-            'tenant.contracts.invoices.room',
-        ]);
+            // Hóa đơn
+            Route::get('/invoices', [ClientInvoiceController::class, 'index'])->name('invoices.index');
+            Route::get('/invoices/{invoice}', [ClientInvoiceController::class, 'show'])->name('invoices.show');
+            Route::get('/invoices/{invoice}/print', [ClientInvoiceController::class, 'print'])->name('invoices.print');
+            Route::post('/invoices/{invoice}/payments', [ClientInvoiceController::class, 'storePayment'])
+                ->name('invoices.payments.store');
 
-        if ($user->role_id !== 2) {
-            return redirect()->route('dashboard');
-        }
+            // Điện nước
+            Route::get('/utilities', [ClientUtilityController::class, 'index'])
+                ->middleware('rental.active')->name('utilities.index');
+            Route::get('/utilities/{reading}/{type}-image', [ClientUtilityController::class, 'image'])
+                ->middleware('rental.active')->name('utilities.image');
 
-        $tenant = $user->tenant;
-        $activeContract = $tenant?->contracts
-            ->where('status', 'active')
-            ->sortByDesc('start_date')
-            ->first();
+            // Phòng
+            Route::get('/room', [ClientRoomController::class, 'show'])
+                ->middleware('rental.active')->name('room.show');
 
-        $invoices = $tenant
-            ? Invoice::with(['room', 'contract'])
-                ->whereHas('contract', function ($query) use ($tenant) {
-                    $query->where('tenant_id', $tenant->id);
-                })
-                ->latest()
-                ->get()
-            : collect();
+            // Hợp đồng
+            Route::get('/contracts', [ClientContractController::class, 'index'])->name('contracts.index');
+            Route::get('/contracts/{contract}', [ClientContractController::class, 'show'])->name('contracts.show');
+            Route::get('/contracts/{contract}/file', [ClientContractController::class, 'file'])->name('contracts.file');
+            Route::get('/contracts/{contract}/print', [ClientContractController::class, 'print'])->name('contracts.print');
+            Route::get('/contracts/{contract}/download', [ClientContractController::class, 'download'])->name('contracts.download');
+            Route::post('/contracts/{contract}/sign', [ClientContractController::class, 'sign'])->name('contracts.sign');
+            Route::post('/contracts/{contract}/schedule-move-in', [ClientContractController::class, 'scheduleMoveIn'])
+                ->name('contracts.schedule-move-in');
+            Route::post('/contracts/{contract}/confirm-move-in', [ClientContractController::class, 'confirmMoveIn'])
+                ->name('contracts.confirm-move-in');
 
-        $recentInvoice = $invoices->first();
-        $openInvoices = $invoices->whereIn('status', ['unpaid', 'partial']);
-        $supportRequests = 0;
+            // Yêu cầu gia hạn
+            Route::get('/extension-requests', [ClientContractExtensionRequestController::class, 'index'])
+                ->name('extension-requests.index');
+            Route::post('/extension-requests', [ClientContractExtensionRequestController::class, 'store'])
+                ->name('extension-requests.store');
 
-        return view('layouts.client.home', compact(
-            'tenant',
-            'activeContract',
-            'recentInvoice',
-            'openInvoices',
-            'supportRequests'
-        ));
-    })->name('client.home');
+            // Yêu cầu trả phòng
+            Route::get('/termination-requests', [ClientContractTerminationRequestController::class, 'index'])
+                ->name('termination-requests.index');
+            Route::post('/termination-requests', [ClientContractTerminationRequestController::class, 'store'])
+                ->name('termination-requests.store');
 
-    Route::prefix('client')
-    ->name('client.')
-    ->group(function () {
+            // Hỗ trợ
+            Route::get('/support', [ClientSupportController::class, 'index'])
+                ->middleware('rental.active')->name('support.index');
+            Route::post('/support', [ClientSupportController::class, 'store'])
+                ->middleware('rental.active')->name('support.store');
+            Route::get('/support/{supportRequest}/attachment', [ClientSupportController::class, 'attachment'])
+                ->middleware('rental.active')->name('support.attachment');
 
-        // ================================
-        // HÓA ĐƠN CỦA KHÁCH THUÊ
-        // ================================
+            // Tài khoản
+            Route::get('/account', [ClientAccountController::class, 'edit'])->name('account.edit');
+            Route::put('/account', [ClientAccountController::class, 'update'])->name('account.update');
+            Route::put('/account/password', [ClientAccountController::class, 'updatePassword'])
+                ->name('account.password.update');
 
-        Route::get('/invoices', [
-            ClientInvoiceController::class,
-            'index'
-        ])->name('invoices.index');
-
-        Route::get('/invoices/{invoice}', [
-            ClientInvoiceController::class,
-            'show'
-        ])->name('invoices.show');
-
-        Route::get('/invoices/{invoice}/print', [
-            ClientInvoiceController::class,
-            'print'
-        ])->name('invoices.print');
-
-        Route::post('/invoices/{invoice}/payments', [
-            ClientInvoiceController::class,
-            'storePayment'
-        ])->name('invoices.payments.store');
-
-        // Hợp đồng của tôi
-        Route::get('/contracts', [
-            ClientContractController::class,
-            'index'
-        ])->name('contracts.index');
-        
-        // Chi tiết hợp đồng
-        Route::get('/contracts/{contract}', [
-            ClientContractController::class,
-            'show'
-        ])->name('contracts.show');
-
-        // In hợp đồng của khách thuê
-        Route::get('/contracts/{contract}/print', [
-            ClientContractController::class,
-            'print'
-        ])->name('contracts.print');
-
-        // Tải hợp đồng PDF
-        Route::get('/contracts/{contract}/download', [
-            ClientContractController::class,
-            'download'
-        ])->name('contracts.download');
-
-        // Khách thuê ký hợp đồng
-        Route::post('/contracts/{contract}/sign', [
-            ClientContractController::class,
-            'sign'
-        ])->name('contracts.sign');
-
-        // Khách thuê đăng ký ngày dự kiến nhận phòng
-        Route::post('/contracts/{contract}/schedule-move-in', [
-            ClientContractController::class,
-            'scheduleMoveIn'
-        ])->name('contracts.schedule-move-in');
-
-        // Khách thuê xác nhận đã vào ở
-        Route::post('/contracts/{contract}/confirm-move-in', [
-            ClientContractController::class,
-            'confirmMoveIn'
-        ])->name('contracts.confirm-move-in');
-
-        Route::get('/extension-requests', [ClientContractExtensionRequestController::class, 'index'])
-            ->name('extension-requests.index');
-
-        Route::post('/extension-requests', [ClientContractExtensionRequestController::class, 'store'])
-            ->name('extension-requests.store');
-
-        // ================================
-        // YÊU CẦU TRẢ PHÒNG
-        // ================================
-
-        Route::get('/termination-requests', [
-            ClientContractTerminationRequestController::class,
-            'index'
-        ])->name('termination-requests.index');
-
-        Route::post('/termination-requests', [
-            ClientContractTerminationRequestController::class,
-            'store'
-        ])->name('termination-requests.store');
-
+            // Lịch sử yêu cầu
+            Route::get('/request-history', [RequestHistoryController::class, 'index'])
+                ->name('requests.history');
         });
-        // Lịch sử yêu cầu gia hạn và trả phòng
-        Route::get('/request-history', [RequestHistoryController::class, 'index'])
-            ->name('requests.history');
+    });
 });

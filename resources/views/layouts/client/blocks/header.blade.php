@@ -22,7 +22,7 @@
             </button>
 
             <div id="clientUserMenu" class="absolute right-0 mt-2 hidden w-56 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-                <a href="#" class="block px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Thông tin cá nhân</a>
+                <a href="{{ route('client.account.edit') }}" class="block px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Thông tin cá nhân</a>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit" class="block w-full px-4 py-3 text-left text-sm font-medium text-rose-600 hover:bg-rose-50">
