@@ -7,8 +7,6 @@ use App\Models\Contract;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Services\ContractHistoryService;
-use App\Models\User;
-use App\Services\TenantAccountLifecycle;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -117,9 +115,9 @@ class ContractController extends Controller
         ->select('id', 'room_code', 'price')
         ->get();
 
+        // Khách thuê không bị giới hạn theo phòng/hợp đồng.
+        // Một khách có thể được chọn khi tạo hợp đồng cho phòng khác.
         $tenants = Tenant::select('id', 'full_name as name')
-            ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
-            ->whereDoesntHave('contracts', fn ($query) => $query->whereIn('status', ['pending', 'active']))
             ->orderBy('full_name')
             ->get();
 
@@ -132,130 +130,115 @@ class ContractController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'room_id' => ['required', 'exists:rooms,id'],
-            'tenant_id' => ['required', 'exists:tenants,id'],
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after:start_date'],
-            'deposit_amount' => ['nullable', 'numeric', 'min:0'],
-            'number_of_people' => ['nullable', 'integer', 'min:1', 'max:20'],
-            'note' => ['nullable', 'string'],
-            'contract_content' => ['nullable', 'string'],
-            'confirm_contract_accuracy' => ['required', 'accepted'],
+        $request->validate([
+            'room_id'=>'required|exists:rooms,id',
+
+            'tenant_id'=>'required|exists:tenants,id',
+
+            'start_date'=>'required|date',
+
+            'end_date'=>'required|date|after:start_date',
+
+            // Tiền cọc mặc định bằng đúng giá phòng.
+            'deposit_amount'=>'nullable|numeric|min:0',
+            'contract_image'=>'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'contract_file'=>'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+
+            'note'=>'nullable|string',
+
+            'contract_content'=>'nullable|string',
+
+            'confirm_contract_accuracy'=>'required|accepted',
+
         ]);
 
-        $contract = DB::transaction(function () use ($data) {
-            $room = Room::lockForUpdate()->findOrFail($data['room_id']);
-            $tenant = Tenant::with('user')->lockForUpdate()->findOrFail($data['tenant_id']);
+        $room = Room::findOrFail($request->room_id);
+        $tenant = Tenant::findOrFail($request->tenant_id);
 
-            if (
-                $room->status !== Room::STATUS_AVAILABLE ||
-                $room->contracts()->whereIn('status', [
-                    Contract::STATUS_DRAFT,
-                    Contract::STATUS_PENDING_SIGNATURE,
-                    Contract::STATUS_SIGNED,
-                    Contract::STATUS_DEPOSIT_PAID,
-                    Contract::STATUS_ACTIVE,
-                ])->exists()
-            ) {
-                throw ValidationException::withMessages([
-                    'room_id' => 'Phòng đang có người thuê hoặc không sẵn sàng cho thuê.',
-                ]);
-            }
+        // Thay placeholder bằng dữ liệu thật ở server.
+        $content = $request->contract_content ?? '';
 
-            $numberOfPeople = $data['number_of_people'] ?? 1;
-            $maxPeople = (int) ($room->max_people ?? 1);
+        $startDate = \Carbon\Carbon::parse($request->start_date);
+        $endDate = \Carbon\Carbon::parse($request->end_date);
+        $createdDate = now();
 
-            if ($numberOfPeople > $maxPeople) {
-                throw ValidationException::withMessages([
-                    'number_of_people' => 'Số người không được vượt quá sức chứa của phòng.',
-                ]);
-            }
+        // Tiền cọc = giá phòng.
+        $depositAmount = (float) $room->price;
 
-            if (
-                !$tenant->user ||
-                !in_array($tenant->user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)
-            ) {
-                throw ValidationException::withMessages([
-                    'tenant_id' => 'Tài khoản khách thuê không còn hợp lệ. Hãy tạo hồ sơ và tài khoản mới cho khách mới.',
-                ]);
-            }
+        // Form có thể gửi contract_image hoặc contract_file.
+        $uploadedImage = $request->file('contract_image') ?? $request->file('contract_file');
+        $contractFile = null;
 
-            if ($tenant->contracts()->whereIn('status', [
+        if ($uploadedImage && $uploadedImage->isValid()) {
+            $contractFile = $uploadedImage->store('contracts', 'public');
+        }
+
+        $content = strtr($content, [
+            '{{created_day}}' => $createdDate->format('d'),
+            '{{created_month}}' => $createdDate->format('m'),
+            '{{created_year}}' => $createdDate->format('Y'),
+            '{{house_address}}' => 'Cầu Giấy - Hà Nội',
+
+            '{{tenant_name}}' => $tenant->full_name ?? '',
+            '{{tenant_dob}}' => $tenant->date_of_birth
+                ? \Carbon\Carbon::parse($tenant->date_of_birth)->format('d/m/Y') : '',
+            '{{tenant_address}}' => $tenant->address ?? '',
+            '{{tenant_cccd}}' => $tenant->cccd ?? '',
+            '{{tenant_cccd_issue_date}}' => $tenant->cccd_issue_date
+                ? \Carbon\Carbon::parse($tenant->cccd_issue_date)->format('d/m/Y') : '',
+            '{{tenant_cccd_issue_place}}' => $tenant->cccd_issue_place ?? '',
+            '{{tenant_phone}}' => $tenant->phone ?? '',
+
+            '{{room}}' => $room->room_code ?? '',
+            '{{price}}' => number_format((float) $room->price, 0, ',', '.'),
+            '{{deposit}}' => number_format($depositAmount, 0, ',', '.'),
+
+            '{{start_day}}' => $startDate->format('d'),
+            '{{start_month}}' => $startDate->format('m'),
+            '{{start_year}}' => $startDate->format('Y'),
+            '{{end_day}}' => $endDate->format('d'),
+            '{{end_month}}' => $endDate->format('m'),
+            '{{end_year}}' => $endDate->format('Y'),
+        ]);
+
+        $exists = Contract::where('room_id', $request->room_id)
+            ->whereIn('status', [
+                Contract::STATUS_DRAFT,
                 Contract::STATUS_PENDING_SIGNATURE,
                 Contract::STATUS_SIGNED,
                 Contract::STATUS_DEPOSIT_PAID,
                 Contract::STATUS_ACTIVE,
-            ])->exists()) {
-                throw ValidationException::withMessages([
-                    'tenant_id' => 'Khách thuê đã có hợp đồng đang hoạt động hoặc đang trong quy trình ký.',
-                ]);
-            }
+            ])
+            ->exists();
 
-            $startDate = Carbon::parse($data['start_date']);
-            $endDate = Carbon::parse($data['end_date']);
-            $createdDate = now();
-            $content = $data['contract_content'] ?? '';
+        if ($exists) {
 
-            $content = strtr($content, [
-                '{{created_day}}' => $createdDate->format('d'),
-                '{{created_month}}' => $createdDate->format('m'),
-                '{{created_year}}' => $createdDate->format('Y'),
-                '{{house_address}}' => 'Cầu Giấy - Hà Nội',
-                '{{tenant_name}}' => $tenant->full_name ?? '',
-                '{{tenant_dob}}' => $tenant->date_of_birth
-                    ? Carbon::parse($tenant->date_of_birth)->format('d/m/Y') : '',
-                '{{tenant_address}}' => $tenant->address ?? '',
-                '{{tenant_cccd}}' => $tenant->cccd ?? '',
-                '{{tenant_cccd_issue_date}}' => $tenant->cccd_issue_date
-                    ? Carbon::parse($tenant->cccd_issue_date)->format('d/m/Y') : '',
-                '{{tenant_cccd_issue_place}}' => $tenant->cccd_issue_place ?? '',
-                '{{tenant_phone}}' => $tenant->phone ?? '',
-                '{{room}}' => $room->room_code ?? '',
-                '{{price}}' => number_format((float) $room->price, 0, ',', '.'),
-                '{{deposit}}' => number_format((float) ($data['deposit_amount'] ?? 0), 0, ',', '.'),
-                '{{start_day}}' => $startDate->format('d'),
-                '{{start_month}}' => $startDate->format('m'),
-                '{{start_year}}' => $startDate->format('Y'),
-                '{{end_day}}' => $endDate->format('d'),
-                '{{end_month}}' => $endDate->format('m'),
-                '{{end_year}}' => $endDate->format('Y'),
-            ]);
+            return back()
+                ->withInput()
+                ->with('error', 'Phòng này đang có hợp đồng.');
 
-            $contract = Contract::create([
-                'contract_code' => 'TMP-' . Str::uuid(),
-                'room_id' => $room->id,
-                'tenant_id' => $tenant->id,
-                'representative_tenant_id' => $tenant->id,
-                'start_date' => $data['start_date'],
-                'end_date' => $data['end_date'],
-                'monthly_rent' => $room->price,
-                'deposit_amount' => $data['deposit_amount'] ?? 0,
-                'number_of_people' => $numberOfPeople,
-                'contract_content' => $content,
-                'note' => $data['note'] ?? null,
-                'status' => Contract::STATUS_DRAFT,
-                'deposit_status' => Contract::DEPOSIT_PENDING,
-            ]);
+        }
 
-            $contract->update([
-                'contract_code' => 'HD' . str_pad((string) $contract->id, 3, '0', STR_PAD_LEFT),
-            ]);
+        $lastId = (Contract::max('id') ?? 0) + 1;
 
-            // Giữ phòng ở trạng thái đã được giữ cho hợp đồng mới.
-            $room->update([
-                'status' => Room::STATUS_OCCUPIED,
-                'current_people' => $numberOfPeople,
-            ]);
+        $contract = Contract::create([
+            'contract_code' => 'HD' . str_pad($lastId, 3, '0', STR_PAD_LEFT),
+            'room_id' => $request->room_id,
+            'tenant_id' => $request->tenant_id,
+            'representative_tenant_id' => $request->tenant_id,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+            'monthly_rent' => $room->price,
+            'deposit_amount' => $depositAmount,
+            'contract_file' => $contractFile,
 
-            return $contract;
-        });
+            // Lưu nội dung đã có dữ liệu thật
+            'contract_content' => $content,
+            'note' => $request->note,
 
-        ContractHistoryService::created($contract);
-
-        return redirect()
-            ->route('admin.contracts.index')
-            ->with('success', 'Tạo hợp đồng thành công. Đang chờ khách thuê ký hợp đồng.');
+            'status' => Contract::STATUS_DRAFT,
+            'deposit_status' => Contract::DEPOSIT_PENDING,
+        ]);
 
         $room->update([
             'status' => Room::STATUS_OCCUPIED,
@@ -306,112 +289,128 @@ class ContractController extends Controller
 
     public function update(Request $request, Contract $contract)
     {
-        // Không cho phép sửa
+        // Không cho phép sửa hợp đồng đã kết thúc.
         if (!$contract->canEdit()) {
-
             return redirect()
-                ->route('admin.contracts.index', $contract)
+                ->route('admin.contracts.index')
                 ->with('error', 'Hợp đồng này không được phép chỉnh sửa.');
-
         }
 
         $request->validate([
-
             'monthly_rent'   => 'required|numeric|min:0',
-
             'deposit_amount' => 'required|numeric|min:0',
-
+            'contract_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'contract_file'  => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'start_date'     => 'required|date',
-
             'end_date'       => 'required|date|after:start_date',
-
-            'note'           => 'nullable',
-
+            'note'           => 'nullable|string',
             'reason'         => 'required|string|max:255',
-
         ]);
 
-        // Dữ liệu cũ
+        // Dữ liệu cũ.
         $oldData = [
-
             'monthly_rent'   => $contract->monthly_rent,
-
             'deposit_amount' => $contract->deposit_amount,
-
             'start_date'     => optional($contract->start_date)->format('Y-m-d'),
-
             'end_date'       => optional($contract->end_date)->format('Y-m-d'),
-
             'note'           => $contract->note,
-
+            'contract_file'  => $contract->contract_file,
         ];
 
-        // Dữ liệu mới
+        // Dữ liệu mới.
         $newData = [
-
             'monthly_rent'   => $request->monthly_rent,
-
             'deposit_amount' => $request->deposit_amount,
-
             'start_date'     => $request->start_date,
-
             'end_date'       => $request->end_date,
-
             'note'           => $request->note,
-
         ];
 
-        // Chỉ lấy những trường thay đổi
         $oldChanged = [];
-
         $newChanged = [];
 
+        // So sánh các trường thông thường.
         foreach ($newData as $key => $value) {
-
             if (($oldData[$key] ?? null) != $value) {
-
                 $oldChanged[$key] = $oldData[$key] ?? null;
-
                 $newChanged[$key] = $value;
-
             }
-
         }
 
-        if (empty($oldChanged)) {
+        // =========================================================
+        // ẢNH HỢP ĐỒNG
+        // Phải xử lý TRƯỚC kiểm tra "không có dữ liệu thay đổi".
+        // Nếu không, chỉ chọn ảnh mới sẽ bị báo không có thay đổi.
+        // =========================================================
+        $uploadedImage = $request->file('contract_image')
+            ?? $request->file('contract_file');
 
+        $newImagePath = null;
+
+        if ($uploadedImage && $uploadedImage->isValid()) {
+            $newImagePath = $uploadedImage->store('contracts', 'public');
+
+            $oldChanged['contract_file'] = $contract->contract_file;
+            $newChanged['contract_file'] = $newImagePath;
+            $newData['contract_file'] = $newImagePath;
+        }
+
+        // Không có bất kỳ thay đổi nào.
+        if (empty($oldChanged)) {
             return back()->with(
                 'warning',
                 'Không có dữ liệu nào được thay đổi.'
             );
-
         }
 
-        DB::transaction(function () use (
-            $contract,
-            $newData,
-            $oldChanged,
-            $newChanged,
-            $request
-        ) {
-
-            // Cập nhật hợp đồng
-            $contract->update($newData);
-
-            // Lưu lịch sử
-            ContractHistoryService::log(
+        try {
+            DB::transaction(function () use (
                 $contract,
-                ContractHistoryService::UPDATED,
-                'Admin đã chỉnh sửa thông tin hợp đồng.',
-                $request->reason,
+                $newData,
                 $oldChanged,
-                $newChanged
-            );
+                $newChanged,
+                $request
+            ) {
+                // Có ảnh mới thì xóa ảnh cũ.
+                if (
+                    array_key_exists('contract_file', $newData)
+                    && !empty($contract->contract_file)
+                    && $contract->contract_file !== $newData['contract_file']
+                ) {
+                    $oldPath = ltrim(
+                        str_replace('storage/', '', $contract->contract_file),
+                        '/'
+                    );
 
-        });
+                    if (Storage::disk('public')->exists($oldPath)) {
+                        Storage::disk('public')->delete($oldPath);
+                    }
+                }
+
+                // Cập nhật hợp đồng.
+                $contract->update($newData);
+
+                // Lưu lịch sử, bao gồm cả thay đổi ảnh.
+                ContractHistoryService::log(
+                    $contract,
+                    ContractHistoryService::UPDATED,
+                    'Admin đã chỉnh sửa thông tin hợp đồng.',
+                    $request->reason,
+                    $oldChanged,
+                    $newChanged
+                );
+            });
+        } catch (\Throwable $e) {
+            // Nếu DB lỗi sau khi upload ảnh mới thì xóa ảnh mới.
+            if ($newImagePath && Storage::disk('public')->exists($newImagePath)) {
+                Storage::disk('public')->delete($newImagePath);
+            }
+
+            throw $e;
+        }
 
         return redirect()
-            ->route('admin.contracts.index', $contract)
+            ->route('admin.contracts.index')
             ->with('success', 'Cập nhật hợp đồng thành công.');
     }
 
@@ -427,41 +426,45 @@ class ContractController extends Controller
         }
 
         $request->validate([
-            'actual_end_date' => ['required', 'date'],
+
+            'actual_end_date' => [
+
+                'required',
+
+                'date',
+
+                'after_or_equal:' . $contract->start_date->format('Y-m-d'),
+
+            ],
+
             'termination_reason' => 'required|string|max:255',
+
             'termination_note' => 'nullable|string',
-            'confirm_end' => 'nullable|accepted',
+
         ]);
-
-        $actualEndDate = Carbon::parse($request->actual_end_date)->startOfDay();
-
-        if (
-            $actualEndDate->lt($contract->start_date->startOfDay()) ||
-            $actualEndDate->isFuture()
-        ) {
-            return back()
-                ->withInput()
-                ->with('error', 'Ngày trả phòng phải từ ngày bắt đầu hợp đồng đến ngày hiện tại.');
-        }
         $oldStatus = $contract->status;
 
         $oldRoomStatus = $contract->room->status;
 
-        $accountStatus = DB::transaction(function () use (
-            $contract,
-            $request,
-            $oldStatus,
-            $oldRoomStatus
-        ) {
+        DB::transaction(function () use (
+
+                $contract,
+
+                $request,
+
+                $oldStatus,
+
+                $oldRoomStatus
+
+            ) {
 
             // Cập nhật hợp đồng
             $contract->update([
-
                 'status' => Contract::STATUS_TERMINATED,
 
                 'terminated_at' => now(),
 
-                'terminated_by' => Auth::id(),
+                'terminated_by' => 'admin',
 
                 'actual_end_date' => $request->actual_end_date,
 
@@ -470,6 +473,7 @@ class ContractController extends Controller
                 'termination_note' => $request->termination_note,
 
             ]);
+
 
             // Trả phòng
             $contract->room->update([
@@ -498,18 +502,19 @@ class ContractController extends Controller
                 ]
             );
 
-            return app(TenantAccountLifecycle::class)->sync($contract->tenant);
         });
 
-        $message = match ($accountStatus) {
-            User::STATUS_SETTLING => 'Kết thúc hợp đồng thành công. Tài khoản khách được giữ ở chế độ quyết toán do còn công nợ.',
-            User::STATUS_ACTIVE, User::STATUS_PENDING => 'Kết thúc hợp đồng thành công. Tài khoản khách vẫn được giữ do còn hợp đồng khác.',
-            default => 'Kết thúc hợp đồng thành công. Tài khoản khách đã ngừng hoạt động.',
-        };
-
         return redirect()
+
             ->route('admin.contracts.index')
-            ->with('success', $message);
+
+            ->with(
+
+                'success',
+
+                'Kết thúc hợp đồng thành công.'
+
+            );
     }
 
     
@@ -648,49 +653,11 @@ class ContractController extends Controller
         );
     }
 
-    public function endList(Request $request)
-    {
-        $contracts = $this->activeContractQuery($request)
-            ->orderBy('end_date')
-            ->get();
+    
 
-        return view('admin.contracts.end', compact('contracts'));
-    }
+    
 
-    public function endForm($id)
-    {
-        $contract = Contract::with(['room', 'tenant'])->findOrFail($id);
-
-        abort_unless(
-            $contract->status === Contract::STATUS_ACTIVE,
-            409,
-            'Chỉ hợp đồng đang hiệu lực mới có thể kết thúc.'
-        );
-
-        return view('admin.contracts.end-form', compact('contract'));
-    }
-
-    public function extendList(Request $request)
-    {
-        $contracts = $this->activeContractQuery($request)
-            ->orderBy('end_date')
-            ->get();
-
-        return view('admin.contracts.extend', compact('contracts'));
-    }
-
-    public function extendForm($id)
-    {
-        $contract = Contract::with(['room', 'tenant'])->findOrFail($id);
-
-        abort_unless(
-            $contract->status === Contract::STATUS_ACTIVE,
-            409,
-            'Chỉ hợp đồng đang hiệu lực mới có thể gia hạn.'
-        );
-
-        return view('admin.contracts.extend-form', compact('contract'));
-    }
+    
 
     public function recallSignature(Request $request, Contract $contract)
     {
@@ -829,174 +796,7 @@ class ContractController extends Controller
             'Đã xác nhận khách thuê đóng tiền cọc.'
         );
     }
-    public function returnDeposit(Request $request, Contract $contract)
-    {
-        if (!$contract->canReturnDeposit()) {
-            return back()->with(
-                'error',
-                'Tiền cọc của hợp đồng này không thể xử lý hoặc đã được xử lý.'
-            );
-        }
-
-        $request->validate([
-            'deposit_process_type' => [
-                'required',
-                Rule::in([
-                    'full_refund',
-                    'partial_refund',
-                    'no_refund'
-                ])
-            ],
-
-            'deduction_amount' => 'nullable|numeric|min:0',
-            'return_reason'    => 'required|string|max:255',
-            'return_note'      => 'nullable|string|max:1000',
-        ]);
-
-        $deposit = (float) $contract->deposit_amount;
-        $type = $request->deposit_process_type;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Xác định hình thức xử lý tiền cọc
-        |--------------------------------------------------------------------------
-        */
-
-        if ($type === 'full_refund') {
-
-            // Hoàn toàn bộ
-            $deduction = 0;
-            $refund = $deposit;
-
-            $depositStatus = Contract::DEPOSIT_RETURNED;
-
-            $description = 'Hoàn toàn bộ tiền cọc';
-
-        } elseif ($type === 'partial_refund') {
-
-            // Hoàn một phần
-            $deduction = (float) $request->deduction_amount;
-
-            if ($deduction <= 0 || $deduction >= $deposit) {
-                return back()
-                    ->withInput()
-                    ->with(
-                        'error',
-                        'Khấu trừ một phần phải lớn hơn 0 và nhỏ hơn tiền cọc.'
-                    );
-            }
-
-            $refund = $deposit - $deduction;
-
-            $depositStatus = Contract::DEPOSIT_PARTIAL;
-
-            $description = 'Khấu trừ một phần tiền cọc';
-
-        } else {
-
-            // Không hoàn
-            $deduction = $deposit;
-            $refund = 0;
-
-            $depositStatus = Contract::DEPOSIT_FORFEITED;
-
-            $description = 'Không hoàn tiền cọc';
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Cập nhật hợp đồng + ghi lịch sử
-        |--------------------------------------------------------------------------
-        */
-
-        DB::transaction(function () use (
-            $contract,
-            $request,
-            $type,
-            $depositStatus,
-            $deduction,
-            $refund,
-            $description,
-            $deposit
-        ) {
-
-            // Dữ liệu trước khi xử lý
-            $oldStatus = $contract->status;
-            $oldDepositStatus = $contract->deposit_status;
-
-
-            // Cập nhật hợp đồng
-            $contract->update([
-
-                'status' => Contract::STATUS_COMPLETED,
-
-                'deposit_status' => $depositStatus,
-
-                'deposit_process_type' => $type,
-
-                'deposit_refund_amount' => $refund,
-
-                'deposit_deduction_amount' => $deduction,
-
-                'deposit_processed_at' => now(),
-
-                'deposit_process_reason' => $request->return_reason,
-
-                'deposit_process_note' => $request->return_note,
-            ]);
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Ghi lịch sử hợp đồng
-            |--------------------------------------------------------------------------
-            */
-
-            ContractHistoryService::log(
-                $contract,
-
-                ContractHistoryService::DEPOSIT_PROCESSED,
-
-                $description,
-
-                $request->return_reason,
-
-                // Dữ liệu cũ
-                [
-                    'status' => $oldStatus,
-
-                    'deposit_status' => $oldDepositStatus,
-
-                    'deposit_amount' => $deposit,
-                ],
-
-                // Dữ liệu mới
-                [
-                    'status' => Contract::STATUS_COMPLETED,
-
-                    'deposit_status' => $depositStatus,
-
-                    'process_type' => $type,
-
-                    'deposit_amount' => $deposit,
-
-                    'refund_amount' => $refund,
-
-                    'deduction_amount' => $deduction,
-
-                    'note' => $request->return_note,
-                ]
-            );
-        });
-
-
-        return back()->with(
-            'success',
-            'Đã xử lý tiền cọc và hoàn tất hợp đồng.'
-        );
-    }
+    
     public function activate(Contract $contract)
     {
         if (!$contract->canActivate()) {
