@@ -32,12 +32,13 @@
                 ['label' => 'Xuất danh sách khách thuê', 'route' => 'admin.tenants.export', 'active' => request()->routeIs('admin.tenants.export')],
             ],
         ],
-        [
+            [
             'label' => 'Hợp đồng',
             'icon' => 'bx bx-file',
             'active' => request()->routeIs('admin.contracts*')
                 || request()->routeIs('admin.extension-requests*')
-                || request()->routeIs('admin.termination-requests*'),
+                || request()->routeIs('admin.termination-requests*')
+                || request()->routeIs('admin.deposit-refunds*'),
 
             'items' => [
                 [
@@ -46,18 +47,23 @@
                     'active' => request()->routeIs('admin.contracts.index')
                 ],
                 [
-                    'label' => 'Yêu cầu gia hạn',
+                    'label' => 'Duyệt gia hạn',
                     'route' => 'admin.extension-requests.index',
                     'active' => request()->routeIs('admin.extension-requests*')
                 ],
                 [
-                    'label' => 'Yêu cầu trả phòng',
+                    'label' => 'Duyệt trả phòng',
                     'route' => 'admin.termination-requests.index',
                     'active' => request()->routeIs('admin.termination-requests*')
                 ],
+                [
+                    'label' => 'Xử lý hoàn cọc',
+                    'route' => 'admin.deposit-refunds.index',
+                    'active' => request()->routeIs('admin.deposit-refunds*')
+                ],
             ],
         ],
-        [
+            [
             'label' => 'Điện nước',
             'icon' => 'bx bx-bolt-circle',
             'active' => request()->routeIs('admin.utilities*'),
