@@ -144,12 +144,42 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("editRoomSelect").value = btn.dataset.room;
         document.getElementById("editTenantSelect").value = btn.dataset.tenant;
         document.getElementById("editMonthlyRent").value = btn.dataset.rent;
-        document.getElementById("editDeposit").value = btn.dataset.deposit;
+
+        // Tiền cọc luôn bằng giá thuê.
+        document.getElementById("editDeposit").value =
+            btn.dataset.rent || btn.dataset.deposit || "";
+
         document.getElementById("editStartDate").value = btn.dataset.start;
         document.getElementById("editEndDate").value = btn.dataset.end;
 
         document.querySelector("#editContractForm textarea[name='note']").value =
             btn.dataset.note ?? "";
+
+        // Hiển thị ảnh hợp đồng hiện tại.
+        const imageUrl = btn.dataset.image || "";
+        const currentWrap = document.getElementById("editCurrentImageWrap");
+        const currentImage = document.getElementById("editCurrentImage");
+        const previewImage = document.getElementById("editPreviewImage");
+        const imageInput = document.getElementById("editContractImage");
+
+        if (imageInput) {
+            imageInput.value = "";
+        }
+
+        if (previewImage) {
+            previewImage.src = "";
+            previewImage.style.display = "none";
+        }
+
+        if (currentWrap && currentImage) {
+            if (imageUrl) {
+                currentImage.src = imageUrl;
+                currentWrap.style.display = "block";
+            } else {
+                currentImage.src = "";
+                currentWrap.style.display = "none";
+            }
+        }
 
         window.editContent = btn.dataset.content ?? "";
 
@@ -158,6 +188,87 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
     });
+
+    // =========================
+    // Upload / preview ảnh hợp đồng
+    // =========================
+    const editUploadBox = document.getElementById("editUploadBox");
+    const editContractImage = document.getElementById("editContractImage");
+    const editPreviewImage = document.getElementById("editPreviewImage");
+
+    if (editUploadBox && editContractImage) {
+
+        editUploadBox.addEventListener("click", function (e) {
+            if (e.target === editContractImage) return;
+            editContractImage.click();
+        });
+
+        editContractImage.addEventListener("change", function () {
+
+            const file = this.files && this.files[0];
+
+            if (!file) {
+                return;
+            }
+
+            if (!file.type || !file.type.startsWith("image/")) {
+                alert("Vui lòng chọn file hình ảnh.");
+                this.value = "";
+                return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+
+                if (editPreviewImage) {
+                    editPreviewImage.src = e.target.result;
+                    editPreviewImage.style.display = "block";
+                }
+
+                const currentWrap =
+                    document.getElementById("editCurrentImageWrap");
+
+                if (currentWrap) {
+                    currentWrap.style.display = "none";
+                }
+            };
+
+            reader.readAsDataURL(file);
+        });
+    }
+
+    if (editModal) {
+        editModal.addEventListener("hidden.bs.modal", function () {
+
+            const input =
+                document.getElementById("editContractImage");
+
+            const preview =
+                document.getElementById("editPreviewImage");
+
+            const currentWrap =
+                document.getElementById("editCurrentImageWrap");
+
+            const currentImage =
+                document.getElementById("editCurrentImage");
+
+            if (input) input.value = "";
+
+            if (preview) {
+                preview.src = "";
+                preview.style.display = "none";
+            }
+
+            if (currentWrap) {
+                currentWrap.style.display = "none";
+            }
+
+            if (currentImage) {
+                currentImage.src = "";
+            }
+        });
+    }
 
 });
 </script>
