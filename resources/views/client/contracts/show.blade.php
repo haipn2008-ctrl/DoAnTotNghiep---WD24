@@ -1,3 +1,8 @@
+@extends('layouts.client.index')
+
+@section('title', 'Chi tiết hợp đồng | Cổng khách thuê')
+@section('page_title', 'Chi tiết hợp đồng')
+
 @section('content')
 
 @php
@@ -32,6 +37,11 @@
             'class' => 'bg-red-50 text-red-700 border-red-200'
         ],
 
+        'completed' => [
+            'text' => 'Đã hoàn tất',
+            'class' => 'bg-emerald-50 text-emerald-700 border-emerald-200'
+        ],
+
         'deposit_returned' => [
             'text' => 'Đã hoàn cọc',
             'class' => 'bg-slate-100 text-slate-600 border-slate-200'
@@ -44,14 +54,6 @@
     };
 @endphp
 
-@php
-    $effectiveEnd = $contract->extend_end_date ?? $contract->end_date;
-    $depositStatuses = [
-        'pending' => 'Chưa thu',
-        'paid' => 'Đã thu',
-        'returned' => 'Đã hoàn trả',
-    ];
-@endphp
 
 <div class="mx-auto max-w-6xl">
     {{-- =========================
@@ -156,6 +158,38 @@
                 <span>Lịch sử</span>
             </button>
 
+            {{-- YÊU CẦU HOÀN CỌC --}}
+            @if($contract->canRequestDepositRefund())
+                <button type="button"
+                        onclick="openRefundRequest()"
+                        class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-emerald-700 hover:-translate-y-0.5">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6"/>
+                    </svg>
+                    <span>{{ $contract->deposit_status === \App\Models\Contract::DEPOSIT_REFUND_REJECTED ? 'Gửi lại yêu cầu hoàn cọc' : 'Yêu cầu hoàn cọc' }}</span>
+                </button>
+            @endif
+
+            {{-- THÔNG TIN HOÀN CỌC --}}
+            @if(
+    $contract->isCompleted()
+    || filled($contract->deposit_status)
+    || filled($contract->deposit_refund_amount)
+    || filled($contract->deposit_transfer_amount)
+    || filled($contract->deposit_transfer_proof)
+    || filled($contract->damage_proof)
+    || filled($contract->deposit_damage_proof)
+)
+                <button type="button"
+                        onclick="openDepositInfo()"
+                        class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-emerald-700 hover:-translate-y-0.5">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6"/>
+                    </svg>
+                    <span>Thông tin hoàn cọc</span>
+                </button>
+            @endif
+
             {{-- IN HỢP ĐỒNG --}}
             <a href="{{ route('client.contracts.print', $contract) }}"
             target="_blank"
@@ -204,14 +238,6 @@
 
                 <span>Tải PDF</span>
             </a>
-
-            @if(method_exists($contract, 'contractFileExists') && $contract->contractFileExists())
-                <a href="{{ route('client.contracts.file', $contract) }}" target="_blank" class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
-                    Xem file hợp đồng
-                </a>
-            @elseif($contract->contract_file)
-                <span class="text-sm font-medium text-amber-700">File hợp đồng không còn tồn tại</span>
-            @endif
 
         </div>
 
@@ -277,22 +303,11 @@
             </p>
 
             <p class="mt-2 text-lg font-bold text-slate-900">
-                {{ optional($effectiveEnd)->format('d/m/Y') }}
+                {{ optional($contract->end_date)->format('d/m/Y') }}
             </p>
 
         </div>
 
-    </div>
-
-    <div class="mb-6 grid gap-4 sm:grid-cols-2">
-        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase text-slate-400">Trạng thái tiền cọc</p>
-            <p class="mt-2 text-base font-bold text-slate-900">{{ $depositStatuses[$contract->deposit_status] ?? 'Chưa cập nhật' }}</p>
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase text-slate-400">Số người</p>
-            <p class="mt-2 text-base font-bold text-slate-900">{{ $contract->number_of_people ?? '---' }} người</p>
-        </div>
     </div>
 
 
@@ -872,15 +887,12 @@
 
                                         <button
                                             type="submit"
-                                            id="confirmMoveInBtn"
-                                            class="mt-4 inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-sm transition-all duration-200"
-                                            style="background-color:#16a34a !important; color:#fff !important; opacity:1 !important; cursor:pointer !important;"
+                                            class="mt-4 inline-flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 text-sm font-bold text-white hover:bg-green-700"
                                         >
                                             🏠 Xác nhận đã nhận phòng
                                         </button>
 
                                     </form>
-                                    
 
                                 @endif
 
@@ -898,13 +910,6 @@
 
     @endif
     
-    @if($contract->note)
-        <section class="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 class="font-bold text-slate-900">Ghi chú hợp đồng</h2>
-            <p class="mt-2 text-sm leading-6 text-slate-600">{{ $contract->note }}</p>
-        </section>
-    @endif
-
     {{-- UPDATED --}}
     <p class="mt-5 text-right text-xs text-slate-400">
         Cập nhật lần cuối:
@@ -914,6 +919,688 @@
 </div>
 
 
+
+{{-- =========================
+    MODAL GỬI YÊU CẦU HOÀN CỌC
+========================= --}}
+@if($contract->canRequestDepositRefund())
+<style>
+    #refundRequestModal{
+        position:fixed;
+        inset:0;
+        z-index:100001;
+        display:none;
+        align-items:center;
+        justify-content:center;
+        padding:18px;
+    }
+    #refundRequestModal.is-open{display:flex}
+    .rr-backdrop{
+        position:absolute;
+        inset:0;
+        background:rgba(15,23,42,.62);
+        backdrop-filter:blur(3px);
+    }
+    .rr-dialog{
+        position:relative;
+        z-index:1;
+        width:min(760px,calc(100vw - 28px));
+        max-height:calc(100vh - 36px);
+        display:flex;
+        flex-direction:column;
+        overflow:hidden;
+        background:#fff;
+        border:1px solid #e2e8f0;
+        border-radius:20px;
+        box-shadow:0 28px 90px rgba(15,23,42,.32);
+    }
+    .rr-header{
+        flex:none;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:16px;
+        padding:18px 22px;
+        border-bottom:1px solid #e2e8f0;
+        background:#fff;
+    }
+    .rr-header-left{display:flex;align-items:center;gap:12px;min-width:0}
+    .rr-icon{
+        width:44px;height:44px;flex:0 0 44px;
+        display:grid;place-items:center;
+        border-radius:12px;
+        background:#ecfdf5;color:#059669;
+    }
+    .rr-title{margin:0;color:#0f172a;font-size:18px;font-weight:800}
+    .rr-subtitle{margin:3px 0 0;color:#64748b;font-size:12px}
+    .rr-close{
+        width:38px;height:38px;
+        display:grid;place-items:center;
+        border:0;border-radius:10px;
+        background:transparent;color:#94a3b8;cursor:pointer;
+    }
+    .rr-close:hover{background:#f1f5f9;color:#334155}
+    .rr-body{min-height:0;overflow-y:auto;padding:22px;background:#f8fafc}
+    .rr-card{
+        border:1px solid #e2e8f0;
+        border-radius:14px;
+        background:#fff;
+        padding:16px;
+    }
+    .rr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .rr-field{display:flex;flex-direction:column;gap:7px}
+    .rr-field-full{grid-column:1/-1}
+    .rr-label{font-size:13px;font-weight:700;color:#334155}
+    .rr-required{color:#ef4444}
+    .rr-input,.rr-textarea{
+        width:100%;
+        border:1px solid #cbd5e1;
+        border-radius:10px;
+        background:#fff;
+        color:#0f172a;
+        font-size:13px;
+        outline:none;
+        transition:.15s;
+        box-sizing:border-box;
+    }
+    .rr-input{height:42px;padding:0 12px}
+    .rr-textarea{min-height:90px;padding:11px 12px;resize:vertical}
+    .rr-input:focus,.rr-textarea:focus{
+        border-color:#10b981;
+        box-shadow:0 0 0 3px rgba(16,185,129,.10);
+    }
+    .rr-hint{font-size:11px;line-height:1.5;color:#64748b}
+    .rr-summary{
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:12px;
+        margin-bottom:16px;
+    }
+    .rr-summary-item{
+        border-radius:12px;
+        padding:13px 14px;
+        border:1px solid #e2e8f0;
+        background:#f8fafc;
+    }
+    .rr-summary-label{
+        font-size:11px;
+        color:#64748b;
+        text-transform:uppercase;
+        font-weight:700;
+        letter-spacing:.03em;
+    }
+    .rr-summary-value{
+        margin-top:5px;
+        font-size:18px;
+        font-weight:800;
+        color:#0f172a;
+    }
+    .rr-info{
+        margin-bottom:16px;
+        padding:13px 14px;
+        border:1px solid #bfdbfe;
+        border-radius:12px;
+        background:#eff6ff;
+        color:#1e40af;
+        font-size:12px;
+        line-height:1.6;
+    }
+    .rr-footer{
+        flex:none;
+        display:flex;
+        align-items:center;
+        justify-content:flex-end;
+        gap:10px;
+        padding:13px 18px;
+        border-top:1px solid #e2e8f0;
+        background:#fff;
+    }
+    .rr-btn{
+        height:40px;
+        padding:0 16px;
+        border-radius:9px;
+        font-size:13px;
+        font-weight:700;
+        cursor:pointer;
+    }
+    .rr-btn-cancel{
+        border:1px solid #cbd5e1;
+        background:#fff;
+        color:#334155;
+    }
+    .rr-btn-cancel:hover{background:#f8fafc}
+    .rr-btn-submit{
+        border:1px solid #059669;
+        background:#059669;
+        color:#fff;
+        box-shadow:0 1px 2px rgba(0,0,0,.08);
+    }
+    .rr-btn-submit:hover{background:#047857}
+    @media(max-width:640px){
+        #refundRequestModal{padding:8px}
+        .rr-dialog{width:100%;max-height:calc(100vh - 16px);border-radius:14px}
+        .rr-header{padding:14px 15px}
+        .rr-body{padding:14px}
+        .rr-grid,.rr-summary{grid-template-columns:1fr}
+        .rr-field-full{grid-column:auto}
+        .rr-footer{padding:11px 14px}
+    }
+</style>
+
+<div id="refundRequestModal" role="dialog" aria-modal="true" aria-labelledby="refundRequestTitle">
+    <div class="rr-backdrop" onclick="closeRefundRequest()"></div>
+
+    <div class="rr-dialog" onclick="event.stopPropagation()">
+        <div class="rr-header">
+            <div class="rr-header-left">
+                <div class="rr-icon">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6"/>
+                    </svg>
+                </div>
+
+                <div>
+                    <h2 id="refundRequestTitle" class="rr-title">Gửi yêu cầu hoàn cọc</h2>
+                    <p class="rr-subtitle">
+                        {{ $contract->contract_code }} · Phòng {{ $contract->room->room_code ?? '---' }}
+                    </p>
+                </div>
+            </div>
+
+            <button type="button" class="rr-close" onclick="closeRefundRequest()" aria-label="Đóng">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <form method="POST"
+              action="{{ route('client.deposit-refunds.store', $contract) }}"
+              enctype="multipart/form-data"
+              id="refundRequestForm">
+            @csrf
+
+            <div class="rr-body">
+                <div class="rr-summary">
+                    <div class="rr-summary-item">
+                        <div class="rr-summary-label">Tiền đặt cọc</div>
+                        <div class="rr-summary-value" style="color:#d97706">
+                            {{ number_format((float) $contract->deposit_amount, 0, ',', '.') }} VNĐ
+                        </div>
+                    </div>
+
+                    <div class="rr-summary-item">
+                        <div class="rr-summary-label">Trạng thái hợp đồng</div>
+                        <div class="rr-summary-value" style="font-size:15px;color:#dc2626">
+                            {{ $statusConfig['text'] }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rr-info">
+                    Hợp đồng đã chấm dứt. Vui lòng nhập chính xác thông tin tài khoản
+                    để Admin sử dụng khi hoàn tiền cọc. Sau khi gửi, trạng thái sẽ chuyển
+                    sang <strong>Chờ Admin xử lý</strong>.
+                </div>
+
+                <div class="rr-card">
+                    <div class="rr-grid">
+                        <div class="rr-field">
+                            <label for="refund_bank_name" class="rr-label">
+                                Ngân hàng <span class="rr-required">*</span>
+                            </label>
+                            <input
+                                id="refund_bank_name"
+                                type="text"
+                                name="bank_name"
+                                required
+                                maxlength="100"
+                                value="{{ old('bank_name', $contract->deposit_bank_name) }}"
+                                placeholder="Ví dụ: Vietcombank"
+                                class="rr-input"
+                            >
+                        </div>
+
+                        <div class="rr-field">
+                            <label for="refund_bank_account_number" class="rr-label">
+                                Số tài khoản <span class="rr-required">*</span>
+                            </label>
+                            <input
+                                id="refund_bank_account_number"
+                                type="text"
+                                name="bank_account_number"
+                                required
+                                maxlength="50"
+                                value="{{ old('bank_account_number', $contract->deposit_bank_account_number) }}"
+                                placeholder="Nhập số tài khoản nhận tiền"
+                                class="rr-input"
+                            >
+                        </div>
+
+                        <div class="rr-field rr-field-full">
+                            <label for="refund_bank_account_name" class="rr-label">
+                                Chủ tài khoản <span class="rr-required">*</span>
+                            </label>
+                            <input
+                                id="refund_bank_account_name"
+                                type="text"
+                                name="bank_account_name"
+                                required
+                                maxlength="150"
+                                value="{{ old('bank_account_name', $contract->deposit_bank_account_name) }}"
+                                placeholder="Nhập đúng tên chủ tài khoản"
+                                class="rr-input"
+                            >
+                        </div>
+
+                        <div class="rr-field rr-field-full">
+                            <label for="refund_qr_image" class="rr-label">
+                                Ảnh QR ngân hàng
+                                <span style="font-weight:400;color:#94a3b8">(không bắt buộc)</span>
+                            </label>
+                            <input
+                                id="refund_qr_image"
+                                type="file"
+                                name="qr_image"
+                                accept="image/png,image/jpeg,image/webp"
+                                class="rr-input"
+                                style="padding:9px 10px"
+                            >
+                            <div class="rr-hint">
+                                JPG, PNG hoặc WEBP · tối đa 5MB. Có thể bỏ qua nếu không dùng QR.
+                            </div>
+                        </div>
+
+                        <div class="rr-field rr-field-full">
+                            <label for="refund_note" class="rr-label">
+                                Ghi chú
+                            </label>
+                            <textarea
+                                id="refund_note"
+                                name="note"
+                                maxlength="1000"
+                                class="rr-textarea"
+                                placeholder="Ví dụ: Vui lòng chuyển tiền vào tài khoản trên."
+                            >{{ old('note', $contract->deposit_process_note) }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rr-footer">
+                <button type="button" class="rr-btn rr-btn-cancel" onclick="closeRefundRequest()">
+                    Hủy
+                </button>
+
+                <button type="submit"
+                        class="rr-btn rr-btn-submit"
+                        onclick="return confirm('Bạn xác nhận thông tin tài khoản nhận tiền là chính xác và muốn gửi yêu cầu hoàn cọc?');">
+                    Gửi yêu cầu hoàn cọc
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const modal = document.getElementById('refundRequestModal');
+
+    window.openRefundRequest = function () {
+        if (!modal) return;
+        modal.classList.add('is-open');
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+
+        const firstInput = document.getElementById('refund_bank_name');
+        if (firstInput) {
+            setTimeout(() => firstInput.focus(), 50);
+        }
+    };
+
+    window.closeRefundRequest = function () {
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+    };
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && modal?.classList.contains('is-open')) {
+            closeRefundRequest();
+        }
+    });
+})();
+</script>
+@endif
+
+{{-- =========================
+    MODAL THÔNG TIN HOÀN CỌC
+========================= --}}
+@php
+    $depositAmount = (float) ($contract->deposit_amount ?? 0);
+    $deductionAmount = (float) ($contract->deposit_deduction_amount ?? 0);
+    $approvedRefundAmount = (float) ($contract->deposit_refund_amount ?? max($depositAmount - $deductionAmount, 0));
+    $transferredAmount = (float) ($contract->deposit_transfer_amount ?? 0);
+    $displayRefundAmount = $transferredAmount > 0 ? $transferredAmount : $approvedRefundAmount;
+
+    $refundStatusText = match($contract->deposit_status) {
+        \App\Models\Contract::DEPOSIT_REFUND_REQUESTED => 'Chờ Admin xử lý',
+        \App\Models\Contract::DEPOSIT_REFUND_APPROVED => 'Đã duyệt hoàn cọc',
+        \App\Models\Contract::DEPOSIT_REFUND_REJECTED => 'Đã từ chối',
+        \App\Models\Contract::DEPOSIT_REFUND_PROCESSING => 'Đang xử lý',
+        \App\Models\Contract::DEPOSIT_RETURNED => 'Đã hoàn cọc',
+        \App\Models\Contract::DEPOSIT_PARTIAL => 'Đã hoàn cọc một phần',
+        \App\Models\Contract::DEPOSIT_FORFEITED => 'Không hoàn cọc',
+        default => $contract->isCompleted() ? 'Đã hoàn tất' : 'Chưa xử lý',
+    };
+
+    $refundStatusClass = match($contract->deposit_status) {
+        \App\Models\Contract::DEPOSIT_REFUND_REJECTED,
+        \App\Models\Contract::DEPOSIT_FORFEITED => 'bg-red-50 text-red-700 border-red-200',
+        \App\Models\Contract::DEPOSIT_REFUND_APPROVED,
+        \App\Models\Contract::DEPOSIT_REFUND_PROCESSING => 'bg-blue-50 text-blue-700 border-blue-200',
+        \App\Models\Contract::DEPOSIT_RETURNED,
+        \App\Models\Contract::DEPOSIT_PARTIAL => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        default => 'bg-amber-50 text-amber-700 border-amber-200',
+    };
+
+    $damageProof = $contract->damage_proof ?? $contract->deposit_damage_proof ?? null;
+@endphp
+
+@if(
+    $contract->isCompleted()
+    || filled($contract->deposit_status)
+    || filled($contract->deposit_refund_amount)
+    || filled($contract->deposit_transfer_amount)
+    || filled($contract->deposit_transfer_proof)
+    || filled($contract->damage_proof)
+    || filled($contract->deposit_damage_proof)
+)
+<style>
+    #depositInfoModal{position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;padding:18px}
+    #depositInfoModal.is-open{display:flex}
+    .dr-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.62);backdrop-filter:blur(3px)}
+    .dr-dialog{position:relative;z-index:1;width:min(1050px,calc(100vw - 28px));max-height:calc(100vh - 36px);display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #e2e8f0;border-radius:20px;box-shadow:0 28px 90px rgba(15,23,42,.32)}
+    .dr-header{flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px;border-bottom:1px solid #e2e8f0;background:#fff}
+    .dr-header-left{display:flex;align-items:center;gap:12px;min-width:0}
+    .dr-icon{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;border-radius:12px;background:#ecfdf5;color:#059669}
+    .dr-title{margin:0;color:#0f172a;font-size:18px;font-weight:800}
+    .dr-subtitle{margin:3px 0 0;color:#64748b;font-size:12px}
+    .dr-close{width:38px;height:38px;display:grid;place-items:center;border:0;border-radius:10px;background:transparent;color:#94a3b8;cursor:pointer}
+    .dr-close:hover{background:#f1f5f9;color:#334155}
+    .dr-body{min-height:0;overflow-y:auto;padding:22px;background:#f8fafc}
+    .dr-grid{display:grid;gap:16px}
+    .dr-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .dr-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .dr-card{border:1px solid #e2e8f0;border-radius:14px;background:#fff;padding:16px}
+    .dr-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8}
+    .dr-value{margin-top:6px;font-size:15px;font-weight:700;color:#0f172a;overflow-wrap:anywhere}
+    .dr-money{font-size:21px}
+    .dr-money-amber{border-color:#fde68a;background:#fffbeb}
+    .dr-money-red{border-color:#fecaca;background:#fef2f2}
+    .dr-money-green{border-color:#a7f3d0;background:#ecfdf5}
+    .dr-section-title{margin:0;font-size:15px;font-weight:800;color:#0f172a}
+    .dr-section-sub{margin:4px 0 0;font-size:12px;color:#64748b}
+    .dr-bank-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+    .dr-bank-item{border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:12px}
+    .dr-proof{margin-top:14px;border:1px solid #dbeafe;border-radius:14px;background:#eff6ff;padding:16px}
+    .dr-proof-inner{margin-top:12px;display:flex;align-items:center;justify-content:center;min-height:230px;overflow:hidden;border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:10px}
+    .dr-proof-img{display:block;max-width:100%;max-height:420px;width:auto;height:auto;object-fit:contain;border-radius:8px}
+    .dr-empty{display:flex;align-items:center;justify-content:center;min-height:120px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;color:#64748b;font-size:13px;text-align:center;padding:20px}
+    .dr-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .dr-footer{flex:none;display:flex;align-items:center;justify-content:flex-end;padding:13px 18px;border-top:1px solid #e2e8f0;background:#fff}
+    .dr-btn{height:38px;padding:0 16px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-size:13px;font-weight:700;cursor:pointer}
+    .dr-btn:hover{background:#f1f5f9}
+    .dr-link{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:9px 13px;border-radius:9px;background:#059669;color:#fff;font-size:12px;font-weight:700;text-decoration:none}
+    .dr-link:hover{background:#047857}
+    @media(max-width:800px){
+        .dr-grid-3,.dr-grid-2,.dr-bank-grid,.dr-meta{grid-template-columns:1fr}
+    }
+    @media(max-width:640px){
+        #depositInfoModal{padding:8px}
+        .dr-dialog{width:100%;max-height:calc(100vh - 16px);border-radius:14px}
+        .dr-header{padding:14px 15px}
+        .dr-body{padding:14px}
+    }
+</style>
+
+<div id="depositInfoModal" role="dialog" aria-modal="true" aria-labelledby="depositInfoTitle">
+    <div class="dr-backdrop" onclick="closeDepositInfo()"></div>
+
+    <div class="dr-dialog" onclick="event.stopPropagation()">
+        <div class="dr-header">
+            <div class="dr-header-left">
+                <div class="dr-icon">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6"/>
+                    </svg>
+                </div>
+
+                <div>
+                    <h2 id="depositInfoTitle" class="dr-title">Thông tin hoàn cọc</h2>
+                    <p class="dr-subtitle">
+                        {{ $contract->contract_code }} · Phòng {{ $contract->room->room_code ?? '---' }}
+                    </p>
+                </div>
+            </div>
+
+            <button type="button" class="dr-close" onclick="closeDepositInfo()" aria-label="Đóng">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="dr-body">
+            {{-- TRẠNG THÁI + TIỀN --}}
+            <div class="dr-grid dr-grid-3">
+                <div class="dr-card dr-money-amber">
+                    <p class="dr-label">Tiền cọc ban đầu</p>
+                    <p class="dr-value dr-money" style="color:#b45309">
+                        {{ number_format($depositAmount, 0, ',', '.') }} VNĐ
+                    </p>
+                </div>
+
+                <div class="dr-card dr-money-red">
+                    <p class="dr-label" style="color:#dc2626">Số tiền khấu trừ</p>
+                    <p class="dr-value dr-money" style="color:#dc2626">
+                        {{ number_format($deductionAmount, 0, ',', '.') }} VNĐ
+                    </p>
+                    @if($contract->deposit_process_reason)
+                        <p class="mt-2 text-xs leading-5 text-red-700">
+                            {{ $contract->deposit_process_reason }}
+                        </p>
+                    @endif
+                </div>
+
+                <div class="dr-card dr-money-green">
+                    <p class="dr-label" style="color:#059669">
+                        {{ $transferredAmount > 0 ? 'Số tiền đã chuyển' : 'Số tiền được hoàn' }}
+                    </p>
+                    <p class="dr-value dr-money" style="color:#059669">
+                        {{ number_format($displayRefundAmount, 0, ',', '.') }} VNĐ
+                    </p>
+                </div>
+            </div>
+
+            {{-- TRẠNG THÁI --}}
+            <div class="dr-card" style="margin-top:16px">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <h3 class="dr-section-title">Trạng thái xử lý</h3>
+                        <p class="dr-section-sub">Kết quả xử lý tiền đặt cọc của hợp đồng.</p>
+                    </div>
+
+                    <span class="inline-flex rounded-full border px-3 py-1.5 text-xs font-bold {{ $refundStatusClass }}">
+                        {{ $refundStatusText }}
+                    </span>
+                </div>
+            </div>
+
+            {{-- TÀI KHOẢN NHẬN TIỀN --}}
+            <div class="dr-card" style="margin-top:16px">
+                <h3 class="dr-section-title">Thông tin nhận tiền</h3>
+                <p class="dr-section-sub">Tài khoản khách thuê đã cung cấp để nhận tiền hoàn cọc.</p>
+
+                <div class="dr-bank-grid">
+                    <div class="dr-bank-item">
+                        <p class="dr-label">Ngân hàng</p>
+                        <p class="dr-value">{{ $contract->deposit_bank_name ?? '---' }}</p>
+                    </div>
+
+                    <div class="dr-bank-item">
+                        <p class="dr-label">Số tài khoản</p>
+                        <p class="dr-value">{{ $contract->deposit_bank_account_number ?? '---' }}</p>
+                    </div>
+
+                    <div class="dr-bank-item">
+                        <p class="dr-label">Chủ tài khoản</p>
+                        <p class="dr-value">{{ $contract->deposit_bank_account_name ?? '---' }}</p>
+                    </div>
+                </div>
+
+                @if(filled($contract->deposit_qr_image))
+                    <div class="mt-4">
+                        <p class="dr-label">QR ngân hàng</p>
+                        <div class="mt-2 flex justify-center rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <img src="{{ route('client.deposit-refunds.qr', $contract) }}"
+                                 alt="QR ngân hàng"
+                                 class="max-h-[220px] max-w-full rounded-lg border border-slate-200 bg-white object-contain">
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            {{-- ẢNH MINH CHỨNG HƯ HỎNG --}}
+            <div class="dr-proof" style="margin-top:16px;border-color:#fecaca;background:#fff7ed">
+                <h3 class="dr-section-title">Ảnh minh chứng hư hỏng / thiệt hại</h3>
+                <p class="dr-section-sub">Minh chứng cho khoản tiền bị khấu trừ khỏi tiền cọc.</p>
+
+                @if(filled($damageProof))
+                    <div class="dr-proof-inner">
+                        <img src="{{ asset('storage/' . ltrim($damageProof, '/')) }}"
+                             alt="Ảnh minh chứng hư hỏng / thiệt hại"
+                             class="dr-proof-img">
+                    </div>
+                @else
+                    <div class="dr-empty" style="margin-top:12px">
+                        Không có ảnh minh chứng hư hỏng được lưu.
+                    </div>
+                @endif
+            </div>
+
+            {{-- ẢNH XÁC MINH CHUYỂN KHOẢN --}}
+            <div class="dr-proof" style="margin-top:16px">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="dr-section-title">Ảnh xác minh chuyển khoản</h3>
+                        <p class="dr-section-sub">Bằng chứng Admin đã thực tế chuyển tiền hoàn cọc cho khách thuê.</p>
+                    </div>
+
+                    @if(filled($contract->deposit_transfer_proof))
+                        <a href="{{ route('client.deposit-refunds.proof', $contract) }}"
+                           target="_blank"
+                           rel="noopener"
+                           class="dr-link" style="margin-top:0">
+                            Xem ảnh đầy đủ
+                        </a>
+                    @endif
+                </div>
+
+                @if(filled($contract->deposit_transfer_proof))
+                    <div class="dr-proof-inner">
+                        <img src="{{ route('client.deposit-refunds.proof', $contract) }}"
+                             alt="Ảnh xác minh chuyển khoản hoàn cọc"
+                             class="dr-proof-img">
+                    </div>
+                @else
+                    <div class="dr-empty" style="margin-top:12px">
+                        Chưa có ảnh xác minh chuyển khoản.
+                    </div>
+                @endif
+            </div>
+
+            {{-- LÝ DO / GHI CHÚ --}}
+            @if($contract->deposit_process_reason || $contract->deposit_process_note || $contract->deposit_admin_note)
+                <div class="dr-grid dr-grid-2" style="margin-top:16px">
+                    @if($contract->deposit_process_reason)
+                        <div class="dr-card">
+                            <p class="dr-label">Lý do xử lý</p>
+                            <p class="mt-2 text-sm leading-6 text-slate-700">
+                                {{ $contract->deposit_process_reason }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($contract->deposit_process_note || $contract->deposit_admin_note)
+                        <div class="dr-card">
+                            <p class="dr-label">Ghi chú xử lý</p>
+                            <p class="mt-2 text-sm leading-6 text-slate-700">
+                                {{ $contract->deposit_process_note ?? $contract->deposit_admin_note }}
+                            </p>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
+            {{-- THỜI GIAN --}}
+            <div class="dr-meta" style="margin-top:16px">
+                @if($contract->deposit_refund_requested_at)
+                    <div class="dr-card">
+                        <p class="dr-label">Khách yêu cầu hoàn cọc</p>
+                        <p class="dr-value">{{ $contract->deposit_refund_requested_at->format('d/m/Y H:i') }}</p>
+                    </div>
+                @endif
+
+                @if($contract->deposit_refund_approved_at)
+                    <div class="dr-card">
+                        <p class="dr-label">Admin duyệt hoàn cọc</p>
+                        <p class="dr-value">{{ $contract->deposit_refund_approved_at->format('d/m/Y H:i') }}</p>
+                    </div>
+                @endif
+
+                @if($contract->deposit_transferred_at)
+                    <div class="dr-card">
+                        <p class="dr-label">Admin chuyển khoản</p>
+                        <p class="dr-value">{{ $contract->deposit_transferred_at->format('d/m/Y H:i') }}</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <div class="dr-footer">
+            <button type="button" class="dr-btn" onclick="closeDepositInfo()">Đóng</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const modal = document.getElementById('depositInfoModal');
+
+    window.openDepositInfo = function () {
+        if (!modal) return;
+        modal.classList.add('is-open');
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+    };
+
+    window.closeDepositInfo = function () {
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+    };
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && modal?.classList.contains('is-open')) {
+            closeDepositInfo();
+        }
+    });
+})();
+</script>
+@endif
 
 {{-- MODAL LỊCH SỬ HỢP ĐỒNG --}}
 <style>
