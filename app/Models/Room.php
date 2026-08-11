@@ -82,7 +82,17 @@ class Room extends Model
         return $this->belongsToMany(
             Amenity::class,
             'amenity_room'
-        );
+        )->where('amenities.is_active', true)
+            ->withPivot(['quantity', 'condition', 'note'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Nhật ký ảnh hiện trạng của phòng. Ảnh chỉ được thêm mới để giữ bằng chứng.
+     */
+    public function images()
+    {
+        return $this->hasMany(RoomImage::class)->latest('taken_at')->latest('id');
     }
 
     /*

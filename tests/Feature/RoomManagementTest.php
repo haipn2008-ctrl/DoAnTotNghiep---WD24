@@ -6,6 +6,7 @@ use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\Role;
 use App\Models\Room;
+use App\Models\RoomImage;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,18 +55,33 @@ class RoomManagementTest extends TestCase
         $this->get('/admin/rooms/999999')->assertNotFound();
     }
 
-    public function test_admin_can_create_room_with_capacity_amenities_and_image(): void
+    public function test_admin_can_create_room_with_locked_empty_state_inventory_and_multiple_evidence_images(): void
     {
         Storage::fake('public');
-        $amenity = Amenity::create(['name' => 'Điều hòa']);
+        $amenity = Amenity::create(['name' => 'Điều hòa', 'is_quantifiable' => true]);
         $response = $this->actingAs($this->admin)->post('/admin/rooms', $this->payload([
-            'amenities' => [$amenity->id],
-            'image' => UploadedFile::fake()->image('room.jpg'),
+            'inventory' => [$amenity->id => [
+                'selected' => 1, 'quantity' => 2, 'condition' => 'damaged',
+            ]],
+            'images' => [
+                UploadedFile::fake()->image('overview.jpg'),
+                UploadedFile::fake()->image('air-conditioner.jpg'),
+            ],
         ]));
         $response->assertRedirect(route('admin.rooms.index'))->assertSessionHas('success');
         $room = Room::where('room_code', 'ROOM-NEW')->firstOrFail();
         $this->assertSame(6, $room->max_people);
-        $this->assertDatabaseHas('amenity_room', ['room_id' => $room->id, 'amenity_id' => $amenity->id]);
+        $this->assertSame(Room::STATUS_AVAILABLE, $room->status);
+        $this->assertSame(0, $room->current_people);
+        $this->assertDatabaseHas('amenity_room', [
+            'room_id' => $room->id, 'amenity_id' => $amenity->id,
+            'quantity' => 2, 'condition' => 'damaged', 'note' => null,
+        ]);
+        $this->assertDatabaseCount('room_images', 2);
+        $this->assertDatabaseHas('room_images', [
+            'room_id' => $room->id, 'evidence_type' => RoomImage::TYPE_BASELINE,
+            'uploaded_by' => $this->admin->id,
+        ]);
         Storage::disk('public')->assertExists($room->thumbnail);
     }
 
@@ -75,26 +91,49 @@ class RoomManagementTest extends TestCase
         $this->room(['room_code' => 'ROOM-NEW']);
         $response = $this->actingAs($this->admin)->post('/admin/rooms', $this->payload([
             'floor' => 0, 'price' => -1, 'area' => 0, 'max_people' => 2,
-            'current_people' => 3, 'status' => 'unknown', 'amenities' => [999999],
-            'image' => UploadedFile::fake()->create('room.pdf', 10, 'application/pdf'),
+            'current_people' => 3, 'status' => 'occupied', 'amenities' => [999999],
+            'images' => [UploadedFile::fake()->create('room.pdf', 10, 'application/pdf')],
         ]));
-        $response->assertSessionHasErrors(['room_code', 'floor', 'price', 'area', 'current_people', 'status', 'amenities.0', 'image']);
+        $response->assertSessionHasErrors(['room_code', 'floor', 'price', 'area', 'current_people', 'status', 'amenities.0', 'images.0']);
         $this->assertDatabaseCount('rooms', 1);
         $this->assertDatabaseCount('amenity_room', 0);
         $this->assertSame([], Storage::disk('public')->allFiles());
     }
 
-    public function test_admin_can_update_room_and_replacing_image_removes_old_file(): void
+    public function test_inactive_amenities_are_hidden_and_cannot_be_submitted(): void
+    {
+        $removed = Amenity::create(['name' => 'Ban công', 'is_quantifiable' => false, 'is_active' => false]);
+        Amenity::create(['name' => 'Tủ lạnh', 'is_quantifiable' => true, 'is_active' => true]);
+
+        $this->actingAs($this->admin)->get('/admin/rooms/create')
+            ->assertOk()
+            ->assertDontSee('Ban công')
+            ->assertSee('Tủ lạnh')
+            ->assertSee('Chọn tất cả')
+            ->assertSee('data-inventory-toggle-all', false)
+            ->assertSee('js-image-preview-input', false)
+            ->assertSee('images-preview', false);
+
+        $this->post('/admin/rooms', $this->payload([
+            'inventory' => [$removed->id => ['selected' => 1, 'quantity' => 1, 'condition' => 'normal']],
+        ]))->assertSessionHasErrors("inventory.{$removed->id}");
+        $this->assertDatabaseMissing('rooms', ['room_code' => 'ROOM-NEW']);
+    }
+
+    public function test_admin_update_appends_evidence_and_keeps_old_image(): void
     {
         Storage::fake('public');
         Storage::disk('public')->put('rooms/old.jpg', 'old');
         $room = $this->room(['thumbnail' => 'rooms/old.jpg']);
         $this->actingAs($this->admin)->put("/admin/rooms/{$room->id}", $this->payload([
-            'room_code' => $room->room_code, 'image' => UploadedFile::fake()->image('new.jpg'),
-        ]))->assertRedirect(route('admin.rooms.index'));
+            'room_code' => $room->room_code,
+            'status' => Room::STATUS_AVAILABLE,
+            'images' => [UploadedFile::fake()->image('new.jpg')],
+        ]))->assertRedirect(route('admin.rooms.show', $room));
         $room->refresh();
-        Storage::disk('public')->assertMissing('rooms/old.jpg');
+        Storage::disk('public')->assertExists('rooms/old.jpg');
         Storage::disk('public')->assertExists($room->thumbnail);
+        $this->assertDatabaseHas('room_images', ['room_id' => $room->id, 'evidence_type' => RoomImage::TYPE_BASELINE]);
     }
 
     public function test_active_contract_prevents_inconsistent_room_update_and_deletion(): void
@@ -128,6 +167,61 @@ class RoomManagementTest extends TestCase
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'status' => Room::STATUS_AVAILABLE]);
     }
 
+    public function test_admin_can_append_contract_linked_checkout_evidence_but_cannot_link_another_room_contract(): void
+    {
+        Storage::fake('public');
+        [$room, $contract] = $this->contract(Contract::STATUS_ACTIVE);
+
+        $this->actingAs($this->admin)->post(route('admin.rooms.evidence.store', $room), [
+            'evidence_type' => RoomImage::TYPE_CHECKOUT,
+            'contract_id' => $contract->id,
+            'taken_at' => '2000-01-01 00:00:00',
+            'caption' => 'Ảnh đối chiếu khi trả phòng',
+            'images' => [UploadedFile::fake()->image('checkout-1.jpg'), UploadedFile::fake()->image('checkout-2.jpg')],
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $this->assertDatabaseCount('room_images', 2);
+        $this->assertDatabaseHas('room_images', [
+            'room_id' => $room->id, 'contract_id' => $contract->id,
+            'evidence_type' => RoomImage::TYPE_CHECKOUT, 'uploaded_by' => $this->admin->id,
+        ]);
+        $firstImage = RoomImage::firstOrFail();
+        $this->assertNotNull($firstImage->sha256);
+        $this->assertTrue($firstImage->taken_at->greaterThan(now()->subMinute()));
+
+        [$anotherRoom, $anotherContract] = $this->contract(Contract::STATUS_ACTIVE);
+        $this->post(route('admin.rooms.evidence.store', $room), [
+            'evidence_type' => RoomImage::TYPE_CHECKOUT,
+            'contract_id' => $anotherContract->id,
+            'images' => [UploadedFile::fake()->image('wrong-room.jpg')],
+        ])->assertSessionHasErrors('contract_id');
+        $this->assertDatabaseCount('room_images', 2);
+        $this->assertNotSame($room->id, $anotherRoom->id);
+    }
+
+    public function test_after_return_evidence_requires_contract_and_deprecated_types_or_client_upload_are_rejected(): void
+    {
+        Storage::fake('public');
+        $room = $this->room();
+        $payload = [
+            'evidence_type' => RoomImage::TYPE_CHECKOUT,
+            'images' => [UploadedFile::fake()->image('handover.jpg')],
+        ];
+
+        $this->actingAs($this->admin)->post(route('admin.rooms.evidence.store', $room), $payload)
+            ->assertSessionHasErrors('contract_id');
+        $this->post(route('admin.rooms.evidence.store', $room), [
+            ...$payload, 'evidence_type' => RoomImage::TYPE_MAINTENANCE,
+        ])->assertSessionHasErrors('evidence_type');
+
+        $client = $this->user($this->clientRole, 'evidence-client@example.test');
+        $this->actingAs($client)->post(route('admin.rooms.evidence.store', $room), [
+            ...$payload, 'evidence_type' => RoomImage::TYPE_BASELINE,
+        ])->assertForbidden();
+        $this->delete('/admin/rooms/'.$room->id.'/evidence/1')->assertNotFound();
+        $this->assertDatabaseCount('room_images', 0);
+    }
+
     public function test_historical_contract_is_preserved_and_empty_room_deletion_removes_image_and_is_not_repeatable(): void
     {
         [$historicalRoom, $contract] = $this->contract(Contract::STATUS_TERMINATED);
@@ -146,8 +240,7 @@ class RoomManagementTest extends TestCase
     private function payload(array $overrides = []): array
     {
         return array_merge(['room_code' => 'ROOM-NEW', 'floor' => 2, 'price' => 3500000,
-            'area' => 25, 'max_people' => 6, 'current_people' => 0,
-            'status' => Room::STATUS_AVAILABLE, 'description' => 'Phòng kiểm thử'], $overrides);
+            'area' => 25, 'max_people' => 6, 'description' => 'Phòng kiểm thử'], $overrides);
     }
 
     private function room(array $overrides = []): Room
@@ -168,12 +261,14 @@ class RoomManagementTest extends TestCase
 
     private function contract(string $status): array
     {
+        static $tenantSequence = 0;
+        $tenantSequence++;
         $user = $this->user($this->clientRole, uniqid('tenant-', true).'@example.test');
         $tenant = Tenant::create(['user_id' => $user->id, 'full_name' => 'Tenant', 'gender' => 'other',
-            'cccd' => uniqid(), 'phone' => '0912345678', 'email' => $user->email]);
+            'cccd' => uniqid(), 'phone' => '091234'.str_pad((string) $tenantSequence, 4, '0', STR_PAD_LEFT), 'email' => $user->email]);
         $room = $this->room(['status' => $status === Contract::STATUS_ACTIVE ? Room::STATUS_OCCUPIED : Room::STATUS_AVAILABLE,
             'current_people' => $status === Contract::STATUS_ACTIVE ? 1 : 0]);
-        $contract = Contract::create(['contract_code' => uniqid('CONTRACT-'), 'room_id' => $room->id,
+        $contract = Contract::query()->forceCreate(['contract_code' => uniqid('CONTRACT-'), 'room_id' => $room->id,
             'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'start_date' => '2026-01-01',
             'end_date' => '2026-12-31', 'status' => $status]);
 

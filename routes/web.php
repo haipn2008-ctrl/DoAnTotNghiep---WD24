@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Admin\PaymentWebhookEventController;
 use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\RoomEvidenceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SupportController as AdminSupportController;
 use App\Http\Controllers\Admin\TenantController;
@@ -65,6 +66,8 @@ Route::middleware('auth')->group(function () {
                 ->name('rooms.export');
             Route::get('rooms/export/download', [RoomController::class, 'export'])
                 ->name('rooms.export.download');
+            Route::post('rooms/{room}/evidence', [RoomEvidenceController::class, 'store'])
+                ->name('rooms.evidence.store');
             Route::resource('rooms', RoomController::class);
 
             // Chức năng thêm sửa xoá khách thuê
