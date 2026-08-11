@@ -193,11 +193,11 @@ Route::middleware('auth')->group(function () {
                 ->name('overview.fill-rate');
 
             Route::get('/settings/{type}', [SettingController::class, 'edit'])
-                ->where('type', 'electricity|water|internet|service|parking|bank')
+                ->where('type', 'fees|electricity|water|internet|service|parking|bank')
                 ->name('settings.edit');
 
             Route::put('/settings/{type}', [SettingController::class, 'update'])
-                ->where('type', 'electricity|water|internet|service|parking|bank')
+                ->where('type', 'fees|electricity|water|internet|service|parking|bank')
                 ->name('settings.update');
 
             Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');

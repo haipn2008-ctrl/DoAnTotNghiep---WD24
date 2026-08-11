@@ -79,11 +79,7 @@
             'items' => [
                 ['label' => 'Tài khoản', 'route' => 'admin.users.index', 'active' => request()->routeIs('admin.users*')],
                 ['label' => 'Phân quyền', 'route' => 'admin.roles', 'active' => request()->routeIs('admin.roles')],
-                ['label' => 'Đơn giá điện', 'route' => 'admin.settings.edit', 'params' => ['type' => 'electricity'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'electricity']))],
-                ['label' => 'Đơn giá nước', 'route' => 'admin.settings.edit', 'params' => ['type' => 'water'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'water']))],
-                ['label' => 'Đơn giá internet', 'route' => 'admin.settings.edit', 'params' => ['type' => 'internet'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'internet']))],
-                ['label' => 'Đơn giá dịch vụ', 'route' => 'admin.settings.edit', 'params' => ['type' => 'service'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'service']))],
-                ['label' => 'Phí gửi xe', 'route' => 'admin.settings.edit', 'params' => ['type' => 'parking'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'parking']))],
+                ['label' => 'Phí dịch vụ', 'route' => 'admin.settings.edit', 'params' => ['type' => 'fees'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'fees']))],
                 ['label' => 'Tài khoản nhận tiền', 'route' => 'admin.settings.edit', 'params' => ['type' => 'bank'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'bank']))],
             ],
         ],

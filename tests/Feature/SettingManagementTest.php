@@ -43,6 +43,45 @@ class SettingManagementTest extends TestCase
         $this->assertDatabaseHas('settings', ['is_active' => true]);
     }
 
+    public function test_sidebar_only_shows_two_consolidated_setting_entries(): void
+    {
+        $this->actingAs($this->admin)->get('/admin/settings/fees')
+            ->assertSuccessful()
+            ->assertSee('href="'.route('admin.settings.edit', ['type' => 'fees']).'"', false)
+            ->assertSee('href="'.route('admin.settings.edit', ['type' => 'bank']).'"', false)
+            ->assertDontSee('href="'.route('admin.settings.edit', ['type' => 'electricity']).'"', false)
+            ->assertSee('Đơn giá điện')
+            ->assertSee('Đơn giá nước')
+            ->assertSee('Phí Internet')
+            ->assertSee('Phí gửi xe');
+    }
+
+    public function test_consolidated_fee_form_updates_every_fee_atomically(): void
+    {
+        $setting = $this->createSetting();
+        $payload = [
+            'electric_price' => 4100,
+            'water_price' => 22000,
+            'internet_fee' => 120000,
+            'service_fee' => 65000,
+            'parking_fee' => 80000,
+        ];
+
+        $this->actingAs($this->admin)->put('/admin/settings/fees', $payload)
+            ->assertRedirect('/admin/settings/fees')
+            ->assertSessionHasNoErrors();
+        foreach ($payload as $field => $value) {
+            $this->assertSame(number_format($value, 2, '.', ''), $setting->fresh()->{$field});
+        }
+
+        $this->put('/admin/settings/fees', array_merge($payload, [
+            'electric_price' => 5000,
+            'water_price' => -1,
+        ]))->assertSessionHasErrors('water_price');
+        $this->assertSame('4100.00', $setting->fresh()->electric_price);
+        $this->assertSame('22000.00', $setting->fresh()->water_price);
+    }
+
     public function test_each_price_type_updates_only_its_own_field(): void
     {
         $setting = $this->createSetting();
