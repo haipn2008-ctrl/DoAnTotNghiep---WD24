@@ -241,7 +241,7 @@ class InvoiceController extends Controller
             'room',
             'tenant',
         ])
-            ->where('status', 'active')
+            ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_TERMINATED])
             ->whereDate(
                 'start_date',
                 '<=',
@@ -255,9 +255,9 @@ class InvoiceController extends Controller
             ->orderBy('id')
             ->get();
 
-        $issuedRoomIds = Invoice::where('month', $month)
+        $issuedContractIds = Invoice::where('month', $month)
             ->where('year', $year)
-            ->pluck('room_id')
+            ->pluck('contract_id')
             ->toArray();
 
         return view(
@@ -267,7 +267,7 @@ class InvoiceController extends Controller
                 'month',
                 'year',
                 'years',
-                'issuedRoomIds'
+                'issuedContractIds'
             )
         );
     }
@@ -926,15 +926,18 @@ class InvoiceController extends Controller
         ) {
             $contract = $invoice->contract;
 
-            if (
-                $contract
-                && $contract->status === Contract::STATUS_DRAFT
-            ) {
+            if ($contract) {
                 $contract->update([
-                    'status' => Contract::STATUS_PENDING_SIGNATURE,
                     'deposit_status' => Contract::DEPOSIT_PAID,
-                    'deposit_paid_at' => now(),
+                    'deposit_paid_at' => $contract->deposit_paid_at ?? now(),
                 ]);
+
+                // Chỉ chuyển trạng thái hợp đồng từ bản nháp sang chờ ký.
+                if ($contract->status === Contract::STATUS_DRAFT) {
+                    $contract->update([
+                        'status' => Contract::STATUS_PENDING_SIGNATURE,
+                    ]);
+                }
             }
 
             return redirect()
@@ -1020,15 +1023,18 @@ class InvoiceController extends Controller
                     ->lockForUpdate()
                     ->find($invoice->contract_id);
 
-                if (
-                    $contract
-                    && $contract->status === Contract::STATUS_DRAFT
-                ) {
+                if ($contract) {
                     $contract->update([
-                        'status' => Contract::STATUS_PENDING_SIGNATURE,
                         'deposit_status' => Contract::DEPOSIT_PAID,
-                        'deposit_paid_at' => now(),
+                        'deposit_paid_at' => $contract->deposit_paid_at ?? now(),
                     ]);
+
+                    // Chỉ chuyển trạng thái hợp đồng từ bản nháp sang chờ ký.
+                    if ($contract->status === Contract::STATUS_DRAFT) {
+                        $contract->update([
+                            'status' => Contract::STATUS_PENDING_SIGNATURE,
+                        ]);
+                    }
                 }
 
                 // Không sync TenantAccountLifecycle khi thanh toán tiền cọc.

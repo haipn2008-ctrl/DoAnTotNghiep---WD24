@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
 {
@@ -22,5 +23,11 @@ class DatabaseSeeder extends Seeder
             DemoPropertySeeder::class,
             AuthenticationScenarioSeeder::class,
         ]);
+
+        DB::table('tenants')->whereNull('payment_code')->orderBy('id')->eachById(function ($tenant) {
+            DB::table('tenants')->where('id', $tenant->id)->update([
+                'payment_code' => 'KH'.str_pad((string) $tenant->id, 8, '0', STR_PAD_LEFT),
+            ]);
+        });
     }
 }

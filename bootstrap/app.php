@@ -14,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/payments',
+        ]);
+
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
             'account.active' => EnsureAccountIsActive::class,

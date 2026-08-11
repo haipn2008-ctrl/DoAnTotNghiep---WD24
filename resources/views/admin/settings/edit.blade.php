@@ -23,9 +23,15 @@
 
         <div class="grid gap-6 lg:grid-cols-[360px_1fr]">
             <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <p class="text-sm font-medium text-slate-500">Giá hiện tại</p>
-                <p class="mt-4 text-3xl font-bold text-slate-950">{{ number_format($currentValue, 0, ',', '.') }}đ</p>
-                <p class="mt-2 text-sm text-slate-500">{{ $typeData['unit'] }}</p>
+                @if ($type === 'bank')
+                    <p class="text-sm font-medium text-slate-500">Tài khoản hiện tại</p>
+                    <p class="mt-4 text-xl font-bold text-slate-950">{{ $setting->bank_account_no ?: 'Chưa cấu hình' }}</p>
+                    <p class="mt-2 text-sm text-slate-500">{{ $setting->bank_account_name }} {{ $setting->bank_id ? '· '.$setting->bank_id : '' }}</p>
+                @else
+                    <p class="text-sm font-medium text-slate-500">Giá hiện tại</p>
+                    <p class="mt-4 text-3xl font-bold text-slate-950">{{ number_format($currentValue, 0, ',', '.') }}đ</p>
+                    <p class="mt-2 text-sm text-slate-500">{{ $typeData['unit'] }}</p>
+                @endif
                 <p class="mt-5 rounded-lg bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">{{ $typeData['description'] }}</p>
             </section>
 
@@ -39,9 +45,17 @@
                 </div>
 
                 <div class="p-5">
-                    <label for="{{ $typeData['field'] }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $typeData['label'] }} ({{ $typeData['unit'] }})</label>
-                    <input id="{{ $typeData['field'] }}" type="number" step="0.01" name="{{ $typeData['field'] }}" value="{{ old($typeData['field'], $currentValue) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                    @error($typeData['field']) <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+                    @if ($type === 'bank')
+                        <div class="grid gap-4">
+                            <div><label class="mb-1.5 block text-sm font-semibold">Mã ngân hàng VietQR</label><input name="bank_id" value="{{ old('bank_id', $setting->bank_id) }}" placeholder="Ví dụ: MB, VCB, ACB" required class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
+                            <div><label class="mb-1.5 block text-sm font-semibold">Số tài khoản</label><input name="bank_account_no" value="{{ old('bank_account_no', $setting->bank_account_no) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
+                            <div><label class="mb-1.5 block text-sm font-semibold">Tên chủ tài khoản</label><input name="bank_account_name" value="{{ old('bank_account_name', $setting->bank_account_name) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
+                        </div>
+                    @else
+                        <label for="{{ $typeData['field'] }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $typeData['label'] }} ({{ $typeData['unit'] }})</label>
+                        <input id="{{ $typeData['field'] }}" type="number" step="0.01" name="{{ $typeData['field'] }}" value="{{ old($typeData['field'], $currentValue) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                        @error($typeData['field']) <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+                    @endif
                 </div>
 
                 <div class="flex justify-end border-t border-slate-200 px-5 py-4">

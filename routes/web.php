@@ -4,6 +4,7 @@
 use App\Http\Controllers\Admin\ContractController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\OverviewController;
+use App\Http\Controllers\Admin\PaymentWebhookEventController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SupportController as AdminSupportController;
@@ -29,6 +30,7 @@ use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
 use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
+use App\Http\Controllers\PaymentWebhookController;
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Payment;
@@ -37,6 +39,9 @@ use App\Models\Room;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\Route;
 
+Route::post('/webhooks/payments', PaymentWebhookController::class)
+    ->middleware('throttle:60,1')
+    ->name('webhooks.payments');
 
 // Tự động chuyển hướng về trang dashboard để kiểm tra đăng nhập
 Route::get('/', function () {
@@ -86,10 +91,27 @@ Route::middleware('auth')->group(function () {
             [ContractController::class, 'extend']
         )->name('contracts.extend');
 
+        // In hợp đồng cụ thể
         Route::get(
             'contracts/{id}/print',
             [ContractController::class, 'print']
-        )->name('contracts.print');
+        )->whereNumber('id')->name('contracts.print');
+
+        // Mẫu hợp đồng trắng
+        Route::get(
+            'contracts/template',
+            function () {
+                return view('admin.contracts.template');
+            }
+        )->name('contracts.template');
+
+        // In mẫu hợp đồng trắng
+        Route::get(
+            'contracts/template/print',
+            function () {
+                return view('admin.contracts.template-print');
+            }
+        )->name('contracts.template.print');
         // Hoàn cọc
         Route::get(
             'deposit-refunds',
@@ -227,6 +249,12 @@ Route::middleware('auth')->group(function () {
             Route::get('/invoices/payments', [InvoiceController::class, 'payments'])
                 ->name('invoices.payments');
 
+            Route::get('/payment-webhooks', [PaymentWebhookEventController::class, 'index'])
+                ->name('payment-webhooks.index');
+
+            Route::post('/payment-webhooks/{event}/reconcile', [PaymentWebhookEventController::class, 'reconcile'])
+                ->name('payment-webhooks.reconcile');
+
             Route::get('/invoices/payments/export', [InvoiceController::class, 'exportPaymentsForm'])
                 ->name('invoices.payments.export');
 
@@ -274,11 +302,11 @@ Route::middleware('auth')->group(function () {
                 ->name('overview.fill-rate');
 
             Route::get('/settings/{type}', [SettingController::class, 'edit'])
-                ->where('type', 'electricity|water|internet|service')
+                ->where('type', 'electricity|water|internet|service|parking|bank')
                 ->name('settings.edit');
 
             Route::put('/settings/{type}', [SettingController::class, 'update'])
-                ->where('type', 'electricity|water|internet|service')
+                ->where('type', 'electricity|water|internet|service|parking|bank')
                 ->name('settings.update');
 
             Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');

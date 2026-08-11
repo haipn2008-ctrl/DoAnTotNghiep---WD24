@@ -75,6 +75,90 @@ class UtilityReadingEntryTest extends TestCase
             ->assertSee('<span class="water-old">45</span>', false);
     }
 
+    public function test_new_tenant_is_not_locked_by_previous_tenant_invoice_in_the_same_room_and_month(): void
+    {
+        $room = $this->createOccupiedRoom('TURNOVER-ROOM');
+        $oldContract = $this->createActiveContract($room, 'HD-OLD-TURNOVER');
+        $oldContract->update([
+            'status' => Contract::STATUS_TERMINATED,
+            'end_date' => '2026-08-10',
+            'actual_end_date' => '2026-08-10',
+        ]);
+        $oldReading = UtilityReading::create([
+            'room_id' => $room->id, 'month' => 8, 'year' => 2026, 'record_date' => '2026-08-10',
+            'reading_type' => 'periodic', 'electricity_old' => 0, 'electricity_new' => 125,
+            'water_old' => 0, 'water_new' => 8, 'status' => 'confirmed',
+        ]);
+        Invoice::create([
+            'contract_id' => $oldContract->id, 'room_id' => $room->id,
+            'utility_reading_id' => $oldReading->id, 'invoice_code' => 'INV-202608-900001',
+            'month' => 8, 'year' => 2026, 'invoice_date' => '2026-08-10', 'due_date' => '2026-08-20',
+            'room_fee' => 3000000, 'total_amount' => 3000000, 'status' => Invoice::STATUS_UNPAID,
+        ]);
+
+        $newContract = $this->createActiveContract($room, 'HD-NEW-TURNOVER');
+        $newContract->update(['start_date' => '2026-08-11']);
+        $this->createHandover($room, $newContract, 2000, 10)->update(['record_date' => '2026-08-11']);
+
+        $this->actingAs($this->admin)
+            ->get('/admin/utilities/create?month=8&year=2026&record_date=2026-08-31')
+            ->assertOk()
+            ->assertViewHas('readings', function ($readings) use ($room) {
+                $reading = collect($readings)->firstWhere('room_id', $room->id);
+
+                return $reading
+                    && $reading['electricity_old'] === 2000
+                    && $reading['water_old'] === 10
+                    && $reading['electricity_new'] === null
+                    && $reading['locked'] === false;
+            });
+    }
+
+    public function test_periodic_reading_can_start_from_handover_on_the_same_day(): void
+    {
+        $room = $this->createOccupiedRoom('SAME-DAY-HANDOVER');
+        $contract = $this->createActiveContract($room, 'HD-SAME-DAY');
+        $contract->update(['start_date' => '2026-08-11']);
+        $this->createHandover($room, $contract, 1200, 150)->update([
+            'month' => 8,
+            'year' => 2026,
+            'record_date' => '2026-08-11',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get('/admin/utilities/create?month=8&year=2026&record_date=2026-08-11')
+            ->assertOk()
+            ->assertViewHas('readings', function ($readings) use ($room) {
+                $reading = collect($readings)->firstWhere('room_id', $room->id);
+
+                return $reading
+                    && $reading['electricity_old'] === 1200
+                    && $reading['water_old'] === 150;
+            });
+
+        $this->post('/admin/utilities/store', [
+            'month' => 8,
+            'year' => 2026,
+            'record_date' => '2026-08-11',
+            'readings' => [[
+                'selected' => 1,
+                'room_id' => $room->id,
+                'electricity_new' => 1215,
+                'water_new' => 153,
+            ]],
+        ])->assertRedirect('/admin/utilities?month=8&year=2026');
+
+        $this->assertDatabaseHas('utility_readings', [
+            'contract_id' => $contract->id,
+            'reading_type' => 'periodic',
+            'record_date' => '2026-08-11 00:00:00',
+            'electricity_old' => 1200,
+            'electricity_new' => 1215,
+            'water_old' => 150,
+            'water_new' => 153,
+        ]);
+    }
+
     public function test_only_admin_can_access_entry_pages_and_direct_store(): void
     {
         $this->get('/admin/utilities')->assertRedirect('/login');
@@ -85,6 +169,35 @@ class UtilityReadingEntryTest extends TestCase
         $this->actingAs($client)->get('/admin/utilities')->assertForbidden();
         $this->post('/admin/utilities/store', [])->assertForbidden();
         $this->assertDatabaseCount('utility_readings', 0);
+    }
+
+    public function test_index_counts_distinct_rooms_and_excludes_non_periodic_readings_from_totals(): void
+    {
+        $room = $this->createOccupiedRoom('PERIODIC-STATS');
+        $contract = $this->createActiveContract($room, 'HD-PERIODIC-STATS');
+
+        foreach ([
+            ['handover', '2026-08-01', 100, 100, 20, 20],
+            ['periodic', '2026-08-20', 100, 120, 20, 25],
+            ['checkout', '2026-08-31', 120, 130, 25, 27],
+        ] as [$type, $date, $electricityOld, $electricityNew, $waterOld, $waterNew]) {
+            UtilityReading::create([
+                'room_id' => $room->id, 'contract_id' => $contract->id,
+                'month' => 8, 'year' => 2026, 'record_date' => $date, 'reading_type' => $type,
+                'electricity_old' => $electricityOld, 'electricity_new' => $electricityNew,
+                'water_old' => $waterOld, 'water_new' => $waterNew, 'status' => 'confirmed',
+            ]);
+        }
+
+        $this->actingAs($this->admin)
+            ->get('/admin/utilities?month=8&year=2026')
+            ->assertOk()
+            ->assertViewHas('totalRooms', 1)
+            ->assertViewHas('roomsRead', 1)
+            ->assertViewHas('totalElectricity', 20)
+            ->assertViewHas('totalWater', 5)
+            ->assertViewHas('readings', fn ($readings) => $readings->count() === 1
+                && $readings->first()->reading_type === 'periodic');
     }
 
     public function test_invalid_period_empty_selection_duplicate_room_and_nonexistent_room_are_rejected(): void
@@ -111,8 +224,10 @@ class UtilityReadingEntryTest extends TestCase
     {
         $firstRoom = $this->createOccupiedRoom('P201');
         $secondRoom = $this->createOccupiedRoom('P202');
-        $this->createActiveContract($firstRoom, 'HD-201');
-        $this->createActiveContract($secondRoom, 'HD-202');
+        $firstContract = $this->createActiveContract($firstRoom, 'HD-201');
+        $secondContract = $this->createActiveContract($secondRoom, 'HD-202');
+        $this->createHandover($firstRoom, $firstContract);
+        $this->createHandover($secondRoom, $secondContract);
 
         $response = $this->actingAs($this->admin)->post('/admin/utilities/store', [
             'month' => 8,
@@ -227,7 +342,8 @@ class UtilityReadingEntryTest extends TestCase
     public function test_earlier_period_cannot_break_the_opening_values_of_a_later_period(): void
     {
         $room = $this->createOccupiedRoom('P500');
-        $this->createActiveContract($room, 'HD-500');
+        $contract = $this->createActiveContract($room, 'HD-500');
+        $this->createHandover($room, $contract);
         UtilityReading::create(['room_id' => $room->id, 'month' => 9, 'year' => 2026,
             'record_date' => '2026-09-30', 'electricity_old' => 150, 'electricity_new' => 170,
             'water_old' => 30, 'water_new' => 35, 'status' => 'confirmed']);
@@ -349,6 +465,16 @@ class UtilityReadingEntryTest extends TestCase
             'start_date' => '2026-01-01',
             'end_date' => '2026-12-31',
             'status' => 'active',
+        ]);
+    }
+
+    private function createHandover(Room $room, Contract $contract, int $electricity = 0, int $water = 0): UtilityReading
+    {
+        return UtilityReading::create([
+            'room_id' => $room->id, 'contract_id' => $contract->id,
+            'month' => 1, 'year' => 2026, 'record_date' => '2026-01-01', 'reading_type' => 'handover',
+            'electricity_old' => $electricity, 'electricity_new' => $electricity,
+            'water_old' => $water, 'water_new' => $water, 'status' => 'confirmed',
         ]);
     }
 }

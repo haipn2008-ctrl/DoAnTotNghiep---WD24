@@ -121,8 +121,8 @@ class DepositRefundController extends Controller
         });
 
         return redirect()
-            ->route('client.deposit-refunds.index')
-            ->with('success', 'Đã gửi yêu cầu hoàn cọc. Vui lòng chờ Admin xử lý.');
+        ->route('client.deposit-refunds.index', ['contract' => $contract->id])
+        ->with('success', 'Đã gửi yêu cầu hoàn cọc. Vui lòng chờ Admin xử lý.');
     }
 
     /**

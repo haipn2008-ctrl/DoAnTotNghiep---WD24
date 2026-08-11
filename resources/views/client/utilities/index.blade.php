@@ -30,7 +30,7 @@
                 @endphp
                 <article class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                     <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-                        <div><h3 class="font-bold text-slate-950">Tháng {{ $reading->month }}/{{ $reading->year }}</h3><p class="mt-1 text-xs text-slate-500">Phòng {{ $reading->room->room_code ?? '-' }}{{ $reading->record_date ? ' · Ghi ngày '.$reading->record_date->format('d/m/Y') : '' }}</p></div>
+                        <div><h3 class="font-bold text-slate-950">{{ ['handover' => 'Chỉ số bàn giao', 'checkout' => 'Chỉ số trả phòng'][$reading->reading_type] ?? 'Kỳ tháng '.$reading->month.'/'.$reading->year }}</h3><p class="mt-1 text-xs text-slate-500">Phòng {{ $reading->room->room_code ?? '-' }}{{ $reading->record_date ? ' · Ghi ngày '.$reading->record_date->format('d/m/Y') : '' }}</p></div>
                         @if($reading->invoice)<a href="{{ route('client.invoices.show', $reading->invoice) }}" class="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">Xem hóa đơn</a>@else<span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Chưa có hóa đơn</span>@endif
                     </div>
 

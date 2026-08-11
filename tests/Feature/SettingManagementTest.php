@@ -89,14 +89,14 @@ class SettingManagementTest extends TestCase
     {
         $setting = $this->createSetting();
 
-        $this->actingAs($this->admin)->get('/admin/settings/parking')->assertNotFound();
+        $this->actingAs($this->admin)->get('/admin/settings/unknown')->assertNotFound();
         $this->actingAs($this->admin)->put('/admin/settings/parking', [
             'parking_fee' => 999999,
-        ])->assertNotFound();
+        ])->assertRedirect('/admin/settings/parking')->assertSessionHasNoErrors();
 
         $this->assertDatabaseCount('settings', 1);
         $this->assertSame('3500.00', $setting->fresh()->electric_price);
-        $this->assertSame('0.00', $setting->parking_fee);
+        $this->assertSame('999999.00', $setting->fresh()->parking_fee);
     }
 
     public function test_setting_routes_enforce_authentication_and_admin_role_for_direct_requests(): void

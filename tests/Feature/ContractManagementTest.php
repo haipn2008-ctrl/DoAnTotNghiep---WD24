@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UtilityReading;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -92,6 +93,39 @@ class ContractManagementTest extends TestCase
         $this->assertDatabaseCount('contracts', 0);
     }
 
+    public function test_create_form_suggests_latest_room_reading_and_rejects_a_lower_handover(): void
+    {
+        $oldTenant = $this->tenant('handover-old');
+        $newTenant = $this->tenant('handover-new');
+        $room = $this->room(['room_code' => 'HANDOVER-SUGGESTION']);
+        $oldContract = Contract::create([
+            'contract_code' => 'HD-HANDOVER-OLD', 'room_id' => $room->id,
+            'tenant_id' => $oldTenant->id, 'monthly_rent' => 3000000,
+            'start_date' => '2026-01-01', 'end_date' => '2026-08-10',
+            'actual_end_date' => '2026-08-10', 'status' => Contract::STATUS_TERMINATED,
+        ]);
+        UtilityReading::create([
+            'room_id' => $room->id, 'contract_id' => $oldContract->id,
+            'month' => 8, 'year' => 2026, 'record_date' => '2026-08-10', 'reading_type' => 'checkout',
+            'electricity_old' => 1240, 'electricity_new' => 1250,
+            'water_old' => 158, 'water_new' => 160, 'status' => 'confirmed',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get('/admin/contracts/create')
+            ->assertOk()
+            ->assertSee('data-electricity="1250" data-water="160"', false);
+
+        $this->post('/admin/contracts', $this->payload($room, $newTenant, [
+            'handover_electricity' => 1249,
+            'handover_water' => 159,
+        ]))->assertSessionHasErrors(['handover_electricity', 'handover_water']);
+
+        $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
+        $this->assertDatabaseCount('contracts', 1);
+        $this->assertDatabaseCount('utility_readings', 1);
+    }
+
     public function test_update_validates_unique_tenant_identity_and_changes_no_contract_financial_data(): void
     {
         [$contract, , $tenant] = $this->contract();
@@ -155,11 +189,32 @@ class ContractManagementTest extends TestCase
         $this->assertSame(Room::STATUS_OCCUPIED, $room->fresh()->status);
     }
 
+    public function test_end_form_prefills_latest_readings_from_the_same_contract(): void
+    {
+        [$contract, $room] = $this->contract();
+        UtilityReading::create([
+            'room_id' => $room->id, 'contract_id' => $contract->id,
+            'month' => 8, 'year' => 2026, 'record_date' => '2026-08-10', 'reading_type' => 'periodic',
+            'electricity_old' => 100, 'electricity_new' => 1240,
+            'water_old' => 50, 'water_new' => 158, 'status' => 'confirmed',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get("/admin/contracts/{$contract->id}/end-form")
+            ->assertOk()
+            ->assertViewHas('latestReading', fn ($reading) => $reading->contract_id === $contract->id)
+            ->assertSee('value="1240"', false)
+            ->assertSee('value="158"', false)
+            ->assertSee('Gần nhất: 1240 kWh')
+            ->assertSee('Gần nhất: 158 m³');
+    }
+
     private function payload(Room $room, Tenant $tenant, array $overrides = []): array
     {
         return array_merge(['room_id' => $room->id, 'tenant_id' => $tenant->id,
             'start_date' => '2026-01-01', 'end_date' => '2026-12-31',
-            'deposit_amount' => 1000000, 'number_of_people' => 1], $overrides);
+            'deposit_amount' => 1000000, 'number_of_people' => 1,
+            'handover_electricity' => 100, 'handover_water' => 50], $overrides);
     }
 
     private function contract(string $status = Contract::STATUS_ACTIVE): array
@@ -173,6 +228,10 @@ class ContractManagementTest extends TestCase
         $contract = Contract::create(['contract_code' => 'TEST-HD-'.$sequence, 'room_id' => $room->id,
             'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'number_of_people' => 1,
             'start_date' => '2026-01-01', 'end_date' => '2026-12-31', 'status' => $status]);
+        UtilityReading::create(['room_id' => $room->id, 'contract_id' => $contract->id,
+            'month' => 1, 'year' => 2026, 'record_date' => '2026-01-01', 'reading_type' => 'handover',
+            'electricity_old' => 100, 'electricity_new' => 100, 'water_old' => 50, 'water_new' => 50,
+            'status' => 'confirmed']);
 
         return [$contract, $room, $tenant];
     }

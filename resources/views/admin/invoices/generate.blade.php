@@ -59,7 +59,7 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($contracts as $contract)
-                            @php($hasInvoice = in_array($contract->room_id, $issuedRoomIds))
+                            @php($hasInvoice = in_array($contract->id, $issuedContractIds))
                             <tr id="contract-row-{{ $contract->id }}" class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">
                                     <p class="font-semibold text-slate-950">{{ $contract->room->room_code ?? 'Không có' }}</p>

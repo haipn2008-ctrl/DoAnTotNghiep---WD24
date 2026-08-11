@@ -246,7 +246,9 @@ class="nav-link active"
 
 data-bs-toggle="pill"
 
-data-bs-target="#infoTab">
+data-bs-target="#infoTab"
+                    aria-controls="infoTab"
+                    aria-selected="true">
 
 <i class="bi bi-info-circle me-2"></i>
 
@@ -264,7 +266,9 @@ class="nav-link"
 
 data-bs-toggle="pill"
 
-data-bs-target="#contentTab">
+data-bs-target="#contentTab"
+                    aria-controls="contentTab"
+                    aria-selected="false">
 
 <i class="bi bi-file-earmark-richtext me-2"></i>
 
@@ -954,26 +958,42 @@ Thông tin hợp đồng
 
                         <th>
 
-                            Thanh toán
+                            Trạng thái cọc
 
                         </th>
 
                         <td>
 
-                            @if($contract->deposit_confirmed)
+                            @if($contract->deposit_status === \App\Models\Contract::DEPOSIT_PAID)
 
                                 <span class="badge bg-success">
 
-                                    Đã xác nhận
+                                    <i class="bi bi-check-circle-fill me-1"></i>
+
+                                    Đã đóng
+
+                                </span>
+
+                                @if($contract->deposit_paid_at)
+                                    <div class="small text-muted mt-1">
+                                        Ngày đóng: {{ optional($contract->deposit_paid_at)->format('d/m/Y H:i') }}
+                                    </div>
+                                @endif
+
+                            @elseif($contract->deposit_status === \App\Models\Contract::DEPOSIT_PENDING)
+
+                                <span class="badge bg-danger">
+
+                                    <i class="bi bi-x-circle-fill me-1"></i>
+
+                                    Chưa đóng
 
                                 </span>
 
                             @else
 
-                                <span class="badge bg-danger">
-
-                                    Chưa xác nhận
-
+                                <span class="badge bg-warning text-dark">
+                                    {{ $contract->deposit_status_text }}
                                 </span>
 
                             @endif
@@ -1076,9 +1096,6 @@ Thông tin hợp đồng
 
     </div>
 
-</div>
-        </div>
-    </div>
 </div>
 @if($contract->isCompleted())
 
@@ -1217,6 +1234,9 @@ Thông tin hợp đồng
 </div>
 
 @endif
+
+</div> {{-- /#infoTab --}}
+
 {{-- ========================= --}}
 {{-- TAB NỘI DUNG HỢP ĐỒNG --}}
 {{-- ========================= --}}

@@ -19,8 +19,11 @@ class InvoiceGenerator
         $this->ensureContractCanBeBilled($contract, $month, $year);
 
         $reading = UtilityReading::where('room_id', $contract->room_id)
+            ->where(fn ($query) => $query->where('contract_id', $contract->id)
+                ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contract->start_date)))
             ->where('month', $month)
             ->where('year', $year)
+            ->where('reading_type', 'periodic')
             ->where('status', 'confirmed')
             ->first();
 
@@ -30,7 +33,7 @@ class InvoiceGenerator
             ]);
         }
 
-        $existingInvoice = Invoice::where('room_id', $contract->room_id)
+        $existingInvoice = Invoice::where('contract_id', $contract->id)
             ->where('month', $month)
             ->where('year', $year)
             ->exists();
@@ -93,33 +96,35 @@ class InvoiceGenerator
                 'type' => 'water',
                 'name' => 'Tiền nước',
                 'quantity' => $waterUsage,
-                'unit' => 'm3',
+                'unit' => 'm³',
                 'unit_price' => (float) $setting->water_price,
                 'amount' => $waterUsage * (float) $setting->water_price,
                 'old_index' => $reading->water_old,
                 'new_index' => $reading->water_new,
-                'note' => null,
+                'note' => 'Tính theo chỉ số đồng hồ thực tế',
                 'sort_order' => 3,
             ],
         ];
 
         $serviceLines = [
-            ['internet', 'Phí internet', (float) ($setting->internet_fee ?? 0), 4],
-            ['service', 'Phí dịch vụ chung', (float) ($setting->service_fee ?? 0), 5],
-            ['parking', 'Phí gửi xe', (float) ($setting->parking_fee ?? 0), 6],
+            ['internet', 'Phí internet', $contract->internet_enabled ? (float) ($setting->internet_fee ?? 0) : 0, 1, 4],
+            ['service', 'Phí dịch vụ chung', $contract->service_enabled ? (float) ($setting->service_fee ?? 0) : 0, 1, 5],
+            ['parking', 'Phí gửi xe', (float) ($setting->parking_fee ?? 0), (int) $contract->parking_quantity, 6],
         ];
 
-        foreach ($serviceLines as [$type, $name, $amount, $sortOrder]) {
-            if ($amount <= 0) {
+        foreach ($serviceLines as [$type, $name, $unitPrice, $quantity, $sortOrder]) {
+            if ($unitPrice <= 0 || $quantity <= 0) {
                 continue;
             }
+
+            $amount = $unitPrice * $quantity;
 
             $lines[] = [
                 'type' => $type,
                 'name' => $name,
-                'quantity' => 1,
+                'quantity' => $quantity,
                 'unit' => 'thang',
-                'unit_price' => $amount,
+                'unit_price' => $unitPrice,
                 'amount' => $amount,
                 'old_index' => null,
                 'new_index' => null,
@@ -186,15 +191,19 @@ class InvoiceGenerator
                 $invoice->details()->create($line);
             }
 
+            app(TenantAccountLifecycle::class)->sync(
+                $preview['tenant']->loadMissing('user')
+            );
+
             return $invoice->load(['contract.tenant', 'room', 'details']);
         });
     }
 
     private function ensureContractCanBeBilled(Contract $contract, int $month, int $year): void
     {
-        if ($contract->status !== 'active') {
+        if (! in_array($contract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_TERMINATED], true)) {
             throw ValidationException::withMessages([
-                'contract' => 'Chỉ hợp đồng đang hiệu lực mới được sinh hóa đơn.',
+                'contract' => 'Chỉ hợp đồng đang hiệu lực hoặc đã kết thúc trong kỳ mới được sinh hóa đơn.',
             ]);
         }
 

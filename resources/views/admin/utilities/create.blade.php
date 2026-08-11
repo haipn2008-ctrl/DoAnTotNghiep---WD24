@@ -28,6 +28,7 @@
                         @endfor
                     </select>
                 </div>
+                <div><label for="record_date_filter" class="mb-1 block text-xs font-semibold text-slate-600">Ngày chốt</label><input id="record_date_filter" type="date" name="record_date" value="{{ $recordDate }}" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"></div>
                 <button class="h-10 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white">Xem kỳ</button>
             </form>
         </div>
@@ -58,6 +59,7 @@
             @csrf
             <input type="hidden" name="month" value="{{ $month }}">
             <input type="hidden" name="year" value="{{ $year }}">
+            <input type="hidden" name="record_date" value="{{ $recordDate }}">
 
             <div class="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex flex-1 flex-col gap-2 sm:flex-row">

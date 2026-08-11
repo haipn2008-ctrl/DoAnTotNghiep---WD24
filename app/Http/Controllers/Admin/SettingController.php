@@ -18,8 +18,8 @@ class SettingController extends Controller
         'water' => [
             'field' => 'water_price',
             'label' => 'Đơn giá nước',
-            'unit' => 'VNĐ/m3',
-            'description' => 'Giá nước dùng để tính tiền nước theo m3.',
+            'unit' => 'VNĐ/m³',
+            'description' => 'Giá nước dùng để tính theo số m³ tiêu thụ thực tế trên đồng hồ của phòng.',
         ],
         'internet' => [
             'field' => 'internet_fee',
@@ -33,6 +33,18 @@ class SettingController extends Controller
             'unit' => 'VNĐ/tháng',
             'description' => 'Phí dịch vụ chung tính vào hóa đơn.',
         ],
+        'parking' => [
+            'field' => 'parking_fee',
+            'label' => 'Phí gửi xe',
+            'unit' => 'VNĐ/xe/tháng',
+            'description' => 'Phí gửi xe được nhân với số xe đăng ký trong hợp đồng.',
+        ],
+        'bank' => [
+            'field' => null,
+            'label' => 'Tài khoản nhận thanh toán',
+            'unit' => '',
+            'description' => 'Thông tin dùng để tạo mã VietQR có sẵn số tiền và nội dung hóa đơn.',
+        ],
     ];
 
     public function edit(string $type)
@@ -43,7 +55,7 @@ class SettingController extends Controller
 
         $setting = $this->setting();
         $typeData = self::$types[$type];
-        $currentValue = $setting->{$typeData['field']};
+        $currentValue = $type === 'bank' ? null : $setting->{$typeData['field']};
 
         return view('admin.settings.edit', compact('setting', 'type', 'typeData', 'currentValue'));
     }
@@ -57,11 +69,19 @@ class SettingController extends Controller
         $typeData = self::$types[$type];
         $setting = $this->setting();
 
-        $data = $request->validate([
-            $typeData['field'] => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
-        ]);
-
-        $setting->update([$typeData['field'] => $data[$typeData['field']]]);
+        if ($type === 'bank') {
+            $data = $request->validate([
+                'bank_id' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9]+$/'],
+                'bank_account_no' => ['required', 'string', 'max:30', 'regex:/^[0-9]+$/'],
+                'bank_account_name' => ['required', 'string', 'max:100'],
+            ]);
+            $setting->update($data);
+        } else {
+            $data = $request->validate([
+                $typeData['field'] => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
+            ]);
+            $setting->update([$typeData['field'] => $data[$typeData['field']]]);
+        }
 
         return redirect()
             ->route('admin.settings.edit', ['type' => $type])

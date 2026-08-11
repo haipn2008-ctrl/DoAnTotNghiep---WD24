@@ -339,6 +339,7 @@
         $approvedRefund = (float)($contract->deposit_refund_amount ?? 0);
         $refundRequested = $contract->isRefundRequested();
         $refundApproved = $contract->isRefundApproved();
+        $refundRejected = $contract->deposit_status === \App\Models\Contract::DEPOSIT_REFUND_REJECTED;
     @endphp
 
     {{-- MỖI HỢP ĐỒNG CHỈ CÓ 1 MODAL --}}
@@ -663,10 +664,192 @@
                         </button>
                     </div>
                 </div>
-            @endif
+                        @endif
 
         </div>
     </div>
+
+
+    {{-- ===================================================== --}}
+    {{-- MODAL TỪ CHỐI HOÀN CỌC --}}
+    {{-- ===================================================== --}}
+
+    <div
+        id="rejectRefundModal{{ $contract->id }}"
+        class="refund-modal"
+        aria-hidden="true"
+    >
+        <div class="refund-modal-dialog">
+
+            <form
+                method="POST"
+                action="{{ route('admin.deposit-refunds.reject', $contract) }}"
+                class="flex min-h-0 flex-1 flex-col"
+            >
+                @csrf
+
+                {{-- HEADER --}}
+                <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+
+                    <div class="flex items-center gap-3">
+
+                        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
+                            <i class="bx bx-x-circle text-xl"></i>
+                        </div>
+
+                        <div>
+                            <div class="text-[10px] font-bold uppercase tracking-wider text-red-500">
+                                Từ chối hoàn cọc
+                            </div>
+
+                            <div class="text-lg font-bold text-slate-900">
+                                {{ $contract->contract_code }}
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <button
+                        type="button"
+                        data-refund-close="rejectRefundModal{{ $contract->id }}"
+                        class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                        <i class="bx bx-x text-xl"></i>
+                    </button>
+
+                </div>
+
+
+                {{-- BODY --}}
+                <div class="refund-modal-body">
+
+                    {{-- THÔNG TIN HỢP ĐỒNG --}}
+                    <div class="refund-info-grid">
+
+                        <div class="refund-mini">
+                            <div class="label">
+                                Hợp đồng
+                            </div>
+
+                            <div class="value">
+                                {{ $contract->contract_code }}
+                            </div>
+                        </div>
+
+                        <div class="refund-mini">
+                            <div class="label">
+                                Khách thuê
+                            </div>
+
+                            <div class="value truncate">
+                                {{ $contract->tenant->full_name ?? '-' }}
+                            </div>
+                        </div>
+
+                        <div class="refund-mini">
+                            <div class="label">
+                                Phòng
+                            </div>
+
+                            <div
+                                class="value"
+                                style="color:#4f46e5"
+                            >
+                                {{ $contract->room->room_code ?? '-' }}
+                            </div>
+                        </div>
+
+                    </div>
+
+
+                    {{-- CẢNH BÁO --}}
+                    <div class="refund-note"
+                         style="border-color:#fecaca;background:#fef2f2;color:#991b1b;">
+
+                        <i class="bx bx-error-circle"></i>
+
+                        <span>
+                            Bạn đang từ chối yêu cầu hoàn cọc của khách thuê.
+                            Vui lòng nhập lý do trước khi xác nhận.
+                        </span>
+
+                    </div>
+
+
+                    {{-- LÝ DO --}}
+                    <section class="refund-card mt-4">
+
+                        <div class="mb-3 flex items-center gap-3">
+
+                            <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                                <i class="bx bx-message-square-error text-lg"></i>
+                            </div>
+
+                            <div>
+                                <h4 class="font-bold text-slate-900">
+                                    Lý do từ chối
+                                </h4>
+
+                                <p class="text-xs text-slate-500">
+                                    Lý do này sẽ được lưu lại trong hợp đồng.
+                                </p>
+                            </div>
+
+                        </div>
+
+
+                        <div class="refund-field">
+
+                            <label>
+                                Lý do
+                                <span>*</span>
+                            </label>
+
+                            <textarea
+                                name="reason"
+                                rows="5"
+                                maxlength="1000"
+                                required
+                                class="refund-textarea"
+                                placeholder="Nhập lý do từ chối yêu cầu hoàn cọc..."
+                            ></textarea>
+
+                        </div>
+
+                    </section>
+
+                </div>
+
+
+                {{-- FOOTER --}}
+                <div class="refund-footer">
+
+                    <button
+                        type="button"
+                        data-refund-close="rejectRefundModal{{ $contract->id }}"
+                        class="refund-btn cancel"
+                    >
+                        <i class="bx bx-x"></i>
+                        Hủy
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="refund-btn"
+                        style="background:#dc2626;color:#fff;"
+                    >
+                        <i class="bx bx-x-circle"></i>
+                        Xác nhận từ chối
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+
 @endforeach
 
 <script>
