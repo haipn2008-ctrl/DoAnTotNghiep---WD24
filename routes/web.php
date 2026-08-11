@@ -105,6 +105,9 @@ Route::middleware('auth')->group(function () {
             Route::get('contracts/{contract}/file', [ContractController::class, 'file'])
                 ->name('contracts.file');
 
+            Route::post('contracts/{contract}/deposit-invoice', [ContractController::class, 'issueDepositInvoice'])
+                ->name('contracts.deposit-invoice.issue');
+
             // Resource phải đặt SAU CÙNG
             Route::resource('contracts', ContractController::class);
             //

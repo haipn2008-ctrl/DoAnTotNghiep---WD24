@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Contract;
+use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
@@ -51,6 +53,49 @@ class ContractManagementTest extends TestCase
         $this->get("/admin/contracts/{$contract->id}/print")->assertOk()->assertSee($tenant->full_name);
         $this->get('/admin/contracts?status=fake')->assertSessionHasErrors('status');
         $this->get('/admin/contracts/999999')->assertNotFound();
+    }
+
+    public function test_admin_can_issue_one_deposit_invoice_from_contract_detail_and_client_can_see_it(): void
+    {
+        [$contract, , $tenant] = $this->contract();
+        $contract->update(['deposit_amount' => 2000000]);
+
+        $this->actingAs($this->admin)->get("/admin/contracts/{$contract->id}")
+            ->assertOk()->assertSee('Tạo hóa đơn tiền cọc');
+
+        $response = $this->post("/admin/contracts/{$contract->id}/deposit-invoice");
+        $invoice = Invoice::where('contract_id', $contract->id)
+            ->where('invoice_type', Invoice::TYPE_DEPOSIT)->sole();
+
+        $response->assertRedirect(route('admin.invoices.show', $invoice));
+        $this->assertSame('2000000.00', $invoice->total_amount);
+        $this->assertStringStartsWith('DEP-', $invoice->invoice_code);
+        $this->assertDatabaseHas('invoice_details', [
+            'invoice_id' => $invoice->id, 'type' => Invoice::TYPE_DEPOSIT, 'amount' => 2000000,
+        ]);
+
+        $this->post("/admin/contracts/{$contract->id}/deposit-invoice")
+            ->assertRedirect(route('admin.invoices.show', $invoice));
+        $this->assertSame(1, $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->count());
+
+        $this->actingAs($tenant->user)->get(route('client.invoices.show', $invoice))->assertOk();
+    }
+
+    public function test_paying_deposit_invoice_updates_contract_deposit_status(): void
+    {
+        [$contract] = $this->contract();
+        $contract->update(['deposit_amount' => 1500000]);
+        $this->actingAs($this->admin)->post("/admin/contracts/{$contract->id}/deposit-invoice");
+        $invoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->sole();
+
+        $this->post(route('admin.invoices.payments.store', $invoice), [
+            'amount_paid' => 1500000,
+            'payment_date' => now()->toDateString(),
+            'payment_method' => Payment::METHOD_CASH,
+        ])->assertRedirect(route('admin.invoices.show', $invoice));
+
+        $this->assertSame(Contract::DEPOSIT_PAID, $contract->fresh()->deposit_status);
+        $this->assertNotNull($contract->fresh()->deposit_paid_at);
     }
 
     public function test_creating_contract_immediately_activates_it_and_occupies_room_atomically(): void

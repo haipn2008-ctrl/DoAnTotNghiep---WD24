@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Room;
 use App\Models\Setting;
@@ -184,6 +185,70 @@ class ContractController extends Controller
             'contract', 'handoverReading', 'checkoutReading', 'latestReading', 'setting',
             'totalInvoiced', 'totalPaid', 'totalOutstanding'
         ));
+    }
+
+    public function issueDepositInvoice(Contract $contract)
+    {
+        if (! in_array($contract->status, [Contract::STATUS_PENDING, Contract::STATUS_ACTIVE], true)) {
+            return back()->with('error', 'Chỉ có thể phát hành hóa đơn cọc cho hợp đồng đang chờ ký hoặc đang hiệu lực.');
+        }
+
+        if ((float) $contract->deposit_amount <= 0) {
+            return back()->with('error', 'Hợp đồng không có số tiền cọc để phát hành hóa đơn.');
+        }
+
+        try {
+            $invoice = DB::transaction(function () use ($contract) {
+                $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+                $existing = $contract->invoices()
+                    ->where('invoice_type', Invoice::TYPE_DEPOSIT)
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+
+                $invoiceDate = now();
+                $dueDays = (int) (Setting::currentOrCreate()->payment_due_days ?? 10);
+                $invoice = Invoice::create([
+                    'contract_id' => $contract->id,
+                    'room_id' => $contract->room_id,
+                    'invoice_type' => Invoice::TYPE_DEPOSIT,
+                    'invoice_code' => null,
+                    'month' => $invoiceDate->month,
+                    'year' => $invoiceDate->year,
+                    'invoice_date' => $invoiceDate->toDateString(),
+                    'due_date' => $invoiceDate->copy()->addDays($dueDays)->toDateString(),
+                    'room_fee' => 0,
+                    'total_amount' => $contract->deposit_amount,
+                    'status' => Invoice::STATUS_UNPAID,
+                ]);
+
+                $invoice->update([
+                    'invoice_code' => sprintf('DEP-%04d%02d-%06d', $invoiceDate->year, $invoiceDate->month, $invoice->id),
+                ]);
+                $invoice->details()->create([
+                    'type' => Invoice::TYPE_DEPOSIT,
+                    'name' => 'Tiền cọc hợp đồng '.$contract->contract_code,
+                    'quantity' => 1,
+                    'unit' => 'lần',
+                    'unit_price' => $contract->deposit_amount,
+                    'amount' => $contract->deposit_amount,
+                    'note' => 'Khoản cọc nhận phòng',
+                    'sort_order' => 1,
+                ]);
+
+                return $invoice;
+            });
+        } catch (\Illuminate\Database\QueryException) {
+            $invoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->first();
+            if (! $invoice) {
+                return back()->with('error', 'Không thể phát hành hóa đơn tiền cọc. Vui lòng thử lại.');
+            }
+        }
+
+        return redirect()->route('admin.invoices.show', $invoice)
+            ->with('success', 'Phát hành hóa đơn tiền cọc thành công.');
     }
 
     public function edit(Contract $contract)

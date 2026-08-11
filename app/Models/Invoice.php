@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
+    const TYPE_RENTAL = 'rental';
+
+    const TYPE_DEPOSIT = 'deposit';
+
     /*
     |--------------------------------------------------------------------------
     | Invoice Status
@@ -29,6 +33,8 @@ class Invoice extends Model
         'contract_id',
 
         'invoice_code',
+
+        'invoice_type',
 
         'room_id',
         'utility_reading_id',
@@ -262,6 +268,15 @@ class Invoice extends Model
         }
 
         $this->save();
+
+        if ($this->invoice_type === self::TYPE_DEPOSIT && $this->contract) {
+            $this->contract->update([
+                'deposit_status' => $this->status === self::STATUS_PAID
+                    ? Contract::DEPOSIT_PAID
+                    : Contract::DEPOSIT_PENDING,
+                'deposit_paid_at' => $this->status === self::STATUS_PAID ? now() : null,
+            ]);
+        }
 
         return $this;
     }

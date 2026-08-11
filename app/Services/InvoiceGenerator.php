@@ -34,6 +34,7 @@ class InvoiceGenerator
         }
 
         $existingInvoice = Invoice::where('contract_id', $contract->id)
+            ->where('invoice_type', Invoice::TYPE_RENTAL)
             ->where('month', $month)
             ->where('year', $year)
             ->exists();
@@ -167,6 +168,7 @@ class InvoiceGenerator
 
             $invoice = Invoice::create([
                 'contract_id' => $preview['contract']->id,
+                'invoice_type' => Invoice::TYPE_RENTAL,
                 'room_id' => $preview['room']->id,
                 'invoice_code' => null,
                 'utility_reading_id' => $preview['reading']->id,

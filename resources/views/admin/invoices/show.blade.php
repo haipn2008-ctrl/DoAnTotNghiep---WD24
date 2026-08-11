@@ -116,7 +116,7 @@
                 <h3 class="font-semibold text-slate-950">Thông tin hóa đơn</h3>
 
                 <div class="mt-5 space-y-4 text-sm">
-                    <div class="flex justify-between gap-4"><span class="text-slate-500">Kỳ hóa đơn</span><span class="font-semibold text-slate-950">Tháng {{ $invoice->month }}/{{ $invoice->year }}</span></div>
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Loại hóa đơn</span><span class="font-semibold text-slate-950">{{ $invoice->invoice_type === \App\Models\Invoice::TYPE_DEPOSIT ? 'Tiền cọc' : 'Tiền thuê tháng '.$invoice->month.'/'.$invoice->year }}</span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Ngày lập</span><span class="font-semibold text-slate-950">{{ \Carbon\Carbon::parse($invoice->invoice_date)->format('d/m/Y') }}</span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Hạn thanh toán</span><span class="font-semibold text-slate-950">{{ \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') }}</span></div>
                     <div class="border-t border-slate-200 pt-4"></div>

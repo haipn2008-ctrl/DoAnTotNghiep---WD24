@@ -212,6 +212,7 @@ class InvoiceController extends Controller
 
         $issuedContractIds = Invoice::where('month', $month)
             ->where('year', $year)
+            ->where('invoice_type', Invoice::TYPE_RENTAL)
             ->pluck('contract_id')
             ->toArray();
 

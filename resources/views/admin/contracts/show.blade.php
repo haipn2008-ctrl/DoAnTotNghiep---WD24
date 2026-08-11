@@ -12,6 +12,7 @@
         'expired' => ['label' => 'Hết hạn', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
     ];
     $status = $statusOptions[$contract->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'];
+    $depositInvoice = $contract->invoices->firstWhere('invoice_type', \App\Models\Invoice::TYPE_DEPOSIT);
 @endphp
 
 @section('content')
@@ -23,6 +24,20 @@
             </div>
 
             <div class="flex flex-wrap gap-2">
+                @if($depositInvoice)
+                    <a href="{{ route('admin.invoices.show', $depositInvoice) }}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
+                        <i class="bx bx-receipt text-lg"></i>
+                        Xem hóa đơn tiền cọc
+                    </a>
+                @elseif((float) $contract->deposit_amount > 0 && in_array($contract->status, [\App\Models\Contract::STATUS_PENDING, \App\Models\Contract::STATUS_ACTIVE], true))
+                    <form method="POST" action="{{ route('admin.contracts.deposit-invoice.issue', $contract) }}" onsubmit="return confirm('Phát hành hóa đơn tiền cọc cho khách thuê?')">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
+                            <i class="bx bx-receipt text-lg"></i>
+                            Tạo hóa đơn tiền cọc
+                        </button>
+                    </form>
+                @endif
                 <a href="{{ route('admin.contracts.edit', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                     <i class="bx bx-edit text-lg"></i>
                     Cập nhật hợp đồng
