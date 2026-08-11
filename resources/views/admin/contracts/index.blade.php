@@ -5,10 +5,15 @@
 
 @php
     $statusOptions = [
+        'draft' => ['label' => 'Bản nháp', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'],
+        'pending_signature' => ['label' => 'Chờ ký', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
+        'pending_deposit' => ['label' => 'Chờ cọc', 'class' => 'bg-orange-50 text-orange-700 ring-orange-200', 'dot' => 'bg-orange-500'],
+        'awaiting_move_in' => ['label' => 'Chờ nhận phòng', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200', 'dot' => 'bg-sky-500'],
         'active' => ['label' => 'Đang thuê', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
-        'terminated' => ['label' => 'Đã kết thúc', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
-        'expired' => ['label' => 'Hết hạn', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
-        'pending' => ['label' => 'Chờ xử lý', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'],
+        'expired' => ['label' => 'Quá hạn vẫn ở', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
+        'settling' => ['label' => 'Đang quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200', 'dot' => 'bg-violet-500'],
+        'completed' => ['label' => 'Hoàn tất', 'class' => 'bg-green-50 text-green-700 ring-green-200', 'dot' => 'bg-green-500'],
+        'cancelled' => ['label' => 'Đã hủy', 'class' => 'bg-gray-50 text-gray-700 ring-gray-200', 'dot' => 'bg-gray-500'],
     ];
 @endphp
 
@@ -106,6 +111,7 @@
                                         <span class="h-1.5 w-1.5 rounded-full {{ $status['dot'] }}"></span>
                                         {{ $status['label'] }}
                                     </span>
+                                    @if($contract->isReservationOverdue())<p class="mt-1 text-xs font-semibold text-rose-700">Quá hạn nhận phòng</p>@endif
                                 </td>
                                 <td class="px-5 py-4">
                                     <div class="flex justify-end gap-2">

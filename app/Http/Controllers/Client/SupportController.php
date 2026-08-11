@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contract;
 use App\Models\SupportRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -42,7 +43,7 @@ class SupportController extends Controller
             DB::transaction(function () use ($attachment, $data, $request) {
                 $tenant = $request->user()->tenant()->lockForUpdate()->first();
                 $activeContract = $tenant?->contracts()
-                    ->where('status', 'active')
+                    ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
                     ->latest('start_date')
                     ->lockForUpdate()
                     ->first();

@@ -127,14 +127,13 @@ class TenantManagementTest extends TestCase
             'date_of_birth' => now()->addDay()->toDateString(),
             'gender' => 'invalid',
             'cccd' => $existing->cccd,
-            'cccd_issue_date' => now()->addDay()->toDateString(),
             'phone' => $existing->phone,
             'email' => $existing->email,
             'address' => str_repeat('a', 501),
         ])->assertRedirect('/admin/tenants/create')
             ->assertSessionHasErrors([
                 'user_id', 'full_name', 'date_of_birth', 'gender', 'cccd',
-                'cccd_issue_date', 'phone', 'email', 'address',
+                'phone', 'email', 'address',
             ]);
 
         $this->assertSame($before, Tenant::count());
@@ -331,7 +330,7 @@ class TenantManagementTest extends TestCase
             'area' => 25,
             'status' => $status === Contract::STATUS_ACTIVE ? Room::STATUS_OCCUPIED : Room::STATUS_AVAILABLE,
         ]);
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'TENANT-CONTRACT-'.$tenant->id,
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,

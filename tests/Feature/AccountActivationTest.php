@@ -95,6 +95,28 @@ class AccountActivationTest extends TestCase
         $this->assertSame($originalPassword, $user->password);
     }
 
+    public function test_activation_automatically_creates_basic_tenant_profile_without_occupants(): void
+    {
+        $user = $this->pendingClient('new-tenant@example.com');
+        $this->assertNull($user->tenant);
+
+        $this->actingAs($user)->post('/activate-account', [
+            'name' => 'Khách vừa kích hoạt',
+            'phone' => '0912345678',
+            'password' => 'new-secure-password',
+            'password_confirmation' => 'new-secure-password',
+            'accept_terms' => '1',
+        ])->assertRedirect('/dashboard')->assertSessionHasNoErrors();
+
+        $tenant = $user->fresh()->tenant;
+        $this->assertNotNull($tenant);
+        $this->assertSame('Khách vừa kích hoạt', $tenant->full_name);
+        $this->assertSame('0912345678', $tenant->phone);
+        $this->assertSame('new-tenant@example.com', $tenant->email);
+        $this->assertNull($tenant->cccd);
+        $this->assertDatabaseCount('contract_occupants', 0);
+    }
+
     public function test_activation_rejects_reusing_temporary_password(): void
     {
         $user = $this->pendingClient();

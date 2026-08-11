@@ -30,6 +30,16 @@ class Setting extends Model
         'bank_account_no',
         'bank_account_name',
 
+        'property_name',
+        'property_address',
+        'landlord_name',
+        'landlord_date_of_birth',
+        'landlord_identity_number',
+        'landlord_identity_issued_at',
+        'landlord_identity_issued_by',
+        'landlord_phone',
+        'landlord_address',
+
         'is_active',
     ];
 
@@ -51,6 +61,9 @@ class Setting extends Model
         'invoice_day' => 'integer',
 
         'payment_due_days' => 'integer',
+
+        'landlord_date_of_birth' => 'date',
+        'landlord_identity_issued_at' => 'date',
 
         'is_active' => 'boolean',
     ];

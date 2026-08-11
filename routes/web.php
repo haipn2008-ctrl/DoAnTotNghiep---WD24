@@ -2,7 +2,9 @@
 
 // Admin routes
 use App\Http\Controllers\Admin\ContractController;
+use App\Http\Controllers\Admin\ContractOccupantController;
 use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\RoomEvidenceController;
@@ -15,6 +17,7 @@ use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Client\AccountController as ClientAccountController;
 use App\Http\Controllers\Client\ContractController as ClientContractController;
+use App\Http\Controllers\Client\ContractOccupantController as ClientContractOccupantController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\RoomController as ClientRoomController;
@@ -26,6 +29,7 @@ use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
+use App\Services\ContractLifecycleService;
 use Illuminate\Support\Facades\Route;
 
 // Tự động chuyển hướng về trang dashboard để kiểm tra đăng nhập
@@ -105,8 +109,34 @@ Route::middleware('auth')->group(function () {
             Route::post('contracts/{contract}/deposit-invoice', [ContractController::class, 'issueDepositInvoice'])
                 ->name('contracts.deposit-invoice.issue');
 
+            Route::post('contracts/{contract}/submit-for-signature', [ContractController::class, 'submitForSignature'])
+                ->name('contracts.submit-for-signature');
+            Route::post('contracts/{contract}/return-to-draft', [ContractController::class, 'returnToDraft'])
+                ->name('contracts.return-to-draft');
+            Route::post('contracts/{contract}/mark-signed', [ContractController::class, 'markAsSigned'])
+                ->name('contracts.mark-signed');
+            Route::post('contracts/{contract}/check-in', [ContractController::class, 'checkIn'])
+                ->name('contracts.check-in');
+            Route::post('contracts/{contract}/extend-move-in-deadline', [ContractController::class, 'extendMoveInDeadline'])
+                ->name('contracts.extend-move-in-deadline');
+            Route::post('contracts/{contract}/cancel', [ContractController::class, 'cancel'])
+                ->name('contracts.cancel');
+            Route::post('contracts/{contract}/check-out', [ContractController::class, 'checkOut'])
+                ->name('contracts.check-out');
+            Route::post('contracts/{contract}/complete-settlement', [ContractController::class, 'completeSettlement'])
+                ->name('contracts.complete-settlement');
+            Route::post('contract-occupants/{occupant}/approve', [ContractOccupantController::class, 'approve'])
+                ->name('contract-occupants.approve');
+            Route::post('contract-occupants/{occupant}/reject', [ContractOccupantController::class, 'reject'])
+                ->name('contract-occupants.reject');
+            Route::post('contract-occupants/{occupant}/move-out', [ContractOccupantController::class, 'moveOut'])
+                ->name('contract-occupants.move-out');
+            Route::get('contract-occupants/{occupant}/identity/{side}', [ContractController::class, 'identityDocument'])
+                ->whereIn('side', ['front', 'back'])
+                ->name('contract-occupants.identity-document');
+
             // Resource phải đặt SAU CÙNG
-            Route::resource('contracts', ContractController::class);
+            Route::resource('contracts', ContractController::class)->except(['destroy']);
             //
             // Chức năng điện nước
             Route::get('/utilities/create', [UtilityController::class, 'create'])
@@ -181,16 +211,18 @@ Route::middleware('auth')->group(function () {
                 ->name('overview.fill-rate');
 
             Route::get('/settings/{type}', [SettingController::class, 'edit'])
-                ->where('type', 'fees|electricity|water|internet|service|parking|bank')
+                ->where('type', 'fees|property-payment|electricity|water|internet|service|parking|bank|property')
                 ->name('settings.edit');
 
             Route::put('/settings/{type}', [SettingController::class, 'update'])
-                ->where('type', 'fees|electricity|water|internet|service|parking|bank')
+                ->where('type', 'fees|property-payment|electricity|water|internet|service|parking|bank|property')
                 ->name('settings.update');
 
             Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');
             Route::get('/support/{supportRequest}/attachment', [AdminSupportController::class, 'attachment'])->name('support.attachment');
             Route::put('/support/{supportRequest}', [AdminSupportController::class, 'update'])->name('support.update');
+
+            Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
 
             Route::get('/roles', function () {
                 $roles = Role::all();
@@ -199,6 +231,9 @@ Route::middleware('auth')->group(function () {
             })->name('roles');
 
             Route::get('/', function () {
+                // Scheduler vẫn là nguồn xử lý chính; lần mở dashboard này là fallback idempotent
+                // để Admin luôn thấy cảnh báo mới trên chuông ngay cả khi local scheduler chưa chạy.
+                app(ContractLifecycleService::class)->processDailyAlerts();
                 $currentMonth = now()->month;
                 $currentYear = now()->year;
 
@@ -242,6 +277,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/contracts', [ClientContractController::class, 'index'])->name('contracts.index');
             Route::get('/contracts/{contract}', [ClientContractController::class, 'show'])->name('contracts.show');
             Route::get('/contracts/{contract}/file', [ClientContractController::class, 'file'])->name('contracts.file');
+            Route::post('/contracts/{contract}/occupants', [ClientContractOccupantController::class, 'store'])->name('contracts.occupants.store');
+            Route::post('/contracts/{contract}/occupants/{occupant}/withdraw', [ClientContractOccupantController::class, 'withdraw'])->name('contracts.occupants.withdraw');
             Route::get('/support', [ClientSupportController::class, 'index'])->middleware('rental.active')->name('support.index');
             Route::post('/support', [ClientSupportController::class, 'store'])->middleware('rental.active')->name('support.store');
             Route::get('/support/{supportRequest}/attachment', [ClientSupportController::class, 'attachment'])->middleware('rental.active')->name('support.attachment');

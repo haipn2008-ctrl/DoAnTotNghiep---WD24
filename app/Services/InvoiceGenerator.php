@@ -203,7 +203,7 @@ class InvoiceGenerator
 
     private function ensureContractCanBeBilled(Contract $contract, int $month, int $year): void
     {
-        if (! in_array($contract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_TERMINATED], true)) {
+        if (! in_array($contract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_SETTLING], true)) {
             throw ValidationException::withMessages([
                 'contract' => 'Chỉ hợp đồng đang hiệu lực hoặc đã kết thúc trong kỳ mới được sinh hóa đơn.',
             ]);
@@ -226,6 +226,9 @@ class InvoiceGenerator
 
     private function resolveContractEffectiveEnd(Contract $contract): Carbon
     {
+        if ($contract->status === Contract::STATUS_EXPIRED && ! $contract->actual_move_out_at) {
+            return now()->endOfMonth();
+        }
         if ($contract->actual_end_date) {
             return Carbon::parse($contract->actual_end_date)->endOfDay();
         }

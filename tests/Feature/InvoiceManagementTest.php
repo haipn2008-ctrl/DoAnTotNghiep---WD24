@@ -113,11 +113,11 @@ class InvoiceManagementTest extends TestCase
         $contract->update(['start_date' => '2026-08-01']);
         $this->post('/admin/invoices/generate', ['contract_id' => $contract->id, 'month' => 7, 'year' => 2026])
             ->assertSessionHasErrors('contract');
-        $contract->update([
+        $contract->forceFill([
             'start_date' => '2026-01-01',
             'actual_end_date' => '2026-06-30',
             'status' => Contract::STATUS_TERMINATED,
-        ]);
+        ])->save();
         $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", ['month' => 7, 'year' => 2026])->assertStatus(422);
         $this->assertDatabaseCount('invoices', 0);
     }
@@ -125,7 +125,7 @@ class InvoiceManagementTest extends TestCase
     public function test_terminated_and_active_contracts_in_same_room_and_month_can_receive_separate_invoices(): void
     {
         [$newContract, $room, $tenant] = $this->fixture('SAME-ROOM-NEW', 8);
-        $oldContract = Contract::create([
+        $oldContract = Contract::query()->forceCreate([
             'contract_code' => 'CONTRACT-SAME-ROOM-OLD',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,
@@ -176,10 +176,10 @@ class InvoiceManagementTest extends TestCase
     public function test_issuing_final_invoice_moves_inactive_former_tenant_to_settling(): void
     {
         [$contract, , $tenant] = $this->fixture('FINAL-INVOICE');
-        $contract->update([
+        $contract->forceFill([
             'actual_end_date' => '2026-07-10',
             'status' => Contract::STATUS_TERMINATED,
-        ]);
+        ])->save();
         $tenant->user->update(['status' => User::STATUS_INACTIVE]);
 
         $invoice = $this->issue($contract);
@@ -191,7 +191,7 @@ class InvoiceManagementTest extends TestCase
     public function test_previous_tenant_invoice_does_not_disable_new_contract_in_same_room_and_month(): void
     {
         [$newContract, $room, $tenant] = $this->fixture('TURNOVER-INVOICE');
-        $oldContract = Contract::create([
+        $oldContract = Contract::query()->forceCreate([
             'contract_code' => 'CONTRACT-OLD-TURNOVER', 'room_id' => $room->id,
             'tenant_id' => $tenant->id, 'monthly_rent' => 3000000,
             'start_date' => '2026-01-01', 'end_date' => '2026-07-10',
@@ -206,8 +206,7 @@ class InvoiceManagementTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/invoices/generate?month=7&year=2026')
             ->assertOk()
-            ->assertViewHas('issuedContractIds', fn ($ids) =>
-                in_array($oldContract->id, $ids) && ! in_array($newContract->id, $ids)
+            ->assertViewHas('issuedContractIds', fn ($ids) => in_array($oldContract->id, $ids) && ! in_array($newContract->id, $ids)
             );
     }
 
@@ -249,7 +248,7 @@ class InvoiceManagementTest extends TestCase
             'cccd' => str_pad((string) abs(crc32($key)), 12, '0'), 'phone' => '09'.str_pad((string) abs(crc32('p'.$key)), 8, '0')]);
         $room = Room::create(['room_code' => 'ROOM-'.$key, 'floor' => 1, 'price' => 3000000,
             'area' => 25, 'max_people' => 4, 'current_people' => 1, 'status' => Room::STATUS_OCCUPIED]);
-        $contract = Contract::create(['contract_code' => 'CONTRACT-'.$key, 'room_id' => $room->id,
+        $contract = Contract::query()->forceCreate(['contract_code' => 'CONTRACT-'.$key, 'room_id' => $room->id,
             'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'start_date' => '2026-01-01',
             'end_date' => '2026-12-31', 'status' => Contract::STATUS_ACTIVE,
             'internet_enabled' => true, 'service_enabled' => true, 'parking_quantity' => 1]);

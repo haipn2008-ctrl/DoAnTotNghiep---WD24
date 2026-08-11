@@ -79,7 +79,7 @@
                 ['label' => 'Tài khoản', 'route' => 'admin.users.index', 'active' => request()->routeIs('admin.users*')],
                 ['label' => 'Phân quyền', 'route' => 'admin.roles', 'active' => request()->routeIs('admin.roles')],
                 ['label' => 'Phí dịch vụ', 'route' => 'admin.settings.edit', 'params' => ['type' => 'fees'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'fees']))],
-                ['label' => 'Tài khoản nhận tiền', 'route' => 'admin.settings.edit', 'params' => ['type' => 'bank'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'bank']))],
+                ['label' => 'Nhà trọ & thanh toán', 'route' => 'admin.settings.edit', 'params' => ['type' => 'property-payment'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'property-payment']))],
             ],
         ],
     ];

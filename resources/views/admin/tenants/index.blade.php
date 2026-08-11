@@ -56,8 +56,8 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($tenants as $tenant)
                             @php
-                                $activeContract = $tenant->contracts
-                                    ->where('status', 'active')
+                                $activeContract = $tenant->contracts->concat($tenant->memberContracts)
+                                    ->whereIn('status', ['active', 'expired'])
                                     ->first();
                             @endphp
 
@@ -97,7 +97,7 @@
                                         <a href="{{ route('admin.tenants.edit', $tenant) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa">
                                             <i class="bx bx-edit text-lg"></i>
                                         </a>
-                                        @if ($tenant->contracts->isEmpty())
+                                        @if ($tenant->contracts->isEmpty() && $tenant->memberContracts->isEmpty())
                                             <form action="{{ route('admin.tenants.destroy', $tenant) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa khách thuê này?')">
                                                 @csrf
                                                 @method('DELETE')

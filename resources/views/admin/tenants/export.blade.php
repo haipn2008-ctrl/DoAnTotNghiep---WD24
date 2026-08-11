@@ -58,8 +58,8 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($tenants as $tenant)
                             @php
-                                $activeRoom = $tenant->contracts
-                                    ->where('status', 'active')
+                                $activeRoom = $tenant->contracts->concat($tenant->memberContracts)
+                                    ->whereIn('status', ['active', 'expired'])
                                     ->pluck('room.room_code')
                                     ->first();
                             @endphp

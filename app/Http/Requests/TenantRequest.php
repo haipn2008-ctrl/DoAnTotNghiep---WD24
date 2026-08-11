@@ -38,15 +38,6 @@ class TenantRequest extends FormRequest
                 Rule::unique('tenants')->ignore($tenantId),
             ],
 
-            'cccd_issue_date' => [
-                'nullable',
-                'date',
-                'before_or_equal:today',
-                Rule::when($this->filled('date_of_birth'), 'after:date_of_birth'),
-            ],
-
-            'cccd_issue_place' => 'nullable|max:255',
-
             'phone' => [
                 'required',
                 'regex:/^[0-9]{10,15}$/',

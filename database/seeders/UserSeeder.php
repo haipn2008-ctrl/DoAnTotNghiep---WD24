@@ -26,6 +26,11 @@ class UserSeeder extends Seeder
             ['name' => 'Hoàng Tuấn Kiệt', 'email' => 'tuankiet@example.test', 'phone' => '0912345607', 'password' => 'Tenant@123456', 'role' => 'User'],
             ['name' => 'Ngô Phương Uyên', 'email' => 'phuonguyen@example.test', 'phone' => '0912345608', 'password' => 'Tenant@123456', 'role' => 'User'],
 
+            // Tài khoản Client trống dành riêng cho kiểm thử thủ công vòng đời hợp đồng.
+            ['name' => 'QA Khách A', 'email' => 'qa.client.a@example.test', 'phone' => '0920000001', 'password' => 'Test@123456', 'role' => 'User'],
+            ['name' => 'QA Khách B', 'email' => 'qa.client.b@example.test', 'phone' => '0920000002', 'password' => 'Test@123456', 'role' => 'User'],
+            ['name' => 'QA Khách C', 'email' => 'qa.client.c@example.test', 'phone' => '0920000003', 'password' => 'Test@123456', 'role' => 'User'],
+
             // Manual QA accounts for AUTH-01 through AUTH-13. Password: Auth@123456.
             ['name' => 'AUTH Quản trị viên đang hoạt động', 'email' => 'auth.admin@example.test', 'password' => 'Auth@123456', 'role' => 'Admin'],
             ['name' => 'AUTH Khách thuê đang hoạt động', 'email' => 'auth.client@example.test', 'password' => 'Auth@123456', 'role' => 'User'],

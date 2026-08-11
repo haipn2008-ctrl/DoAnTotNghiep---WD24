@@ -4,8 +4,9 @@
 @section('page_title', 'Chi tiết khách thuê')
 
 @php
-    $tenant->loadMissing(['user', 'contracts.room']);
-    $activeContract = $tenant->contracts->where('status', 'active')->first();
+    $tenant->loadMissing(['user', 'contracts.room', 'memberContracts.room']);
+    $allContracts = $tenant->contracts->concat($tenant->memberContracts)->unique('id')->sortByDesc('id')->values();
+    $activeContract = $allContracts->whereIn('status', ['active', 'expired'])->first();
     $contractStatusLabels = [
         'pending' => ['label' => 'Chờ xử lý', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'],
         'active' => ['label' => 'Đang hiệu lực', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
@@ -16,8 +17,6 @@
         ['label' => 'Ngày sinh', 'value' => $tenant->date_of_birth ? \Carbon\Carbon::parse($tenant->date_of_birth)->format('d/m/Y') : 'Chưa cập nhật'],
         ['label' => 'Giới tính', 'value' => ['male' => 'Nam', 'female' => 'Nữ', 'other' => 'Khác'][$tenant->gender] ?? 'Chưa cập nhật'],
         ['label' => 'CCCD', 'value' => $tenant->cccd],
-        ['label' => 'Ngày cấp CCCD', 'value' => $tenant->cccd_issue_date ? \Carbon\Carbon::parse($tenant->cccd_issue_date)->format('d/m/Y') : 'Chưa cập nhật'],
-        ['label' => 'Nơi cấp CCCD', 'value' => $tenant->cccd_issue_place ?: 'Chưa cập nhật'],
         ['label' => 'Số điện thoại', 'value' => $tenant->phone],
         ['label' => 'Email', 'value' => $tenant->email ?: 'Chưa cập nhật'],
         ['label' => 'Địa chỉ', 'value' => $tenant->address ?: 'Chưa cập nhật'],
@@ -92,11 +91,16 @@
             </div>
 
             <div class="divide-y divide-slate-100">
-                @forelse ($tenant->contracts as $contract)
+                @forelse ($allContracts as $contract)
                     @php($contractStatus = $contractStatusLabels[$contract->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
                     <div class="flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center">
                         <div>
-                            <p class="font-semibold text-slate-950">{{ $contract->contract_code }}</p>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <a href="{{ route('admin.contracts.show', $contract) }}" class="font-semibold text-slate-950 hover:text-indigo-700 hover:underline">{{ $contract->contract_code }}</a>
+                                <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
+                                    {{ (int) ($contract->representative_tenant_id ?: $contract->tenant_id) === (int) $tenant->id ? 'Người đại diện' : 'Thành viên' }}
+                                </span>
+                            </div>
                             <p class="mt-1 text-sm text-slate-500">
                                 Phòng {{ $contract->room->room_code ?? 'Không có' }} ·
                                 {{ $contract->start_date ? \Carbon\Carbon::parse($contract->start_date)->format('d/m/Y') : '---' }}
@@ -107,7 +111,7 @@
                         <span class="inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $contractStatus['class'] }}">{{ $contractStatus['label'] }}</span>
                     </div>
                 @empty
-                    <div class="px-5 py-8 text-center text-sm text-slate-500">Khách thuê chưa có hợp đồng.</div>
+                    <div class="px-5 py-8 text-center text-sm text-slate-500">Khách thuê chưa đứng tên hoặc tham gia hợp đồng nào.</div>
                 @endforelse
             </div>
         </section>

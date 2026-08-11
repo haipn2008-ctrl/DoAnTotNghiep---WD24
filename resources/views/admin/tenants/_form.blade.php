@@ -70,18 +70,6 @@
         </div>
 
         <div>
-            <label for="cccd_issue_date" class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày cấp CCCD</label>
-            <input id="cccd_issue_date" type="date" name="cccd_issue_date" value="{{ old('cccd_issue_date', $tenant->cccd_issue_date ?? '') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-            @error('cccd_issue_date') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
-        </div>
-
-        <div class="md:col-span-2">
-            <label for="cccd_issue_place" class="mb-1.5 block text-sm font-semibold text-slate-700">Nơi cấp CCCD</label>
-            <input id="cccd_issue_place" type="text" name="cccd_issue_place" value="{{ old('cccd_issue_place', $tenant->cccd_issue_place ?? '') }}" placeholder="Cục Cảnh sát QLHC về TTXH" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-            @error('cccd_issue_place') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
-        </div>
-
-        <div>
             <label for="phone" class="mb-1.5 block text-sm font-semibold text-slate-700">Số điện thoại</label>
             <input id="phone" type="text" name="phone" value="{{ old('phone', $tenant->phone ?? '') }}" placeholder="0366xxxxxx" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
             @error('phone') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror

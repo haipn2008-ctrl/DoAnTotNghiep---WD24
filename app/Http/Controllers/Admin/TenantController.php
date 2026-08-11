@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TenantRequest;
+use App\Models\Contract;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Csv;
@@ -24,6 +25,7 @@ class TenantController extends Controller
         $tenants = Tenant::with([
             'user',
             'contracts.room',
+            'memberContracts.room',
         ])
             ->when($search, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
@@ -44,7 +46,7 @@ class TenantController extends Controller
 
     public function exportForm()
     {
-        $tenants = Tenant::with(['contracts.room'])
+        $tenants = Tenant::with(['contracts.room', 'memberContracts.room'])
             ->latest()
             ->paginate(10);
 
@@ -56,6 +58,7 @@ class TenantController extends Controller
         $tenants = Tenant::with([
             'user',
             'contracts.room',
+            'memberContracts.room',
         ])
             ->orderBy('id');
 
@@ -83,8 +86,8 @@ class TenantController extends Controller
             Csv::writeRow($file, $columns);
 
             foreach ($tenants->lazy(500) as $tenant) {
-                $activeRoom = $tenant->contracts
-                    ->where('status', 'active')
+                $activeRoom = $tenant->contracts->concat($tenant->memberContracts)
+                    ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
                     ->pluck('room.room_code')
                     ->first();
 
@@ -134,7 +137,7 @@ class TenantController extends Controller
 
     public function show(Tenant $tenant)
     {
-        $tenant->load(['user', 'contracts.room']);
+        $tenant->load(['user', 'contracts.room', 'memberContracts.room']);
 
         return view(
             'admin.tenants.show',
@@ -177,7 +180,7 @@ class TenantController extends Controller
             $deleted = DB::transaction(function () use ($tenant): bool {
                 $tenant = Tenant::lockForUpdate()->findOrFail($tenant->id);
 
-                if ($tenant->contracts()->exists()) {
+                if ($tenant->contracts()->exists() || $tenant->memberContracts()->exists()) {
                     return false;
                 }
 

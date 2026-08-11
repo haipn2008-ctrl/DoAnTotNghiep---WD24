@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Contract;
+use App\Models\ContractOccupant;
+use App\Models\ContractOccupantHistory;
 use App\Models\Invoice;
 use App\Models\InvoiceDetail;
 use App\Models\Payment;
@@ -49,7 +51,7 @@ class AuthenticationScenarioSeeder extends Seeder
                 'AUTH-SETTLING',
                 '099000000003',
                 '0900000103',
-                Contract::STATUS_EXPIRED,
+                Contract::STATUS_SETTLING,
                 Room::STATUS_AVAILABLE,
                 now()->subYear()->startOfMonth(),
                 now()->subMonth()->endOfMonth(),
@@ -146,6 +148,7 @@ class AuthenticationScenarioSeeder extends Seeder
         Carbon $endDate,
         string $invoiceStatus,
     ): void {
+        $checkedOut = in_array($contractStatus, [Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED], true);
         $user = User::where('email', $email)->sole();
         $room = Room::updateOrCreate(
             ['room_code' => $code],
@@ -173,29 +176,75 @@ class AuthenticationScenarioSeeder extends Seeder
                 'address' => 'Địa chỉ kiểm thử kịch bản AUTH',
             ]
         );
+        $memberSuffix = str_pad((string) (abs(crc32($code)) % 100000000), 8, '0', STR_PAD_LEFT);
+        $member = Tenant::updateOrCreate(
+            ['cccd' => '0792'.$memberSuffix],
+            [
+                'user_id' => null,
+                'full_name' => 'Thành viên '.$code,
+                'date_of_birth' => '2000-01-15',
+                'gender' => 'other',
+                'cccd_issue_date' => '2022-01-15',
+                'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
+                'phone' => '08'.$memberSuffix,
+                'email' => strtolower($code).'.member@example.test',
+                'address' => 'Địa chỉ thành viên kiểm thử '.$code,
+            ]
+        );
         $contract = Contract::updateOrCreate(
             ['contract_code' => "HD-{$code}"],
             [
                 'room_id' => $room->id,
                 'tenant_id' => $tenant->id,
                 'representative_tenant_id' => $tenant->id,
+                'representative_is_occupant' => true,
                 'monthly_rent' => 3500000,
                 'deposit_amount' => 7000000,
-                'deposit_status' => $contractStatus === Contract::STATUS_EXPIRED
-                    ? Contract::DEPOSIT_RETURNED
-                    : Contract::DEPOSIT_PAID,
+                'deposit_status' => Contract::DEPOSIT_PAID,
                 'deposit_paid_at' => $startDate->copy()->subDays(5),
                 'number_of_people' => 2,
                 'signed_at' => $startDate->copy()->subDays(7),
                 'start_date' => $startDate,
                 'end_date' => $endDate,
-                'actual_end_date' => $contractStatus === Contract::STATUS_EXPIRED ? $endDate : null,
-                'status' => $contractStatus,
+                'actual_end_date' => $checkedOut ? $endDate : null,
                 'note' => "Hợp đồng dữ liệu kiểm thử {$code}",
             ]
         );
+        $contract->forceFill([
+            'status' => $contractStatus,
+            'signed_at' => $startDate->copy()->subDays(7),
+            'scheduled_move_in_date' => $startDate,
+            'reservation_expires_at' => $startDate->copy()->addDays(2),
+            'actual_move_in_at' => (in_array($contractStatus, Contract::OPEN_OCCUPANCY_STATUSES, true) || $checkedOut) ? $startDate : null,
+            'actual_move_out_at' => $checkedOut ? $endDate : null,
+        ])->save();
+        $occupantStatus = in_array($contractStatus, Contract::OPEN_OCCUPANCY_STATUSES, true)
+            ? ContractOccupant::STATUS_CHECKED_IN
+            : ContractOccupant::STATUS_MOVED_OUT;
+        foreach ([$tenant, $member] as $index => $person) {
+            $occupant = ContractOccupant::updateOrCreate(
+                ['contract_id' => $contract->id, 'tenant_id' => $person->id],
+                [
+                    'role' => $index === 0 ? ContractOccupant::ROLE_REPRESENTATIVE : ContractOccupant::ROLE_OCCUPANT,
+                    'full_name' => $person->full_name,
+                    'date_of_birth' => $person->date_of_birth,
+                    'identity_number' => $person->cccd,
+                    'phone' => $person->phone,
+                    'relationship' => $index === 0 ? 'Người đại diện hợp đồng' : 'Người ở',
+                    'address' => $person->address,
+                    'status' => $occupantStatus,
+                    'reviewed_at' => now(),
+                    'actual_move_in_at' => $startDate,
+                    'actual_move_out_at' => $occupantStatus === ContractOccupant::STATUS_MOVED_OUT ? $endDate : null,
+                ]
+            );
+            ContractOccupantHistory::firstOrCreate(
+                ['contract_occupant_id' => $occupant->id, 'action' => 'authentication_scenario_seed'],
+                ['from_status' => null, 'to_status' => $occupantStatus, 'reason' => 'Dữ liệu kiểm thử xác thực.', 'performed_at' => now(), 'metadata' => ['seeded' => true]]
+            );
+        }
 
-        $billingPeriod = $contractStatus === Contract::STATUS_EXPIRED
+        $billingPeriod = $checkedOut
             ? $endDate->copy()->startOfMonth()
             : now()->subMonth()->startOfMonth();
         $reading = UtilityReading::updateOrCreate(

@@ -603,7 +603,7 @@ class ClientInvoicePortalTest extends TestCase
             'area' => 25,
             'status' => 'occupied',
         ]);
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD-'.$suffix,
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,

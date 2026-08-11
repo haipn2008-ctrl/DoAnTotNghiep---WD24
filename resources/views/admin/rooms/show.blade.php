@@ -143,17 +143,19 @@
                         <p class="mb-2 text-sm font-semibold text-slate-700">Thành viên trong phòng</p>
                         <div class="grid gap-2 sm:grid-cols-2">
                             @foreach ($occupants as $occupant)
-                                <a href="{{ route('admin.tenants.show', $occupant) }}" class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-3 transition hover:border-indigo-200 hover:bg-indigo-50">
+                                <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-3">
                                     <span class="min-w-0">
                                         <span class="block truncate text-sm font-semibold text-slate-900">{{ $occupant->full_name }}</span>
                                         <span class="block text-xs text-slate-500">{{ $occupant->phone ?: 'Chưa có số điện thoại' }}</span>
                                     </span>
-                                    @if ($representative && $occupant->id === $representative->id)
+                                    @if ($occupant->role === \App\Models\ContractOccupant::ROLE_REPRESENTATIVE)
                                         <span class="shrink-0 rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700">Đại diện</span>
+                                    @elseif ($occupant->tenant)
+                                        <a href="{{ route('admin.tenants.show', $occupant->tenant) }}" class="text-xs font-semibold text-indigo-700">Xem hồ sơ</a>
                                     @else
-                                        <i class="bx bx-chevron-right text-xl text-slate-400"></i>
+                                        <span class="text-xs text-slate-400">Không cần tài khoản</span>
                                     @endif
-                                </a>
+                                </div>
                             @endforeach
                         </div>
                         @if ($unidentifiedOccupants > 0)

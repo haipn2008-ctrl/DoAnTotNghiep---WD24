@@ -15,6 +15,12 @@ class SettingController extends Controller
             'unit' => '',
             'description' => 'Quản lý tập trung đơn giá điện, nước, Internet, dịch vụ chung và phí gửi xe.',
         ],
+        'property-payment' => [
+            'field' => null,
+            'label' => 'Thông tin nhà trọ và thanh toán',
+            'unit' => '',
+            'description' => 'Thông tin tài sản, chủ nhà và tài khoản nhận tiền dùng trên hợp đồng, hóa đơn và VietQR.',
+        ],
         'electricity' => [
             'field' => 'electric_price',
             'label' => 'Đơn giá điện',
@@ -51,6 +57,12 @@ class SettingController extends Controller
             'unit' => '',
             'description' => 'Thông tin dùng để tạo mã VietQR có sẵn số tiền và nội dung hóa đơn.',
         ],
+        'property' => [
+            'field' => null,
+            'label' => 'Thông tin tài sản và chủ nhà',
+            'unit' => '',
+            'description' => 'Dùng để chụp snapshot khi tạo hợp đồng và in đúng dữ liệu lịch sử.',
+        ],
     ];
 
     public function edit(string $type)
@@ -77,6 +89,12 @@ class SettingController extends Controller
 
         if ($type === 'fees') {
             $data = $request->validate($this->feeRules());
+            $setting->update($data);
+        } elseif ($type === 'property-payment') {
+            $data = $request->validate(array_merge($this->propertyRules(), $this->bankRules()));
+            $setting->update($data);
+        } elseif ($type === 'property') {
+            $data = $request->validate($this->propertyRules());
             $setting->update($data);
         } elseif ($type === 'bank') {
             $data = $request->validate($this->bankRules());
@@ -113,6 +131,21 @@ class SettingController extends Controller
             'internet_fee' => $priceRule,
             'service_fee' => $priceRule,
             'parking_fee' => $priceRule,
+        ];
+    }
+
+    private function propertyRules(): array
+    {
+        return [
+            'property_name' => ['required', 'string', 'max:255'],
+            'property_address' => ['required', 'string', 'max:1000'],
+            'landlord_name' => ['required', 'string', 'max:255'],
+            'landlord_date_of_birth' => ['nullable', 'date', 'before:today'],
+            'landlord_identity_number' => ['nullable', 'string', 'max:30'],
+            'landlord_identity_issued_at' => ['nullable', 'date', 'before_or_equal:today'],
+            'landlord_identity_issued_by' => ['nullable', 'string', 'max:255'],
+            'landlord_phone' => ['required', 'string', 'max:30'],
+            'landlord_address' => ['required', 'string', 'max:1000'],
         ];
     }
 

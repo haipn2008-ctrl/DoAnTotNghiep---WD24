@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,22 +29,26 @@ class AccountActivationController extends Controller
 
     public function activate(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->isClient() && $request->user()->status === User::STATUS_PENDING, 403);
+        $account = User::query()->with(['role', 'tenant'])->findOrFail($request->user()->id);
+        abort_unless($account->isClient() && $account->status === User::STATUS_PENDING, 403);
 
-        $tenantId = $request->user()->tenant?->id;
+        $tenantCandidate = $account->tenant
+            ?? Tenant::query()->whereNull('user_id')->where('email', $account->email)->first()
+            ?? Tenant::query()->whereNull('user_id')->where('phone', $request->input('phone'))->first();
+        $tenantId = $tenantCandidate?->id;
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => [
                 'required',
                 'regex:/^[0-9]{10,15}$/',
-                Rule::unique('users', 'phone')->ignore($request->user()->id),
+                Rule::unique('users', 'phone')->ignore($account->id),
                 Rule::unique('tenants', 'phone')->ignore($tenantId),
             ],
             'password' => ['required', 'confirmed', Password::min(8)],
             'accept_terms' => ['accepted'],
         ]);
 
-        DB::transaction(function () use ($request, $data) {
+        DB::transaction(function () use ($request, $data, $tenantId) {
             $user = User::with('tenant')->lockForUpdate()->findOrFail($request->user()->id);
 
             abort_unless($user->isClient() && $user->status === User::STATUS_PENDING, 403);
@@ -64,10 +69,27 @@ class AccountActivationController extends Controller
                 'must_change_password' => false,
             ]);
 
-            $user->tenant?->update([
-                'full_name' => $data['name'],
-                'phone' => $data['phone'],
-            ]);
+            $tenant = $user->tenant;
+            if (! $tenant && $tenantId) {
+                $tenant = Tenant::query()->whereNull('user_id')->lockForUpdate()->find($tenantId);
+            }
+
+            if ($tenant) {
+                $tenant->update([
+                    'user_id' => $user->id,
+                    'full_name' => $data['name'],
+                    'phone' => $data['phone'],
+                    'email' => $user->email,
+                ]);
+            } else {
+                Tenant::query()->create([
+                    'user_id' => $user->id,
+                    'full_name' => $data['name'],
+                    'cccd' => null,
+                    'phone' => $data['phone'],
+                    'email' => $user->email,
+                ]);
+            }
         });
 
         $request->session()->regenerate();

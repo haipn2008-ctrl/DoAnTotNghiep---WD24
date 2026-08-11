@@ -58,7 +58,7 @@ class InvoiceModuleTest extends TestCase
             'address' => 'Hà Nội',
         ]);
 
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD001',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,
@@ -151,7 +151,7 @@ class InvoiceModuleTest extends TestCase
             'address' => 'Hà Nội',
         ]);
 
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD002',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,
@@ -222,7 +222,7 @@ class InvoiceModuleTest extends TestCase
             'address' => 'Hà Nội',
         ]);
 
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD003',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,

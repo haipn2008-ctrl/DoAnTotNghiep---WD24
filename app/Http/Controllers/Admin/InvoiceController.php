@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Services\ContractLifecycleService;
 use App\Services\InvoiceGenerator;
 use App\Services\TenantAccountLifecycle;
 use App\Support\Csv;
@@ -196,17 +197,17 @@ class InvoiceController extends Controller
             'room',
             'tenant',
         ])
-            ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_TERMINATED])
+            ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_SETTLING])
             ->whereDate(
                 'start_date',
                 '<=',
                 $periodEnd
             )
             // Kỳ hiệu lực kết thúc ưu tiên: actual_end_date > extend_end_date > end_date
-            ->whereRaw(
-                'COALESCE(actual_end_date, extend_end_date, end_date) >= ?',
-                [$periodStart->toDateString()]
-            )
+            ->where(function ($query) use ($periodStart) {
+                $query->where('status', Contract::STATUS_EXPIRED)
+                    ->orWhereRaw('COALESCE(actual_end_date, extend_end_date, end_date) >= ?', [$periodStart->toDateString()]);
+            })
             ->orderBy('id')
             ->get();
 
@@ -844,6 +845,9 @@ class InvoiceController extends Controller
             ]);
 
             $lockedInvoice->refreshStatus();
+            if ($lockedInvoice->invoice_type === Invoice::TYPE_DEPOSIT) {
+                app(ContractLifecycleService::class)->syncDepositState($lockedInvoice->contract, auth()->user());
+            }
             $this->syncTenantAccountAfterPayment($lockedInvoice);
         });
 
@@ -886,6 +890,9 @@ class InvoiceController extends Controller
             ]);
 
             $invoice->refreshStatus();
+            if ($invoice->invoice_type === Invoice::TYPE_DEPOSIT) {
+                app(ContractLifecycleService::class)->syncDepositState($invoice->contract, auth()->user());
+            }
             $this->syncTenantAccountAfterPayment($invoice);
         });
 
@@ -913,6 +920,11 @@ class InvoiceController extends Controller
                 'reviewed_at' => now(),
                 'review_note' => $data['review_note'],
             ]);
+            $invoice = Invoice::query()->lockForUpdate()->findOrFail($lockedPayment->invoice_id);
+            $invoice->refreshStatus();
+            if ($invoice->invoice_type === Invoice::TYPE_DEPOSIT) {
+                app(ContractLifecycleService::class)->syncDepositState($invoice->contract, auth()->user(), 'Thanh toán cọc bị từ chối.');
+            }
         });
 
         return back()->with('success', 'Đã từ chối xác nhận thanh toán.');

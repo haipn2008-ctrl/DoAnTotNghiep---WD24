@@ -1,96 +1,67 @@
 @extends('layouts.admin.index')
 
-@section('title', 'Sửa người thuê | Quản lý phòng trọ')
-@section('page_title', 'Sửa thông tin người thuê')
+@section('title', 'Sửa bản nháp hợp đồng')
+@section('page_title', 'Sửa bản nháp hợp đồng')
 
 @section('content')
-    <div class="space-y-6">
-        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-                <p class="text-sm font-medium text-slate-500">Hợp đồng {{ $contract->contract_code ?: 'HD' . str_pad($contract->id, 3, '0', STR_PAD_LEFT) }}</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Sửa thông tin người thuê</h2>
-            </div>
-
-            <a href="{{ route('admin.contracts.show', $contract) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-                <i class="bx bx-arrow-back text-lg"></i>
-                Quay lại
-            </a>
-        </div>
-
-        @if ($errors->any())
-            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                <p class="font-semibold">Vui lòng kiểm tra lại thông tin.</p>
-                <ul class="mt-2 list-disc space-y-1 pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
-        <form action="{{ route('admin.contracts.update', $contract) }}" method="POST" class="rounded-lg border border-slate-200 bg-white shadow-sm">
-            @csrf
-            @method('PUT')
-
-            <div class="border-b border-slate-200 px-5 py-4">
-                <h3 class="font-semibold text-slate-950">Thông tin người thuê</h3>
-                <p class="text-sm text-slate-500">Cập nhật thông tin liên hệ gắn với hợp đồng này.</p>
-            </div>
-
-            <div class="grid gap-5 p-5 md:grid-cols-2">
-                <div>
-                    <label for="full_name" class="mb-1.5 block text-sm font-semibold text-slate-700">Họ tên</label>
-                    <input id="full_name" type="text" name="full_name" value="{{ old('full_name', $contract->tenant->full_name) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" required>
-                </div>
-
-                <div>
-                    <label for="cccd" class="mb-1.5 block text-sm font-semibold text-slate-700">CCCD</label>
-                    <input id="cccd" type="text" name="cccd" value="{{ old('cccd', $contract->tenant->cccd) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                </div>
-
-                <div>
-                    <label for="phone" class="mb-1.5 block text-sm font-semibold text-slate-700">Số điện thoại</label>
-                    <input id="phone" type="text" name="phone" value="{{ old('phone', $contract->tenant->phone) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                </div>
-
-                <div>
-                    <label for="email" class="mb-1.5 block text-sm font-semibold text-slate-700">Email</label>
-                    <input id="email" type="email" name="email" value="{{ old('email', $contract->tenant->email) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                </div>
-
-                <div class="md:col-span-2">
-                    <label for="address" class="mb-1.5 block text-sm font-semibold text-slate-700">Địa chỉ</label>
-                    <textarea id="address" name="address" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('address', $contract->tenant->address) }}</textarea>
-                </div>
-
-                <div class="md:col-span-2 rounded-lg border border-slate-200 p-4">
-                    <h4 class="font-semibold text-slate-950">Dịch vụ của hợp đồng</h4>
-                    <div class="mt-4 grid gap-4 sm:grid-cols-3">
-                        <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="internet_enabled" value="1" @checked(old('internet_enabled', $contract->internet_enabled))> Internet</label>
-                        <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="service_enabled" value="1" @checked(old('service_enabled', $contract->service_enabled))> Dịch vụ chung</label>
-                        <div><label class="mb-1 block text-sm font-medium">Số xe đăng ký</label><input type="number" name="parking_quantity" min="0" max="20" value="{{ old('parking_quantity', $contract->parking_quantity) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3"></div>
-                    </div>
-                </div>
-
-                @if (! $handoverReading)
-                    <div class="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                        <h4 class="font-semibold text-amber-950">Bổ sung chỉ số bàn giao</h4>
-                        <p class="mt-1 text-sm text-amber-800">Hợp đồng cũ chưa có mốc bàn giao. Cần bổ sung trước khi chốt kỳ tiếp theo.</p>
-                        <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                            <div><label class="mb-1 block text-sm font-medium">Chỉ số điện bàn giao</label><input type="number" name="handover_electricity" min="0" required class="h-10 w-full rounded-lg border border-amber-200 px-3"></div>
-                            <div><label class="mb-1 block text-sm font-medium">Chỉ số nước bàn giao</label><input type="number" name="handover_water" min="0" required class="h-10 w-full rounded-lg border border-amber-200 px-3"></div>
-                        </div>
-                    </div>
-                @endif
-            </div>
-
-            <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                <a href="{{ route('admin.contracts.show', $contract) }}" class="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Hủy</a>
-                <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-                    <i class="bx bx-save text-lg"></i>
-                    Cập nhật
-                </button>
-            </div>
-        </form>
+@php
+    $durationOption = old('contract_duration', $contract->rental_duration_option);
+    if (!in_array((string) $durationOption, ['short_term', '3', '6', '12'], true)) {
+        $durationOption = collect([3, 6, 12])->first(
+            fn (int $months) => $contract->start_date?->copy()->addMonthsNoOverflow($months)->isSameDay($contract->end_date)
+        );
+        $durationOption = $durationOption ? (string) $durationOption : 'short_term';
+    }
+@endphp
+<div class="mx-auto max-w-5xl space-y-5">
+    <div class="flex items-end justify-between">
+        <div><p class="text-sm text-slate-500">{{ $contract->contract_code }}</p><h2 class="text-2xl font-bold">Chỉnh sửa bản nháp</h2></div>
+        <a href="{{ route('admin.contracts.show', $contract) }}" class="rounded-lg border px-4 py-2 text-sm font-semibold">Quay lại</a>
     </div>
+    @if($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><ul class="list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+    <form method="POST" action="{{ route('admin.contracts.update', $contract) }}" enctype="multipart/form-data" data-contract-schedule data-ajax-validation-form novalidate class="rounded-xl border bg-white shadow-sm">
+        @csrf @method('PUT')
+        <div class="grid gap-5 p-6 md:grid-cols-2">
+            <div>
+                <label class="mb-1 block text-sm font-semibold">Phòng</label>
+                <select name="room_id" required class="h-11 w-full rounded-lg border px-3">
+                    @foreach($rooms as $room)
+                        @php
+                            $currentOccupancy = $room->activeContract;
+                            $availabilityBlocked = $room->status === \App\Models\Room::STATUS_OCCUPIED
+                                && (! $currentOccupancy || $currentOccupancy->status === \App\Models\Contract::STATUS_EXPIRED || $currentOccupancy->end_date->copy()->endOfDay()->isPast());
+                            $availableFrom = $room->status === \App\Models\Room::STATUS_OCCUPIED && ! $availabilityBlocked
+                                ? $currentOccupancy?->end_date?->copy()->addDay()
+                                : null;
+                        @endphp
+                        <option value="{{ $room->id }}" data-max-people="{{ $room->max_people }}" data-room-code="{{ $room->room_code }}" data-occupied-until="{{ $currentOccupancy?->end_date?->toDateString() }}" data-available-from="{{ $availableFrom?->toDateString() }}" data-availability-blocked="{{ $availabilityBlocked ? '1' : '0' }}" @selected((string)old('room_id',$contract->room_id)===(string)$room->id)>
+                            {{ $room->room_code }} - {{ number_format($room->price, 0, ',', '.') }}đ/tháng{{ $availabilityBlocked ? ' (khách chưa trả phòng, chưa thể xếp lịch)' : ($availableFrom ? ' (có thể thuê từ '.$availableFrom->format('d/m/Y').')' : '') }}
+                        </option>
+                    @endforeach
+                </select>
+                <p data-room-availability-message class="mt-2 hidden rounded-lg border px-3 py-2 text-sm font-semibold"></p>
+                @error('room_id')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror
+            </div>
+            <div><label class="mb-1 block text-sm font-semibold">Người đại diện thuê</label><select name="tenant_id" data-contract-representative required class="h-11 w-full rounded-lg border px-3">@foreach($tenants as $tenant)<option value="{{ $tenant->id }}" data-full-name="{{ $tenant->full_name }}" data-phone="{{ $tenant->phone }}" data-date-of-birth="{{ $tenant->date_of_birth?->toDateString() }}" data-gender="{{ $tenant->gender }}" data-cccd="{{ $tenant->cccd }}" data-address="{{ $tenant->address }}" @selected((string)old('tenant_id',$contract->tenant_id)===(string)$tenant->id)>{{ $tenant->full_name }} — {{ $tenant->user?->email }}</option>@endforeach</select></div>
+            @include('admin.contracts.partials.representative-fields')
+            @include('admin.contracts.partials.member-selector')
+            <div class="md:col-span-2 border-t pt-5"><h3 class="font-semibold">Thời hạn hợp đồng</h3></div>
+            <div><label class="mb-1 block text-sm font-semibold">Ngày bắt đầu thời hạn thuê *</label><input data-contract-start type="date" name="start_date" value="{{ old('start_date',$contract->start_date?->toDateString()) }}" required class="h-11 w-full rounded-lg border px-3"></div>
+            <div><label class="mb-1 block text-sm font-semibold">Thời hạn *</label><select data-contract-duration name="contract_duration" required class="h-11 w-full rounded-lg border px-3"><option value="short_term" @selected($durationOption==='short_term')>Thuê ít ngày</option><option value="3" @selected($durationOption==='3')>3 tháng</option><option value="6" @selected($durationOption==='6')>6 tháng</option><option value="12" @selected($durationOption==='12')>1 năm</option></select></div>
+            <div><label class="mb-1 block text-sm font-semibold">Ngày kết thúc</label><input data-contract-end type="date" name="end_date" value="{{ old('end_date',$contract->end_date?->toDateString()) }}" readonly required class="h-11 w-full rounded-lg border bg-slate-50 px-3 text-slate-600"></div>
+            <div class="md:col-span-2 border-t pt-5"><h3 class="font-semibold">Ký, đặt cọc và nhận phòng</h3></div>
+            <div><label class="mb-1 block text-sm font-semibold">Ngày dự kiến nhận phòng *</label><input data-contract-move-in type="date" name="scheduled_move_in_date" value="{{ old('scheduled_move_in_date',$contract->scheduled_move_in_date?->toDateString()) }}" required class="h-11 w-full rounded-lg border px-3"></div>
+            <div><label class="mb-1 block text-sm font-semibold">Hạn cuối phải nhận phòng *</label><input data-contract-move-in-deadline type="date" name="reservation_expires_at" value="{{ old('reservation_expires_at',$contract->reservation_expires_at?->toDateString()) }}" required class="h-11 w-full rounded-lg border px-3"><p data-contract-deadline-error class="mt-1 hidden text-sm font-semibold text-rose-600"></p></div>
+            <div data-contract-move-in-warning class="hidden md:col-span-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">Hạn cuối chuyển vào quá dài so với thời gian thuê, bạn có chắc chắn không?</div>
+            <div data-move-in-terms-confirmation class="hidden md:col-span-2"><label class="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900"><input data-move-in-terms-confirmed type="checkbox" name="move_in_terms_confirmed" value="1" class="mt-0.5"><span>Tôi xác nhận đã trao đổi và thống nhất với khách về ngày dự kiến nhận phòng và hạn cuối nhận phòng.</span></label>@error('move_in_terms_confirmed')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror</div>
+            <div><label class="mb-1 block text-sm font-semibold">Tiền cọc (VNĐ)</label><input type="number" min="0" name="deposit_amount" value="{{ old('deposit_amount',$contract->deposit_amount) }}" class="h-11 w-full rounded-lg border px-3"></div>
+            <label class="flex items-center gap-2"><input type="checkbox" name="internet_enabled" value="1" @checked(old('internet_enabled',$contract->internet_enabled))> Internet</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="service_enabled" value="1" @checked(old('service_enabled',$contract->service_enabled))> Dịch vụ chung</label>
+            <div><label class="mb-1 block text-sm font-semibold">Số xe</label><input type="number" min="0" name="parking_quantity" value="{{ old('parking_quantity',$contract->parking_quantity) }}" class="h-11 w-full rounded-lg border px-3"></div>
+            <div><label class="mb-1 block text-sm font-semibold">Lý do sửa</label><input name="edit_reason" value="{{ old('edit_reason') }}" class="h-11 w-full rounded-lg border px-3"></div>
+            <div class="md:col-span-2"><label class="mb-1 block text-sm font-semibold">Ghi chú</label><textarea name="note" rows="3" class="w-full rounded-lg border p-3">{{ old('note',$contract->note) }}</textarea></div>
+        </div>
+        <div class="flex justify-end border-t p-5"><button class="rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white">Lưu bản nháp</button></div>
+    </form>
+</div>
 @endsection

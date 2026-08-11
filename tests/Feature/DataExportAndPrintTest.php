@@ -166,7 +166,7 @@ class DataExportAndPrintTest extends TestCase
         $user = User::create(['name' => 'Client '.$suffix, 'email' => strtolower($suffix).'@export.test', 'phone' => '091'.str_pad((string) User::count(), 7, '0', STR_PAD_LEFT), 'role_id' => $role->id, 'password' => 'Password@123', 'status' => User::STATUS_ACTIVE]);
         $tenant = Tenant::create(['user_id' => $user->id, 'full_name' => 'Tenant '.$suffix, 'cccd' => 'CCCD-'.$suffix, 'phone' => $user->phone, 'email' => $user->email, 'address' => 'Address '.$suffix]);
         $room = Room::create(['room_code' => 'ROOM-'.$suffix, 'floor' => 1, 'price' => 3000000, 'area' => 25, 'status' => Room::STATUS_OCCUPIED]);
-        $contract = Contract::create(['contract_code' => 'CONTRACT-'.$suffix, 'room_id' => $room->id, 'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'deposit_amount' => 3000000, 'start_date' => '2026-01-01', 'end_date' => '2026-12-31', 'status' => Contract::STATUS_ACTIVE]);
+        $contract = Contract::query()->forceCreate(['contract_code' => 'CONTRACT-'.$suffix, 'room_id' => $room->id, 'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'deposit_amount' => 3000000, 'start_date' => '2026-01-01', 'end_date' => '2026-12-31', 'status' => Contract::STATUS_ACTIVE]);
         $invoice = Invoice::create(['contract_id' => $contract->id, 'room_id' => $room->id, 'invoice_code' => 'INVOICE-'.$suffix, 'month' => 8, 'year' => 2026, 'invoice_date' => '2026-08-01', 'due_date' => '2026-08-10', 'room_fee' => 100000, 'total_amount' => 100000, 'status' => Invoice::STATUS_UNPAID]);
 
         return [$user, $tenant, $contract, $room, $invoice];

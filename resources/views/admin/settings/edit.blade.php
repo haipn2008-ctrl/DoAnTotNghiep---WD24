@@ -33,6 +33,18 @@
                             <div class="flex items-center justify-between gap-3 py-2.5"><dt class="text-slate-500">{{ $label }}</dt><dd class="font-semibold text-slate-900">{{ number_format($value, 0, ',', '.') }}đ</dd></div>
                         @endforeach
                     </dl>
+                @elseif ($type === 'property-payment')
+                    <p class="text-sm font-medium text-slate-500">Thông tin đang sử dụng</p>
+                    <p class="mt-4 text-xl font-bold text-slate-950">{{ $setting->property_name ?: 'Chưa cấu hình nhà trọ' }}</p>
+                    <p class="mt-1 text-sm text-slate-500">{{ $setting->landlord_name ?: 'Chưa có thông tin chủ nhà' }}</p>
+                    <div class="my-4 border-t border-slate-100"></div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Tài khoản nhận tiền</p>
+                    <p class="mt-2 font-bold text-slate-900">{{ $setting->bank_account_no ?: 'Chưa cấu hình' }}</p>
+                    <p class="text-sm text-slate-500">{{ $setting->bank_account_name }} {{ $setting->bank_id ? '· '.$setting->bank_id : '' }}</p>
+                @elseif ($type === 'property')
+                    <p class="text-sm font-medium text-slate-500">Tài sản hiện tại</p>
+                    <p class="mt-4 text-xl font-bold text-slate-950">{{ $setting->property_name ?: 'Chưa cấu hình' }}</p>
+                    <p class="mt-2 text-sm text-slate-500">{{ $setting->property_address }}</p>
                 @elseif ($type === 'bank')
                     <p class="text-sm font-medium text-slate-500">Tài khoản hiện tại</p>
                     <p class="mt-4 text-xl font-bold text-slate-950">{{ $setting->bank_account_no ?: 'Chưa cấu hình' }}</p>
@@ -42,7 +54,7 @@
                     <p class="mt-4 text-3xl font-bold text-slate-950">{{ number_format($currentValue, 0, ',', '.') }}đ</p>
                     <p class="mt-2 text-sm text-slate-500">{{ $typeData['unit'] }}</p>
                 @endif
-                <p class="mt-5 rounded-lg bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Thay đổi chỉ áp dụng khi phát hành hóa đơn tiếp theo.</p>
+                <p class="mt-5 rounded-lg bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Thay đổi chỉ áp dụng cho hóa đơn và hợp đồng phát hành sau thời điểm lưu; snapshot hợp đồng cũ không bị thay đổi.</p>
             </section>
 
             <form action="{{ route('admin.settings.update', ['type' => $type]) }}" method="POST" class="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -55,6 +67,11 @@
                 <div class="space-y-7 p-5">
                     @if ($type === 'fees')
                         @include('admin.settings.partials.fee-fields')
+                    @elseif ($type === 'property-payment')
+                        <section><h4 class="mb-4 font-semibold text-slate-900">Thông tin tài sản và chủ nhà</h4>@include('admin.settings.partials.property-fields')</section>
+                        <section class="border-t border-slate-200 pt-6"><h4 class="mb-4 font-semibold text-slate-900">Tài khoản nhận thanh toán và VietQR</h4>@include('admin.settings.partials.bank-fields')</section>
+                    @elseif ($type === 'property')
+                        @include('admin.settings.partials.property-fields')
                     @elseif ($type === 'bank')
                         @include('admin.settings.partials.bank-fields')
                     @else

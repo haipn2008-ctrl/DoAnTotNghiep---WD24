@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\UtilityReading;
 use App\Services\TenantAccountLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class ContractAccountLifecycleTest extends TestCase
@@ -40,11 +41,11 @@ class ContractAccountLifecycleTest extends TestCase
             'confirm_end' => '1',
             'checkout_electricity' => 120,
             'checkout_water' => 55,
-        ])->assertRedirect(route('admin.contracts.end.list'));
+        ])->assertRedirect(route('admin.contracts.show', $contract));
 
         $this->assertSame(User::STATUS_SETTLING, $client->fresh()->status);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
-        $this->assertSame('terminated', $contract->fresh()->status);
+        $this->assertSame(Contract::STATUS_SETTLING, $contract->fresh()->status);
 
         $this->actingAs($client->fresh())
             ->get(route('client.room.show'))
@@ -57,7 +58,7 @@ class ContractAccountLifecycleTest extends TestCase
             'payment_method' => 'cash',
         ])->assertRedirect(route('admin.invoices.show', $invoice));
 
-        $this->assertSame(User::STATUS_INACTIVE, $client->fresh()->status);
+        $this->assertSame(User::STATUS_SETTLING, $client->fresh()->status);
         $this->assertSame(Invoice::STATUS_PAID, $invoice->fresh()->status);
         $this->assertDatabaseHas('payments', [
             'invoice_id' => $invoice->id,
@@ -84,9 +85,17 @@ class ContractAccountLifecycleTest extends TestCase
             'room_id' => $newRoom->id,
             'tenant_id' => $tenant->id,
             'start_date' => '2026-09-01',
+            'contract_duration' => '12',
             'end_date' => '2027-09-01',
-            'handover_electricity' => 100,
-            'handover_water' => 50,
+            'scheduled_move_in_date' => '2026-09-01',
+            'reservation_expires_at' => '2026-09-02 18:00:00',
+            'move_in_terms_confirmed' => 1,
+            'representative_is_occupant' => 1,
+            'representative' => [
+                'identity_front' => UploadedFile::fake()->image('cccd-front.jpg'),
+                'identity_back' => UploadedFile::fake()->image('cccd-back.jpg'),
+            ],
+            'number_of_people' => 1,
         ])->assertSessionHasErrors('tenant_id');
 
         $this->assertDatabaseMissing('contracts', ['room_id' => $newRoom->id]);
@@ -102,9 +111,9 @@ class ContractAccountLifecycleTest extends TestCase
             'confirm_end' => '1',
             'checkout_electricity' => 120,
             'checkout_water' => 55,
-        ])->assertRedirect(route('admin.contracts.end.list'));
+        ])->assertRedirect(route('admin.contracts.show', $contract));
 
-        $this->assertSame(User::STATUS_INACTIVE, $client->fresh()->status);
+        $this->assertSame(User::STATUS_SETTLING, $client->fresh()->status);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
         $this->assertSame(Contract::STATUS_TERMINATED, $contract->fresh()->status);
     }
@@ -119,7 +128,7 @@ class ContractAccountLifecycleTest extends TestCase
             'area' => 25,
             'status' => Room::STATUS_OCCUPIED,
         ]);
-        Contract::create([
+        Contract::query()->forceCreate([
             'contract_code' => 'HD-LIFECYCLE-2',
             'room_id' => $otherRoom->id,
             'tenant_id' => $tenant->id,
@@ -135,7 +144,7 @@ class ContractAccountLifecycleTest extends TestCase
             'confirm_end' => '1',
             'checkout_electricity' => 120,
             'checkout_water' => 55,
-        ])->assertRedirect(route('admin.contracts.end.list'));
+        ])->assertRedirect(route('admin.contracts.show', $contract));
 
         $this->assertSame(User::STATUS_ACTIVE, $client->fresh()->status);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
@@ -145,7 +154,7 @@ class ContractAccountLifecycleTest extends TestCase
     public function test_partial_or_pending_payment_does_not_release_settling_account(): void
     {
         [, $client, $tenant, $room, $contract] = $this->rentalFixture();
-        $contract->update(['status' => Contract::STATUS_TERMINATED]);
+        $contract->forceFill(['status' => Contract::STATUS_SETTLING, 'actual_move_out_at' => now()])->save();
         $invoice = Invoice::create([
             'invoice_code' => 'INV-LIFECYCLE-PARTIAL',
             'contract_id' => $contract->id,
@@ -208,7 +217,7 @@ class ContractAccountLifecycleTest extends TestCase
                     'checkout_water' => 55,
                 ]
             )->assertRedirect(route('admin.contracts.end.form', $contract))
-                ->assertSessionHasErrors('actual_end_date');
+                ->assertSessionHasErrors('actual_move_out_at');
 
             $this->assertSame(Contract::STATUS_ACTIVE, $contract->fresh()->status);
             $this->assertSame(Room::STATUS_OCCUPIED, $room->fresh()->status);
@@ -248,7 +257,7 @@ class ContractAccountLifecycleTest extends TestCase
             'current_people' => 1,
             'status' => Room::STATUS_OCCUPIED,
         ]);
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD-LIFECYCLE-1',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,
@@ -257,6 +266,8 @@ class ContractAccountLifecycleTest extends TestCase
             'number_of_people' => 1,
             'start_date' => '2025-08-10',
             'end_date' => '2026-08-10',
+            'signed_at' => '2025-08-01 10:00:00',
+            'actual_move_in_at' => '2025-08-10 10:00:00',
             'status' => 'active',
         ]);
         UtilityReading::create([

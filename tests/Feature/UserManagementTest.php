@@ -322,7 +322,7 @@ class UserManagementTest extends TestCase
             'area' => 25,
             'status' => Room::STATUS_OCCUPIED,
         ]);
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'USR-CONTRACT',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,
@@ -341,7 +341,7 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseHas('contracts', ['id' => $contract->id, 'status' => Contract::STATUS_ACTIVE]);
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'status' => Room::STATUS_OCCUPIED]);
 
-        $contract->update(['status' => Contract::STATUS_TERMINATED]);
+        $contract->forceFill(['status' => Contract::STATUS_SETTLING])->save();
         $room->update(['status' => Room::STATUS_AVAILABLE]);
         $invoice = Invoice::create([
             'invoice_code' => 'USR-INVOICE',
@@ -363,6 +363,13 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseHas('invoices', ['id' => $invoice->id, 'status' => Invoice::STATUS_UNPAID]);
 
         $invoice->update(['status' => Invoice::STATUS_PAID]);
+        $this->delete("/admin/users/{$target->id}")->assertSessionHas('error');
+        $contract->forceFill([
+            'status' => Contract::STATUS_COMPLETED,
+            'actual_move_out_at' => now(),
+            'completed_at' => now(),
+            'deposit_resolution' => Contract::DEPOSIT_NOT_REQUIRED,
+        ])->save();
         $this->delete("/admin/users/{$target->id}")->assertRedirect('/admin/users')->assertSessionHas('success');
         $this->assertDatabaseMissing('users', ['id' => $target->id]);
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'user_id' => null]);
@@ -386,7 +393,7 @@ class UserManagementTest extends TestCase
             'area' => 25,
             'status' => Room::STATUS_OCCUPIED,
         ]);
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'USR-LIFECYCLE',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,
@@ -411,7 +418,7 @@ class UserManagementTest extends TestCase
         ])->assertRedirect("/admin/users/{$target->id}/edit")->assertSessionHasErrors('status');
         $this->assertSame(User::STATUS_ACTIVE, $target->fresh()->status);
 
-        $contract->update(['status' => Contract::STATUS_TERMINATED]);
+        $contract->forceFill(['status' => Contract::STATUS_SETTLING])->save();
         $invoice = Invoice::create([
             'invoice_code' => 'USR-LIFECYCLE-DEBT',
             'contract_id' => $contract->id,
@@ -434,6 +441,15 @@ class UserManagementTest extends TestCase
         $this->assertSame(User::STATUS_SETTLING, $target->fresh()->status);
 
         $invoice->update(['status' => Invoice::STATUS_PAID]);
+        $this->from("/admin/users/{$target->id}/edit")->put("/admin/users/{$target->id}", [
+            'name' => $target->name,
+            'email' => $target->email,
+            'role_id' => $target->role_id,
+            'status' => User::STATUS_INACTIVE,
+        ])->assertRedirect("/admin/users/{$target->id}/edit")->assertSessionHasErrors('status');
+        $this->assertSame(User::STATUS_SETTLING, $target->fresh()->status);
+
+        $contract->forceFill(['status' => Contract::STATUS_COMPLETED, 'completed_at' => now()])->save();
         $this->put("/admin/users/{$target->id}", [
             'name' => $target->name,
             'email' => $target->email,

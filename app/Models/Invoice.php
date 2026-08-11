@@ -10,6 +10,8 @@ class Invoice extends Model
 
     const TYPE_DEPOSIT = 'deposit';
 
+    const TYPE_SETTLEMENT = 'settlement';
+
     /*
     |--------------------------------------------------------------------------
     | Invoice Status
@@ -21,6 +23,8 @@ class Invoice extends Model
     const STATUS_PARTIAL = 'partial';
 
     const STATUS_PAID = 'paid';
+
+    const STATUS_WRITTEN_OFF = 'written_off';
 
     /*
     |--------------------------------------------------------------------------
@@ -180,6 +184,8 @@ class Invoice extends Model
 
             self::STATUS_PARTIAL => 'Thanh toán một phần',
 
+            self::STATUS_WRITTEN_OFF => 'Đã xóa nợ có phê duyệt',
+
             default => 'Chưa thanh toán',
         };
     }
@@ -210,7 +216,7 @@ class Invoice extends Model
      */
     public function canPay(): bool
     {
-        return $this->status !== self::STATUS_PAID;
+        return ! in_array($this->status, [self::STATUS_PAID, self::STATUS_WRITTEN_OFF], true);
     }
 
     public function isOverdue()
@@ -268,15 +274,6 @@ class Invoice extends Model
         }
 
         $this->save();
-
-        if ($this->invoice_type === self::TYPE_DEPOSIT && $this->contract) {
-            $this->contract->update([
-                'deposit_status' => $this->status === self::STATUS_PAID
-                    ? Contract::DEPOSIT_PAID
-                    : Contract::DEPOSIT_PENDING,
-                'deposit_paid_at' => $this->status === self::STATUS_PAID ? now() : null,
-            ]);
-        }
 
         return $this;
     }

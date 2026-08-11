@@ -4,7 +4,7 @@
 @section('page_title', 'Hợp đồng của tôi')
 
 @php
-    $statuses = ['pending' => ['Chờ ký', 'bg-slate-100 text-slate-700'], 'active' => ['Đang hiệu lực', 'bg-emerald-50 text-emerald-700'], 'expired' => ['Hết hạn', 'bg-amber-50 text-amber-700'], 'terminated' => ['Đã kết thúc', 'bg-rose-50 text-rose-700']];
+    $statuses = ['draft'=>['Bản nháp','bg-slate-100 text-slate-700'],'pending_signature'=>['Chờ ký','bg-amber-50 text-amber-700'],'pending_deposit'=>['Chờ cọc','bg-orange-50 text-orange-700'],'awaiting_move_in'=>['Chờ nhận phòng','bg-sky-50 text-sky-700'],'active'=>['Đang ở','bg-emerald-50 text-emerald-700'],'expired'=>['Quá hạn vẫn ở','bg-rose-50 text-rose-700'],'settling'=>['Quyết toán','bg-violet-50 text-violet-700'],'completed'=>['Hoàn tất','bg-green-50 text-green-700'],'cancelled'=>['Đã hủy','bg-gray-50 text-gray-700']];
 @endphp
 
 @section('content')

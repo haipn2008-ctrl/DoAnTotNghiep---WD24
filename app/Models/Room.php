@@ -63,7 +63,7 @@ class Room extends Model
     public function activeContract()
     {
         return $this->hasOne(Contract::class)
-            ->where('status', Contract::STATUS_ACTIVE);
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserRequest;
+use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Role;
 use App\Models\User;
@@ -146,7 +147,7 @@ class UserController extends Controller
 
         $tenant = $user->tenant;
         $hasOpenContract = $tenant?->contracts()
-            ->whereIn('status', ['pending', 'active'])
+            ->whereNotIn('status', [Contract::STATUS_COMPLETED, Contract::STATUS_CANCELLED])
             ->exists() ?? false;
         $hasOutstandingInvoice = $tenant
             ? Invoice::query()
@@ -223,7 +224,13 @@ class UserController extends Controller
             return User::STATUS_ACTIVE;
         }
 
-        if ($tenant->contracts()->whereIn('status', ['pending', 'active'])->exists()) {
+        if ($tenant->contracts()->whereIn('status', [
+            Contract::STATUS_PENDING_SIGNATURE,
+            Contract::STATUS_PENDING_DEPOSIT,
+            Contract::STATUS_AWAITING_MOVE_IN,
+            Contract::STATUS_ACTIVE,
+            Contract::STATUS_EXPIRED,
+        ])->exists()) {
             return User::STATUS_ACTIVE;
         }
 
@@ -232,7 +239,9 @@ class UserController extends Controller
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
             ->exists();
 
-        return $hasOutstandingInvoice ? User::STATUS_SETTLING : User::STATUS_INACTIVE;
+        $hasSettlement = $tenant->contracts()->where('status', Contract::STATUS_SETTLING)->exists();
+
+        return $hasOutstandingInvoice || $hasSettlement ? User::STATUS_SETTLING : User::STATUS_INACTIVE;
     }
 
     private function throwEmailConflictOrRethrow(QueryException $exception): never

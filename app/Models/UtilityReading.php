@@ -16,6 +16,7 @@ class UtilityReading extends Model
         'water_image',
         'status',
         'note',
+        'lifecycle_event_key',
     ];
 
     protected $casts = [

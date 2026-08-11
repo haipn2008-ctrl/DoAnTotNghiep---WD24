@@ -48,8 +48,9 @@ class SettingManagementTest extends TestCase
         $this->actingAs($this->admin)->get('/admin/settings/fees')
             ->assertSuccessful()
             ->assertSee('href="'.route('admin.settings.edit', ['type' => 'fees']).'"', false)
-            ->assertSee('href="'.route('admin.settings.edit', ['type' => 'bank']).'"', false)
+            ->assertSee('href="'.route('admin.settings.edit', ['type' => 'property-payment']).'"', false)
             ->assertDontSee('href="'.route('admin.settings.edit', ['type' => 'electricity']).'"', false)
+            ->assertDontSee('href="'.route('admin.settings.edit', ['type' => 'bank']).'"', false)
             ->assertSee('Đơn giá điện')
             ->assertSee('Đơn giá nước')
             ->assertSee('Phí Internet')
@@ -80,6 +81,41 @@ class SettingManagementTest extends TestCase
         ]))->assertSessionHasErrors('water_price');
         $this->assertSame('4100.00', $setting->fresh()->electric_price);
         $this->assertSame('22000.00', $setting->fresh()->water_price);
+    }
+
+    public function test_property_and_payment_form_updates_both_sections_together(): void
+    {
+        $setting = $this->createSetting();
+        $payload = [
+            'property_name' => 'Nhà trọ QA',
+            'property_address' => '123 Đường Kiểm Thử, Hà Nội',
+            'landlord_name' => 'Nguyễn Chủ Nhà',
+            'landlord_date_of_birth' => '1980-01-01',
+            'landlord_identity_number' => '001080000001',
+            'landlord_identity_issued_at' => '2020-01-01',
+            'landlord_identity_issued_by' => 'Cục Cảnh sát QLHC',
+            'landlord_phone' => '0901234567',
+            'landlord_address' => 'Hà Nội',
+            'bank_id' => 'VCB',
+            'bank_account_no' => '1234567890',
+            'bank_account_name' => 'NGUYEN CHU NHA',
+        ];
+
+        $this->actingAs($this->admin)->put('/admin/settings/property-payment', $payload)
+            ->assertRedirect('/admin/settings/property-payment')
+            ->assertSessionHasNoErrors();
+        $setting->refresh();
+        $this->assertSame('Nhà trọ QA', $setting->property_name);
+        $this->assertSame('Nguyễn Chủ Nhà', $setting->landlord_name);
+        $this->assertSame('VCB', $setting->bank_id);
+        $this->assertSame('1234567890', $setting->bank_account_no);
+
+        $this->actingAs($this->admin)->get('/admin/settings/property-payment')
+            ->assertOk()
+            ->assertSee('Thông tin tài sản và chủ nhà')
+            ->assertSee('Tài khoản nhận thanh toán và VietQR')
+            ->assertSee('Nhà trọ QA')
+            ->assertSee('1234567890');
     }
 
     public function test_each_price_type_updates_only_its_own_field(): void

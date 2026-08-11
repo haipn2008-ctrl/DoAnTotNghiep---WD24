@@ -25,7 +25,7 @@ class ContractController extends Controller
     public function show(Request $request, int $contract): View
     {
         $tenantId = $request->user()->tenant?->id;
-        $contract = Contract::with(['room.amenities', 'tenant'])
+        $contract = Contract::with(['room.amenities', 'tenant', 'occupants.histories'])
             ->when($tenantId, fn ($query) => $query->where('tenant_id', $tenantId), fn ($query) => $query->whereRaw('1 = 0'))
             ->findOrFail($contract);
 
