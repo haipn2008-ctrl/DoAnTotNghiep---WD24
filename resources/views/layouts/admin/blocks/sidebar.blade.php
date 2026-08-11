@@ -60,7 +60,6 @@
                 ['label' => 'Sinh hóa đơn', 'route' => 'admin.invoices.generate', 'active' => request()->routeIs('admin.invoices.generate')],
                 ['label' => 'Danh sách hóa đơn', 'route' => 'admin.invoices.index', 'active' => request()->routeIs('admin.invoices.index')],
                 ['label' => 'Thanh toán', 'route' => 'admin.invoices.payments', 'active' => request()->routeIs('admin.invoices.payments')],
-                ['label' => 'Đối soát ngân hàng', 'route' => 'admin.payment-webhooks.index', 'active' => request()->routeIs('admin.payment-webhooks.*')],
                 ['label' => 'Xuất hóa đơn', 'route' => 'admin.invoices.export', 'active' => request()->routeIs('admin.invoices.export*')],
             ],
         ],
