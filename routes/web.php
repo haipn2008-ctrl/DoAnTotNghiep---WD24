@@ -60,19 +60,15 @@ Route::middleware('auth')->group(function () {
             Route::resource('users', UserController::class)->except(['show']);
 
             // Chức năng thêm phòng
-            Route::get('rooms/export', [RoomController::class, 'exportForm'])
+            Route::get('rooms/export', [RoomController::class, 'export'])
                 ->name('rooms.export');
-            Route::get('rooms/export/download', [RoomController::class, 'export'])
-                ->name('rooms.export.download');
             Route::post('rooms/{room}/evidence', [RoomEvidenceController::class, 'store'])
                 ->name('rooms.evidence.store');
             Route::resource('rooms', RoomController::class);
 
             // Chức năng thêm sửa xoá khách thuê
-            Route::get('tenants/export', [TenantController::class, 'exportForm'])
+            Route::get('tenants/export', [TenantController::class, 'export'])
                 ->name('tenants.export');
-            Route::get('tenants/export/download', [TenantController::class, 'export'])
-                ->name('tenants.export.download');
             Route::resource('tenants', TenantController::class);
 
             // Quản lý hợp đồng thuê phòng

@@ -72,7 +72,57 @@ class TenantManagementTest extends TestCase
                 ->assertDontSee($bob->cccd);
         }
 
-        $this->get('/admin/tenants?search=missing-record')->assertOk()->assertSee('Chưa có khách thuê nào');
+        $this->get('/admin/tenants?search=missing-record')->assertOk()->assertSee('Không tìm thấy khách thuê');
+    }
+
+    public function test_tenant_list_has_direct_export_and_live_filter_controls_without_search_button(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.tenants.index'));
+
+        $response->assertOk()
+            ->assertSee('data-tenant-filter', false)
+            ->assertSee('data-tenant-search', false)
+            ->assertSee('data-tenant-status', false)
+            ->assertSee('data-tenant-export', false)
+            ->assertSee('href="'.route('admin.tenants.export').'"', false)
+            ->assertDontSee('>Tìm</button>', false);
+
+        $this->get('/admin/tenants/export/download')->assertNotFound();
+    }
+
+    public function test_ajax_search_and_rental_status_filters_return_only_matching_rows(): void
+    {
+        $renting = $this->tenant($this->user($this->clientRole, 'renting@example.com'), [
+            'full_name' => 'Nguyễn Đang Thuê',
+            'cccd' => '079000000881',
+            'phone' => '0900000881',
+            'email' => 'renting.tenant@example.com',
+        ]);
+        $available = $this->tenant($this->user($this->clientRole, 'available@example.com'), [
+            'full_name' => 'Trần Chưa Thuê',
+            'cccd' => '079000000882',
+            'phone' => '0900000882',
+            'email' => 'available.tenant@example.com',
+        ]);
+        $this->contract($renting);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.tenants.index', ['search' => 'Nguyễn', 'status' => 'renting']), [
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
+            ->assertOk()
+            ->assertSee($renting->cccd)
+            ->assertDontSee($available->cccd)
+            ->assertDontSee('data-tenant-filter', false);
+
+        $this->get(route('admin.tenants.index', ['status' => 'not_renting']), [
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk()
+            ->assertSee($available->cccd)
+            ->assertDontSee($renting->cccd);
+
+        $this->get(route('admin.tenants.index', ['status' => 'unknown']))
+            ->assertSessionHasErrors('status');
     }
 
     public function test_create_form_lists_only_unlinked_eligible_client_accounts(): void

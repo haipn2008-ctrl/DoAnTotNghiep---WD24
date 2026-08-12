@@ -50,6 +50,70 @@ class ContractManagementTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_contract_list_exposes_extend_and_end_actions_instead_of_sidebar_entries(): void
+    {
+        $index = $this->actingAs($this->admin)->get(route('admin.contracts.index'));
+
+        $index->assertOk()
+            ->assertSee('href="'.route('admin.contracts.extend.list').'"', false)
+            ->assertSee('href="'.route('admin.contracts.end.list').'"', false)
+            ->assertSee('href="'.route('admin.contracts.create').'"', false);
+
+        $sidebarOutsideContractList = $this->get(route('admin.contracts.create'));
+        $sidebarOutsideContractList->assertOk()
+            ->assertDontSee('href="'.route('admin.contracts.extend.list').'"', false)
+            ->assertDontSee('href="'.route('admin.contracts.end.list').'"', false);
+    }
+
+    public function test_contract_list_filters_immediately_by_keyword_and_status_without_filter_buttons(): void
+    {
+        $draft = $this->draft(0, [], 'live-draft');
+        $active = $this->draft(0, [], 'live-active');
+        $active->forceFill(['status' => Contract::STATUS_ACTIVE])->save();
+
+        $page = $this->actingAs($this->admin)->get(route('admin.contracts.index'));
+        $page->assertOk()
+            ->assertSee('data-contract-filter', false)
+            ->assertSee('data-contract-search', false)
+            ->assertSee('data-contract-status', false)
+            ->assertSee('data-contract-results', false)
+            ->assertDontSee('>Lọc</button>', false)
+            ->assertDontSee('>Làm mới</a>', false);
+
+        $this->get(route('admin.contracts.index', [
+            'keyword' => $draft->contract_code,
+            'status' => Contract::STATUS_DRAFT,
+        ]), ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertSee($draft->contract_code)
+            ->assertDontSee($active->contract_code)
+            ->assertDontSee('data-contract-filter', false);
+
+        $this->get(route('admin.contracts.index', ['status' => Contract::STATUS_ACTIVE]), [
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk()
+            ->assertSee($active->contract_code)
+            ->assertDontSee($draft->contract_code);
+    }
+
+    public function test_draft_detail_uses_consistent_review_layout_and_keeps_lifecycle_actions(): void
+    {
+        $contract = $this->draft();
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Rà soát thông tin trước khi phát hành cho khách ký.')
+            ->assertSee('Thông tin hợp đồng')
+            ->assertSee('Người đại diện và người ở')
+            ->assertSee('Tài chính dự kiến')
+            ->assertSee('Dịch vụ đăng ký')
+            ->assertSee('Phát hành bản nháp')
+            ->assertSee('href="'.route('admin.contracts.edit', $contract).'"', false)
+            ->assertSee('action="'.route('admin.contracts.submit-for-signature', $contract).'"', false)
+            ->assertSee('action="'.route('admin.contracts.cancel', $contract).'"', false)
+            ->assertDontSee('Backend kiểm tra lại toàn bộ điều kiện');
+    }
+
     public function test_create_only_writes_draft_without_signing_occupying_reading_or_invoice(): void
     {
         $room = $this->room('DRAFT');

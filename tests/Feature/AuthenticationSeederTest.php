@@ -22,9 +22,9 @@ class AuthenticationSeederTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $this->assertDatabaseCount('roles', 3);
-        $this->assertDatabaseCount('users', 20);
+        $this->assertDatabaseCount('users', 30);
         $this->assertDatabaseCount('rooms', 15);
-        $this->assertDatabaseCount('tenants', 23);
+        $this->assertDatabaseCount('tenants', 33);
         $this->assertDatabaseCount('contracts', 11);
         $this->assertDatabaseCount('contract_occupants', 23);
         $this->assertDatabaseCount('contract_occupant_histories', 23);
@@ -62,6 +62,23 @@ class AuthenticationSeederTest extends TestCase
             'full_name' => 'Phạm Thảo Vy',
             'user_id' => null,
         ]);
+        $availableTenants = User::query()
+            ->whereBetween('phone', ['0936102001', '0936102010'])
+            ->with(['tenant.contracts', 'tenant.contractOccupancies'])
+            ->get();
+        $this->assertCount(10, $availableTenants);
+        foreach ($availableTenants as $availableTenant) {
+            $this->assertNotNull($availableTenant->tenant);
+            $this->assertNotEmpty($availableTenant->name);
+            $this->assertNotEmpty($availableTenant->tenant->date_of_birth);
+            $this->assertNotEmpty($availableTenant->tenant->gender);
+            $this->assertMatchesRegularExpression('/^\\d{12}$/', $availableTenant->tenant->cccd);
+            $this->assertNotEmpty($availableTenant->tenant->phone);
+            $this->assertNotEmpty($availableTenant->tenant->email);
+            $this->assertNotEmpty($availableTenant->tenant->address);
+            $this->assertCount(0, $availableTenant->tenant->contracts);
+            $this->assertCount(0, $availableTenant->tenant->contractOccupancies);
+        }
         $b201 = Contract::with('occupants')->where('contract_code', 'HD-AP-2026-004')->sole();
         $this->assertSame(3, $b201->number_of_people);
         $this->assertCount(3, $b201->occupants);
@@ -88,9 +105,9 @@ class AuthenticationSeederTest extends TestCase
 
         $expectedAccounts = [
             'auth.admin@example.test' => [User::STATUS_ACTIVE, 'Admin'],
-            'auth.client@example.test' => [User::STATUS_ACTIVE, 'User'],
-            'auth.pending@example.test' => [User::STATUS_PENDING, 'User'],
-            'auth.settling@example.test' => [User::STATUS_SETTLING, 'User'],
+            'ducthanh.nguyen@example.test' => [User::STATUS_ACTIVE, 'User'],
+            'minhkhang.le@example.test' => [User::STATUS_PENDING, 'User'],
+            'quynhanh.vu@example.test' => [User::STATUS_SETTLING, 'User'],
             'auth.locked@example.test' => [User::STATUS_LOCKED, 'User'],
             'auth.inactive@example.test' => [User::STATUS_INACTIVE, 'User'],
             'auth.unsupported-role@example.test' => [User::STATUS_ACTIVE, 'Auditor'],
@@ -105,8 +122,8 @@ class AuthenticationSeederTest extends TestCase
         }
 
         $this->assertSame(count($expectedAccounts), User::whereIn('email', array_keys($expectedAccounts))->count());
-        $this->assertTrue(User::where('email', 'auth.pending@example.test')->sole()->must_change_password);
-        $this->assertFalse(User::where('email', 'auth.client@example.test')->sole()->must_change_password);
+        $this->assertTrue(User::where('email', 'minhkhang.le@example.test')->sole()->must_change_password);
+        $this->assertFalse(User::where('email', 'ducthanh.nguyen@example.test')->sole()->must_change_password);
 
         foreach (['qa.client.a@example.test', 'qa.client.b@example.test', 'qa.client.c@example.test'] as $email) {
             $qaUser = User::with('role')->where('email', $email)->sole();
@@ -123,9 +140,9 @@ class AuthenticationSeederTest extends TestCase
         $this->seed([RoleSeeder::class, UserSeeder::class, AuthenticationScenarioSeeder::class]);
 
         foreach ([
-            'auth.client@example.test' => User::STATUS_ACTIVE,
-            'auth.pending@example.test' => User::STATUS_PENDING,
-            'auth.settling@example.test' => User::STATUS_SETTLING,
+            'ducthanh.nguyen@example.test' => User::STATUS_ACTIVE,
+            'minhkhang.le@example.test' => User::STATUS_PENDING,
+            'quynhanh.vu@example.test' => User::STATUS_SETTLING,
         ] as $email => $status) {
             $user = User::with('tenant.contracts.room', 'tenant.contracts.invoices.details')
                 ->where('email', $email)
@@ -139,15 +156,15 @@ class AuthenticationSeederTest extends TestCase
             $this->assertCount(5, $user->tenant->contracts->first()->invoices->first()->details);
         }
 
-        $active = User::where('email', 'auth.client@example.test')->sole();
-        $this->actingAs($active)->get('/client')->assertOk()->assertSee('AUTH-ACTIVE');
-        $this->get('/client/contracts')->assertOk()->assertSee('HD-AUTH-ACTIVE');
-        $this->get('/client/invoices')->assertOk()->assertSee('INV-AUTH-ACTIVE');
-        $this->get('/client/utilities')->assertOk()->assertSee('AUTH-ACTIVE');
+        $active = User::where('email', 'ducthanh.nguyen@example.test')->sole();
+        $this->actingAs($active)->get('/client')->assertOk()->assertSee('D401');
+        $this->get('/client/contracts')->assertOk()->assertSee('HD20260009');
+        $this->get('/client/invoices')->assertOk()->assertSee('INV-D401');
+        $this->get('/client/utilities')->assertOk()->assertSee('D401');
 
-        $settling = User::where('email', 'auth.settling@example.test')->sole();
-        $this->actingAs($settling)->get('/client')->assertOk()->assertSee('AUTH-SETTLING');
-        $this->get('/client/contracts')->assertOk()->assertSee('HD-AUTH-SETTLING');
-        $this->get('/client/invoices')->assertOk()->assertSee('INV-AUTH-SETTLING');
+        $settling = User::where('email', 'quynhanh.vu@example.test')->sole();
+        $this->actingAs($settling)->get('/client')->assertOk()->assertSee('D403');
+        $this->get('/client/contracts')->assertOk()->assertSee('HD20250011');
+        $this->get('/client/invoices')->assertOk()->assertSee('INV-D403');
     }
 }

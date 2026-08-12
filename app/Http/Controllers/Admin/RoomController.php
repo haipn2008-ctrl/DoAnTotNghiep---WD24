@@ -20,16 +20,13 @@ class RoomController extends Controller
 
     public function index(Request $request)
     {
-        $rooms = $this->roomQuery($request)->paginate(10);
+        $rooms = $this->roomQuery($request)->paginate(10)->withQueryString();
+
+        if ($request->ajax()) {
+            return view('admin.rooms.partials.results', compact('rooms'));
+        }
 
         return view('admin.rooms.index', compact('rooms'));
-    }
-
-    public function exportForm(Request $request)
-    {
-        $rooms = $this->roomQuery($request)->paginate(10);
-
-        return view('admin.rooms.export', compact('rooms'));
     }
 
     public function export(Request $request)

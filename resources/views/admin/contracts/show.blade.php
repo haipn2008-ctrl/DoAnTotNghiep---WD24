@@ -1,7 +1,7 @@
 @extends('layouts.admin.index')
 
-@section('title', 'Chi tiết vòng đời hợp đồng')
-@section('page_title', 'Chi tiết vòng đời hợp đồng')
+@section('title', 'Chi tiết hợp đồng | Quản lý phòng trọ')
+@section('page_title', 'Chi tiết hợp đồng')
 
 @php
     $colors = [
@@ -12,6 +12,9 @@
 @endphp
 
 @section('content')
+@if($contract->status === \App\Models\Contract::STATUS_DRAFT)
+    @include('admin.contracts.partials.draft-detail')
+@else
 <div class="space-y-6">
     <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div><p class="text-sm text-slate-500">{{ $contract->contract_code }}</p><h2 class="text-2xl font-bold text-slate-950">{{ $contract->status_label }}</h2><p class="mt-1 text-sm text-slate-500">Phòng {{ $contract->room?->room_code }} · {{ $contract->tenant?->full_name }}</p></div>
@@ -105,5 +108,6 @@
 
     <section class="rounded-xl border bg-white"><div class="border-b p-5"><h3 class="font-bold">Lịch sử trạng thái và người thao tác</h3></div><div class="overflow-x-auto"><table class="min-w-full text-sm"><thead class="bg-slate-50"><tr><th class="p-3 text-left">Thời điểm</th><th class="p-3 text-left">Từ → Đến</th><th class="p-3 text-left">Hành động</th><th class="p-3 text-left">Người thực hiện</th><th class="p-3 text-left">Lý do</th></tr></thead><tbody class="divide-y">@forelse($contract->statusHistories as $history)<tr><td class="p-3">{{ $history->performed_at?->format('d/m/Y H:i:s') }}</td><td class="p-3">{{ $history->from_status ?? 'Khởi tạo' }} → {{ $history->to_status }}</td><td class="p-3 font-semibold">{{ $history->action }}</td><td class="p-3">{{ $history->performer?->name ?? 'Hệ thống/migration' }}</td><td class="p-3">{{ $history->reason ?: '—' }}</td></tr>@empty<tr><td colspan="5" class="p-6 text-center text-slate-500">Chưa có lịch sử.</td></tr>@endforelse</tbody></table></div></section>
 </div>
+@endif
 @push('scripts')<script>document.querySelectorAll('.lifecycle-form').forEach(form=>form.addEventListener('submit',()=>{const button=form.querySelector('button[type="submit"],button:not([type])');if(button){button.disabled=true;button.textContent='Đang xử lý…';}}));</script>@endpush
 @endsection

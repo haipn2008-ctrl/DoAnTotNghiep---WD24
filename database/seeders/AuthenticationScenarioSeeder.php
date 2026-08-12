@@ -23,10 +23,12 @@ class AuthenticationScenarioSeeder extends Seeder
     {
         DB::transaction(function (): void {
             $this->seedClientScenario(
-                'auth.client@example.test',
+                'ducthanh.nguyen@example.test',
+                'D401',
                 'AUTH-ACTIVE',
-                '099000000001',
-                '0900000101',
+                'HD20260009',
+                ['1998-06-17', 'male', '001098112233', '2021-07-12', 'Cục Cảnh sát QLHC về TTXH', 'Số 25 phố Trung Kính, Cầu Giấy, Hà Nội'],
+                ['Trần Ngọc Hà', '1999-10-05', 'female', '001299223344', '0912345678', 'ngocha.tran@example.test', 'Số 18 phố Nguyễn Tuân, Thanh Xuân, Hà Nội'],
                 Contract::STATUS_ACTIVE,
                 Room::STATUS_OCCUPIED,
                 now()->subMonths(3)->startOfMonth(),
@@ -35,10 +37,12 @@ class AuthenticationScenarioSeeder extends Seeder
             );
 
             $this->seedClientScenario(
-                'auth.pending@example.test',
+                'minhkhang.le@example.test',
+                'D402',
                 'AUTH-PENDING',
-                '099000000002',
-                '0900000102',
+                'HD20260010',
+                ['1997-03-26', 'male', '001097334455', '2020-09-21', 'Cục Cảnh sát QLHC về TTXH', 'Số 62 phố Tố Hữu, Nam Từ Liêm, Hà Nội'],
+                ['Phạm Thu Huyền', '2000-12-14', 'female', '001300445566', '0923456789', 'thuhuyen.pham@example.test', 'Số 11 phố Mỗ Lao, Hà Đông, Hà Nội'],
                 Contract::STATUS_ACTIVE,
                 Room::STATUS_OCCUPIED,
                 now()->startOfMonth(),
@@ -47,10 +51,12 @@ class AuthenticationScenarioSeeder extends Seeder
             );
 
             $this->seedClientScenario(
-                'auth.settling@example.test',
+                'quynhanh.vu@example.test',
+                'D403',
                 'AUTH-SETTLING',
-                '099000000003',
-                '0900000103',
+                'HD20250011',
+                ['1999-08-09', 'female', '001299556677', '2022-02-18', 'Cục Cảnh sát QLHC về TTXH', 'Số 36 phố Minh Khai, Hai Bà Trưng, Hà Nội'],
+                ['Đỗ Quốc Bảo', '1996-01-21', 'male', '001096667788', '0945678901', 'quocbao.do@example.test', 'Số 9 phố Nguyễn Sơn, Long Biên, Hà Nội'],
                 Contract::STATUS_SETTLING,
                 Room::STATUS_AVAILABLE,
                 now()->subYear()->startOfMonth(),
@@ -65,9 +71,9 @@ class AuthenticationScenarioSeeder extends Seeder
     private function seedPaymentsAndSupportRequests(): void
     {
         $admin = User::where('email', 'auth.admin@example.test')->sole();
-        $active = User::where('email', 'auth.client@example.test')->sole();
-        $pending = User::where('email', 'auth.pending@example.test')->sole();
-        $settling = User::where('email', 'auth.settling@example.test')->sole();
+        $active = User::where('email', 'ducthanh.nguyen@example.test')->sole();
+        $pending = User::where('email', 'minhkhang.le@example.test')->sole();
+        $settling = User::where('email', 'quynhanh.vu@example.test')->sole();
 
         $activeInvoice = Invoice::whereHas('contract.tenant', fn ($query) => $query->where('user_id', $active->id))->sole();
         $pendingInvoice = Invoice::whereHas('contract.tenant', fn ($query) => $query->where('user_id', $pending->id))->sole();
@@ -140,8 +146,10 @@ class AuthenticationScenarioSeeder extends Seeder
     private function seedClientScenario(
         string $email,
         string $code,
-        string $cccd,
-        string $phone,
+        string $legacyCode,
+        string $contractCode,
+        array $tenantProfile,
+        array $memberProfile,
         string $contractStatus,
         string $roomStatus,
         Carbon $startDate,
@@ -150,50 +158,61 @@ class AuthenticationScenarioSeeder extends Seeder
     ): void {
         $checkedOut = in_array($contractStatus, [Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED], true);
         $user = User::where('email', $email)->sole();
-        $room = Room::updateOrCreate(
-            ['room_code' => $code],
+        [$birthDate, $gender, $cccd, $issueDate, $issuePlace, $address] = $tenantProfile;
+        [$memberName, $memberBirthDate, $memberGender, $memberCccd, $memberPhone, $memberEmail, $memberAddress] = $memberProfile;
+
+        $existingTenant = Tenant::query()->where('user_id', $user->id)->first();
+        $existingContract = $existingTenant?->contracts()->latest('id')->first();
+        $room = Room::query()->where('room_code', $code)->first()
+            ?? Room::query()->where('room_code', $legacyCode)->first()
+            ?? new Room();
+        $room->fill([
+            'room_code' => $code,
+            'floor' => 4,
+            'price' => 3500000,
+            'area' => 28,
+            'max_people' => 3,
+            'current_people' => $roomStatus === Room::STATUS_OCCUPIED ? 2 : 0,
+            'description' => "Phòng {$code} có ban công, khu bếp riêng và nội thất cơ bản cho hai người.",
+            'status' => $roomStatus,
+        ])->save();
+
+        $tenant = $existingTenant ?? new Tenant();
+        $tenant->fill([
+            'user_id' => $user->id,
+            'full_name' => $user->name,
+            'date_of_birth' => $birthDate,
+            'gender' => $gender,
+            'cccd' => $cccd,
+            'cccd_issue_date' => $issueDate,
+            'cccd_issue_place' => $issuePlace,
+            'phone' => $user->phone,
+            'email' => $email,
+            'address' => $address,
+        ])->save();
+
+        $member = Tenant::query()->where('cccd', $memberCccd)->first()
+            ?? Tenant::query()->where('email', strtolower($legacyCode).'.member@example.test')->first()
+            ?? new Tenant();
+        $member->fill([
+            'user_id' => null,
+            'full_name' => $memberName,
+            'date_of_birth' => $memberBirthDate,
+            'gender' => $memberGender,
+            'cccd' => $memberCccd,
+            'cccd_issue_date' => '2022-06-15',
+            'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
+            'phone' => $memberPhone,
+            'email' => $memberEmail,
+            'address' => $memberAddress,
+        ])->save();
+
+        $contract = $existingContract
+            ?? Contract::query()->where('contract_code', $contractCode)->first()
+            ?? new Contract();
+        $contract->fill(
             [
-                'floor' => 9,
-                'price' => 3500000,
-                'area' => 28,
-                'max_people' => 3,
-                'current_people' => $roomStatus === Room::STATUS_OCCUPIED ? 2 : 0,
-                'description' => "Phòng dữ liệu kiểm thử {$code}",
-                'status' => $roomStatus,
-            ]
-        );
-        $tenant = Tenant::updateOrCreate(
-            ['cccd' => $cccd],
-            [
-                'user_id' => $user->id,
-                'full_name' => $user->name,
-                'date_of_birth' => '1998-08-10',
-                'gender' => 'other',
-                'cccd_issue_date' => '2020-08-10',
-                'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
-                'phone' => $phone,
-                'email' => $email,
-                'address' => 'Địa chỉ kiểm thử kịch bản AUTH',
-            ]
-        );
-        $memberSuffix = str_pad((string) (abs(crc32($code)) % 100000000), 8, '0', STR_PAD_LEFT);
-        $member = Tenant::updateOrCreate(
-            ['cccd' => '0792'.$memberSuffix],
-            [
-                'user_id' => null,
-                'full_name' => 'Thành viên '.$code,
-                'date_of_birth' => '2000-01-15',
-                'gender' => 'other',
-                'cccd_issue_date' => '2022-01-15',
-                'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
-                'phone' => '08'.$memberSuffix,
-                'email' => strtolower($code).'.member@example.test',
-                'address' => 'Địa chỉ thành viên kiểm thử '.$code,
-            ]
-        );
-        $contract = Contract::updateOrCreate(
-            ['contract_code' => "HD-{$code}"],
-            [
+                'contract_code' => $contractCode,
                 'room_id' => $room->id,
                 'tenant_id' => $tenant->id,
                 'representative_tenant_id' => $tenant->id,
@@ -207,9 +226,9 @@ class AuthenticationScenarioSeeder extends Seeder
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'actual_end_date' => $checkedOut ? $endDate : null,
-                'note' => "Hợp đồng dữ liệu kiểm thử {$code}",
+                'note' => "Hợp đồng thuê phòng {$code} dùng cho dữ liệu minh họa.",
             ]
-        );
+        )->save();
         $contract->forceFill([
             'status' => $contractStatus,
             'signed_at' => $startDate->copy()->subDays(7),

@@ -34,6 +34,10 @@ class ContractController extends Controller
     {
         $contracts = $this->contractQuery($request)->latest()->get();
 
+        if ($request->ajax()) {
+            return view('admin.contracts.partials.results', compact('contracts'));
+        }
+
         return view('admin.contracts.index', compact('contracts'));
     }
 

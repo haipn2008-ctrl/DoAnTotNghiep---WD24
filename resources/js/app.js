@@ -551,6 +551,116 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    [
+        {
+            filterSelector: '[data-tenant-filter]',
+            searchSelector: '[data-tenant-search]',
+            statusSelector: '[data-tenant-status]',
+            resultsSelector: '[data-tenant-results]',
+            errorSelector: '[data-tenant-filter-error]',
+            exportSelector: '[data-tenant-export]',
+            loadingSelector: '[data-tenant-loading]',
+            paginationSelector: '[data-tenant-pagination]',
+            searchParam: 'search',
+        },
+        {
+            filterSelector: '[data-room-filter]',
+            searchSelector: '[data-room-search]',
+            statusSelector: '[data-room-status]',
+            resultsSelector: '[data-room-results]',
+            errorSelector: '[data-room-filter-error]',
+            exportSelector: '[data-room-export]',
+            loadingSelector: '[data-room-loading]',
+            paginationSelector: '[data-room-pagination]',
+            searchParam: 'room_code',
+        },
+        {
+            filterSelector: '[data-contract-filter]',
+            searchSelector: '[data-contract-search]',
+            statusSelector: '[data-contract-status]',
+            resultsSelector: '[data-contract-results]',
+            errorSelector: '[data-contract-filter-error]',
+            exportSelector: '[data-contract-export]',
+            loadingSelector: '[data-contract-loading]',
+            paginationSelector: '[data-contract-pagination]',
+            searchParam: 'keyword',
+        },
+    ].forEach((config) => {
+        document.querySelectorAll(config.filterSelector).forEach((filter) => {
+            const form = filter.querySelector('form');
+            const searchInput = filter.querySelector(config.searchSelector);
+            const statusInput = filter.querySelector(config.statusSelector);
+            const results = document.querySelector(config.resultsSelector);
+            const errorMessage = document.querySelector(config.errorSelector);
+            const exportLink = document.querySelector(config.exportSelector);
+            if (!form || !searchInput || !statusInput || !results) return;
+
+            let debounceTimer;
+            let activeRequest;
+            const filterUrl = (pageUrl = form.action) => {
+                const url = new URL(pageUrl, window.location.origin);
+                url.searchParams.delete(config.searchParam);
+                url.searchParams.delete('status');
+                if (searchInput.value.trim()) url.searchParams.set(config.searchParam, searchInput.value.trim());
+                if (statusInput.value) url.searchParams.set('status', statusInput.value);
+                return url;
+            };
+            const syncExportLink = (url) => {
+                if (!exportLink) return;
+                const exportUrl = new URL(exportLink.href, window.location.origin);
+                exportUrl.search = url.search;
+                exportLink.href = exportUrl.toString();
+            };
+            const setLoading = (loading) => {
+                results.classList.toggle('opacity-50', loading);
+                results.classList.toggle('pointer-events-none', loading);
+                results.querySelector(config.loadingSelector)?.classList.toggle('hidden', !loading);
+            };
+            const loadResults = async (url, updateAddress = true) => {
+                activeRequest?.abort();
+                activeRequest = new AbortController();
+                errorMessage?.classList.add('hidden');
+                setLoading(true);
+                try {
+                    const response = await fetch(url, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'text/html' },
+                        signal: activeRequest.signal,
+                    });
+                    if (!response.ok) throw new Error('Không thể tải danh sách.');
+                    results.innerHTML = await response.text();
+                    if (updateAddress) window.history.replaceState({}, '', url);
+                    syncExportLink(url);
+                } catch (error) {
+                    if (error.name !== 'AbortError') errorMessage?.classList.remove('hidden');
+                } finally {
+                    setLoading(false);
+                }
+            };
+            const scheduleFilter = (immediate = false) => {
+                window.clearTimeout(debounceTimer);
+                const run = () => loadResults(filterUrl());
+                immediate ? run() : debounceTimer = window.setTimeout(run, 250);
+            };
+
+            form.addEventListener('submit', (event) => event.preventDefault());
+            searchInput.addEventListener('input', () => scheduleFilter(false));
+            statusInput.addEventListener('change', () => scheduleFilter(true));
+            results.addEventListener('click', (event) => {
+                const link = event.target.closest(`${config.paginationSelector} a`);
+                if (!link) return;
+                event.preventDefault();
+                loadResults(filterUrl(link.href));
+            });
+            window.addEventListener('popstate', () => {
+                const currentUrl = new URL(window.location.href);
+                searchInput.value = currentUrl.searchParams.get(config.searchParam) || '';
+                statusInput.value = currentUrl.searchParams.get('status') || '';
+                loadResults(currentUrl, false);
+            });
+            syncExportLink(filterUrl(window.location.href));
+        });
+    });
+
     document.querySelectorAll('[data-inventory-selector]').forEach((container) => {
         const checkboxes = Array.from(container.querySelectorAll('[data-inventory-checkbox]'));
         const toggle = container.querySelector('[data-inventory-toggle-all]');

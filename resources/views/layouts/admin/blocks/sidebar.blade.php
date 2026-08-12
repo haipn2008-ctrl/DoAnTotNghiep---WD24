@@ -19,7 +19,6 @@
             'items' => [
                 ['label' => 'Danh sách phòng', 'route' => 'admin.rooms.index', 'active' => request()->routeIs('admin.rooms.index')],
                 ['label' => 'Thêm phòng mới', 'route' => 'admin.rooms.create', 'active' => request()->routeIs('admin.rooms.create')],
-                ['label' => 'Xuất danh sách phòng', 'route' => 'admin.rooms.export', 'active' => request()->routeIs('admin.rooms.export')],
             ],
         ],
         [
@@ -29,7 +28,6 @@
             'items' => [
                 ['label' => 'Danh sách khách thuê', 'route' => 'admin.tenants.index', 'active' => request()->routeIs('admin.tenants.index')],
                 ['label' => 'Thêm khách thuê', 'route' => 'admin.tenants.create', 'active' => request()->routeIs('admin.tenants.create')],
-                ['label' => 'Xuất danh sách khách thuê', 'route' => 'admin.tenants.export', 'active' => request()->routeIs('admin.tenants.export')],
             ],
         ],
         [
@@ -39,8 +37,6 @@
             'items' => [
                 ['label' => 'Tạo hợp đồng thuê', 'route' => 'admin.contracts.create', 'active' => request()->routeIs('admin.contracts.create')],
                 ['label' => 'Danh sách hợp đồng', 'route' => 'admin.contracts.index', 'active' => request()->routeIs('admin.contracts.index')],
-                ['label' => 'Gia hạn hợp đồng', 'route' => 'admin.contracts.extend.list', 'active' => request()->routeIs('admin.contracts.extend*')],
-                ['label' => 'Kết thúc hợp đồng', 'route' => 'admin.contracts.end.list', 'active' => request()->routeIs('admin.contracts.end*')],
             ],
         ],
         [

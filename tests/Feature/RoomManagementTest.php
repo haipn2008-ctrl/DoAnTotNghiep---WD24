@@ -56,6 +56,44 @@ class RoomManagementTest extends TestCase
         $this->get('/admin/rooms/999999')->assertNotFound();
     }
 
+    public function test_room_list_has_direct_export_and_live_filter_controls_without_filter_buttons(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.rooms.index'));
+
+        $response->assertOk()
+            ->assertSee('data-room-filter', false)
+            ->assertSee('data-room-search', false)
+            ->assertSee('data-room-status', false)
+            ->assertSee('data-room-export', false)
+            ->assertSee('href="'.route('admin.rooms.export').'"', false)
+            ->assertDontSee('>Lọc</button>', false)
+            ->assertDontSee('>Làm mới</a>', false);
+
+        $this->get('/admin/rooms/export/download')->assertNotFound();
+    }
+
+    public function test_ajax_room_search_and_status_filter_return_only_matching_rows(): void
+    {
+        $available = $this->room(['room_code' => 'LIVE-AVAILABLE', 'status' => Room::STATUS_AVAILABLE]);
+        $maintenance = $this->room(['room_code' => 'LIVE-MAINTENANCE', 'status' => Room::STATUS_MAINTENANCE]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.rooms.index', [
+                'room_code' => 'AVAILABLE',
+                'status' => Room::STATUS_AVAILABLE,
+            ]), ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertSee($available->room_code)
+            ->assertDontSee($maintenance->room_code)
+            ->assertDontSee('data-room-filter', false);
+
+        $this->get(route('admin.rooms.index', ['status' => Room::STATUS_MAINTENANCE]), [
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk()
+            ->assertSee($maintenance->room_code)
+            ->assertDontSee($available->room_code);
+    }
+
     public function test_admin_can_create_room_with_locked_empty_state_inventory_and_multiple_evidence_images(): void
     {
         Storage::fake('public');
