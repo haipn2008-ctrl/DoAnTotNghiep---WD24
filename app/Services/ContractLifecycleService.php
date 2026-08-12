@@ -56,6 +56,7 @@ class ContractLifecycleService
                 'number_of_people' => $numberOfPeople,
                 'internet_enabled' => (bool) ($data['internet_enabled'] ?? false),
                 'service_enabled' => (bool) ($data['service_enabled'] ?? false),
+                'parking_vehicle_type' => $this->parkingVehicleType($data),
                 'parking_quantity' => $data['parking_quantity'] ?? 0,
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'],
@@ -139,6 +140,7 @@ class ContractLifecycleService
                 'number_of_people' => $numberOfPeople,
                 'internet_enabled' => (bool) ($data['internet_enabled'] ?? false),
                 'service_enabled' => (bool) ($data['service_enabled'] ?? false),
+                'parking_vehicle_type' => $this->parkingVehicleType($data),
                 'parking_quantity' => $data['parking_quantity'] ?? 0,
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'],
@@ -362,6 +364,7 @@ class ContractLifecycleService
                     'inventory_items' => $contract->handoverItems()->count(),
                     'internet_enabled' => $contract->internet_enabled,
                     'service_enabled' => $contract->service_enabled,
+                    'parking_vehicle_type' => $contract->parking_vehicle_type,
                     'parking_quantity' => $contract->parking_quantity,
                 ],
             );
@@ -1019,6 +1022,17 @@ class ContractLifecycleService
             'name' => $tenant->full_name,
             'phone' => $tenant->phone,
         ])->save();
+    }
+
+    private function parkingVehicleType(array $data): ?string
+    {
+        if ((int) ($data['parking_quantity'] ?? 0) <= 0) {
+            return null;
+        }
+
+        return in_array($data['parking_vehicle_type'] ?? null, [Contract::PARKING_MOTORCYCLE, Contract::PARKING_CAR], true)
+            ? $data['parking_vehicle_type']
+            : Contract::PARKING_MOTORCYCLE;
     }
 
     private function fail(string $key, string $message): never

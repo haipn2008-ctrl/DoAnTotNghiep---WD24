@@ -15,6 +15,8 @@ class SettingSeeder extends Seeder
             'internet_fee' => 100000,
             'service_fee' => 50000,
             'parking_fee' => 75000,
+            'motorcycle_parking_fee' => 75000,
+            'car_parking_fee' => 500000,
             'property_name' => 'Nhà trọ StayMaster',
             'property_address' => 'Trịnh Văn Bô, Nam Từ Liêm, Hà Nội',
             'landlord_name' => 'Nguyễn Xuân Nam',

@@ -4,7 +4,8 @@
         'water_price' => ['Đơn giá nước', 'VNĐ/m³'],
         'internet_fee' => ['Phí Internet', 'VNĐ/tháng'],
         'service_fee' => ['Phí dịch vụ chung', 'VNĐ/tháng'],
-        'parking_fee' => ['Phí gửi xe', 'VNĐ/xe/tháng'],
+        'motorcycle_parking_fee' => ['Phí trông xe máy', 'VNĐ/xe/tháng'],
+        'car_parking_fee' => ['Phí trông ô tô', 'VNĐ/xe/tháng'],
     ];
 @endphp
 <div class="grid gap-4 md:grid-cols-2">

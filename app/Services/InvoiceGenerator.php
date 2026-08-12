@@ -107,10 +107,21 @@ class InvoiceGenerator
             ],
         ];
 
+        $parkingType = $contract->parking_vehicle_type;
+        $parkingUnitPrice = match ($parkingType) {
+            Contract::PARKING_CAR => (float) ($setting->car_parking_fee ?? 0),
+            Contract::PARKING_MOTORCYCLE => (float) ($setting->motorcycle_parking_fee ?? 0),
+            // Hợp đồng cũ chưa có loại xe tiếp tục dùng mức phí cũ để bảo toàn lịch sử.
+            default => (float) ($setting->parking_fee ?? 0),
+        };
+        $parkingName = $parkingType === Contract::PARKING_CAR
+            ? 'Phí trông ô tô'
+            : 'Phí trông xe máy';
+
         $serviceLines = [
             ['internet', 'Phí internet', $contract->internet_enabled ? (float) ($setting->internet_fee ?? 0) : 0, 1, 4],
             ['service', 'Phí dịch vụ chung', $contract->service_enabled ? (float) ($setting->service_fee ?? 0) : 0, 1, 5],
-            ['parking', 'Phí gửi xe', (float) ($setting->parking_fee ?? 0), (int) $contract->parking_quantity, 6],
+            ['parking', $parkingName, $parkingUnitPrice, (int) $contract->parking_quantity, 6],
         ];
 
         foreach ($serviceLines as [$type, $name, $unitPrice, $quantity, $sortOrder]) {

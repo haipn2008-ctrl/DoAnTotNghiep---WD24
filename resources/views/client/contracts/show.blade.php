@@ -43,7 +43,7 @@
                 <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div>
                         <h3 class="font-semibold text-slate-950">Thông tin nhận phòng</h3>
-                        <p class="mt-1 text-sm text-slate-500">Dịch vụ đã đăng ký và tài sản sẽ có trong phòng khi bàn giao.</p>
+                        <p class="mt-1 text-sm text-slate-500">Tiện nghi đã bao gồm, dịch vụ tính phí và tài sản sẽ có trong phòng khi bàn giao.</p>
                     </div>
                     @if($contract->move_in_details_confirmed_at)
                         <span class="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Đã xác nhận {{ $contract->move_in_details_confirmed_at->format('d/m/Y H:i') }}</span>
@@ -54,11 +54,11 @@
             </div>
 
             <div class="p-5">
-                <h4 class="text-sm font-semibold text-slate-900">Dịch vụ đăng ký</h4>
+                <h4 class="text-sm font-semibold text-slate-900">Tiện nghi và dịch vụ đăng ký</h4>
                 <div class="mt-3 grid gap-3 sm:grid-cols-3">
-                    <div class="rounded-lg border p-4 {{ $contract->internet_enabled ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50' }}"><p class="text-sm font-semibold">Internet</p><p class="mt-1 text-xs {{ $contract->internet_enabled ? 'text-indigo-700' : 'text-slate-500' }}">{{ $contract->internet_enabled ? 'Đã đăng ký' : 'Không đăng ký' }}</p></div>
+                    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4"><p class="text-sm font-semibold text-emerald-950">Wi-Fi và máy lạnh</p><p class="mt-1 text-xs text-emerald-700">Đã bao gồm, không tính phí riêng</p></div>
                     <div class="rounded-lg border p-4 {{ $contract->service_enabled ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50' }}"><p class="text-sm font-semibold">Dịch vụ chung</p><p class="mt-1 text-xs {{ $contract->service_enabled ? 'text-indigo-700' : 'text-slate-500' }}">{{ $contract->service_enabled ? 'Đã đăng ký' : 'Không đăng ký' }}</p></div>
-                    <div class="rounded-lg border p-4 {{ $contract->parking_quantity > 0 ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50' }}"><p class="text-sm font-semibold">Giữ xe</p><p class="mt-1 text-xs {{ $contract->parking_quantity > 0 ? 'text-indigo-700' : 'text-slate-500' }}">{{ $contract->parking_quantity > 0 ? $contract->parking_quantity.' xe đã đăng ký' : 'Không đăng ký' }}</p></div>
+                    <div class="rounded-lg border p-4 {{ $contract->parking_quantity > 0 ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50' }}"><p class="text-sm font-semibold">Trông xe</p><p class="mt-1 text-xs {{ $contract->parking_quantity > 0 ? 'text-indigo-700' : 'text-slate-500' }}">{{ $contract->parking_quantity > 0 ? ($contract->parking_vehicle_label ?? 'Xe máy').' × '.$contract->parking_quantity : 'Không đăng ký' }}</p></div>
                 </div>
             </div>
 
@@ -85,7 +85,7 @@
             @if($canConfirmMoveInDetails && $contract->move_in_inventory_snapshotted_at && ! $contract->move_in_details_confirmed_at)
                 <form method="POST" action="{{ route('client.contracts.move-in-details.confirm', $contract) }}" class="border-t border-indigo-200 bg-indigo-50 p-5">
                     @csrf
-                    <label class="flex items-start gap-3 text-sm font-medium text-slate-800"><input type="checkbox" name="confirmation" value="1" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"> <span>Tôi đã kiểm tra dịch vụ đăng ký, tên từng tài sản, số lượng, tình trạng và ghi chú; tôi đồng ý đây là thông tin dùng để bàn giao phòng.</span></label>
+                    <label class="flex items-start gap-3 text-sm font-medium text-slate-800"><input type="checkbox" name="confirmation" value="1" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"> <span>Tôi đã kiểm tra tiện nghi, dịch vụ tính phí, tên từng tài sản, số lượng, tình trạng và ghi chú; tôi đồng ý đây là thông tin dùng để bàn giao phòng.</span></label>
                     @error('confirmation')<p class="mt-2 text-sm text-rose-700">{{ $message }}</p>@enderror
                     <button class="mt-4 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Xác nhận thông tin nhận phòng</button>
                 </form>
@@ -123,15 +123,16 @@
                 @if($occupancyLimitReached)
                     <div class="border-t border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-800">Phòng chỉ chứa tối đa {{ $contract->room->max_people }} người. Đã đạt giới hạn của phòng.</div>
                 @else
-                <form method="POST" action="{{ route('client.contracts.occupants.store', $contract) }}" enctype="multipart/form-data" class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2">
+                <form method="POST" action="{{ route('client.contracts.occupants.store', $contract) }}" enctype="multipart/form-data" data-minor-identity-form class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2">
                     @csrf
                     <div class="sm:col-span-2"><h4 class="font-semibold text-slate-900">Khai báo thêm người ở</h4><p class="mt-1 text-xs text-slate-500">Thông tin này tách khỏi hồ sơ tài khoản của bạn và sẽ được lưu lịch sử.</p></div>
                     <input name="full_name" value="{{ old('full_name') }}" required maxlength="150" placeholder="Họ và tên *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input type="date" name="date_of_birth" value="{{ old('date_of_birth') }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input name="identity_number" value="{{ old('identity_number') }}" required inputmode="numeric" minlength="12" maxlength="12" placeholder="CCCD *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input name="phone" value="{{ old('phone') }}" maxlength="30" placeholder="Số điện thoại" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt trước CCCD *</label><input type="file" name="identity_front" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
-                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt sau CCCD *</label><input type="file" name="identity_back" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
+                    <input data-minor-date-of-birth type="date" name="date_of_birth" value="{{ old('date_of_birth') }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    <input data-minor-identity-number name="identity_number" value="{{ old('identity_number') }}" required inputmode="numeric" minlength="12" maxlength="12" placeholder="CCCD *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    <input name="phone" value="{{ old('phone') }}" maxlength="30" placeholder="Số điện thoại (không bắt buộc)" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    <p data-minor-identity-note class="hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:col-span-2">Người dưới 14 tuổi được phép để trống CCCD, hai ảnh và số điện thoại.</p>
+                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt trước CCCD <span data-minor-required-marker>*</span></label><input data-minor-identity-file data-required-when-adult="1" type="file" name="identity_front" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
+                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt sau CCCD <span data-minor-required-marker>*</span></label><input data-minor-identity-file data-required-when-adult="1" type="file" name="identity_back" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
                     <div class="sm:col-span-2"><button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white">Gửi admin duyệt</button></div>
                 </form>
                 @endif

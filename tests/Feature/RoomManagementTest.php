@@ -56,6 +56,20 @@ class RoomManagementTest extends TestCase
         $this->get('/admin/rooms/999999')->assertNotFound();
     }
 
+    public function test_empty_room_evidence_log_is_collapsed_until_admin_clicks_add(): void
+    {
+        $room = $this->room(['room_code' => 'EMPTY-EVIDENCE-LOG']);
+
+        $this->actingAs($this->admin)->get(route('admin.rooms.show', $room))
+            ->assertOk()
+            ->assertSee('Chưa có nhật ký.')
+            ->assertSee('data-room-evidence-toggle', false)
+            ->assertSee('aria-expanded="false"', false)
+            ->assertSee('data-room-evidence-form class="hidden grid', false)
+            ->assertSee('Thêm nhật ký')
+            ->assertDontSee('Chưa có ảnh hiện trạng.');
+    }
+
     public function test_room_list_has_direct_export_and_live_filter_controls_without_filter_buttons(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.rooms.index'));
@@ -116,12 +130,26 @@ class RoomManagementTest extends TestCase
             'room_id' => $room->id, 'amenity_id' => $amenity->id,
             'quantity' => 2, 'condition' => 'damaged', 'note' => null,
         ]);
+        $this->assertSame(0, $room->amenities()->utilities()->count());
         $this->assertDatabaseCount('room_images', 2);
         $this->assertDatabaseHas('room_images', [
             'room_id' => $room->id, 'evidence_type' => RoomImage::TYPE_BASELINE,
             'uploaded_by' => $this->admin->id,
         ]);
         Storage::disk('public')->assertExists($room->thumbnail);
+    }
+
+    public function test_create_room_selects_all_active_assets_by_default_and_hides_mattress(): void
+    {
+        $assetCount = Amenity::query()->active()->assets()->count();
+        $response = $this->actingAs($this->admin)->get('/admin/rooms/create');
+
+        $response->assertOk()->assertDontSee('Nệm');
+        $this->assertSame($assetCount, substr_count($response->getContent(), 'checked data-inventory-checkbox'));
+
+        $this->post('/admin/rooms', $this->payload())->assertRedirect(route('admin.rooms.index'));
+        $room = Room::where('room_code', 'ROOM-NEW')->firstOrFail();
+        $this->assertSame($assetCount, $room->amenities()->assets()->count());
     }
 
     public function test_create_rejects_duplicate_invalid_boundaries_missing_amenity_and_bad_image_without_writes(): void
@@ -142,14 +170,18 @@ class RoomManagementTest extends TestCase
     public function test_inactive_amenities_are_hidden_and_cannot_be_submitted(): void
     {
         $removed = Amenity::create(['name' => 'Ban công', 'is_quantifiable' => false, 'is_active' => false]);
-        Amenity::create(['name' => 'Tủ lạnh', 'is_quantifiable' => true, 'is_active' => true]);
+        Amenity::updateOrCreate(['name' => 'Wi-Fi'], ['category' => Amenity::CATEGORY_UTILITY, 'is_quantifiable' => false, 'is_active' => true]);
+        Amenity::updateOrCreate(['name' => 'Tủ lạnh'], ['category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true, 'is_active' => true]);
 
         $this->actingAs($this->admin)->get('/admin/rooms/create')
             ->assertOk()
             ->assertDontSee('Ban công')
+            ->assertSee('Tài sản trong phòng')
+            ->assertDontSee('Wi-Fi')
             ->assertSee('Tủ lạnh')
-            ->assertSee('Chọn tất cả')
+            ->assertSee('Chọn tất cả tài sản')
             ->assertSee('data-inventory-toggle-all', false)
+            ->assertDontSee('data-inventory-toggle-group', false)
             ->assertSee('js-image-preview-input', false)
             ->assertSee('images-preview', false);
 

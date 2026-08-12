@@ -32,6 +32,7 @@ class InvoiceManagementTest extends TestCase
         $this->admin = $this->user($adminRole, 'invoice-admin@example.test');
         Setting::create(['electric_price' => 3500, 'water_price' => 20000,
             'internet_fee' => 100000, 'service_fee' => 50000, 'parking_fee' => 75000,
+            'motorcycle_parking_fee' => 80000, 'car_parking_fee' => 500000,
             'invoice_day' => 31, 'payment_due_days' => 10]);
     }
 
@@ -76,6 +77,23 @@ class InvoiceManagementTest extends TestCase
             collect($response->json('lines'))->pluck('type')->all());
         $this->assertDatabaseCount('invoices', 0);
         $this->assertDatabaseCount('invoice_details', 0);
+    }
+
+    public function test_parking_line_uses_the_selected_vehicle_type_price_and_quantity(): void
+    {
+        [$contract] = $this->fixture('CAR-PARKING');
+        $contract->update([
+            'parking_vehicle_type' => Contract::PARKING_CAR,
+            'parking_quantity' => 2,
+        ]);
+
+        $preview = app(InvoiceGenerator::class)->preview($contract->fresh(), 7, 2026);
+        $parkingLine = collect($preview['lines'])->firstWhere('type', 'parking');
+
+        $this->assertSame('Phí trông ô tô', $parkingLine['name']);
+        $this->assertSame(2, $parkingLine['quantity']);
+        $this->assertSame(500000.0, $parkingLine['unit_price']);
+        $this->assertSame(1000000.0, $parkingLine['amount']);
     }
 
     public function test_issue_creates_immutable_snapshot_details_and_concurrency_safe_code_once(): void

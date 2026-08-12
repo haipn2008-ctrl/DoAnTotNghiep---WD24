@@ -1,4 +1,22 @@
 document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-room-evidence-toggle]').forEach((toggle) => {
+        const section = toggle.closest('section');
+        const form = section?.querySelector('[data-room-evidence-form]');
+        const cancel = form?.querySelector('[data-room-evidence-cancel]');
+        if (!form) return;
+
+        const setOpen = (open) => {
+            form.classList.toggle('hidden', !open);
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) {
+                form.querySelector('select, input, textarea')?.focus({ preventScroll: true });
+            }
+        };
+
+        toggle.addEventListener('click', () => setOpen(form.classList.contains('hidden')));
+        cancel?.addEventListener('click', () => setOpen(false));
+    });
+
     document.querySelectorAll('[data-contract-representative]').forEach((selector) => {
         const form = selector.closest('form');
         const profile = form?.querySelector('[data-representative-profile]');
@@ -14,6 +32,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 field.value = option?.dataset[datasetKey] || '';
             });
         });
+    });
+
+    document.querySelectorAll('[data-minor-identity-form]').forEach((form) => {
+        const dateOfBirth = form.querySelector('[data-minor-date-of-birth]');
+        const identityNumber = form.querySelector('[data-minor-identity-number]');
+        const identityFiles = form.querySelectorAll('[data-minor-identity-file]');
+        const requiredMarkers = form.querySelectorAll('[data-minor-required-marker]');
+        const minorNote = form.querySelector('[data-minor-identity-note]');
+        const isUnderFourteen = () => {
+            if (!dateOfBirth?.value) return false;
+            const birthDate = new Date(`${dateOfBirth.value}T00:00:00`);
+            if (Number.isNaN(birthDate.getTime())) return false;
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const birthdayHasPassed = today.getMonth() > birthDate.getMonth()
+                || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+            if (!birthdayHasPassed) age--;
+            return age >= 0 && age < 14;
+        };
+        const refresh = () => {
+            const minor = isUnderFourteen();
+            const hasIdentityNumber = Boolean(identityNumber?.value.trim());
+            if (identityNumber) {
+                identityNumber.required = !minor;
+                identityNumber.placeholder = minor ? 'CCCD (không bắt buộc)' : 'CCCD *';
+            }
+            identityFiles.forEach((input) => {
+                input.required = input.dataset.requiredWhenAdult === '1' && (!minor || hasIdentityNumber);
+            });
+            requiredMarkers.forEach((marker) => {
+                marker.textContent = minor ? '(không bắt buộc)' : '*';
+            });
+            minorNote?.classList.toggle('hidden', !minor);
+        };
+        dateOfBirth?.addEventListener('change', refresh);
+        identityNumber?.addEventListener('input', refresh);
+        refresh();
     });
 
     const identityPreviewUrls = new WeakMap();
@@ -329,6 +384,57 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshSchedule(false);
     });
 
+    document.querySelectorAll('[data-contract-services]').forEach((section) => {
+        const form = section.closest('form');
+        const roomSelector = form?.querySelector('[name="room_id"]');
+        const inventoryPrompt = section.querySelector('[data-room-inventory-prompt]');
+        const inventoryPanels = section.querySelectorAll('[data-room-inventory]');
+        const parkingEnabled = section.querySelector('[data-parking-enabled]');
+        const parkingFields = section.querySelector('[data-parking-fields]');
+        const parkingVehicleType = section.querySelector('[data-parking-vehicle-type]');
+        const parkingQuantity = section.querySelector('[data-parking-quantity]');
+        const parkingEstimate = section.querySelector('[data-parking-estimate]');
+        const parkingFees = {
+            motorcycle: Number(section.dataset.motorcycleParkingFee || 0),
+            car: Number(section.dataset.carParkingFee || 0),
+        };
+
+        const refreshInventory = () => {
+            const roomId = roomSelector?.value || '';
+            inventoryPrompt?.classList.toggle('hidden', roomId !== '');
+            inventoryPanels.forEach((panel) => {
+                panel.classList.toggle('hidden', panel.dataset.roomInventory !== roomId);
+            });
+        };
+        const refreshParkingEstimate = () => {
+            if (!parkingQuantity || !parkingEstimate) {
+                return;
+            }
+            const enabled = Boolean(parkingEnabled?.checked);
+            parkingFields?.classList.toggle('hidden', !enabled);
+            if (parkingVehicleType) {
+                parkingVehicleType.disabled = !enabled;
+            }
+            parkingQuantity.disabled = !enabled;
+            if (!enabled) {
+                parkingEstimate.textContent = '';
+                return;
+            }
+            const quantity = Math.max(0, Number(parkingQuantity.value || 0));
+            const parkingUnitPrice = parkingFees[parkingVehicleType?.value] || 0;
+            parkingEstimate.textContent = parkingUnitPrice > 0
+                ? `Dự kiến: ${new Intl.NumberFormat('vi-VN').format(parkingUnitPrice * quantity)}đ/tháng`
+                : 'Loại xe này chưa được cấu hình đơn giá.';
+        };
+
+        roomSelector?.addEventListener('change', refreshInventory);
+        parkingEnabled?.addEventListener('change', refreshParkingEstimate);
+        parkingVehicleType?.addEventListener('change', refreshParkingEstimate);
+        parkingQuantity?.addEventListener('input', refreshParkingEstimate);
+        refreshInventory();
+        refreshParkingEstimate();
+    });
+
     document.querySelectorAll('[data-contract-occupants]').forEach((container) => {
         const list = container.querySelector('[data-occupant-list]');
         const template = container.querySelector('[data-occupant-template]');
@@ -378,11 +484,48 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const bindRow = (row) => {
+            const dateOfBirth = row.querySelector('[data-occupant-date-of-birth]');
+            const identityNumber = row.querySelector('[data-occupant-identity-number]');
+            const identityFiles = row.querySelectorAll('[data-occupant-identity-file]');
+            const identityMarkers = row.querySelectorAll('[data-identity-required-marker]');
+            const minorNote = row.querySelector('[data-minor-identity-note]');
+            const isUnderFourteen = () => {
+                if (!dateOfBirth?.value) return false;
+                const birthDate = new Date(`${dateOfBirth.value}T00:00:00`);
+                if (Number.isNaN(birthDate.getTime())) return false;
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const birthdayHasPassed = today.getMonth() > birthDate.getMonth()
+                    || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+                if (!birthdayHasPassed) age--;
+                return age >= 0 && age < 14;
+            };
+            const refreshIdentityRequirements = () => {
+                const minor = isUnderFourteen();
+                const hasIdentityNumber = Boolean(identityNumber?.value.trim());
+                if (identityNumber) {
+                    identityNumber.required = !minor;
+                    identityNumber.placeholder = minor
+                        ? 'Có thể để trống với trẻ dưới 14 tuổi'
+                        : 'Nhập đúng 12 chữ số';
+                }
+                identityFiles.forEach((input) => {
+                    input.required = input.dataset.identityRequiredWhenAdult === '1' && (!minor || hasIdentityNumber);
+                });
+                identityMarkers.forEach((marker) => {
+                    marker.textContent = minor ? '(không bắt buộc)' : '*';
+                });
+                minorNote?.classList.toggle('hidden', !minor);
+            };
+
+            dateOfBirth?.addEventListener('change', refreshIdentityRequirements);
+            identityNumber?.addEventListener('input', refreshIdentityRequirements);
             row.querySelector('[data-remove-occupant]')?.addEventListener('click', () => {
                 row.remove();
                 roomCapacityError = '';
                 refresh();
             });
+            refreshIdentityRequirements();
         };
 
         list?.querySelectorAll('[data-occupant-row]').forEach(bindRow);
@@ -397,9 +540,10 @@ document.addEventListener('DOMContentLoaded', () => {
             wrapper.innerHTML = template.innerHTML.replaceAll('__INDEX__', String(nextIndex++));
             const row = wrapper.firstElementChild;
             if (row) {
-                list.appendChild(row);
+                const firstRow = list.querySelector('[data-occupant-row]');
+                list.insertBefore(row, firstRow || emptyState || list.firstChild);
                 bindRow(row);
-                row.querySelector('input:not([type="hidden"])')?.focus();
+                row.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true });
             }
             roomCapacityError = '';
             refresh();
@@ -674,18 +818,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const toggle = container.querySelector('[data-inventory-toggle-all]');
         const toggleLabel = toggle?.querySelector('span');
         const selectionCount = container.querySelector('[data-inventory-selection-count]');
+        const groups = Array.from(container.querySelectorAll('[data-inventory-group]'));
 
         const updateInventoryToggle = () => {
             const selected = checkboxes.filter((checkbox) => checkbox.checked).length;
             const allSelected = checkboxes.length > 0 && selected === checkboxes.length;
 
             if (toggleLabel) {
-                toggleLabel.textContent = allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả';
+                toggleLabel.textContent = allSelected ? 'Bỏ chọn tất cả tài sản' : 'Chọn tất cả tài sản';
             }
             if (selectionCount) {
-                selectionCount.textContent = `${selected}/${checkboxes.length} mục đã chọn`;
+                selectionCount.textContent = `${selected}/${checkboxes.length} tài sản đã chọn`;
             }
             toggle?.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
+
+            groups.forEach((group) => {
+                const groupCheckboxes = Array.from(group.querySelectorAll('[data-inventory-checkbox]'));
+                const groupToggle = group.querySelector('[data-inventory-toggle-group]');
+                const groupLabel = groupToggle?.querySelector('span');
+                const groupSelected = groupCheckboxes.filter((checkbox) => checkbox.checked).length;
+                const entireGroupSelected = groupCheckboxes.length > 0 && groupSelected === groupCheckboxes.length;
+
+                if (groupLabel) {
+                    groupLabel.textContent = entireGroupSelected ? 'Bỏ chọn cả nhóm' : 'Chọn cả nhóm';
+                }
+                groupToggle?.setAttribute('aria-pressed', entireGroupSelected ? 'true' : 'false');
+            });
         };
 
         toggle?.addEventListener('click', () => {
@@ -694,6 +852,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 checkbox.checked = shouldSelect;
             });
             updateInventoryToggle();
+        });
+
+        groups.forEach((group) => {
+            const groupCheckboxes = Array.from(group.querySelectorAll('[data-inventory-checkbox]'));
+            const groupToggle = group.querySelector('[data-inventory-toggle-group]');
+
+            groupToggle?.addEventListener('click', () => {
+                const shouldSelect = groupCheckboxes.some((checkbox) => !checkbox.checked);
+                groupCheckboxes.forEach((checkbox) => {
+                    checkbox.checked = shouldSelect;
+                });
+                updateInventoryToggle();
+            });
         });
 
         checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateInventoryToggle));

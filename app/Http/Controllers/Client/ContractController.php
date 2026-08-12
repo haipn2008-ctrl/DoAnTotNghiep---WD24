@@ -49,7 +49,7 @@ class ContractController extends Controller
 
         $this->lifecycle->confirmMoveInDetails($contract, $request->user());
 
-        return back()->with('success', 'Đã xác nhận dịch vụ đăng ký và tài sản bàn giao của phòng.');
+        return back()->with('success', 'Đã xác nhận tiện nghi, dịch vụ tính phí và tài sản bàn giao của phòng.');
     }
 
     public function file(Request $request, int $contract): StreamedResponse

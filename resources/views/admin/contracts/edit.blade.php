@@ -55,9 +55,13 @@
             <div data-contract-move-in-warning class="hidden md:col-span-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">Hạn cuối chuyển vào quá dài so với thời gian thuê, bạn có chắc chắn không?</div>
             <div data-move-in-terms-confirmation class="hidden md:col-span-2"><label class="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900"><input data-move-in-terms-confirmed type="checkbox" name="move_in_terms_confirmed" value="1" class="mt-0.5"><span>Tôi xác nhận đã trao đổi và thống nhất với khách về ngày dự kiến nhận phòng và hạn cuối nhận phòng.</span></label>@error('move_in_terms_confirmed')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror</div>
             <div><label class="mb-1 block text-sm font-semibold">Tiền cọc (VNĐ)</label><input type="number" min="0" name="deposit_amount" value="{{ old('deposit_amount',$contract->deposit_amount) }}" class="h-11 w-full rounded-lg border px-3"></div>
-            <label class="flex items-center gap-2"><input type="checkbox" name="internet_enabled" value="1" @checked(old('internet_enabled',$contract->internet_enabled))> Internet</label>
-            <label class="flex items-center gap-2"><input type="checkbox" name="service_enabled" value="1" @checked(old('service_enabled',$contract->service_enabled))> Dịch vụ chung</label>
-            <div><label class="mb-1 block text-sm font-semibold">Số xe</label><input type="number" min="0" name="parking_quantity" value="{{ old('parking_quantity',$contract->parking_quantity) }}" class="h-11 w-full rounded-lg border px-3"></div>
+            @include('admin.contracts.partials.service-fields', [
+                'selectedRoomId' => old('room_id', $contract->room_id),
+                'selectedServiceEnabled' => old('service_enabled', $contract->service_enabled),
+                'selectedParkingEnabled' => old('parking_enabled', $contract->parking_quantity > 0),
+                'selectedParkingVehicleType' => old('parking_vehicle_type', $contract->parking_vehicle_type ?: \App\Models\Contract::PARKING_MOTORCYCLE),
+                'selectedParkingQuantity' => old('parking_quantity', $contract->parking_quantity),
+            ])
             <div><label class="mb-1 block text-sm font-semibold">Lý do sửa</label><input name="edit_reason" value="{{ old('edit_reason') }}" class="h-11 w-full rounded-lg border px-3"></div>
             <div class="md:col-span-2"><label class="mb-1 block text-sm font-semibold">Ghi chú</label><textarea name="note" rows="3" class="w-full rounded-lg border p-3">{{ old('note',$contract->note) }}</textarea></div>
         </div>

@@ -75,7 +75,7 @@ class Room extends Model
     }
 
     /**
-     * Tiện ích
+     * Tài sản bàn giao đang áp dụng cho phòng.
      */
     public function amenities()
     {

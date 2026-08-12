@@ -123,7 +123,9 @@
 
             @if ($occupancyContract)
                 <div class="grid gap-4 p-5 lg:grid-cols-[280px_1fr]">
-                    @php($representative = $occupancyContract->representative ?: $occupancyContract->tenant)
+                    @php
+                        $representative = $occupancyContract->representative ?: $occupancyContract->tenant;
+                    @endphp
                     <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
                         <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Người đại diện thuê</p>
                         @if ($representative)
@@ -160,7 +162,7 @@
                         </div>
                         @if ($unidentifiedOccupants > 0)
                             <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                                Còn {{ $unidentifiedOccupants }} người chỉ có số lượng nhưng chưa có hồ sơ danh tính. Đây có thể là dữ liệu hợp đồng cũ; Admin cần bổ sung khi hợp đồng còn là bản nháp hoặc trong lần cập nhật hồ sơ phù hợp.
+                                Còn {{ $unidentifiedOccupants }} người chỉ có số lượng nhưng chưa có hồ sơ danh tính. Đây có thể là dữ liệu hợp đồng cũ; quản trị viên cần bổ sung khi hợp đồng còn là bản nháp hoặc trong lần cập nhật hồ sơ phù hợp.
                             </div>
                         @endif
                     </div>
@@ -174,34 +176,46 @@
             @endif
         </section>
 
+        @php
+            $roomAssets = $room->amenities->where('category', \App\Models\Amenity::CATEGORY_ASSET);
+        @endphp
         <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
-                <h3 class="font-semibold text-slate-950">Tiện ích & tài sản kiểm kê</h3>
-                <p class="text-sm text-slate-500">Số lượng và tình trạng để đối chiếu khi bàn giao/trả phòng.</p>
+                <h3 class="font-semibold text-slate-950">Tài sản bàn giao</h3>
+                <p class="text-sm text-slate-500">Số lượng và tình trạng tài sản để đối chiếu khi bàn giao, trả phòng.</p>
             </div>
 
             <div class="p-5">
-                @forelse ($room->amenities as $amenity)
-                    <div class="mb-3 grid gap-2 rounded-lg border border-slate-200 px-4 py-3 sm:grid-cols-[1fr_120px_220px] sm:items-center">
-                        <p class="font-semibold text-slate-900">{{ $amenity->name }}</p>
-                        <p class="text-sm text-slate-600">{{ $amenity->is_quantifiable ? 'SL: '.$amenity->pivot->quantity : 'Tiện ích chung' }}</p>
-                        <p class="text-sm text-slate-600">{{ $conditionLabels[$amenity->pivot->condition] ?? $amenity->pivot->condition }}</p>
+                <div class="mb-3 flex items-center gap-2">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700"><i class="bx bx-package"></i></span>
+                    <p class="text-sm font-semibold text-slate-700">{{ $roomAssets->count() }} loại tài sản</p>
+                </div>
+                <div class="space-y-3">
+                    @forelse ($roomAssets as $asset)
+                        <div class="grid gap-2 rounded-lg border border-slate-200 px-4 py-3 sm:grid-cols-[1fr_120px_220px] sm:items-center">
+                            <p class="font-semibold text-slate-900">{{ $asset->name }}</p>
+                            <p class="text-sm text-slate-600">Số lượng: {{ $asset->pivot->quantity }}</p>
+                            <p class="text-sm text-slate-600">{{ $conditionLabels[$asset->pivot->condition] ?? 'Không xác định' }}</p>
+                        </div>
+                    @empty
+                        <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">Chưa khai báo tài sản bàn giao.</div>
+                    @endforelse
                     </div>
-                @empty
-                    <div class="rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                        Chưa có tiện ích nào.
-                    </div>
-                @endforelse
             </div>
         </section>
 
         <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-5 py-4">
-                <h3 class="font-semibold text-slate-950">Nhật ký ảnh hiện trạng</h3>
-                <p class="text-sm text-slate-500">Chỉ dùng hai mốc trước bàn giao và sau khi nhận lại phòng. Thời điểm ghi nhận do máy chủ tự khóa, Admin không thể sửa.</p>
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                <div>
+                    <h3 class="font-semibold text-slate-950">Nhật ký ảnh hiện trạng</h3>
+                    <p class="text-sm text-slate-500">Chỉ dùng hai mốc trước bàn giao và sau khi nhận lại phòng. Thời điểm ghi nhận do máy chủ tự khóa, quản trị viên không thể sửa.</p>
+                </div>
+                <button type="button" data-room-evidence-toggle aria-expanded="{{ $errors->any() ? 'true' : 'false' }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+                    <i class="bx bx-plus text-lg"></i>Thêm nhật ký
+                </button>
             </div>
 
-            <form action="{{ route('admin.rooms.evidence.store', $room) }}" method="POST" enctype="multipart/form-data" class="grid gap-4 border-b border-slate-200 bg-slate-50 p-5 md:grid-cols-2">
+            <form action="{{ route('admin.rooms.evidence.store', $room) }}" method="POST" enctype="multipart/form-data" data-room-evidence-form class="{{ $errors->any() ? '' : 'hidden' }} grid gap-4 border-b border-slate-200 bg-slate-50 p-5 md:grid-cols-2">
                 @csrf
                 <div>
                     <label for="evidence_type" class="mb-1 block text-sm font-semibold text-slate-700">Loại ảnh</label>
@@ -234,8 +248,9 @@
                     <label for="caption" class="mb-1 block text-sm font-semibold text-slate-700">Ghi chú chung</label>
                     <input id="caption" type="text" name="caption" maxlength="1000" value="{{ old('caption') }}" placeholder="Ví dụ: Vết xước cạnh tủ đã có trước khi bàn giao" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
                 </div>
-                <div class="md:col-span-2 flex justify-end">
-                    <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"><i class="bx bx-cloud-upload text-lg"></i>Thêm vào nhật ký</button>
+                <div class="md:col-span-2 flex justify-end gap-2">
+                    <button type="button" data-room-evidence-cancel class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Hủy</button>
+                    <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"><i class="bx bx-cloud-upload text-lg"></i>Lưu nhật ký</button>
                 </div>
             </form>
 
@@ -254,7 +269,7 @@
                         </div>
                     </article>
                 @empty
-                    <div class="sm:col-span-2 xl:col-span-3 rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">Chưa có ảnh hiện trạng.</div>
+                    <div class="sm:col-span-2 xl:col-span-3 rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">Chưa có nhật ký.</div>
                 @endforelse
             </div>
         </section>

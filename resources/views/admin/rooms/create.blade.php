@@ -33,7 +33,6 @@
 
             <div class="border-b border-slate-200 px-5 py-4">
                 <h3 class="font-semibold text-slate-950">Thông tin phòng</h3>
-                <p class="text-sm text-slate-500">Phòng mới luôn ở trạng thái Trống và có 0 người; hệ thống chỉ cập nhật khi check-in.</p>
             </div>
 
             <div class="grid gap-5 p-5 md:grid-cols-2">
@@ -71,21 +70,14 @@
                     @error('max_people') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
-                <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <p class="text-sm font-semibold text-emerald-800">Trạng thái ban đầu: Trống</p>
-                    <p class="mt-1 text-xs leading-5 text-emerald-700">Số người hiện tại là 0. Không thể giả lập phòng đang thuê từ màn hình này.</p>
-                </div>
-
                 <div class="md:col-span-2">
-                    <label class="mb-1 block text-sm font-semibold text-slate-700">Tiện ích & tài sản kiểm kê</label>
-                    <p class="mb-3 text-xs text-slate-500">Chọn đồ có trong phòng, ghi số lượng và tình trạng để đối chiếu khi trả phòng.</p>
+                    <label class="mb-1 block text-sm font-semibold text-slate-700">Tài sản bàn giao</label>
                     @include('admin.rooms.partials.inventory-fields')
                 </div>
 
                 <div class="md:col-span-2">
                     <label for="images" class="mb-1.5 block text-sm font-semibold text-slate-700">Ảnh hiện trạng ban đầu</label>
                     <input id="images" type="file" name="images[]" multiple accept="image/jpeg,image/png,image/webp" data-preview-target="images-preview" data-max-files="15" class="js-image-preview-input block w-full rounded-lg border border-slate-200 text-sm text-slate-600 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200">
-                    <p class="mt-1 text-xs text-slate-500">Có thể chọn tối đa 15 ảnh, mỗi ảnh tối đa 8 MB. Nên chụp toàn cảnh và cận cảnh từng tài sản/vết xước.</p>
                     <div id="images-preview" class="mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3">
                         <p data-preview-count class="mb-2 text-xs font-semibold text-slate-600"></p>
                         <div data-preview-grid class="flex flex-wrap gap-3"></div>

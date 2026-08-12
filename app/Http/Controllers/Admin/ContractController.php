@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\ContractOccupant;
 use App\Models\Invoice;
@@ -43,12 +44,16 @@ class ContractController extends Controller
 
     public function create()
     {
-        $rooms = Room::query()->with('activeContract')->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
+        $rooms = Room::query()->with([
+            'activeContract',
+            'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
+        ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
         $tenants = Tenant::query()->with('user:id,email')
             ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
             ->orderBy('full_name')->get();
+        $setting = Setting::currentOrCreate();
 
-        return view('admin.contracts.create', compact('rooms', 'tenants'));
+        return view('admin.contracts.create', compact('rooms', 'tenants', 'setting'));
     }
 
     public function store(Request $request)
@@ -111,12 +116,16 @@ class ContractController extends Controller
         Gate::authorize('manageLifecycle', $contract);
         abort_unless($contract->status === Contract::STATUS_DRAFT, 409, 'Chỉ bản nháp mới được sửa.');
         $contract->load('occupants');
-        $rooms = Room::query()->with('activeContract')->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
+        $rooms = Room::query()->with([
+            'activeContract',
+            'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
+        ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
         $tenants = Tenant::query()->with('user:id,email')
             ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
             ->orderBy('full_name')->get();
+        $setting = Setting::currentOrCreate();
 
-        return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants'));
+        return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants', 'setting'));
     }
 
     public function update(Request $request, Contract $contract)
@@ -410,13 +419,23 @@ class ContractController extends Controller
             )],
             'occupants.*.full_name' => ['required', 'string', 'max:150'],
             'occupants.*.date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
-            'occupants.*.identity_number' => ['required', 'digits:12', 'distinct'],
+            'occupants.*.identity_number' => ['nullable', 'digits:12', 'distinct'],
             'occupants.*.identity_front' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'occupants.*.identity_back' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'occupants.*.phone' => ['nullable', 'string', 'max:30'],
-            'internet_enabled' => ['nullable', 'boolean'],
             'service_enabled' => ['nullable', 'boolean'],
-            'parking_quantity' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'parking_enabled' => ['nullable', 'boolean'],
+            'parking_vehicle_type' => [
+                'exclude_unless:parking_enabled,1',
+                Rule::requiredIf($request->boolean('parking_enabled')),
+                'nullable',
+                Rule::in([Contract::PARKING_MOTORCYCLE, Contract::PARKING_CAR]),
+            ],
+            'parking_quantity' => [
+                'exclude_unless:parking_enabled,1',
+                Rule::requiredIf($request->boolean('parking_enabled')),
+                'nullable', 'integer', 'min:1', 'max:20',
+            ],
             'note' => ['nullable', 'string', 'max:2000'],
             'edit_reason' => [$editing ? 'nullable' : 'exclude', 'string', 'max:1000'],
         ], [
@@ -435,7 +454,6 @@ class ContractController extends Controller
             'occupants.*.full_name.max' => 'Họ và tên người ở không được vượt quá 150 ký tự.',
             'occupants.*.date_of_birth.date' => 'Ngày sinh người ở không đúng định dạng.',
             'occupants.*.date_of_birth.before_or_equal' => 'Ngày sinh người ở không được ở tương lai.',
-            'occupants.*.identity_number.required' => 'Vui lòng nhập CCCD của người ở.',
             'occupants.*.identity_number.digits' => 'CCCD người ở phải gồm đúng 12 chữ số.',
             'occupants.*.identity_number.distinct' => 'CCCD người ở bị trùng trong danh sách.',
             'occupants.*.identity_front.required' => 'Vui lòng chọn ảnh mặt trước CCCD của người ở.',
@@ -460,6 +478,12 @@ class ContractController extends Controller
             'representative.identity_back.image' => 'Mặt sau CCCD người đại diện phải là một tệp ảnh.',
             'representative.identity_back.mimes' => 'Ảnh mặt sau CCCD người đại diện chỉ chấp nhận JPG, PNG hoặc WEBP.',
             'representative.identity_back.max' => 'Ảnh mặt sau CCCD người đại diện không được lớn hơn 5 MB.',
+            'parking_vehicle_type.required' => 'Vui lòng chọn loại xe cần trông.',
+            'parking_vehicle_type.in' => 'Loại xe đăng ký không hợp lệ.',
+            'parking_quantity.required' => 'Vui lòng nhập số lượng xe.',
+            'parking_quantity.integer' => 'Số lượng xe phải là số nguyên.',
+            'parking_quantity.min' => 'Số lượng xe phải ít nhất là 1.',
+            'parking_quantity.max' => 'Số lượng xe không được vượt quá 20.',
         ]);
 
         if ($data['contract_duration'] === 'short_term') {
@@ -474,6 +498,14 @@ class ContractController extends Controller
         $end = Carbon::parse($data['end_date'])->startOfDay();
         $deadline = Carbon::parse($data['reservation_expires_at'])->endOfDay();
         $data['reservation_expires_at'] = $deadline;
+        // Wi-Fi là tiện nghi mặc định đã nằm trong giá thuê, không còn là dịch vụ tính phí tùy chọn.
+        // Luôn ghi false với hợp đồng tạo/sửa từ form mới để input tự chèn không thể phát sinh phí Internet.
+        $data['internet_enabled'] = false;
+        if (! $request->boolean('parking_enabled')) {
+            $data['parking_vehicle_type'] = null;
+            $data['parking_quantity'] = 0;
+        }
+        unset($data['parking_enabled']);
         $totalDays = max(1, $start->diffInDays($end));
         $data['move_in_window_ratio'] = round($start->diffInDays($deadline->copy()->startOfDay()) / $totalDays, 4);
 
@@ -485,12 +517,21 @@ class ContractController extends Controller
                 ? ContractOccupant::query()->where('contract_id', $contract?->id)->find($occupantData['id'])
                 : null;
             $hasStoredPair = $existing?->identity_front_path && $existing?->identity_back_path;
+            $isMinor = filled($occupantData['date_of_birth'] ?? null)
+                && Carbon::parse($occupantData['date_of_birth'])->age < 14;
+            $hasIdentityNumber = filled($occupantData['identity_number'] ?? null);
             $identityChanged = $existing
                 && (string) $existing->identity_number !== (string) ($occupantData['identity_number'] ?? '');
             $hasFront = isset($occupantData['identity_front']);
             $hasBack = isset($occupantData['identity_back']);
-            $requiresNewPair = ! $hasStoredPair || $identityChanged || $hasFront || $hasBack;
+            $requiresIdentityDocuments = ! $isMinor || $hasIdentityNumber || $hasFront || $hasBack;
+            $requiresNewPair = $requiresIdentityDocuments && (! $hasStoredPair || $identityChanged || $hasFront || $hasBack);
             $identityErrors = [];
+            if (! $isMinor && ! $hasIdentityNumber) {
+                $identityErrors["occupants.{$index}.identity_number"] = 'Vui lòng nhập CCCD của người ở từ đủ 14 tuổi.';
+            } elseif (($hasFront || $hasBack) && ! $hasIdentityNumber) {
+                $identityErrors["occupants.{$index}.identity_number"] = 'Vui lòng nhập số CCCD trước khi tải ảnh căn cước.';
+            }
             if ($requiresNewPair && ! $hasFront) {
                 $identityErrors["occupants.{$index}.identity_front"] = 'Vui lòng chọn ảnh mặt trước CCCD của người ở.';
             }

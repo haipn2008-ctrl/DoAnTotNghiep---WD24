@@ -136,15 +136,13 @@
                     @error('deposit_amount') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
-                <div class="md:col-span-2 rounded-lg border border-slate-200 p-4">
-                    <h4 class="font-semibold text-slate-950">Dịch vụ đăng ký</h4>
-                    <p class="mt-1 text-sm text-slate-500">Chỉ dịch vụ được chọn mới được cộng vào hóa đơn.</p>
-                    <div class="mt-4 grid gap-4 sm:grid-cols-3">
-                        <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="internet_enabled" value="1" @checked(old('internet_enabled'))> Internet</label>
-                        <label class="flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="service_enabled" value="1" @checked(old('service_enabled'))> Dịch vụ chung</label>
-                        <div><label for="parking_quantity" class="mb-1 block text-sm font-medium">Số xe đăng ký</label><input id="parking_quantity" type="number" min="0" max="20" name="parking_quantity" value="{{ old('parking_quantity', 0) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3"></div>
-                    </div>
-                </div>
+                @include('admin.contracts.partials.service-fields', [
+                    'selectedRoomId' => old('room_id'),
+                    'selectedServiceEnabled' => old('service_enabled'),
+                    'selectedParkingEnabled' => old('parking_enabled'),
+                    'selectedParkingVehicleType' => old('parking_vehicle_type', \App\Models\Contract::PARKING_MOTORCYCLE),
+                    'selectedParkingQuantity' => old('parking_quantity', 0),
+                ])
             </div>
 
             <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">

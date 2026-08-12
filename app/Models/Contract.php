@@ -8,6 +8,10 @@ use LogicException;
 
 class Contract extends Model
 {
+    public const PARKING_MOTORCYCLE = 'motorcycle';
+
+    public const PARKING_CAR = 'car';
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_PENDING_SIGNATURE = 'pending_signature';
@@ -71,6 +75,7 @@ class Contract extends Model
         'number_of_people',
         'internet_enabled',
         'service_enabled',
+        'parking_vehicle_type',
         'parking_quantity',
         'start_date',
         'end_date',
@@ -113,6 +118,15 @@ class Contract extends Model
         'monthly_rent' => 'decimal:2',
         'deposit_amount' => 'decimal:2',
     ];
+
+    public function getParkingVehicleLabelAttribute(): ?string
+    {
+        return match ($this->parking_vehicle_type) {
+            self::PARKING_MOTORCYCLE => 'Xe máy',
+            self::PARKING_CAR => 'Ô tô',
+            default => null,
+        };
+    }
 
     protected static function booted(): void
     {

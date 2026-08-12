@@ -37,22 +37,31 @@ class DemoPropertySeeder extends Seeder
     private function seedRooms(): array
     {
         $definitions = [
-            ['A101', 1, 3200000, 24, 2, Room::STATUS_OCCUPIED, ['Wifi', 'Máy lạnh', 'Nóng lạnh'], 'Phòng góc tầng một, cửa sổ lớn hướng sân trong, phù hợp một đến hai người.'],
-            ['A102', 1, 3500000, 27, 2, Room::STATUS_OCCUPIED, ['Wifi', 'Máy lạnh', 'Tủ lạnh'], 'Phòng thoáng, có khu bếp riêng và bàn làm việc cạnh cửa sổ.'],
-            ['A103', 1, 3000000, 22, 1, Room::STATUS_AVAILABLE, ['Wifi', 'Nóng lạnh'], 'Phòng studio yên tĩnh, vừa sơn mới, sẵn sàng nhận khách.'],
-            ['A104', 1, 3300000, 25, 2, Room::STATUS_OCCUPIED, ['Wifi', 'Máy lạnh', 'Bãi đỗ xe'], 'Phòng gần lối để xe, thuận tiện cho người thường xuyên đi làm sớm.'],
-            ['B201', 2, 3800000, 30, 3, Room::STATUS_OCCUPIED, ['Wifi', 'Máy lạnh', 'Tủ lạnh'], 'Phòng rộng hướng đông, đón nắng sáng và nhiều ánh sáng tự nhiên.'],
-            ['B202', 2, 3600000, 28, 2, Room::STATUS_OCCUPIED, ['Wifi', 'Máy lạnh', 'Máy giặt'], 'Phòng có máy giặt riêng và khu phơi đồ kín đáo.'],
-            ['B203', 2, 3400000, 26, 2, Room::STATUS_MAINTENANCE, ['Wifi', 'Nóng lạnh'], 'Đang bảo trì đường nước và thay mới thiết bị vệ sinh.'],
-            ['B204', 2, 3700000, 29, 2, Room::STATUS_OCCUPIED, ['Wifi', 'Máy lạnh'], 'Phòng cuối hành lang, ít tiếng ồn, không gian thoáng.'],
-            ['C301', 3, 4200000, 34, 3, Room::STATUS_OCCUPIED, ['Wifi', 'Máy lạnh', 'Tủ lạnh'], 'Căn phòng lớn nhất tầng ba, phù hợp gia đình trẻ hoặc nhóm hai người.'],
-            ['C302', 3, 3900000, 30, 2, Room::STATUS_AVAILABLE, ['Wifi', 'Máy lạnh'], 'Phòng có nội thất cơ bản đầy đủ và có thể vào ở ngay.'],
-            ['C303', 3, 4000000, 32, 2, Room::STATUS_AVAILABLE, ['Wifi', 'Máy lạnh'], 'Phòng hai mặt thoáng, khu vực sinh hoạt rộng.'],
-            ['C304', 3, 3800000, 29, 2, Room::STATUS_AVAILABLE, ['Wifi', 'Nóng lạnh'], 'Phòng gọn gàng, phù hợp nhân viên văn phòng cần không gian yên tĩnh.'],
+            ['A101', 1, 3200000, 24, 2, Room::STATUS_OCCUPIED, [], ['Ghế' => ['quantity' => 2]], 'Phòng góc tầng một, cửa sổ lớn hướng sân trong, phù hợp một đến hai người.'],
+            ['A102', 1, 3500000, 27, 2, Room::STATUS_OCCUPIED, [], ['Ghế' => ['quantity' => 2], 'Bàn' => ['quantity' => 2]], 'Phòng thoáng, có khu bếp riêng và bàn làm việc cạnh cửa sổ.'],
+            ['A103', 1, 3000000, 22, 1, Room::STATUS_AVAILABLE, ['Máy giặt', 'Bếp điện'], [], 'Phòng studio yên tĩnh, vừa sơn mới, sẵn sàng nhận khách.'],
+            ['A104', 1, 3300000, 25, 2, Room::STATUS_OCCUPIED, [], ['Bếp điện' => ['condition' => 'damaged', 'note' => 'Mặt bếp bị nứt, chờ thay mới.']], 'Phòng gần lối để xe, thuận tiện cho người thường xuyên đi làm sớm.'],
+            ['B201', 2, 3800000, 30, 3, Room::STATUS_OCCUPIED, [], ['Giường' => ['quantity' => 2], 'Ghế' => ['quantity' => 3], 'Tủ quần áo' => ['quantity' => 2]], 'Phòng rộng hướng đông, đón nắng sáng và nhiều ánh sáng tự nhiên.'],
+            ['B202', 2, 3600000, 28, 2, Room::STATUS_OCCUPIED, [], ['Ghế' => ['quantity' => 2]], 'Phòng có máy giặt riêng và khu phơi đồ kín đáo.'],
+            ['B203', 2, 3400000, 26, 2, Room::STATUS_MAINTENANCE, ['Máy giặt'], ['Bình nóng lạnh' => ['condition' => 'damaged', 'note' => 'Đang rò nước, đã lên lịch sửa chữa.']], 'Đang bảo trì đường nước và thay mới thiết bị vệ sinh.'],
+            ['B204', 2, 3700000, 29, 2, Room::STATUS_OCCUPIED, [], ['Ghế' => ['quantity' => 2]], 'Phòng cuối hành lang, ít tiếng ồn, không gian thoáng.'],
+            ['C301', 3, 4200000, 34, 3, Room::STATUS_OCCUPIED, [], ['Giường' => ['quantity' => 2], 'Ghế' => ['quantity' => 3], 'Tủ quần áo' => ['quantity' => 2]], 'Căn phòng lớn nhất tầng ba, phù hợp gia đình trẻ hoặc nhóm hai người.'],
+            ['C302', 3, 3900000, 30, 2, Room::STATUS_AVAILABLE, [], ['Ghế' => ['quantity' => 2]], 'Phòng có nội thất cơ bản đầy đủ và có thể vào ở ngay.'],
+            ['C303', 3, 4000000, 32, 2, Room::STATUS_AVAILABLE, [], ['Ghế' => ['quantity' => 2], 'Bàn' => ['quantity' => 2]], 'Phòng hai mặt thoáng, khu vực sinh hoạt rộng.'],
+            ['C304', 3, 3800000, 29, 2, Room::STATUS_AVAILABLE, ['Tủ lạnh'], ['Ghế' => ['quantity' => 2]], 'Phòng gọn gàng, phù hợp nhân viên văn phòng cần không gian yên tĩnh.'],
         ];
 
+        $assets = Amenity::query()->active()->assets()->get()->keyBy('name');
+        $defaultInventory = $assets->mapWithKeys(fn (Amenity $asset): array => [
+            $asset->id => [
+                'quantity' => $asset->name === 'Ghế' ? 2 : 1,
+                'condition' => 'normal',
+                'note' => null,
+            ],
+        ])->all();
+
         $rooms = [];
-        foreach ($definitions as [$code, $floor, $price, $area, $people, $status, $amenities, $description]) {
+        foreach ($definitions as [$code, $floor, $price, $area, $people, $status, $missingAssets, $overrides, $description]) {
             $room = Room::updateOrCreate(
                 ['room_code' => $code],
                 [
@@ -65,8 +74,19 @@ class DemoPropertySeeder extends Seeder
                     'description' => $description,
                 ]
             );
-            $inventory = Amenity::query()->active()->whereIn('name', $amenities)->pluck('id')
-                ->mapWithKeys(fn (int $id): array => [$id => ['quantity' => 1, 'condition' => 'normal', 'note' => null]]);
+
+            $inventory = $defaultInventory;
+            foreach ($missingAssets as $assetName) {
+                if ($asset = $assets->get($assetName)) {
+                    unset($inventory[$asset->id]);
+                }
+            }
+            foreach ($overrides as $assetName => $values) {
+                if ($asset = $assets->get($assetName)) {
+                    $inventory[$asset->id] = array_merge($inventory[$asset->id], $values);
+                }
+            }
+
             $room->amenities()->sync($inventory);
             $rooms[$code] = $room;
         }

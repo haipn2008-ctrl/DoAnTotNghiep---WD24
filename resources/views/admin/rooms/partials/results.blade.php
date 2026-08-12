@@ -16,40 +16,37 @@
     </div>
 
     <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <table class="w-full min-w-[980px] table-fixed divide-y divide-slate-200 text-sm">
             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                 <tr>
-                    <th class="px-5 py-3">Phòng</th>
-                    <th class="px-5 py-3">Tầng</th>
-                    <th class="px-5 py-3">Giá thuê</th>
-                    <th class="px-5 py-3">Diện tích</th>
-                    <th class="px-5 py-3">Số người</th>
-                    <th class="px-5 py-3">Trạng thái</th>
-                    <th class="px-5 py-3 text-right">Thao tác</th>
+                    <th class="w-[220px] px-5 py-3">Phòng</th>
+                    <th class="w-[90px] px-4 py-3 text-center">Tầng</th>
+                    <th class="w-[160px] px-4 py-3 text-right">Giá thuê</th>
+                    <th class="w-[110px] px-4 py-3 text-center">Diện tích</th>
+                    <th class="w-[130px] px-4 py-3 text-center">Số người</th>
+                    <th class="w-[130px] px-4 py-3 text-center">Trạng thái</th>
+                    <th class="w-[140px] px-5 py-3 text-right">Thao tác</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse ($rooms as $room)
                     @php($status = $statusOptions[$room->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'])
-                    <tr class="hover:bg-slate-50/70">
+                    <tr class="align-middle hover:bg-slate-50/70">
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-3">
                                 @if ($room->thumbnail)
-                                    <img src="{{ asset('storage/' . $room->thumbnail) }}" alt="Phòng {{ $room->room_code }}" class="h-12 w-12 rounded-lg object-cover ring-1 ring-slate-200">
+                                    <img src="{{ asset('storage/' . $room->thumbnail) }}" alt="Phòng {{ $room->room_code }}" class="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-slate-200">
                                 @else
-                                    <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-100 text-slate-400 ring-1 ring-slate-200"><i class="bx bx-image text-xl"></i></div>
+                                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 ring-1 ring-slate-200"><i class="bx bx-image text-xl"></i></div>
                                 @endif
-                                <div>
-                                    <p class="font-semibold text-slate-950">{{ $room->room_code }}</p>
-                                    <p class="text-xs text-slate-500">{{ $room->amenities->count() }} tiện ích</p>
-                                </div>
+                                <p class="truncate font-semibold text-slate-950">{{ $room->room_code }}</p>
                             </div>
                         </td>
-                        <td class="px-5 py-4 text-slate-600">Tầng {{ $room->floor }}</td>
-                        <td class="px-5 py-4 font-semibold text-slate-950">{{ number_format($room->price, 0, ',', '.') }}đ</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $room->area }} m²</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $room->current_people }}/{{ $room->max_people ?? 4 }} người</td>
-                        <td class="px-5 py-4">
+                        <td class="whitespace-nowrap px-4 py-4 text-center text-slate-600">{{ $room->floor }}</td>
+                        <td class="whitespace-nowrap px-4 py-4 text-right font-semibold text-slate-950">{{ number_format($room->price, 0, ',', '.') }}đ</td>
+                        <td class="whitespace-nowrap px-4 py-4 text-center text-slate-600">{{ $room->area }} m²</td>
+                        <td class="whitespace-nowrap px-4 py-4 text-center text-slate-600">{{ $room->current_people }}/{{ $room->max_people ?? 4 }}</td>
+                        <td class="px-4 py-4 text-center">
                             <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">
                                 <span class="h-1.5 w-1.5 rounded-full {{ $status['dot'] }}"></span>{{ $status['label'] }}
                             </span>

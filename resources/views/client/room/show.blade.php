@@ -27,8 +27,8 @@
             </section>
 
             <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 class="font-semibold text-slate-950">Tiện ích trong phòng</h3>
-                <div class="mt-4 flex flex-wrap gap-2">@forelse($room->amenities as $amenity)<span class="rounded-lg bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700">{{ $amenity->name }}{{ $amenity->is_quantifiable ? ' × '.$amenity->pivot->quantity : '' }}</span>@empty<span class="text-sm text-slate-500">Chưa cập nhật tiện ích.</span>@endforelse</div>
+                <h3 class="font-semibold text-slate-950">Tài sản bàn giao</h3>
+                <div class="mt-4 flex flex-wrap gap-2">@forelse($room->amenities->where('category', \App\Models\Amenity::CATEGORY_ASSET) as $asset)<span class="rounded-lg bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700">{{ $asset->name }} × {{ $asset->pivot->quantity }}</span>@empty<span class="text-sm text-slate-500">Chưa cập nhật tài sản bàn giao.</span>@endforelse</div>
             </section>
         @else
             <div class="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center"><p class="font-semibold text-slate-950">Chưa có phòng đang thuê</p><p class="mt-2 text-sm text-slate-500">Thông tin phòng sẽ xuất hiện khi tài khoản có hợp đồng đang hiệu lực.</p></div>
