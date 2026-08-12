@@ -11,8 +11,8 @@ use App\Models\Room;
 use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Services\ContractLifecycleService;
 use App\Services\ContractIdentityDocumentService;
+use App\Services\ContractLifecycleService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -47,6 +47,7 @@ class ContractController extends Controller
         $tenants = Tenant::query()->with('user:id,email')
             ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
             ->orderBy('full_name')->get();
+
         return view('admin.contracts.create', compact('rooms', 'tenants'));
     }
 
@@ -84,7 +85,8 @@ class ContractController extends Controller
         $contract->load([
             'room', 'tenant.user', 'invoices.payments',
             'occupants.histories.performer', 'occupants.tenant',
-            'statusHistories.performer', 'signedConfirmer', 'moveInTermsConfirmer', 'checkedInBy', 'checkedOutBy',
+            'statusHistories.performer', 'signedConfirmer', 'moveInTermsConfirmer', 'moveInDetailsConfirmer',
+            'handoverItems', 'checkedInBy', 'checkedOutBy',
             'cancelledBy', 'completedBy', 'lifecycleAlerts' => fn ($query) => $query->whereNull('resolved_at')->latest('detected_at'),
         ]);
         $readings = $contract->utilityReadings()->orderBy('record_date')->orderBy('id')->get();
@@ -113,6 +115,7 @@ class ContractController extends Controller
         $tenants = Tenant::query()->with('user:id,email')
             ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
             ->orderBy('full_name')->get();
+
         return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants'));
     }
 
@@ -289,7 +292,7 @@ class ContractController extends Controller
 
     public function print($id)
     {
-        $contract = Contract::with(['room', 'tenant', 'representativeOccupant'])->findOrFail($id);
+        $contract = Contract::with(['room', 'tenant', 'representativeOccupant', 'handoverItems'])->findOrFail($id);
         $setting = Setting::currentOrCreate();
 
         return view('admin.contracts.print', compact('contract', 'setting'));
@@ -366,7 +369,6 @@ class ContractController extends Controller
         $request->merge([
             'occupants' => collect($request->input('occupants', []))
                 ->filter(fn ($occupant): bool => filled($occupant['full_name'] ?? null))
-                ->values()
                 ->all(),
         ]);
 
@@ -475,7 +477,9 @@ class ContractController extends Controller
         $totalDays = max(1, $start->diffInDays($end));
         $data['move_in_window_ratio'] = round($start->diffInDays($deadline->copy()->startOfDay()) / $totalDays, 4);
 
-        $data['occupants'] = $data['occupants'] ?? [];
+        // Giữ nguyên key trong lúc validation để input chữ và file CCCD cùng index.
+        // Chỉ chuẩn hóa thành mảng liên tục sau khi Laravel đã ghép input với files.
+        $data['occupants'] = array_values($data['occupants'] ?? []);
         foreach ($data['occupants'] as $index => $occupantData) {
             $existing = filled($occupantData['id'] ?? null)
                 ? ContractOccupant::query()->where('contract_id', $contract?->id)->find($occupantData['id'])

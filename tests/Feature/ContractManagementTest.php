@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\ContractLifecycleAlert;
 use App\Models\ContractOccupant;
@@ -159,6 +160,102 @@ class ContractManagementTest extends TestCase
             'contract_id' => $contract->id, 'from_status' => null, 'to_status' => Contract::STATUS_DRAFT,
             'action' => 'create_draft', 'performed_by' => $this->admin->id,
         ]);
+    }
+
+    public function test_submitting_for_signature_snapshots_room_inventory_and_later_room_edits_do_not_change_it(): void
+    {
+        $room = $this->room('SNAPSHOT');
+        $tenant = $this->tenant('snapshot');
+        $bed = Amenity::create([
+            'name' => 'Giường snapshot', 'description' => 'Giường gỗ',
+            'is_quantifiable' => true, 'is_active' => true,
+        ]);
+        $room->amenities()->attach($bed->id, [
+            'quantity' => 2, 'condition' => 'normal', 'note' => 'Không trầy xước',
+        ]);
+        $contract = $this->lifecycle->createDraft([
+            'room_id' => $room->id, 'tenant_id' => $tenant->id,
+            'start_date' => '2026-08-11', 'end_date' => '2027-08-11',
+            'scheduled_move_in_date' => '2026-08-11', 'reservation_expires_at' => '2026-08-12 18:00:00',
+            'representative_is_occupant' => true, 'parking_quantity' => 1,
+            'internet_enabled' => true, 'service_enabled' => false,
+        ], $this->admin);
+
+        $this->lifecycle->submitForSignature($contract, $this->admin);
+        $this->assertDatabaseHas('contract_handover_items', [
+            'contract_id' => $contract->id, 'amenity_id' => $bed->id, 'name' => 'Giường snapshot',
+            'quantity' => 2, 'condition' => 'normal', 'note' => 'Không trầy xước',
+        ]);
+
+        $room->amenities()->updateExistingPivot($bed->id, [
+            'quantity' => 1, 'condition' => 'damaged', 'note' => 'Đã thay đổi trên phòng',
+        ]);
+        $snapshot = $contract->handoverItems()->sole();
+        $this->assertSame(2, $snapshot->quantity);
+        $this->assertSame('normal', $snapshot->condition);
+        $this->assertSame('Không trầy xước', $snapshot->note);
+    }
+
+    public function test_client_can_view_and_confirm_own_services_and_handover_inventory_only(): void
+    {
+        $room = $this->room('CLIENT-HANDOVER');
+        $tenant = $this->tenant('client-handover');
+        $otherTenant = $this->tenant('client-handover-other');
+        $desk = Amenity::create([
+            'name' => 'Bàn học bàn giao', 'description' => 'Bàn có ngăn kéo',
+            'is_quantifiable' => true, 'is_active' => true,
+        ]);
+        $room->amenities()->attach($desk->id, [
+            'quantity' => 1, 'condition' => 'damaged', 'note' => 'Xước nhẹ cạnh bàn',
+        ]);
+        $contract = $this->lifecycle->createDraft([
+            'room_id' => $room->id, 'tenant_id' => $tenant->id,
+            'start_date' => '2026-08-11', 'end_date' => '2027-08-11',
+            'scheduled_move_in_date' => '2026-08-11', 'reservation_expires_at' => '2026-08-12 18:00:00',
+            'representative_is_occupant' => true, 'parking_quantity' => 2,
+            'internet_enabled' => true, 'service_enabled' => false,
+        ], $this->admin);
+        $this->lifecycle->submitForSignature($contract, $this->admin);
+
+        $this->actingAs($tenant->user)->get(route('client.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Thông tin nhận phòng')
+            ->assertSee('Internet')
+            ->assertSee('Đã đăng ký')
+            ->assertSee('2 xe đã đăng ký')
+            ->assertSee('Bàn học bàn giao')
+            ->assertSee('Có hư hỏng')
+            ->assertSee('Xước nhẹ cạnh bàn');
+
+        $this->actingAs($otherTenant->user)->post(route('client.contracts.move-in-details.confirm', $contract), [
+            'confirmation' => 1,
+        ])->assertNotFound();
+        $this->assertNull($contract->fresh()->move_in_details_confirmed_at);
+
+        $this->actingAs($tenant->user)->post(route('client.contracts.move-in-details.confirm', $contract), [
+            'confirmation' => 1,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame($tenant->user_id, $contract->fresh()->move_in_details_confirmed_by);
+        $this->assertDatabaseHas('contract_status_histories', [
+            'contract_id' => $contract->id, 'action' => 'confirm_move_in_details',
+            'performed_by' => $tenant->user_id,
+        ]);
+    }
+
+    public function test_check_in_is_blocked_until_client_confirms_move_in_details(): void
+    {
+        $contract = $this->draft(0, [], 'missing-client-confirmation');
+        $this->lifecycle->submitForSignature($contract, $this->admin);
+        $this->lifecycle->markAsSigned($contract, $this->admin, now());
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())
+            ->assertSessionHasErrors('move_in_details_confirmed');
+        $this->assertNull($contract->fresh()->actual_move_in_at);
+
+        $this->lifecycle->confirmMoveInDetails($contract, $contract->tenant->user);
+        $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())
+            ->assertSessionHasNoErrors();
+        $this->assertSame(Contract::STATUS_ACTIVE, $contract->fresh()->status);
     }
 
     public function test_draft_records_representative_and_named_occupants_without_requiring_accounts(): void
@@ -396,6 +493,34 @@ class ContractManagementTest extends TestCase
             ->assertSessionHasErrors('representative.identity_back');
         $this->assertDatabaseCount('contracts', 0);
         $this->assertDatabaseCount('contract_occupants', 0);
+    }
+
+    public function test_non_contiguous_occupant_index_keeps_text_and_identity_files_on_the_same_member(): void
+    {
+        $room = $this->room('MEMBER-INDEX-GAP');
+        $tenant = $this->tenant('member-index-gap');
+        $payload = $this->payload($room, $tenant, [
+            'occupants' => [3 => [
+                'full_name' => 'Người ở sau khi thêm lại',
+                'identity_number' => '012345678966',
+                'phone' => '0901234569',
+                ...$this->occupantIdentityImages('member-index-gap'),
+            ]],
+        ]);
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $payload)
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $occupant = Contract::sole()->occupants()
+            ->where('role', ContractOccupant::ROLE_OCCUPANT)
+            ->sole();
+        $this->assertSame('Người ở sau khi thêm lại', $occupant->full_name);
+        $this->assertSame('012345678966', $occupant->identity_number);
+        Storage::disk('local')->assertExists([
+            $occupant->identity_front_path,
+            $occupant->identity_back_path,
+        ]);
     }
 
     public function test_room_capacity_rejects_the_fifth_resident_for_a_four_person_room(): void
@@ -983,8 +1108,10 @@ class ContractManagementTest extends TestCase
     private function sign(Contract $contract): Contract
     {
         $this->lifecycle->submitForSignature($contract, $this->admin);
+        $contract = $this->lifecycle->markAsSigned($contract, $this->admin, now());
+        $this->lifecycle->confirmMoveInDetails($contract, $contract->tenant->user);
 
-        return $this->lifecycle->markAsSigned($contract, $this->admin, now());
+        return $contract->fresh();
     }
 
     private function awaiting(array $overrides = [], ?string $tenantKey = null): Contract

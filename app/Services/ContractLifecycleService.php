@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\Contract;
-use App\Models\ContractOccupant;
 use App\Models\ContractLifecycleAlert;
+use App\Models\ContractOccupant;
 use App\Models\ContractStatusHistory;
 use App\Models\Invoice;
 use App\Models\Room;
@@ -101,6 +101,7 @@ class ContractLifecycleService
                 $this->fail('room_id', 'Phòng đang bảo trì. Không thể gửi hợp đồng chờ ký.');
             }
             $this->ensureScheduleIsComplete($contract);
+            $this->snapshotMoveInDetails($contract, $room);
             $this->transition($contract, Contract::STATUS_PENDING_SIGNATURE, 'submit_for_signature', $reason, $actor);
 
             return $contract->fresh();
@@ -172,6 +173,12 @@ class ContractLifecycleService
             if ($contract->signed_at || $contract->invoices()->exists() || $contract->payments()->exists()) {
                 $this->fail('contract', 'Hợp đồng đã ký hoặc đã phát sinh chứng từ, không thể trả lại bản nháp.');
             }
+            $contract->handoverItems()->delete();
+            $contract->forceFill([
+                'move_in_inventory_snapshotted_at' => null,
+                'move_in_details_confirmed_at' => null,
+                'move_in_details_confirmed_by' => null,
+            ])->save();
             $this->transition($contract, Contract::STATUS_DRAFT, 'return_to_draft', $reason, $actor);
 
             return $contract->fresh();
@@ -319,6 +326,50 @@ class ContractLifecycleService
         }, 3);
     }
 
+    public function confirmMoveInDetails(Contract $contract, User $actor): Contract
+    {
+        return DB::transaction(function () use ($contract, $actor): Contract {
+            $contract = $this->lockContract($contract);
+            $this->requireStatus($contract, [
+                Contract::STATUS_PENDING_SIGNATURE,
+                Contract::STATUS_PENDING_DEPOSIT,
+                Contract::STATUS_AWAITING_MOVE_IN,
+            ], 'Thông tin nhận phòng chỉ được xác nhận sau khi bản hợp đồng đã được gửi cho khách và trước khi check-in.');
+
+            $tenantUserId = Tenant::query()->whereKey($contract->tenant_id)->value('user_id');
+            if (! $tenantUserId || (int) $tenantUserId !== (int) $actor->id) {
+                $this->fail('contract', 'Bạn không có quyền xác nhận thông tin nhận phòng của hợp đồng này.');
+            }
+            if (! $contract->move_in_inventory_snapshotted_at) {
+                $this->fail('move_in_details', 'Phiếu tài sản nhận phòng chưa được lập. Vui lòng liên hệ ban quản lý.');
+            }
+            if ($contract->move_in_details_confirmed_at) {
+                return $contract;
+            }
+
+            $contract->forceFill([
+                'move_in_details_confirmed_at' => now(),
+                'move_in_details_confirmed_by' => $actor->id,
+            ])->save();
+            $this->history(
+                $contract,
+                $contract->status,
+                $contract->status,
+                'confirm_move_in_details',
+                null,
+                $actor,
+                [
+                    'inventory_items' => $contract->handoverItems()->count(),
+                    'internet_enabled' => $contract->internet_enabled,
+                    'service_enabled' => $contract->service_enabled,
+                    'parking_quantity' => $contract->parking_quantity,
+                ],
+            );
+
+            return $contract->fresh();
+        }, 3);
+    }
+
     public function checkIn(Contract $contract, User $actor, array $data): Contract
     {
         return DB::transaction(function () use ($contract, $actor, $data): Contract {
@@ -351,6 +402,9 @@ class ContractLifecycleService
             }
             if (! ($data['handover_confirmed'] ?? false)) {
                 $this->fail('handover_confirmed', 'Phải xác nhận biên bản bàn giao trước khi nhận phòng.');
+            }
+            if (! $contract->move_in_inventory_snapshotted_at || ! $contract->move_in_details_confirmed_at) {
+                $this->fail('move_in_details_confirmed', 'Khách thuê phải xem và xác nhận dịch vụ, tài sản bàn giao trước khi check-in.');
             }
             if ($room->status === Room::STATUS_MAINTENANCE) {
                 $this->fail('room_id', 'Phòng đang bảo trì, không thể nhận phòng.');
@@ -875,6 +929,30 @@ class ContractLifecycleService
         $from = $contract->status;
         $contract->forceFill(['status' => $to])->save();
         $this->history($contract, $from, $to, $action, $reason, $actor, $metadata);
+    }
+
+    private function snapshotMoveInDetails(Contract $contract, Room $room): void
+    {
+        $items = $room->amenities()->orderBy('amenities.name')->get();
+        $contract->handoverItems()->delete();
+
+        foreach ($items as $item) {
+            $contract->handoverItems()->create([
+                'amenity_id' => $item->id,
+                'name' => $item->name,
+                'description' => $item->description,
+                'is_quantifiable' => $item->is_quantifiable,
+                'quantity' => $item->pivot->quantity,
+                'condition' => $item->pivot->condition,
+                'note' => $item->pivot->note,
+            ]);
+        }
+
+        $contract->forceFill([
+            'move_in_inventory_snapshotted_at' => now(),
+            'move_in_details_confirmed_at' => null,
+            'move_in_details_confirmed_by' => null,
+        ])->save();
     }
 
     private function history(Contract $contract, ?string $from, string $to, string $action, ?string $reason, ?User $actor, array $metadata = []): void

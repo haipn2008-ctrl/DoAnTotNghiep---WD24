@@ -273,6 +273,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/contracts', [ClientContractController::class, 'index'])->name('contracts.index');
             Route::get('/contracts/{contract}', [ClientContractController::class, 'show'])->name('contracts.show');
             Route::get('/contracts/{contract}/file', [ClientContractController::class, 'file'])->name('contracts.file');
+            Route::post('/contracts/{contract}/move-in-details/confirm', [ClientContractController::class, 'confirmMoveInDetails'])
+                ->name('contracts.move-in-details.confirm');
             Route::post('/contracts/{contract}/occupants', [ClientContractOccupantController::class, 'store'])->name('contracts.occupants.store');
             Route::post('/contracts/{contract}/occupants/{occupant}/withdraw', [ClientContractOccupantController::class, 'withdraw'])->name('contracts.occupants.withdraw');
             Route::get('/support', [ClientSupportController::class, 'index'])->middleware('rental.active')->name('support.index');

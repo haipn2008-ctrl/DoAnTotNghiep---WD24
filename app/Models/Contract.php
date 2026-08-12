@@ -91,6 +91,8 @@ class Contract extends Model
         'scheduled_move_in_date' => 'date',
         'reservation_expires_at' => 'datetime',
         'move_in_terms_confirmed_at' => 'datetime',
+        'move_in_inventory_snapshotted_at' => 'datetime',
+        'move_in_details_confirmed_at' => 'datetime',
         'actual_move_in_at' => 'datetime',
         'actual_move_out_at' => 'datetime',
         'cancelled_at' => 'datetime',
@@ -171,6 +173,11 @@ class Contract extends Model
         return $this->hasMany(ContractLifecycleAlert::class);
     }
 
+    public function handoverItems()
+    {
+        return $this->hasMany(ContractHandoverItem::class)->orderBy('name')->orderBy('id');
+    }
+
     public function signedConfirmer()
     {
         return $this->belongsTo(User::class, 'signed_confirmed_by');
@@ -179,6 +186,11 @@ class Contract extends Model
     public function moveInTermsConfirmer()
     {
         return $this->belongsTo(User::class, 'move_in_terms_confirmed_by');
+    }
+
+    public function moveInDetailsConfirmer()
+    {
+        return $this->belongsTo(User::class, 'move_in_details_confirmed_by');
     }
 
     public function checkedInBy()

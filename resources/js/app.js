@@ -454,6 +454,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (field.type === 'checkbox' || field.type === 'radio') return field.checked ? field.value : '';
             return field.value;
         };
+        const reindexOccupantRows = () => {
+            form.querySelectorAll('[data-occupant-row]').forEach((row, index) => {
+                row.querySelectorAll('[name^="occupants["]').forEach((field) => {
+                    field.name = field.name.replace(/^occupants\[[^\]]+\]/, `occupants[${index}]`);
+                });
+            });
+        };
         const displayErrors = (errors, submittedValues = null) => {
             const summary = document.createElement('div');
             summary.dataset.ajaxErrorSummary = 'true';
@@ -508,6 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
             clearErrors();
+            reindexOccupantRows();
             const submitButtons = Array.from(form.querySelectorAll('[type="submit"]'));
             submitButtons.forEach((button) => {
                 button.disabled = true;
