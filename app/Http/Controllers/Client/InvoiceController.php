@@ -25,10 +25,22 @@ class InvoiceController extends Controller
 
         $query = $this->invoiceQuery($request)
             ->with(['room', 'contract'])
-            ->withSum(['payments as paid_amount' => fn ($query) => $query->where('status', Payment::STATUS_SUCCESS)], 'amount_paid');
+            ->withSum(
+                ['payments as paid_amount' => fn ($query) =>
+                    $query->where('status', Payment::STATUS_SUCCESS)
+                ],
+                'amount_paid'
+            );
 
-        $query->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status));
-        $query->when($filters['year'] ?? null, fn ($query, $year) => $query->where('year', $year));
+        $query->when(
+            $filters['status'] ?? null,
+            fn ($query, $status) => $query->where('status', $status)
+        );
+
+        $query->when(
+            $filters['year'] ?? null,
+            fn ($query, $year) => $query->where('year', $year)
+        );
 
         $invoices = $query
             ->orderByDesc('year')
@@ -68,25 +80,79 @@ class InvoiceController extends Controller
             ->sum('amount_paid');
         $availableAmount = max(0, (float) $invoice->total_amount - $reservedAmount);
 
+        $paidAmount = (float) $invoice->payments
+            ->where('status', Payment::STATUS_SUCCESS)
+            ->sum('amount_paid');
+
+        $pendingAmount = (float) $invoice->payments
+            ->where('status', Payment::STATUS_PENDING)
+            ->sum('amount_paid');
+
+        $availableAmount = max(
+            0,
+            (float) $invoice->total_amount - $paidAmount - $pendingAmount
+        );
+
+        if ($availableAmount <= 0) {
+            return back()->with(
+                'error',
+                'Hóa đơn đã được thanh toán đủ hoặc đang có xác nhận chờ duyệt.'
+            );
+        }
+
         $data = $request->validate([
-            'amount_paid' => ['required', 'integer', 'min:1', 'max:'.(int) floor($availableAmount)],
+            'amount_paid' => [
+                'required',
+                'integer',
+                'min:1',
+                'max:' . (int) floor($availableAmount),
+            ],
             'proof_image' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'note' => 'nullable|string|max:1000',
         ]);
 
-        $proofPath = $request->file('proof_image')->store('payment-proofs', 'public');
+        $proofPath = $request->file('proof_image')
+            ->store('payment-proofs', 'public');
 
         try {
-            DB::transaction(function () use ($data, $invoice, $proofPath, $request) {
-                $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
-                $reservedAmount = (float) $lockedInvoice->payments()
-                    ->whereIn('status', [Payment::STATUS_SUCCESS, Payment::STATUS_PENDING])
+            DB::transaction(function () use (
+                $data,
+                $invoice,
+                $proofPath,
+                $request
+            ) {
+                $lockedInvoice = Invoice::query()
+                    ->lockForUpdate()
+                    ->findOrFail($invoice->id);
+
+                // Kiểm tra lại quyền sở hữu sau khi khóa bản ghi.
+                $tenantId = $request->user()->tenant?->id;
+
+                if (
+                    !$tenantId ||
+                    !$lockedInvoice->contract ||
+                    $lockedInvoice->contract->tenant_id !== $tenantId
+                ) {
+                    abort(403, 'Bạn không có quyền thanh toán hóa đơn này.');
+                }
+
+                $reservedAmount = (float) $lockedInvoice
+                    ->payments()
+                    ->whereIn('status', [
+                        Payment::STATUS_SUCCESS,
+                        Payment::STATUS_PENDING,
+                    ])
                     ->sum('amount_paid');
-                $availableAmount = max(0, (float) $lockedInvoice->total_amount - $reservedAmount);
+
+                $availableAmount = max(
+                    0,
+                    (float) $lockedInvoice->total_amount - $reservedAmount
+                );
 
                 if ((float) $data['amount_paid'] > $availableAmount) {
                     throw ValidationException::withMessages([
-                        'amount_paid' => 'Số tiền xác nhận vượt quá số tiền còn có thể thanh toán.',
+                        'amount_paid' =>
+                            'Số tiền xác nhận vượt quá số tiền còn có thể thanh toán.',
                     ]);
                 }
 
@@ -109,7 +175,10 @@ class InvoiceController extends Controller
 
         return redirect()
             ->route('client.invoices.show', $invoice)
-            ->with('success', 'Đã gửi xác nhận thanh toán. Ban quản lý sẽ kiểm tra và phản hồi.');
+            ->with(
+                'success',
+                'Đã gửi xác nhận thanh toán. Ban quản lý sẽ kiểm tra và phản hồi.'
+            );
     }
 
     private function findOwnedInvoice(Request $request, int $invoice): Invoice
@@ -119,7 +188,8 @@ class InvoiceController extends Controller
                 'room',
                 'contract.tenant',
                 'details',
-                'payments' => fn ($query) => $query->latest('payment_date')->latest('id'),
+                'payments' => fn ($query) =>
+                    $query->latest('payment_date')->latest('id'),
             ])
             ->findOrFail($invoice);
     }
@@ -129,17 +199,35 @@ class InvoiceController extends Controller
         $paidAmount = (float) $invoice->payments
             ->where('status', Payment::STATUS_SUCCESS)
             ->sum('amount_paid');
-        $remainingAmount = max(0, (float) $invoice->total_amount - $paidAmount);
+
+        $remainingAmount = max(
+            0,
+            (float) $invoice->total_amount - $paidAmount
+        );
+
         $pendingAmount = (float) $invoice->payments
             ->where('status', Payment::STATUS_PENDING)
             ->sum('amount_paid');
-        $availableAmount = max(0, $remainingAmount - $pendingAmount);
+
+        $availableAmount = max(
+            0,
+            $remainingAmount - $pendingAmount
+        );
 
         $bankSetting = Setting::currentOrCreate();
         $paymentCode = $invoice->contract?->tenant?->payment_code;
-        $paymentContent = trim('TT '.$invoice->invoice_code.' '.$paymentCode);
+        $paymentContent = trim('TT ' . $invoice->invoice_code . ' ' . $paymentCode);
 
-        return compact('invoice', 'paidAmount', 'remainingAmount', 'pendingAmount', 'availableAmount', 'bankSetting', 'paymentContent', 'paymentCode');
+        return compact(
+            'invoice',
+            'paidAmount',
+            'remainingAmount',
+            'pendingAmount',
+            'availableAmount',
+            'bankSetting',
+            'paymentContent',
+            'paymentCode'
+        );
     }
 
     private function invoiceQuery(Request $request): Builder
@@ -149,7 +237,10 @@ class InvoiceController extends Controller
         return Invoice::query()
             ->when(
                 $tenantId,
-                fn ($query) => $query->whereHas('contract', fn ($query) => $query->where('tenant_id', $tenantId)),
+                fn ($query) => $query->whereHas(
+                    'contract',
+                    fn ($query) => $query->where('tenant_id', $tenantId)
+                ),
                 fn ($query) => $query->whereRaw('1 = 0')
             );
     }

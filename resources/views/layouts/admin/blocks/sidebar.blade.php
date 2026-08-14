@@ -47,6 +47,11 @@
                     'active' => request()->routeIs('admin.contracts.index')
                 ],
                 [
+                    'label' => 'Mẫu hợp đồng',
+                    'route' => 'admin.contracts.template',
+                    'active' => request()->routeIs('admin.contracts.template')
+                ],
+                [
                     'label' => 'Duyệt gia hạn',
                     'route' => 'admin.extension-requests.index',
                     'active' => request()->routeIs('admin.extension-requests*')

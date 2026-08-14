@@ -222,28 +222,40 @@
                         <td class="whitespace-nowrap px-5 py-4">
 
                             @if($contract->isRefundRequested())
+
                                 <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
                                     <i class="bx bx-time-five"></i>
                                     Chờ duyệt
                                 </span>
 
                             @elseif($contract->isRefundApproved())
+
                                 <span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
                                     <i class="bx bx-check-circle"></i>
                                     Đã duyệt
                                 </span>
 
+                            @elseif($contract->deposit_status === \App\Models\Contract::DEPOSIT_REFUND_REJECTED)
+
+                                <span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                    <i class="bx bx-x-circle"></i>
+                                    Từ chối
+                                </span>
+
                             @elseif(!empty($contract->deposit_refund_completed_at))
+
                                 <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                                     <i class="bx bx-check-double"></i>
                                     Đã hoàn tất
                                 </span>
 
                             @else
+
                                 <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500">
                                     <i class="bx bx-minus-circle"></i>
                                     Chưa xử lý
                                 </span>
+
                             @endif
 
                         </td>
@@ -252,22 +264,40 @@
 
                             @if($contract->isRefundRequested())
 
-                                <button type="button"
+                                <div class="flex items-center justify-center gap-2">
+
+                                    {{-- DUYỆT --}}
+                                    <button
+                                        type="button"
                                         data-refund-open="refundModal{{ $contract->id }}"
                                         onclick="openRefundModal('refundModal{{ $contract->id }}')"
+                                        class="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                                    >
+                                        <i class="bx bx-check-circle text-lg"></i>
+                                        Duyệt
+                                    </button>
 
-                                        class="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100">
-                                    <i class="bx bx-check-circle text-lg"></i>
-                                    Duyệt
-                                </button>
+                                    {{-- TỪ CHỐI --}}
+                                    <button
+                                        type="button"
+                                        data-refund-open="rejectRefundModal{{ $contract->id }}"
+                                        onclick="openRefundModal('rejectRefundModal{{ $contract->id }}')"
+                                        class="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+                                    >
+                                        <i class="bx bx-x-circle text-lg"></i>
+                                        Từ chối
+                                    </button>
+
+                                </div>
 
                             @elseif($contract->isRefundApproved())
 
-                                <button type="button"
-                                        data-refund-open="refundModal{{ $contract->id }}"
-                                        onclick="openRefundModal('refundModal{{ $contract->id }}')"
-
-                                        class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100">
+                                <button
+                                    type="button"
+                                    data-refund-open="refundModal{{ $contract->id }}"
+                                    onclick="openRefundModal('refundModal{{ $contract->id }}')"
+                                    class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                                >
                                     <i class="bx bx-transfer text-lg"></i>
                                     Xác nhận chuyển
                                 </button>

@@ -301,29 +301,57 @@ if (contractForm && contractContent) {
         contractContent.value = html;
     });
 }
-document.addEventListener("DOMContentLoaded", function () {
+// =========================
+// XEM CHI TIẾT HỢP ĐỒNG
+// Event delegation + chống đăng ký event nhiều lần
+// =========================
+(function () {
+
+    if (window.contractDetailViewHandlerInitialized) {
+        return;
+    }
+
+    window.contractDetailViewHandlerInitialized = true;
 
     document.addEventListener("click", async function (e) {
 
         const btn = e.target.closest(".btn-view-contract");
 
-        if (!btn) return;
-
-        e.preventDefault();
-
-        const url = btn.dataset.url;
-
-        const modalElement = document.getElementById("contractModal");
-        const modalContent = document.getElementById("contractModalContent");
-
-        if (!modalElement || !modalContent) {
-            console.error("Không tìm thấy modal hợp đồng");
+        if (!btn) {
             return;
         }
 
+        e.preventDefault();
+
+        if (btn.dataset.loading === "1") {
+            return;
+        }
+
+        const url = btn.dataset.url;
+
+        const modalElement =
+            document.getElementById("contractModal");
+
+        const modalContent =
+            document.getElementById("contractModalContent");
+
+        if (!modalElement || !modalContent) {
+            console.error(
+                "Không tìm thấy #contractModal hoặc #contractModalContent"
+            );
+            return;
+        }
+
+        if (!url) {
+            console.error("Nút xem hợp đồng không có data-url");
+            return;
+        }
+
+        btn.dataset.loading = "1";
+
         modalContent.innerHTML = `
             <div class="modal-body text-center p-5">
-                <div class="spinner-border text-primary"></div>
+                <div class="spinner-border text-primary" role="status"></div>
                 <div class="mt-3">Đang tải hợp đồng...</div>
             </div>
         `;
@@ -336,21 +364,62 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
 
             const response = await fetch(url, {
+                method: "GET",
                 headers: {
                     "X-Requested-With": "XMLHttpRequest",
                     "Accept": "text/html"
-                }
+                },
+                credentials: "same-origin"
             });
 
             if (!response.ok) {
                 throw new Error("HTTP " + response.status);
             }
 
-            modalContent.innerHTML = await response.text();
+            const html = await response.text();
+
+            if (!html.trim()) {
+                throw new Error("Server trả về nội dung rỗng");
+            }
+
+            modalContent.innerHTML = html;
+
+            // Mỗi lần mở hợp đồng luôn quay về tab Thông tin.
+            const infoTab =
+                modalContent.querySelector("#infoTab");
+
+            const contentTab =
+                modalContent.querySelector("#contentTab");
+
+            if (infoTab && contentTab) {
+
+                infoTab.classList.add("show", "active");
+                contentTab.classList.remove("show", "active");
+
+                const tabButtons =
+                    modalContent.querySelectorAll(
+                        '[data-bs-toggle="pill"]'
+                    );
+
+                tabButtons.forEach(function (tabButton, index) {
+                    tabButton.classList.toggle(
+                        "active",
+                        index === 0
+                    );
+
+                    tabButton.setAttribute(
+                        "aria-selected",
+                        index === 0 ? "true" : "false"
+                    );
+                });
+            }
 
         } catch (error) {
 
-            console.error("Lỗi tải hợp đồng:", error);
+            console.error(
+                "Lỗi tải chi tiết hợp đồng:",
+                error
+            );
 
             modalContent.innerHTML = `
                 <div class="modal-header">
@@ -371,11 +440,17 @@ document.addEventListener("DOMContentLoaded", function () {
                     </div>
                 </div>
             `;
+
+        } finally {
+
+            btn.dataset.loading = "0";
+
         }
 
     });
 
-   // =========================
+})();
+// =========================
 // GIA HẠN HỢP ĐỒNG
 // =========================
 
@@ -630,8 +705,6 @@ document.addEventListener('click', function (e) {
             dateInput.min = btn.dataset.start;
         }
     }
-
-});
 
 });
 </script>

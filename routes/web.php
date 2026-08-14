@@ -39,7 +39,6 @@ use App\Models\Room;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\Route;
 
-
 // Tự động chuyển hướng về trang dashboard để kiểm tra đăng nhập
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -88,10 +87,27 @@ Route::middleware('auth')->group(function () {
             [ContractController::class, 'extend']
         )->name('contracts.extend');
 
+        // In hợp đồng cụ thể
         Route::get(
             'contracts/{id}/print',
             [ContractController::class, 'print']
-        )->name('contracts.print');
+        )->whereNumber('id')->name('contracts.print');
+
+        // Mẫu hợp đồng trắng
+        Route::get(
+            'contracts/template',
+            function () {
+                return view('admin.contracts.template');
+            }
+        )->name('contracts.template');
+
+        // In mẫu hợp đồng trắng
+        Route::get(
+            'contracts/template/print',
+            function () {
+                return view('admin.contracts.template-print');
+            }
+        )->name('contracts.template.print');
         // Hoàn cọc
         Route::get(
             'deposit-refunds',

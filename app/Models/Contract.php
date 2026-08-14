@@ -104,6 +104,9 @@ class Contract extends Model
         'deposit_admin_note',
         
         'number_of_people',
+        'internet_enabled',
+        'service_enabled',
+        'parking_quantity',
 
         'signed_at',
         'tenant_signature',
@@ -145,7 +148,7 @@ class Contract extends Model
         'move_in_date'      => 'date',
         'move_in_confirmed_at' => 'datetime',
 
-        'deposit_paid_at'   => 'datetime',
+        'deposit_paid_at' => 'datetime',
         'deposit_processed_at' => 'datetime',
         'deposit_refund_amount' => 'decimal:2',
         'deposit_deduction_amount' => 'decimal:2',
@@ -154,12 +157,15 @@ class Contract extends Model
         'deposit_transfer_amount' => 'decimal:2',
         'deposit_transferred_at' => 'datetime',
 
-        'extended_at'       => 'datetime',
-        'terminated_at'     => 'datetime',
+        'extended_at' => 'datetime',
+        'terminated_at' => 'datetime',
 
-        'start_date'        => 'date',
-        'end_date'          => 'date',
-        'actual_end_date'   => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'actual_end_date' => 'date',
+        'internet_enabled' => 'boolean',
+        'service_enabled' => 'boolean',
+        'parking_quantity' => 'integer',
 
         'extend_start_date' => 'date',
         'extend_end_date'   => 'date',
@@ -204,7 +210,7 @@ class Contract extends Model
 
     public function utilityReadings()
     {
-        return $this->hasMany(UtilityReading::class);
+        return $this->hasMany(UtilityReading::class, 'contract_id');
     }
 
     public function payments()

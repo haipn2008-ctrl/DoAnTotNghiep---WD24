@@ -177,10 +177,10 @@
         ====================================================== --}}
 
         {{-- ĐIỆN NƯỚC --}}
-        <a href="#utilities"
-           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
+        <a href="{{ route('client.utilities.index') }}"
+           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.utilities.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
 
-            <span class="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100">
+            <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.utilities.*') ? 'bg-indigo-100' : 'bg-slate-100' }}">
                 ↯
             </span>
 
@@ -209,10 +209,10 @@
 
 
         {{-- HỖ TRỢ --}}
-        <a href="#support"
-           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
+        <a href="{{ route('client.support.index') }}"
+           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.support.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
 
-            <span class="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100">
+            <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.support.*') ? 'bg-indigo-100' : 'bg-slate-100' }}">
                 ?
             </span>
 

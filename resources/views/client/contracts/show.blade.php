@@ -887,7 +887,22 @@
 
                                         <button
                                             type="submit"
-                                            class="mt-4 inline-flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 text-sm font-bold text-white hover:bg-green-700"
+                                            style="
+                                                margin-top: 16px;
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 8px;
+                                                padding: 12px 24px;
+                                                border: 0;
+                                                border-radius: 12px;
+                                                background: #16a34a !important;
+                                                color: #ffffff !important;
+                                                font-size: 14px;
+                                                font-weight: 700;
+                                                line-height: 1.25;
+                                                cursor: pointer;
+                                                box-shadow: 0 2px 6px rgba(22,163,74,.25);
+                                            "
                                         >
                                             🏠 Xác nhận đã nhận phòng
                                         </button>
