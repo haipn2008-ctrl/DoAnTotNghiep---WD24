@@ -34,7 +34,7 @@
 
             <div class="border-b border-slate-200 px-5 py-4">
                 <h3 class="font-semibold text-slate-950">Thông tin phòng</h3>
-                <p class="text-sm text-slate-500">Số người chỉ do check-in/checkout cập nhật; ảnh mới được nối vào nhật ký và không xóa ảnh cũ.</p>
+                <p class="text-sm text-slate-500">Số người chỉ được cập nhật khi nhận hoặc trả phòng; ảnh mới được nối vào nhật ký và không xóa ảnh cũ.</p>
             </div>
 
             <div class="grid gap-5 p-5 md:grid-cols-2">
@@ -86,8 +86,8 @@
                 </div>
 
                 <div class="md:col-span-2">
-                    <label class="mb-1 block text-sm font-semibold text-slate-700">Tiện ích & tài sản kiểm kê</label>
-                    <p class="mb-3 text-xs text-slate-500">Số lượng và tình trạng hiện tại. Thay đổi được lưu khi bấm Cập nhật.</p>
+                    <label class="mb-1 block text-sm font-semibold text-slate-700">Tài sản bàn giao</label>
+                    <p class="mb-3 text-xs text-slate-500">Chọn hoặc bỏ tài sản và cập nhật số lượng, tình trạng thực tế của phòng.</p>
                     @include('admin.rooms.partials.inventory-fields')
                 </div>
 

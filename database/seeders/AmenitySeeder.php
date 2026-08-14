@@ -9,23 +9,25 @@ class AmenitySeeder extends Seeder
 {
     public function run(): void
     {
+        Amenity::query()->utilities()->update(['is_active' => false]);
+
         $amenities = [
-            ['name' => 'Máy lạnh', 'is_quantifiable' => true],
-            ['name' => 'Máy giặt', 'is_quantifiable' => true],
-            ['name' => 'Wifi', 'is_quantifiable' => false],
-            ['name' => 'Tủ lạnh', 'is_quantifiable' => true],
-            ['name' => 'Nóng lạnh', 'is_quantifiable' => true],
-            ['name' => 'Bãi đỗ xe', 'is_quantifiable' => false],
-            ['name' => 'Giường', 'is_quantifiable' => true],
-            ['name' => 'Bàn', 'is_quantifiable' => true],
-            ['name' => 'Ghế', 'is_quantifiable' => true],
-            ['name' => 'Tủ quần áo', 'is_quantifiable' => true],
+            ['name' => 'Máy lạnh', 'description' => 'Máy lạnh được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Máy giặt', 'description' => 'Máy giặt được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Tủ lạnh', 'description' => 'Tủ lạnh được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Bình nóng lạnh', 'description' => 'Bình nóng lạnh được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Giường', 'description' => 'Giường được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Bàn', 'description' => 'Bàn được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Ghế', 'description' => 'Ghế được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Tủ quần áo', 'description' => 'Tủ quần áo được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Quạt', 'description' => 'Quạt được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
+            ['name' => 'Bếp điện', 'description' => 'Bếp điện được bàn giao cùng phòng.', 'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true],
         ];
 
         foreach ($amenities as $item) {
             Amenity::updateOrCreate(
                 ['name' => $item['name']],
-                ['is_quantifiable' => $item['is_quantifiable'], 'is_active' => true],
+                $item + ['is_active' => true],
             );
         }
     }

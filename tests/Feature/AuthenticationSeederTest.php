@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Amenity;
 use App\Models\Contract;
+use App\Models\Room;
 use App\Models\User;
 use Database\Seeders\AuthenticationScenarioSeeder;
 use Database\Seeders\DatabaseSeeder;
@@ -41,6 +43,8 @@ class AuthenticationSeederTest extends TestCase
             'landlord_identity_number' => '001206006081',
             'landlord_phone' => '0961152763',
             'parking_fee' => 75000,
+            'motorcycle_parking_fee' => 75000,
+            'car_parking_fee' => 500000,
             'bank_id' => 'MB',
             'bank_account_no' => '6666200066789',
             'bank_account_name' => 'NGUYEN XUAN NAM',
@@ -53,6 +57,21 @@ class AuthenticationSeederTest extends TestCase
         $this->assertDatabaseHas('rooms', [
             'room_code' => 'B201',
             'description' => 'Phòng rộng hướng đông, đón nắng sáng và nhiều ánh sáng tự nhiên.',
+        ]);
+
+        $activeAssetCount = Amenity::query()->active()->assets()->count();
+        $rooms = Room::query()->withCount('amenities')->get();
+        $this->assertSame(10, $activeAssetCount);
+        $this->assertCount(12, $rooms->where('amenities_count', $activeAssetCount));
+        $this->assertCount(3, $rooms->where('amenities_count', '<', $activeAssetCount));
+        $this->assertSame(8, $rooms->firstWhere('room_code', 'A103')->amenities_count);
+        $this->assertSame(9, $rooms->firstWhere('room_code', 'B203')->amenities_count);
+        $this->assertSame(9, $rooms->firstWhere('room_code', 'C304')->amenities_count);
+        $this->assertDatabaseHas('amenity_room', [
+            'room_id' => $rooms->firstWhere('room_code', 'B203')->id,
+            'amenity_id' => Amenity::where('name', 'Bình nóng lạnh')->value('id'),
+            'condition' => 'damaged',
+            'note' => 'Đang rò nước, đã lên lịch sửa chữa.',
         ]);
         $this->assertDatabaseHas('tenants', [
             'full_name' => 'Đặng Khánh Linh',

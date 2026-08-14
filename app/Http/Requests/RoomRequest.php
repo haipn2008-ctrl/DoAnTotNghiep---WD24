@@ -55,7 +55,7 @@ class RoomRequest extends FormRequest
 
             foreach (array_keys((array) $this->input('inventory', [])) as $amenityId) {
                 if (! ctype_digit((string) $amenityId) || ! Amenity::query()->active()->whereKey($amenityId)->exists()) {
-                    $validator->errors()->add("inventory.{$amenityId}", 'Tiện ích hoặc tài sản đã chọn không tồn tại.');
+                    $validator->errors()->add("inventory.{$amenityId}", 'Tài sản đã chọn không tồn tại.');
                 }
             }
 

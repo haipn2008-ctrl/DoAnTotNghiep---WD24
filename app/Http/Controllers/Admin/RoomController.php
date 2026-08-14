@@ -37,7 +37,7 @@ class RoomController extends Controller
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
-        $columns = ['Mã phòng', 'Tầng', 'Giá thuê', 'Diện tích (m²)', 'Số người hiện tại', 'Trạng thái', 'Tiện ích/tài sản'];
+        $columns = ['Mã phòng', 'Tầng', 'Giá thuê', 'Diện tích (m²)', 'Số người hiện tại', 'Trạng thái', 'Tài sản bàn giao'];
 
         $callback = function () use ($rooms, $columns): void {
             $file = fopen('php://output', 'w');
@@ -51,14 +51,14 @@ class RoomController extends Controller
                     Room::STATUS_MAINTENANCE => 'Bảo trì',
                     default => ucfirst($room->status),
                 };
-                $amenities = $room->amenities->map(function (Amenity $amenity): string {
+                $assets = $room->amenities->where('category', Amenity::CATEGORY_ASSET)->map(function (Amenity $amenity): string {
                     $quantity = $amenity->is_quantifiable ? ' x'.$amenity->pivot->quantity : '';
 
                     return $amenity->name.$quantity;
                 })->implode(', ');
 
                 Csv::writeRow($file, [$room->room_code, $room->floor, number_format($room->price), $room->area,
-                    $room->current_people, $status, $amenities]);
+                    $room->current_people, $status, $assets]);
             }
 
             fclose($file);
@@ -69,7 +69,7 @@ class RoomController extends Controller
 
     public function create()
     {
-        $amenities = Amenity::query()->active()->orderBy('name')->get();
+        $amenities = Amenity::query()->active()->orderBy('category')->orderBy('name')->get();
 
         return view('admin.rooms.create', compact('amenities'));
     }
@@ -134,7 +134,7 @@ class RoomController extends Controller
     public function edit(Room $room)
     {
         $room->load(['amenities', 'images']);
-        $amenities = Amenity::query()->active()->orderBy('name')->get();
+        $amenities = Amenity::query()->active()->orderBy('category')->orderBy('name')->get();
 
         return view('admin.rooms.edit', compact('room', 'amenities'));
     }
@@ -206,12 +206,21 @@ class RoomController extends Controller
     {
         $payload = [];
 
-        foreach ((array) $request->input('amenities', []) as $amenityId) {
+        if (! $request->has('inventory') && ! $request->route('room')) {
+            $payload = Amenity::query()->active()->assets()->pluck('id')
+                ->mapWithKeys(fn (int $amenityId): array => [
+                    $amenityId => ['quantity' => 1, 'condition' => 'normal', 'note' => null],
+                ])->all();
+        }
+
+        $legacyAssetIds = Amenity::query()->active()->assets()
+            ->whereKey((array) $request->input('amenities', []))->pluck('id');
+        foreach ($legacyAssetIds as $amenityId) {
             $payload[(int) $amenityId] = ['quantity' => 1, 'condition' => 'normal', 'note' => null];
         }
 
         $inventory = (array) $request->input('inventory', []);
-        $amenities = Amenity::query()->active()->whereKey(array_keys($inventory))->get()->keyBy('id');
+        $amenities = Amenity::query()->active()->assets()->whereKey(array_keys($inventory))->get()->keyBy('id');
         foreach ($inventory as $amenityId => $item) {
             if (! filter_var($item['selected'] ?? false, FILTER_VALIDATE_BOOL) || ! $amenities->has((int) $amenityId)) {
                 continue;

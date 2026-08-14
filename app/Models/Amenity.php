@@ -6,9 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class Amenity extends Model
 {
+    public const CATEGORY_UTILITY = 'utility';
+
+    public const CATEGORY_ASSET = 'asset';
+
     protected $fillable = [
         'name',
         'description',
+        'category',
         'is_quantifiable',
         'is_active',
     ];
@@ -24,6 +29,21 @@ class Amenity extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeUtilities($query)
+    {
+        return $query->where('category', self::CATEGORY_UTILITY);
+    }
+
+    public function scopeAssets($query)
+    {
+        return $query->where('category', self::CATEGORY_ASSET);
+    }
+
+    public function getCategoryLabelAttribute(): string
+    {
+        return $this->category === self::CATEGORY_UTILITY ? 'Tiện ích' : 'Tài sản';
     }
 
     public function rooms()

@@ -54,7 +54,8 @@ class SettingManagementTest extends TestCase
             ->assertSee('Đơn giá điện')
             ->assertSee('Đơn giá nước')
             ->assertSee('Phí Internet')
-            ->assertSee('Phí gửi xe');
+            ->assertSee('Phí trông xe máy')
+            ->assertSee('Phí trông ô tô');
     }
 
     public function test_consolidated_fee_form_updates_every_fee_atomically(): void
@@ -65,7 +66,8 @@ class SettingManagementTest extends TestCase
             'water_price' => 22000,
             'internet_fee' => 120000,
             'service_fee' => 65000,
-            'parking_fee' => 80000,
+            'motorcycle_parking_fee' => 80000,
+            'car_parking_fee' => 600000,
         ];
 
         $this->actingAs($this->admin)->put('/admin/settings/fees', $payload)
@@ -166,12 +168,14 @@ class SettingManagementTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/settings/unknown')->assertNotFound();
         $this->actingAs($this->admin)->put('/admin/settings/parking', [
-            'parking_fee' => 999999,
+            'motorcycle_parking_fee' => 999999,
+            'car_parking_fee' => 1999999,
         ])->assertRedirect('/admin/settings/parking')->assertSessionHasNoErrors();
 
         $this->assertDatabaseCount('settings', 1);
         $this->assertSame('3500.00', $setting->fresh()->electric_price);
-        $this->assertSame('999999.00', $setting->fresh()->parking_fee);
+        $this->assertSame('999999.00', $setting->fresh()->motorcycle_parking_fee);
+        $this->assertSame('1999999.00', $setting->fresh()->car_parking_fee);
     }
 
     public function test_setting_routes_enforce_authentication_and_admin_role_for_direct_requests(): void
@@ -272,6 +276,8 @@ class SettingManagementTest extends TestCase
             'internet_fee' => 100000,
             'service_fee' => 50000,
             'parking_fee' => 0,
+            'motorcycle_parking_fee' => 0,
+            'car_parking_fee' => 0,
             'invoice_day' => 5,
             'payment_due_days' => 10,
             'is_active' => true,

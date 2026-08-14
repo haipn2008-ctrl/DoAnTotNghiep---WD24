@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Storage;
 
 class Contract extends Model
 {
+    const PARKING_MOTORCYCLE = 'motorcycle';
+
+    const PARKING_CAR = 'car';
+
     /*
     |--------------------------------------------------------------------------
     | Contract Status
@@ -106,6 +110,7 @@ class Contract extends Model
         'number_of_people',
         'internet_enabled',
         'service_enabled',
+        'parking_vehicle_type',
         'parking_quantity',
 
         'signed_at',
@@ -177,6 +182,15 @@ class Contract extends Model
     |--------------------------------------------------------------------------
     */
 
+    public function getParkingVehicleLabelAttribute(): ?string
+    {
+        return match ($this->parking_vehicle_type) {
+            self::PARKING_MOTORCYCLE => 'Xe máy',
+            self::PARKING_CAR => 'Ô tô',
+            default => null,
+        };
+    }
+
     public function room()
     {
         return $this->belongsTo(Room::class);
@@ -206,6 +220,11 @@ class Contract extends Model
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    public function occupants()
+    {
+        return $this->hasMany(ContractOccupant::class);
     }
 
     public function utilityReadings()

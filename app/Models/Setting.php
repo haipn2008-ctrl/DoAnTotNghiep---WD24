@@ -23,6 +23,10 @@ class Setting extends Model
 
         'parking_fee',
 
+        'motorcycle_parking_fee',
+
+        'car_parking_fee',
+
         'invoice_day',
 
         'payment_due_days',
@@ -57,6 +61,10 @@ class Setting extends Model
         'service_fee' => 'decimal:2',
 
         'parking_fee' => 'decimal:2',
+
+        'motorcycle_parking_fee' => 'decimal:2',
+
+        'car_parking_fee' => 'decimal:2',
 
         'invoice_day' => 'integer',
 
@@ -102,6 +110,8 @@ class Setting extends Model
             'internet_fee' => 0,
             'service_fee' => 0,
             'parking_fee' => 0,
+            'motorcycle_parking_fee' => 0,
+            'car_parking_fee' => 0,
             'invoice_day' => 5,
             'payment_due_days' => 10,
         ], $defaults);

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\ContractOccupant;
 use App\Models\ContractOccupantHistory;
@@ -176,6 +177,16 @@ class AuthenticationScenarioSeeder extends Seeder
             'description' => "Phòng {$code} có ban công, khu bếp riêng và nội thất cơ bản cho hai người.",
             'status' => $roomStatus,
         ])->save();
+
+        $room->amenities()->sync(
+            Amenity::query()->active()->assets()->get()->mapWithKeys(fn (Amenity $asset): array => [
+                $asset->id => [
+                    'quantity' => $asset->name === 'Ghế' ? 2 : 1,
+                    'condition' => 'normal',
+                    'note' => null,
+                ],
+            ])->all()
+        );
 
         $tenant = $existingTenant ?? new Tenant();
         $tenant->fill([

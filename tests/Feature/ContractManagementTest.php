@@ -115,12 +115,122 @@ class ContractManagementTest extends TestCase
             ->assertDontSee('Backend kiểm tra lại toàn bộ điều kiện');
     }
 
+    public function test_contract_form_separates_included_amenities_paid_services_and_room_assets(): void
+    {
+        $room = $this->room('SERVICE-FORM');
+        $desk = Amenity::create([
+            'name' => 'Bàn làm việc', 'description' => 'Bàn được bàn giao cùng phòng',
+            'category' => Amenity::CATEGORY_ASSET, 'is_quantifiable' => true, 'is_active' => true,
+        ]);
+        $room->amenities()->attach($desk->id, [
+            'quantity' => 2, 'condition' => 'normal', 'note' => null,
+        ]);
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.create', ['room_id' => $room->id]))
+            ->assertOk()
+            ->assertDontSee('Tiện nghi mặc định đã bao gồm')
+            ->assertSee('Dịch vụ đăng ký tính phí')
+            ->assertSee('name="service_enabled"', false)
+            ->assertSee('name="parking_enabled"', false)
+            ->assertSee('name="parking_vehicle_type"', false)
+            ->assertSee('name="parking_quantity"', false)
+            ->assertSee('Xe máy')
+            ->assertSee('Ô tô')
+            ->assertSee('data-identity-preview-input', false)
+            ->assertSee('representative-identity-front-preview')
+            ->assertSee('representative-identity-back-preview')
+            ->assertSee('Lưu ý khi khai báo trẻ em:')
+            ->assertSee('Người ở dưới 14 tuổi không bắt buộc nhập số căn cước, ảnh căn cước và số điện thoại.')
+            ->assertSee('Trẻ dưới 14 tuổi có thể bỏ trống CCCD')
+            ->assertDontSee('name="internet_enabled"', false)
+            ->assertSee('Tài sản bàn giao của phòng')
+            ->assertSee('Bàn làm việc × 2');
+    }
+
+    public function test_child_under_fourteen_can_be_added_without_identity_images_or_phone(): void
+    {
+        $room = $this->room('CHILD-OCCUPANT');
+        $tenant = $this->tenant('child-occupant');
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'occupants' => [[
+                'full_name' => 'Bé ở cùng',
+                'date_of_birth' => '2020-05-10',
+                'identity_number' => null,
+                'phone' => null,
+            ]],
+        ]))->assertRedirect()->assertSessionHasNoErrors();
+
+        $child = Contract::sole()->occupants()->where('role', ContractOccupant::ROLE_OCCUPANT)->sole();
+        $this->assertNull($child->identity_number);
+        $this->assertNull($child->identity_front_path);
+        $this->assertNull($child->identity_back_path);
+        $this->assertNull($child->phone);
+    }
+
+    public function test_occupant_from_fourteen_still_requires_identity_number_and_both_images(): void
+    {
+        $room = $this->room('TEEN-OCCUPANT');
+        $tenant = $this->tenant('teen-occupant');
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'occupants' => [[
+                'full_name' => 'Người ở đủ tuổi',
+                'date_of_birth' => '2010-01-01',
+            ]],
+        ]))->assertSessionHasErrors([
+            'occupants.0.identity_number',
+            'occupants.0.identity_front',
+            'occupants.0.identity_back',
+        ]);
+
+        $this->assertDatabaseCount('contracts', 0);
+    }
+
+    public function test_parking_data_is_ignored_when_parking_checkbox_is_not_selected(): void
+    {
+        $room = $this->room('NO-PARKING');
+        $tenant = $this->tenant('no-parking');
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'parking_vehicle_type' => Contract::PARKING_CAR,
+            'parking_quantity' => 5,
+        ]))->assertRedirect()->assertSessionHasNoErrors();
+
+        $contract = Contract::sole();
+        $this->assertNull($contract->parking_vehicle_type);
+        $this->assertSame(0, $contract->parking_quantity);
+    }
+
+    public function test_non_draft_detail_uses_consistent_layout_and_localizes_lifecycle_history(): void
+    {
+        $contract = $this->draft();
+        $this->lifecycle->submitForSignature($contract, $this->admin, 'Gửi khách xác nhận');
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Chi tiết hợp đồng')
+            ->assertSee('Bước tiếp theo')
+            ->assertSee('In hợp đồng')
+            ->assertSeeInOrder(['Bản nháp', 'Chờ ký'])
+            ->assertSee('Tạo bản nháp')
+            ->assertSee('Gửi chờ ký')
+            ->assertDontSee('create_draft')
+            ->assertDontSee('submit_for_signature')
+            ->assertDontSee('pending_signature');
+    }
+
     public function test_create_only_writes_draft_without_signing_occupying_reading_or_invoice(): void
     {
         $room = $this->room('DRAFT');
         $tenant = $this->tenant('draft');
 
         $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'internet_enabled' => 1,
+            'service_enabled' => 1,
+            'parking_enabled' => 1,
+            'parking_vehicle_type' => Contract::PARKING_CAR,
+            'parking_quantity' => 2,
             'representative' => [
                 'full_name' => 'Người đại diện đã bổ sung',
                 'phone' => '0911222333',
@@ -143,6 +253,10 @@ class ContractManagementTest extends TestCase
         $this->assertNull($contract->move_in_terms_confirmed_by);
         $this->assertNull($contract->move_in_terms_confirmed_at);
         $this->assertNull($contract->signature_due_at);
+        $this->assertFalse($contract->internet_enabled);
+        $this->assertTrue($contract->service_enabled);
+        $this->assertSame(Contract::PARKING_CAR, $contract->parking_vehicle_type);
+        $this->assertSame(2, $contract->parking_quantity);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
         $this->assertSame(0, $room->fresh()->current_people);
         $this->assertDatabaseCount('utility_readings', 0);
@@ -220,9 +334,9 @@ class ContractManagementTest extends TestCase
         $this->actingAs($tenant->user)->get(route('client.contracts.show', $contract))
             ->assertOk()
             ->assertSee('Thông tin nhận phòng')
-            ->assertSee('Internet')
-            ->assertSee('Đã đăng ký')
-            ->assertSee('2 xe đã đăng ký')
+            ->assertSee('Wi-Fi và máy lạnh')
+            ->assertSee('Đã bao gồm, không tính phí riêng')
+            ->assertSee('Xe máy × 2')
             ->assertSee('Bàn học bàn giao')
             ->assertSee('Có hư hỏng')
             ->assertSee('Xước nhẹ cạnh bàn');
@@ -623,6 +737,23 @@ class ContractManagementTest extends TestCase
 
         $this->assertSame(ContractOccupant::STATUS_CHECKED_IN, $occupant->fresh()->status);
         $this->assertSame(2, $contract->room->fresh()->current_people);
+    }
+
+    public function test_client_can_declare_child_without_identity_documents_or_phone(): void
+    {
+        $contract = $this->awaiting();
+
+        $this->actingAs($contract->tenant->user)->post(route('client.contracts.occupants.store', $contract), [
+            'full_name' => 'Bé do khách khai báo',
+            'date_of_birth' => '2021-08-01',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $child = ContractOccupant::query()->where('full_name', 'Bé do khách khai báo')->sole();
+        $this->assertSame(ContractOccupant::STATUS_PENDING, $child->status);
+        $this->assertNull($child->identity_number);
+        $this->assertNull($child->identity_front_path);
+        $this->assertNull($child->identity_back_path);
+        $this->assertNull($child->phone);
     }
 
     public function test_approved_occupant_can_join_and_leave_active_room_without_losing_history(): void

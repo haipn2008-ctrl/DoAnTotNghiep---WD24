@@ -5,9 +5,8 @@
         ? $contract->start_date->diffInDays($contract->end_date)
         : null;
     $serviceItems = collect([
-        $contract->internet_enabled ? 'Internet' : null,
         $contract->service_enabled ? 'Dịch vụ chung' : null,
-        $contract->parking_quantity > 0 ? $contract->parking_quantity.' xe' : null,
+        $contract->parking_quantity > 0 ? ($contract->parking_vehicle_label ?? 'Xe máy').' × '.$contract->parking_quantity : null,
     ])->filter();
 @endphp
 
@@ -158,10 +157,15 @@
 
         <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
-                <h3 class="font-semibold text-slate-950">Dịch vụ đăng ký</h3>
-                <p class="text-sm text-slate-500">Dịch vụ dự kiến áp dụng khi hợp đồng có hiệu lực.</p>
+                <h3 class="font-semibold text-slate-950">Tiện nghi và dịch vụ đăng ký</h3>
+                <p class="text-sm text-slate-500">Tiện nghi đã bao gồm và các dịch vụ tính phí dự kiến áp dụng khi hợp đồng có hiệu lực.</p>
             </div>
             <div class="p-5">
+                <div class="mb-4 flex flex-wrap gap-2">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"><i class="bx bx-wifi"></i>Wi-Fi · đã bao gồm</span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"><i class="bx bx-wind"></i>Máy lạnh · đã bao gồm</span>
+                </div>
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Dịch vụ đăng ký tính phí</p>
                 @if($serviceItems->isNotEmpty())
                     <div class="flex flex-wrap gap-2">
                         @foreach($serviceItems as $service)
@@ -169,7 +173,7 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="rounded-lg border border-dashed border-slate-200 px-4 py-7 text-center text-sm text-slate-500">Chưa đăng ký dịch vụ bổ sung.</div>
+                    <div class="rounded-lg border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-500">Chưa đăng ký dịch vụ tính phí.</div>
                 @endif
                 @if($contract->note)
                     <div class="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700"><strong>Ghi chú:</strong> {{ $contract->note }}</div>
