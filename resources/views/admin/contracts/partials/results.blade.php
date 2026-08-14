@@ -39,7 +39,7 @@
                     <tr class="hover:bg-slate-50/70">
                         <td class="px-5 py-4">
                             <p class="font-semibold text-slate-950">{{ $contract->contract_code ?: 'HD' . str_pad($contract->id, 3, '0', STR_PAD_LEFT) }}</p>
-                            <p class="mt-1 text-xs text-slate-500">Cọc {{ number_format($contract->deposit_amount ?? 0, 0, ',', '.') }}đ + phòng tháng đầu {{ number_format($contract->monthly_rent ?? 0, 0, ',', '.') }}đ</p>
+                            <p class="mt-1 text-xs text-slate-500">Cọc {{ number_format($contract->deposit_amount ?? 0, 0, ',', '.') }}đ + phòng tháng đầu {{ number_format($contract->first_month_rent_amount, 0, ',', '.') }}đ</p>
                         </td>
                         <td class="px-5 py-4">
                             <p class="font-medium text-slate-900">{{ $contract->tenant->full_name ?? 'Không có' }}</p>

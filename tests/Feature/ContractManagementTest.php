@@ -796,7 +796,10 @@ class ContractManagementTest extends TestCase
 
     public function test_signed_contract_requires_separate_deposit_and_first_month_rent_before_move_in(): void
     {
-        $contract = $this->draft(0);
+        $contract = $this->draft(0, [
+            'start_date' => '2026-09-01', 'end_date' => '2027-09-01',
+            'scheduled_move_in_date' => '2026-09-01', 'reservation_expires_at' => '2026-09-02 18:00:00',
+        ]);
         $this->sign($contract);
 
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
@@ -819,6 +822,58 @@ class ContractManagementTest extends TestCase
         ]);
         $this->assertSame(6000000.0, (float) $contract->invoices()->sum('total_amount'));
         $this->assertSame(Room::STATUS_AVAILABLE, $contract->room->fresh()->status);
+    }
+
+    public function test_first_month_rent_is_prorated_by_calendar_days_without_half_month_tiers(): void
+    {
+        $sevenDays = $this->draft(0, [
+            'start_date' => '2027-05-25', 'end_date' => '2028-05-25',
+            'scheduled_move_in_date' => '2027-05-25', 'reservation_expires_at' => '2027-05-26 18:00:00',
+        ], 'prorated-seven-days');
+        $this->sign($sevenDays);
+        $this->lifecycle->issueDepositInvoice($sevenDays, $this->admin);
+        $sevenDayInvoice = $sevenDays->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->sole();
+
+        $this->assertSame(7, $sevenDays->fresh()->first_month_rent_days);
+        $this->assertSame(677419.0, (float) $sevenDayInvoice->total_amount);
+        $this->assertDatabaseHas('invoice_details', [
+            'invoice_id' => $sevenDayInvoice->id, 'quantity' => 7, 'unit' => 'ngày', 'amount' => 677419,
+        ]);
+
+        $sixDays = $this->draft(0, [
+            'start_date' => '2027-05-26', 'end_date' => '2028-05-26',
+            'scheduled_move_in_date' => '2027-05-26', 'reservation_expires_at' => '2027-05-27 18:00:00',
+        ], 'prorated-six-days');
+        $this->sign($sixDays);
+        $this->lifecycle->issueDepositInvoice($sixDays, $this->admin);
+        $sixDayInvoice = $sixDays->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->sole();
+
+        $this->assertSame(580645.0, (float) $sixDayInvoice->total_amount);
+        $this->assertNotSame(1500000.0, (float) $sixDayInvoice->total_amount);
+    }
+
+    public function test_first_month_rent_is_free_when_five_or_fewer_days_remain(): void
+    {
+        $contract = $this->draft(0, [
+            'start_date' => '2027-05-27', 'end_date' => '2028-05-27',
+            'scheduled_move_in_date' => '2027-05-27', 'reservation_expires_at' => '2027-05-28 18:00:00',
+        ], 'free-five-days');
+        $this->sign($contract);
+        $depositInvoice = $this->lifecycle->issueDepositInvoice($contract, $this->admin);
+        $firstMonthInvoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->sole();
+
+        $this->assertSame(5, $contract->fresh()->first_month_rent_days);
+        $this->assertSame(0.0, (float) $firstMonthInvoice->total_amount);
+        $this->assertSame(Invoice::STATUS_PAID, $firstMonthInvoice->status);
+
+        Payment::query()->forceCreate([
+            'invoice_id' => $depositInvoice->id, 'amount_paid' => $depositInvoice->total_amount,
+            'payment_date' => today(), 'payment_method' => Payment::METHOD_CASH,
+            'status' => Payment::STATUS_SUCCESS,
+        ]);
+        $this->lifecycle->syncDepositState($contract, $this->admin);
+
+        $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $contract->fresh()->status);
     }
 
     public function test_deposit_deadline_is_calculated_after_signing_and_capped_by_move_in_deadline(): void
@@ -887,12 +942,13 @@ class ContractManagementTest extends TestCase
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
 
+        $halfFirstMonthRent = (float) $invoice->total_amount / 2;
         $this->actingAs($this->admin)->post(route('admin.invoices.payments.store', $invoice), [
-            'amount_paid' => 1500000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
+            'amount_paid' => $halfFirstMonthRent, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
         ])->assertSessionHasNoErrors();
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
         $this->post(route('admin.invoices.payments.store', $invoice), [
-            'amount_paid' => 1500000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
+            'amount_paid' => $halfFirstMonthRent, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
         ])->assertSessionHasNoErrors();
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
         $this->post(route('admin.invoices.payments.store', $depositInvoice), [
@@ -1260,6 +1316,9 @@ class ContractManagementTest extends TestCase
         $this->lifecycle->issueDepositInvoice($contract, $this->admin);
         $contract->invoices()->whereIn('invoice_type', [Invoice::TYPE_DEPOSIT, Invoice::TYPE_FIRST_MONTH_RENT])
             ->get()->each(function (Invoice $invoice): void {
+                if ((float) $invoice->total_amount <= 0) {
+                    return;
+                }
                 Payment::query()->forceCreate([
                     'invoice_id' => $invoice->id, 'amount_paid' => $invoice->total_amount,
                     'payment_date' => today(), 'payment_method' => Payment::METHOD_CASH,

@@ -150,6 +150,10 @@
     </p>
 
     <p>
+        Tiền phòng tháng đầu được tính từ ngày bắt đầu hợp đồng đến hết tháng theo công thức giá thuê tháng chia số ngày của tháng nhân số ngày thuê thực tế. Nếu thời gian còn lại không quá 5 ngày thì miễn tiền phòng; điện, nước và dịch vụ vẫn tính theo thực tế.
+    </p>
+
+    <p>
         Hợp đồng có giá trị kể từ ngày
         <u>{{start_day}}</u> tháng <u>{{start_month}}</u> năm <u>{{start_year}}</u>
         đến ngày

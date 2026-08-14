@@ -116,8 +116,8 @@
                 </div>
 
                 <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 md:col-span-2">
-                    <p class="text-sm font-semibold text-indigo-950">Khoản phải đóng sau khi ký: 1 tháng cọc + 1 tháng tiền phòng</p>
-                    <p class="mt-1 text-sm text-indigo-800">Mỗi khoản bằng đúng giá thuê tháng của phòng đã chọn và được lập thành hai hóa đơn riêng. Phải thanh toán đủ cả hai trước khi nhận phòng; tiền cọc được giữ để quyết toán cuối hợp đồng.</p>
+                    <p class="text-sm font-semibold text-indigo-950">Khoản phải đóng sau khi ký: 1 tháng cọc + tiền phòng tháng đầu theo ngày</p>
+                    <p class="mt-1 text-sm text-indigo-800">Cọc bằng đủ một tháng. Tiền phòng tháng đầu = giá tháng / số ngày của tháng × số ngày từ ngày bắt đầu hợp đồng đến cuối tháng; nếu còn không quá 5 ngày thì miễn tiền phòng. Hai khoản được lập thành hai hóa đơn riêng.</p>
                 </div>
 
                 @include('admin.contracts.partials.service-fields', [

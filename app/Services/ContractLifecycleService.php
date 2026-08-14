@@ -276,20 +276,29 @@ class ContractLifecycleService
             $firstMonthInvoice = Invoice::query()->where('contract_id', $contract->id)
                 ->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->lockForUpdate()->first();
             if (! $firstMonthInvoice) {
+                $firstMonthAmount = $contract->calculated_first_month_rent_amount;
+                $firstMonthDays = $contract->first_month_rent_days;
+                $dailyRate = round((float) $contract->monthly_rent / $contract->start_date->daysInMonth, 2);
+                $freeFirstMonth = $firstMonthDays <= 5;
                 $firstMonthInvoice = Invoice::query()->forceCreate([
                     'contract_id' => $contract->id, 'room_id' => $contract->room_id,
                     'invoice_type' => Invoice::TYPE_FIRST_MONTH_RENT, 'invoice_code' => null,
                     'lifecycle_event_key' => $this->invoiceKey($contract, 'first-month-rent'),
                     'month' => $contract->start_date->month, 'year' => $contract->start_date->year,
                     'invoice_date' => $now->toDateString(), 'due_date' => Carbon::parse($dueAt)->toDateString(),
-                    'room_fee' => $contract->monthly_rent, 'total_amount' => $contract->monthly_rent,
-                    'status' => Invoice::STATUS_UNPAID,
+                    'room_fee' => $firstMonthAmount, 'total_amount' => $firstMonthAmount,
+                    'status' => $freeFirstMonth ? Invoice::STATUS_PAID : Invoice::STATUS_UNPAID,
                 ]);
                 $firstMonthInvoice->forceFill(['invoice_code' => sprintf('FMR-%04d%02d-%06d', $contract->start_date->year, $contract->start_date->month, $firstMonthInvoice->id)])->save();
                 $firstMonthInvoice->details()->create([
-                    'type' => Invoice::TYPE_FIRST_MONTH_RENT, 'name' => 'Tiền phòng tháng đầu '.$contract->start_date->format('m/Y'),
-                    'quantity' => 1, 'unit' => 'tháng', 'unit_price' => $contract->monthly_rent,
-                    'amount' => $contract->monthly_rent, 'note' => 'Tiền phòng tháng đầu trả trước, tách biệt với tiền cọc', 'sort_order' => 1,
+                    'type' => Invoice::TYPE_FIRST_MONTH_RENT,
+                    'name' => 'Tiền phòng tháng đầu từ '.$contract->start_date->format('d/m/Y').' đến '.$contract->start_date->copy()->endOfMonth()->format('d/m/Y'),
+                    'quantity' => $firstMonthDays, 'unit' => 'ngày', 'unit_price' => $dailyRate,
+                    'amount' => $firstMonthAmount,
+                    'note' => $freeFirstMonth
+                        ? 'Miễn tiền phòng vì thời gian còn lại của tháng không quá 5 ngày; điện, nước và dịch vụ vẫn tính theo thực tế.'
+                        : 'Tính theo giá tháng / số ngày của tháng × số ngày thuê thực tế, làm tròn đến đồng.',
+                    'sort_order' => 1,
                 ]);
             }
             if (! $contract->deposit_due_at) {
@@ -314,7 +323,8 @@ class ContractLifecycleService
             $depositPaid = $paidFor(Invoice::TYPE_DEPOSIT);
             $firstMonthPaid = $paidFor(Invoice::TYPE_FIRST_MONTH_RENT);
             $depositRequired = (float) $contract->deposit_amount;
-            $firstMonthRequired = (float) $contract->monthly_rent;
+            $firstMonthRequired = (float) ($invoices->get(Invoice::TYPE_FIRST_MONTH_RENT)?->total_amount
+                ?? $contract->calculated_first_month_rent_amount);
             $depositEnough = $depositRequired <= 0 || round($depositPaid, 2) >= round($depositRequired, 2);
             $firstMonthEnough = round($firstMonthPaid, 2) >= round($firstMonthRequired, 2);
             $enough = $depositEnough && $firstMonthEnough;

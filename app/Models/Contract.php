@@ -323,9 +323,37 @@ class Contract extends Model
         return $invoice ? (float) $invoice->payments()->success()->sum('amount_paid') : 0.0;
     }
 
+    public function getFirstMonthRentDaysAttribute(): int
+    {
+        if (! $this->start_date) {
+            return 0;
+        }
+
+        return $this->start_date->daysInMonth - $this->start_date->day + 1;
+    }
+
+    public function getCalculatedFirstMonthRentAmountAttribute(): float
+    {
+        $days = $this->first_month_rent_days;
+        if ($days <= 5 || ! $this->start_date) {
+            return 0.0;
+        }
+
+        return (float) round((float) $this->monthly_rent * $days / $this->start_date->daysInMonth);
+    }
+
+    public function getFirstMonthRentAmountAttribute(): float
+    {
+        $invoice = $this->relationLoaded('invoices')
+            ? $this->invoices->firstWhere('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)
+            : $this->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->first();
+
+        return $invoice ? (float) $invoice->total_amount : $this->calculated_first_month_rent_amount;
+    }
+
     public function getFirstMonthRentRemainingAmountAttribute(): float
     {
-        return max(0, (float) $this->monthly_rent - $this->first_month_rent_paid_amount);
+        return max(0, $this->first_month_rent_amount - $this->first_month_rent_paid_amount);
     }
 
     public function getStatusLabelAttribute(): string
