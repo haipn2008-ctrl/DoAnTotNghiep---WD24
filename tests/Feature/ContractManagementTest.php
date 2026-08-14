@@ -135,7 +135,7 @@ class ContractManagementTest extends TestCase
             ->assertSee('name="parking_vehicle_type"', false)
             ->assertSee('name="parking_quantity"', false)
             ->assertSee('Xe máy')
-            ->assertSee('Ô tô')
+            ->assertDontSee('Ô tô')
             ->assertSee('data-identity-preview-input', false)
             ->assertSee('representative-identity-front-preview')
             ->assertSee('representative-identity-back-preview')
@@ -229,8 +229,8 @@ class ContractManagementTest extends TestCase
             'internet_enabled' => 1,
             'service_enabled' => 1,
             'parking_enabled' => 1,
-            'parking_vehicle_type' => Contract::PARKING_CAR,
-            'parking_quantity' => 2,
+            'parking_vehicle_type' => Contract::PARKING_MOTORCYCLE,
+            'parking_quantity' => 1,
             'representative' => [
                 'full_name' => 'Người đại diện đã bổ sung',
                 'phone' => '0911222333',
@@ -249,14 +249,14 @@ class ContractManagementTest extends TestCase
         $this->assertNull($contract->signed_at);
         $this->assertNull($contract->actual_move_in_at);
         $this->assertSame('2027-09-01', $contract->end_date->toDateString());
-        $this->assertSame('2026-09-11 23:59:59', $contract->reservation_expires_at->toDateTimeString());
+        $this->assertSame('2026-10-01 23:59:59', $contract->reservation_expires_at->toDateTimeString());
         $this->assertNull($contract->move_in_terms_confirmed_by);
         $this->assertNull($contract->move_in_terms_confirmed_at);
         $this->assertNull($contract->signature_due_at);
         $this->assertFalse($contract->internet_enabled);
         $this->assertTrue($contract->service_enabled);
-        $this->assertSame(Contract::PARKING_CAR, $contract->parking_vehicle_type);
-        $this->assertSame(2, $contract->parking_quantity);
+        $this->assertSame(Contract::PARKING_MOTORCYCLE, $contract->parking_vehicle_type);
+        $this->assertSame(1, $contract->parking_quantity);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
         $this->assertSame(0, $room->fresh()->current_people);
         $this->assertDatabaseCount('utility_readings', 0);
@@ -383,12 +383,12 @@ class ContractManagementTest extends TestCase
             ->assertSee('Ngày bắt đầu thời hạn thuê')
             ->assertSee('Hạn cuối phải nhận phòng')
             ->assertSee('name="contract_duration"', false)
-            ->assertSee('Thuê ít ngày')
+            ->assertSee('Tối thiểu 12 tháng')
             ->assertDontSee('Thông tin tài khoản được điền sẵn')
             ->assertDontSee('Không chọn nếu người đứng tên thuê phòng cho người khác')
             ->assertDontSee('name="signature_due_at"', false)
             ->assertSee('name="reservation_expires_at"', false)
-            ->assertSee('name="move_in_terms_confirmed"', false)
+            ->assertDontSee('name="move_in_terms_confirmed"', false)
             ->assertDontSee('name="deposit_due_at"', false);
 
         $this->post(route('admin.contracts.store'), $this->payload($room, $representative, [
@@ -434,7 +434,7 @@ class ContractManagementTest extends TestCase
         $room = $this->room('DERIVED-DATES');
         $tenant = $this->tenant('derived-dates');
         $payload = $this->payload($room, $tenant, [
-            'contract_duration' => '3',
+            'contract_duration' => '24',
             'end_date' => '2099-12-31',
             'reservation_expires_at' => '2099-12-30',
             'scheduled_move_in_date' => '2026-09-11',
@@ -443,16 +443,16 @@ class ContractManagementTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.contracts.store'), $payload)->assertSessionHasNoErrors();
 
         $contract = Contract::sole();
-        $this->assertSame('2026-12-01', $contract->end_date->toDateString());
-        $this->assertSame('3', $contract->rental_duration_option);
-        $this->assertSame('2026-09-11 23:59:59', $contract->reservation_expires_at->toDateTimeString());
+        $this->assertSame('2028-09-01', $contract->end_date->toDateString());
+        $this->assertSame('24', $contract->rental_duration_option);
+        $this->assertSame('2026-10-01 23:59:59', $contract->reservation_expires_at->toDateTimeString());
         $this->assertNull($contract->signature_due_at);
 
         $otherRoom = $this->room('MOVE-IN-OUTSIDE-WINDOW');
         $otherTenant = $this->tenant('move-in-outside-window');
         $this->post(route('admin.contracts.store'), $this->payload($otherRoom, $otherTenant, [
-            'contract_duration' => '6',
-            'scheduled_move_in_date' => '2026-09-12',
+            'contract_duration' => '12',
+            'scheduled_move_in_date' => '2026-10-02',
         ]))->assertSessionHasErrors('scheduled_move_in_date');
         $this->assertDatabaseCount('contracts', 1);
     }
@@ -463,8 +463,9 @@ class ContractManagementTest extends TestCase
             'start_date' => '2026-08-11',
             'scheduled_move_in_date' => '2026-08-11',
             'reservation_expires_at' => '2026-08-12 18:00:00',
-            'end_date' => '2026-08-31',
+            'end_date' => '2027-08-11',
         ], 'current-room-guest');
+        $current->forceFill(['end_date' => '2026-08-31'])->save();
         $newTenant = $this->tenant('future-room-guest');
 
         $this->actingAs($this->admin)->get(route('admin.contracts.create'))
@@ -473,14 +474,14 @@ class ContractManagementTest extends TestCase
             ->assertSee('có thể thuê từ 01/09/2026');
 
         $this->post(route('admin.contracts.store'), $this->payload($current->room, $newTenant, [
-            'contract_duration' => '3',
+            'contract_duration' => '12',
             'start_date' => '2026-08-31',
             'scheduled_move_in_date' => '2026-08-31',
         ]))->assertSessionHasErrors('start_date');
         $this->assertDatabaseCount('contracts', 1);
 
         $this->post(route('admin.contracts.store'), $this->payload($current->room, $newTenant, [
-            'contract_duration' => '3',
+            'contract_duration' => '12',
             'start_date' => '2026-09-01',
             'scheduled_move_in_date' => '2026-09-01',
         ]))->assertSessionHasNoErrors();
@@ -490,73 +491,38 @@ class ContractManagementTest extends TestCase
         $this->assertSame('2026-09-01', $futureDraft->start_date->toDateString());
     }
 
-    public function test_move_in_dates_require_admin_confirmation_and_stay_inside_contract(): void
+    public function test_move_in_dates_are_limited_to_one_month_from_contract_start(): void
     {
         $room = $this->room('MOVE-IN-TERMS');
         $tenant = $this->tenant('move-in-terms');
-        $payload = $this->payload($room, $tenant, [
-            'contract_duration' => 'short_term',
-            'end_date' => '2026-09-07',
-            'reservation_expires_at' => '2026-09-05',
-        ]);
-        unset($payload['move_in_terms_confirmed']);
-        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $payload)
-            ->assertSessionHasErrors('move_in_terms_confirmed');
-        $this->assertDatabaseCount('contracts', 0);
 
-        $payload = $this->payload($room, $tenant, [
-            'contract_duration' => 'short_term',
-            'end_date' => '2026-09-07',
-            'scheduled_move_in_date' => '2026-09-05',
-            'reservation_expires_at' => '2026-09-04',
-        ]);
-        $this->post(route('admin.contracts.store'), $payload)
-            ->assertSessionHasErrors('reservation_expires_at');
-        $this->assertDatabaseCount('contracts', 0);
-
-        $payload = $this->payload($room, $tenant, [
-            'contract_duration' => 'short_term',
-            'end_date' => '2026-09-07',
-            'reservation_expires_at' => '2026-09-08',
-        ]);
-        $this->post(route('admin.contracts.store'), $payload)
-            ->assertSessionHasErrors('reservation_expires_at');
-        $this->assertDatabaseCount('contracts', 0);
-
-        $payload = $this->payload($room, $tenant, [
-            'contract_duration' => 'short_term',
-            'end_date' => '2026-09-07',
-            'reservation_expires_at' => '2026-09-05',
-        ]);
-        $this->post(route('admin.contracts.store'), $payload)->assertSessionHasNoErrors();
-        $contract = Contract::sole();
-        $this->assertSame('2026-09-05 23:59:59', $contract->reservation_expires_at->toDateTimeString());
-        $this->assertSame(0.6667, (float) ContractStatusHistory::sole()->metadata['move_in_window_ratio']);
-    }
-
-    public function test_short_term_contract_accepts_manual_end_date_up_to_three_months(): void
-    {
-        $room = $this->room('SHORT-TERM');
-        $tenant = $this->tenant('short-term');
         $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
-            'contract_duration' => 'short_term',
-            'end_date' => '2026-10-15',
+            'scheduled_move_in_date' => '2026-10-02',
+        ]))->assertSessionHasErrors('scheduled_move_in_date');
+        $this->assertDatabaseCount('contracts', 0);
+
+        $this->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'scheduled_move_in_date' => '2026-10-01',
+            'reservation_expires_at' => '2026-10-01',
         ]))->assertSessionHasNoErrors();
 
         $contract = Contract::sole();
-        $this->assertSame('2026-10-15', $contract->end_date->toDateString());
-        $this->assertSame('short_term', $contract->rental_duration_option);
-        $this->get(route('admin.contracts.edit', $contract))
-            ->assertOk()
-            ->assertSee('value="short_term" selected', false);
+        $this->assertSame('2026-10-01', $contract->scheduled_move_in_date->toDateString());
+        $this->assertSame('2026-10-01 23:59:59', $contract->reservation_expires_at->toDateTimeString());
+    }
 
-        $otherRoom = $this->room('SHORT-TERM-TOO-LONG');
-        $otherTenant = $this->tenant('short-term-too-long');
-        $this->post(route('admin.contracts.store'), $this->payload($otherRoom, $otherTenant, [
-            'contract_duration' => 'short_term',
-            'end_date' => '2026-12-02',
-        ]))->assertSessionHasErrors('end_date');
-        $this->assertDatabaseCount('contracts', 1);
+    public function test_contract_accepts_duration_longer_than_one_year(): void
+    {
+        $room = $this->room('LONG-TERM');
+        $tenant = $this->tenant('long-term');
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'contract_duration' => 18,
+        ]))->assertSessionHasNoErrors();
+
+        $contract = Contract::sole();
+        $this->assertSame('2028-03-01', $contract->end_date->toDateString());
+        $this->assertSame('18', $contract->rental_duration_option);
+        $this->get(route('admin.contracts.edit', $contract))->assertOk()->assertSee('value="18"', false);
     }
 
     public function test_lessee_does_not_occupy_a_slot_by_default_and_two_identity_sides_are_private(): void
@@ -917,17 +883,17 @@ class ContractManagementTest extends TestCase
     public function test_overlapping_reservations_are_rejected_but_non_overlapping_future_contract_is_allowed(): void
     {
         $room = $this->room('RESERVE');
-        $first = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2026-09-01', 'scheduled_move_in_date' => '2026-09-01', 'reservation_expires_at' => '2026-09-02 18:00:00', 'end_date' => '2026-12-31']);
+        $first = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2026-09-01', 'scheduled_move_in_date' => '2026-09-01', 'reservation_expires_at' => '2026-09-02 18:00:00', 'end_date' => '2027-09-01']);
         $this->sign($first);
 
-        $second = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2026-12-01', 'scheduled_move_in_date' => '2026-12-01', 'reservation_expires_at' => '2026-12-02 18:00:00', 'end_date' => '2027-02-01'], 'reserve-second');
+        $second = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2027-08-01', 'scheduled_move_in_date' => '2027-08-01', 'reservation_expires_at' => '2027-09-01 18:00:00', 'end_date' => '2028-08-01'], 'reserve-second');
         $this->lifecycle->submitForSignature($second, $this->admin);
         $this->expectException(ValidationException::class);
         try {
             $this->lifecycle->markAsSigned($second, $this->admin, now());
         } finally {
             $this->assertSame(Contract::STATUS_PENDING_SIGNATURE, $second->fresh()->status);
-            $third = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2027-01-01', 'scheduled_move_in_date' => '2027-01-01', 'reservation_expires_at' => '2027-01-02 18:00:00', 'end_date' => '2027-12-31'], 'reserve-third');
+            $third = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2027-09-02', 'scheduled_move_in_date' => '2027-09-02', 'reservation_expires_at' => '2027-10-02 18:00:00', 'end_date' => '2028-09-02'], 'reserve-third');
             $this->sign($third);
             $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $third->fresh()->status);
         }
@@ -1002,8 +968,9 @@ class ContractManagementTest extends TestCase
             'start_date' => '2026-08-01',
             'scheduled_move_in_date' => '2026-08-01',
             'reservation_expires_at' => '2026-08-10 18:00:00',
-            'end_date' => '2026-08-10',
+            'end_date' => '2027-08-01',
         ]);
+        $old->forceFill(['end_date' => '2026-08-10'])->save();
         $room = $old->room;
         $this->artisan('contracts:process-lifecycle')->assertSuccessful();
         $this->assertSame(Contract::STATUS_EXPIRED, $old->fresh()->status);
@@ -1260,6 +1227,53 @@ class ContractManagementTest extends TestCase
         ]));
 
         return $contract->fresh();
+    }
+
+
+    public function test_new_contract_enforces_minimum_year_move_in_limit_and_free_motorcycle_capacity(): void
+    {
+        $room = $this->room('NEW-RULES');
+        $tenant = $this->tenant('new-rules');
+        $this->actingAs($this->admin);
+
+        $this->post(route('admin.contracts.store'), $this->payload($room, $tenant, ['contract_duration' => 11]))
+            ->assertSessionHasErrors('contract_duration');
+        $this->post(route('admin.contracts.store'), $this->payload($room, $tenant, ['scheduled_move_in_date' => '2026-10-02']))
+            ->assertSessionHasErrors('scheduled_move_in_date');
+        $this->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'parking_enabled' => 1, 'parking_vehicle_type' => Contract::PARKING_CAR, 'parking_quantity' => 1,
+        ]))->assertSessionHasErrors('parking_vehicle_type');
+        $this->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'parking_enabled' => 1, 'parking_vehicle_type' => Contract::PARKING_MOTORCYCLE, 'parking_quantity' => 2,
+        ]))->assertSessionHasErrors('parking_quantity');
+    }
+
+    public function test_offline_tenant_uses_paper_contract_and_admin_confirms_move_in(): void
+    {
+        $tenant = Tenant::create(['user_id' => null, 'full_name' => 'Khách offline', 'cccd' => '079000009999', 'phone' => '0900009999']);
+        $room = $this->room('OFFLINE');
+        $contract = $this->lifecycle->createDraft([
+            'room_id' => $room->id, 'tenant_id' => $tenant->id, 'representative_is_occupant' => true,
+            'monthly_rent' => $room->price, 'deposit_amount' => 0, 'number_of_people' => 1,
+            'parking_quantity' => 1, 'parking_vehicle_type' => Contract::PARKING_MOTORCYCLE,
+            'start_date' => '2026-08-11', 'end_date' => '2027-08-11', 'contract_duration' => '12',
+            'scheduled_move_in_date' => '2026-08-11', 'reservation_expires_at' => '2026-09-11', 'occupants' => [],
+        ], $this->admin);
+        $this->lifecycle->submitForSignature($contract, $this->admin);
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.mark-signed', $contract), [
+            'signed_at' => now()->toDateTimeString(),
+            'signed_contract_file' => UploadedFile::fake()->create('hop-dong-da-ky.pdf', 100, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $contract->refresh();
+        $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $contract->status);
+        Storage::disk('local')->assertExists($contract->contract_file);
+        $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())->assertSessionHasNoErrors();
+        $contract->refresh();
+        $this->assertSame(Contract::STATUS_ACTIVE, $contract->status);
+        $this->assertSame($this->admin->id, $contract->move_in_details_confirmed_by);
+        $this->assertDatabaseHas('contract_status_histories', ['contract_id' => $contract->id, 'action' => 'confirm_move_in_details_offline']);
     }
 
     private function checkInPayload(array $overrides = []): array

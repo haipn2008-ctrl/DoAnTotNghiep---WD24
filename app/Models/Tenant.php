@@ -117,4 +117,14 @@ class Tenant extends Model
             ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->exists();
     }
+
+    public function usesPortal(): bool
+    {
+        return $this->user_id !== null;
+    }
+
+    public function isOffline(): bool
+    {
+        return ! $this->usesPortal();
+    }
 }

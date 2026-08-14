@@ -6,11 +6,8 @@
 @section('content')
 @php
     $durationOption = old('contract_duration', $contract->rental_duration_option);
-    if (!in_array((string) $durationOption, ['short_term', '3', '6', '12'], true)) {
-        $durationOption = collect([3, 6, 12])->first(
-            fn (int $months) => $contract->start_date?->copy()->addMonthsNoOverflow($months)->isSameDay($contract->end_date)
-        );
-        $durationOption = $durationOption ? (string) $durationOption : 'short_term';
+    if (!is_numeric($durationOption) || (int) $durationOption < 12) {
+        $durationOption = $contract->start_date?->diffInMonths($contract->end_date) ?: 12;
     }
 @endphp
 <div class="mx-auto max-w-5xl space-y-5">
@@ -47,13 +44,11 @@
             @include('admin.contracts.partials.member-selector')
             <div class="md:col-span-2 border-t pt-5"><h3 class="font-semibold">Thời hạn hợp đồng</h3></div>
             <div><label class="mb-1 block text-sm font-semibold">Ngày bắt đầu thời hạn thuê *</label><input data-contract-start type="date" name="start_date" value="{{ old('start_date',$contract->start_date?->toDateString()) }}" required class="h-11 w-full rounded-lg border px-3"></div>
-            <div><label class="mb-1 block text-sm font-semibold">Thời hạn *</label><select data-contract-duration name="contract_duration" required class="h-11 w-full rounded-lg border px-3"><option value="short_term" @selected($durationOption==='short_term')>Thuê ít ngày</option><option value="3" @selected($durationOption==='3')>3 tháng</option><option value="6" @selected($durationOption==='6')>6 tháng</option><option value="12" @selected($durationOption==='12')>1 năm</option></select></div>
+            <div><label class="mb-1 block text-sm font-semibold">Thời hạn (tháng) *</label><input data-contract-duration type="number" min="12" max="120" name="contract_duration" value="{{ $durationOption ?: 12 }}" required class="h-11 w-full rounded-lg border px-3"><p class="mt-1 text-xs text-slate-500">Tối thiểu 12 tháng.</p></div>
             <div><label class="mb-1 block text-sm font-semibold">Ngày kết thúc</label><input data-contract-end type="date" name="end_date" value="{{ old('end_date',$contract->end_date?->toDateString()) }}" readonly required class="h-11 w-full rounded-lg border bg-slate-50 px-3 text-slate-600"></div>
             <div class="md:col-span-2 border-t pt-5"><h3 class="font-semibold">Ký, đặt cọc và nhận phòng</h3></div>
             <div><label class="mb-1 block text-sm font-semibold">Ngày dự kiến nhận phòng *</label><input data-contract-move-in type="date" name="scheduled_move_in_date" value="{{ old('scheduled_move_in_date',$contract->scheduled_move_in_date?->toDateString()) }}" required class="h-11 w-full rounded-lg border px-3"></div>
             <div><label class="mb-1 block text-sm font-semibold">Hạn cuối phải nhận phòng *</label><input data-contract-move-in-deadline type="date" name="reservation_expires_at" value="{{ old('reservation_expires_at',$contract->reservation_expires_at?->toDateString()) }}" required class="h-11 w-full rounded-lg border px-3"><p data-contract-deadline-error class="mt-1 hidden text-sm font-semibold text-rose-600"></p></div>
-            <div data-contract-move-in-warning class="hidden md:col-span-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">Hạn cuối chuyển vào quá dài so với thời gian thuê, bạn có chắc chắn không?</div>
-            <div data-move-in-terms-confirmation class="hidden md:col-span-2"><label class="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900"><input data-move-in-terms-confirmed type="checkbox" name="move_in_terms_confirmed" value="1" class="mt-0.5"><span>Tôi xác nhận đã trao đổi và thống nhất với khách về ngày dự kiến nhận phòng và hạn cuối nhận phòng.</span></label>@error('move_in_terms_confirmed')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror</div>
             <div><label class="mb-1 block text-sm font-semibold">Tiền cọc (VNĐ)</label><input type="number" min="0" name="deposit_amount" value="{{ old('deposit_amount',$contract->deposit_amount) }}" class="h-11 w-full rounded-lg border px-3"></div>
             @include('admin.contracts.partials.service-fields', [
                 'selectedRoomId' => old('room_id', $contract->room_id),

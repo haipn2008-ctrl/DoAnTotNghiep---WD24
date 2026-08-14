@@ -35,7 +35,7 @@ class ContractLifecycleService
             if ($room->status === Room::STATUS_MAINTENANCE) {
                 $this->fail('room_id', 'Phòng đang bảo trì, chưa thể lập hợp đồng cho phòng này.');
             }
-            if (! $tenant->user || ! in_array($tenant->user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)) {
+            if ($tenant->user && ! in_array($tenant->user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)) {
                 $this->fail('tenant_id', 'Tài khoản khách thuê không ở trạng thái hợp lệ để lập hợp đồng.');
             }
             $this->updateRepresentativeProfile($tenant, $data['representative'] ?? []);
@@ -123,7 +123,7 @@ class ContractLifecycleService
             if ($room->status === Room::STATUS_MAINTENANCE) {
                 $this->fail('room_id', 'Phòng đang bảo trì, không thể chọn cho hợp đồng.');
             }
-            if (! $tenant->user || ! in_array($tenant->user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)) {
+            if ($tenant->user && ! in_array($tenant->user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)) {
                 $this->fail('tenant_id', 'Tài khoản khách thuê không hợp lệ.');
             }
             $this->updateRepresentativeProfile($tenant, $data['representative'] ?? []);
@@ -400,11 +400,32 @@ class ContractLifecycleService
             if (! $contract->scheduled_move_in_date) {
                 $this->fail('scheduled_move_in_date', 'Hợp đồng chưa có ngày dự kiến nhận phòng.');
             }
+            if ($moveInAt->gt($contract->start_date->copy()->addMonthNoOverflow()->endOfDay())) {
+                $this->fail('actual_move_in_at', 'Ngày nhận phòng thực tế không được muộn quá 1 tháng kể từ ngày bắt đầu hợp đồng.');
+            }
             if (! $moveInAt->isSameDay($contract->scheduled_move_in_date) && blank($data['schedule_variance_reason'] ?? null)) {
                 $this->fail('schedule_variance_reason', 'Nhận phòng sớm hoặc muộn phải ghi rõ lý do.');
             }
             if (! ($data['handover_confirmed'] ?? false)) {
                 $this->fail('handover_confirmed', 'Phải xác nhận biên bản bàn giao trước khi nhận phòng.');
+            }
+            if ($contract->move_in_inventory_snapshotted_at
+                && ! $contract->move_in_details_confirmed_at
+                && $contract->tenant()->whereNull('user_id')->exists()
+                && $actor->isAdmin()
+                && ($data['handover_confirmed'] ?? false)) {
+                $contract->forceFill([
+                    'move_in_details_confirmed_at' => now(),
+                    'move_in_details_confirmed_by' => $actor->id,
+                ])->save();
+                $this->history(
+                    $contract,
+                    $contract->status,
+                    $contract->status,
+                    'confirm_move_in_details_offline',
+                    'Admin xác nhận biên bản giấy cho khách không sử dụng portal.',
+                    $actor,
+                );
             }
             if (! $contract->move_in_inventory_snapshotted_at || ! $contract->move_in_details_confirmed_at) {
                 $this->fail('move_in_details_confirmed', 'Khách thuê phải xem và xác nhận dịch vụ, tài sản bàn giao trước khi check-in.');
@@ -478,6 +499,9 @@ class ContractLifecycleService
             $deadline = Carbon::parse($deadline);
             if ($deadline->lte(now()) || ($contract->reservation_expires_at && $deadline->lte($contract->reservation_expires_at))) {
                 $this->fail('reservation_expires_at', 'Hạn giữ phòng mới phải ở tương lai và sau hạn hiện tại.');
+            }
+            if ($deadline->gt($contract->start_date->copy()->addMonthNoOverflow()->endOfDay())) {
+                $this->fail('reservation_expires_at', 'Hạn giữ phòng không được muộn quá 1 tháng kể từ ngày bắt đầu hợp đồng.');
             }
             $contract->forceFill(['reservation_expires_at' => $deadline])->save();
             $this->history($contract, $contract->status, $contract->status, 'extend_move_in_deadline', $reason, $actor, [
@@ -823,6 +847,9 @@ class ContractLifecycleService
         if (! $end->gt($start)) {
             $this->fail('end_date', 'Ngày kết thúc phải sau ngày bắt đầu.');
         }
+        if ($end->lt($start->copy()->addYear())) {
+            $this->fail('end_date', 'Hợp đồng phải có thời hạn tối thiểu 1 năm.');
+        }
         if ($scheduled->lt($start) || $scheduled->gt($end)) {
             $this->fail('scheduled_move_in_date', 'Ngày dự kiến nhận phòng phải nằm trong thời hạn hợp đồng.');
         }
@@ -831,6 +858,10 @@ class ContractLifecycleService
         }
         if ($deadline->gt($end->endOfDay())) {
             $this->fail('reservation_expires_at', 'Hạn cuối nhận phòng không được sau ngày kết thúc hợp đồng.');
+        }
+        if ($scheduled->gt($start->copy()->addMonthNoOverflow()->endOfDay())
+            || $deadline->gt($start->copy()->addMonthNoOverflow()->endOfDay())) {
+            $this->fail('reservation_expires_at', 'Ngày dự kiến và hạn cuối nhận phòng không được muộn quá 1 tháng kể từ ngày bắt đầu hợp đồng.');
         }
     }
 
@@ -1030,9 +1061,7 @@ class ContractLifecycleService
             return null;
         }
 
-        return in_array($data['parking_vehicle_type'] ?? null, [Contract::PARKING_MOTORCYCLE, Contract::PARKING_CAR], true)
-            ? $data['parking_vehicle_type']
-            : Contract::PARKING_MOTORCYCLE;
+        return Contract::PARKING_MOTORCYCLE;
     }
 
     private function fail(string $key, string $message): never

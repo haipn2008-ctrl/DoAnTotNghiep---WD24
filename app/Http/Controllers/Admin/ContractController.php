@@ -49,7 +49,10 @@ class ContractController extends Controller
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
         ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
         $tenants = Tenant::query()->with('user:id,email')
-            ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
+            ->where(function ($query) {
+                $query->whereNull('user_id')
+                    ->orWhereHas('user', fn ($userQuery) => $userQuery->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]));
+            })
             ->orderBy('full_name')->get();
         $setting = Setting::currentOrCreate();
 
@@ -121,7 +124,10 @@ class ContractController extends Controller
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
         ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
         $tenants = Tenant::query()->with('user:id,email')
-            ->whereHas('user', fn ($query) => $query->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]))
+            ->where(function ($query) {
+                $query->whereNull('user_id')
+                    ->orWhereHas('user', fn ($userQuery) => $userQuery->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]));
+            })
             ->orderBy('full_name')->get();
         $setting = Setting::currentOrCreate();
 
@@ -177,11 +183,38 @@ class ContractController extends Controller
     public function markAsSigned(Request $request, Contract $contract)
     {
         Gate::authorize('manageLifecycle', $contract);
+        $contract->loadMissing('tenant');
         $data = $request->validate([
             'signed_at' => ['required', 'date', 'before_or_equal:now'],
             'reason' => ['nullable', 'string', 'max:1000'],
+            'signed_contract_file' => [
+                Rule::requiredIf($contract->tenant?->isOffline()),
+                'nullable',
+                'file',
+                'mimes:pdf,jpg,jpeg,png,webp',
+                'max:10240',
+            ],
         ]);
-        $this->lifecycle->markAsSigned($contract, $request->user(), $data['signed_at'], $data['reason'] ?? null);
+        $oldPath = $contract->contract_file;
+        $newPath = $request->file('signed_contract_file')?->store('contracts/signed', 'local');
+
+        try {
+            DB::transaction(function () use ($contract, $request, $data, $newPath): void {
+                if ($newPath) {
+                    $contract->forceFill(['contract_file' => $newPath])->save();
+                }
+                $this->lifecycle->markAsSigned($contract, $request->user(), $data['signed_at'], $data['reason'] ?? null);
+            }, 3);
+        } catch (\Throwable $exception) {
+            if ($newPath) {
+                Storage::disk('local')->delete($newPath);
+            }
+            throw $exception;
+        }
+
+        if ($newPath && $oldPath && $oldPath !== $newPath) {
+            Storage::disk('local')->delete($oldPath);
+        }
 
         return back()->with('success', 'Đã xác nhận hợp đồng được ký và giữ lịch phòng.');
     }
@@ -407,11 +440,11 @@ class ContractController extends Controller
             ],
             'representative.address' => ['nullable', 'string', 'max:500'],
             'start_date' => ['required', 'date'],
-            'contract_duration' => ['required', 'string', Rule::in(['short_term', '3', '6', '12'])],
+            'contract_duration' => ['required', 'integer', 'min:12', 'max:120'],
             'end_date' => ['required', 'date', 'after:start_date'],
             'scheduled_move_in_date' => ['required', 'date', 'after_or_equal:start_date', 'before_or_equal:reservation_expires_at'],
             'reservation_expires_at' => ['required', 'date', 'after_or_equal:scheduled_move_in_date', 'before_or_equal:end_date'],
-            'move_in_terms_confirmed' => ['exclude_unless:contract_duration,short_term', 'accepted'],
+            'move_in_terms_confirmed' => ['exclude'],
             'deposit_amount' => ['nullable', 'numeric', 'min:0'],
             'occupants' => ['nullable', 'array', 'max:100'],
             'occupants.*.id' => ['nullable', 'integer', Rule::exists('contract_occupants', 'id')->where(
@@ -429,7 +462,7 @@ class ContractController extends Controller
                 'exclude_unless:parking_enabled,1',
                 Rule::requiredIf($request->boolean('parking_enabled')),
                 'nullable',
-                Rule::in([Contract::PARKING_MOTORCYCLE, Contract::PARKING_CAR]),
+                Rule::in([Contract::PARKING_MOTORCYCLE]),
             ],
             'parking_quantity' => [
                 'exclude_unless:parking_enabled,1',
@@ -486,17 +519,20 @@ class ContractController extends Controller
             'parking_quantity.max' => 'Số lượng xe không được vượt quá 20.',
         ]);
 
-        if ($data['contract_duration'] === 'short_term') {
-            $maximumEndDate = Carbon::parse($data['start_date'])->addMonthsNoOverflow(3);
-            if (Carbon::parse($data['end_date'])->gt($maximumEndDate)) {
-                throw ValidationException::withMessages([
-                    'end_date' => 'Thuê ít ngày không được chọn ngày kết thúc quá 3 tháng kể từ ngày bắt đầu.',
-                ]);
-            }
-        }
         $start = Carbon::parse($data['start_date'])->startOfDay();
         $end = Carbon::parse($data['end_date'])->startOfDay();
         $deadline = Carbon::parse($data['reservation_expires_at'])->endOfDay();
+        $latestMoveIn = $start->copy()->addMonthNoOverflow()->endOfDay();
+        if (Carbon::parse($data['scheduled_move_in_date'])->gt($latestMoveIn)) {
+            throw ValidationException::withMessages([
+                'scheduled_move_in_date' => 'Ngày dự kiến nhận phòng không được muộn quá 1 tháng kể từ ngày bắt đầu hợp đồng.',
+            ]);
+        }
+        if ($deadline->gt($latestMoveIn)) {
+            throw ValidationException::withMessages([
+                'reservation_expires_at' => 'Hạn cuối nhận phòng không được muộn quá 1 tháng kể từ ngày bắt đầu hợp đồng.',
+            ]);
+        }
         $data['reservation_expires_at'] = $deadline;
         // Wi-Fi là tiện nghi mặc định đã nằm trong giá thuê, không còn là dịch vụ tính phí tùy chọn.
         // Luôn ghi false với hợp đồng tạo/sửa từ form mới để input tự chèn không thể phát sinh phí Internet.
@@ -544,6 +580,11 @@ class ContractController extends Controller
         }
         $data['representative_is_occupant'] = $request->boolean('representative_is_occupant');
         $data['number_of_people'] = count($data['occupants']) + (int) $data['representative_is_occupant'];
+        if ((int) ($data['parking_quantity'] ?? 0) > $data['number_of_people']) {
+            throw ValidationException::withMessages([
+                'parking_quantity' => 'Số xe máy không được vượt quá số người thực tế ở trong phòng.',
+            ]);
+        }
 
         return $data;
     }
@@ -567,9 +608,9 @@ class ContractController extends Controller
         $start->startOfDay();
 
         $calculated = [];
-        if (in_array((string) $duration, ['3', '6', '12'], true)) {
+        if (is_numeric($duration) && (int) $duration >= 12 && (int) $duration <= 120) {
             $calculated['end_date'] = $start->copy()->addMonthsNoOverflow((int) $duration)->toDateString();
-            $calculated['reservation_expires_at'] = $start->copy()->addDays(10)->toDateString();
+            $calculated['reservation_expires_at'] = $start->copy()->addMonthNoOverflow()->toDateString();
         }
         $request->merge($calculated);
     }

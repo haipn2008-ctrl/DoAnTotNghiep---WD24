@@ -28,17 +28,9 @@
                             'Nước (VNĐ/m³)' => $setting->water_price,
                             'Internet/tháng' => $setting->internet_fee,
                             'Dịch vụ chung/tháng' => $setting->service_fee,
-                            'Trông xe máy/xe/tháng' => $setting->motorcycle_parking_fee,
-                            'Trông ô tô/xe/tháng' => $setting->car_parking_fee,
                         ] as $label => $value)
                             <div class="flex items-center justify-between gap-3 py-2.5"><dt class="text-slate-500">{{ $label }}</dt><dd class="font-semibold text-slate-900">{{ number_format($value, 0, ',', '.') }}đ</dd></div>
                         @endforeach
-                    </dl>
-                @elseif ($type === 'parking')
-                    <p class="text-sm font-medium text-slate-500">Mức phí đang áp dụng</p>
-                    <dl class="mt-3 divide-y divide-slate-100 text-sm">
-                        <div class="flex items-center justify-between gap-3 py-2.5"><dt class="text-slate-500">Xe máy</dt><dd class="font-semibold text-slate-900">{{ number_format($setting->motorcycle_parking_fee, 0, ',', '.') }}đ/xe/tháng</dd></div>
-                        <div class="flex items-center justify-between gap-3 py-2.5"><dt class="text-slate-500">Ô tô</dt><dd class="font-semibold text-slate-900">{{ number_format($setting->car_parking_fee, 0, ',', '.') }}đ/xe/tháng</dd></div>
                     </dl>
                 @elseif ($type === 'property-payment')
                     <p class="text-sm font-medium text-slate-500">Thông tin đang sử dụng</p>
@@ -74,19 +66,6 @@
                 <div class="space-y-7 p-5">
                     @if ($type === 'fees')
                         @include('admin.settings.partials.fee-fields')
-                    @elseif ($type === 'parking')
-                        <div class="grid gap-4 md:grid-cols-2">
-                            @foreach([
-                                'motorcycle_parking_fee' => 'Phí trông xe máy',
-                                'car_parking_fee' => 'Phí trông ô tô',
-                            ] as $field => $label)
-                                <div>
-                                    <label for="{{ $field }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $label }} <span class="font-normal text-slate-400">(VNĐ/xe/tháng)</span></label>
-                                    <input id="{{ $field }}" type="number" step="0.01" min="0" name="{{ $field }}" value="{{ old($field, $setting->{$field}) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                                    @error($field)<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror
-                                </div>
-                            @endforeach
-                        </div>
                     @elseif ($type === 'property-payment')
                         <section><h4 class="mb-4 font-semibold text-slate-900">Thông tin tài sản và chủ nhà</h4>@include('admin.settings.partials.property-fields')</section>
                         <section class="border-t border-slate-200 pt-6"><h4 class="mb-4 font-semibold text-slate-900">Tài khoản nhận thanh toán và VietQR</h4>@include('admin.settings.partials.bank-fields')</section>

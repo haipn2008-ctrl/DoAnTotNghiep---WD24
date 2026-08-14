@@ -7,7 +7,7 @@
     $conditionLabels = ['normal' => 'Sử dụng bình thường', 'damaged' => 'Có hư hỏng'];
 @endphp
 
-<div class="space-y-4 md:col-span-2" data-contract-services data-motorcycle-parking-fee="{{ (float) $setting->motorcycle_parking_fee }}" data-car-parking-fee="{{ (float) $setting->car_parking_fee }}">
+<div class="space-y-4 md:col-span-2" data-contract-services data-motorcycle-parking-fee="0">
     <section class="rounded-lg border border-slate-200 p-4">
         <h4 class="font-semibold text-slate-950">Dịch vụ đăng ký tính phí</h4>
         <p class="mt-1 text-sm text-slate-500">Chỉ các khoản dưới đây mới được cộng vào hóa đơn hàng tháng.</p>
@@ -19,14 +19,13 @@
             <div class="rounded-lg border border-slate-200 p-3 sm:col-span-2">
                 <label class="flex items-start gap-3 text-sm">
                     <input type="checkbox" name="parking_enabled" value="1" data-parking-enabled @checked($selectedParkingEnabled) class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                    <span><strong class="block text-slate-900">Trông xe</strong><span class="mt-1 block text-xs text-slate-500">Bật để chọn loại xe và nhập số lượng cần đăng ký.</span></span>
+                    <span><strong class="block text-slate-900">Đăng ký xe máy miễn phí</strong><span class="mt-1 block text-xs text-slate-500">Mỗi người ở được đăng ký tối đa một xe máy. Không tiếp nhận ô tô.</span></span>
                 </label>
                 <div data-parking-fields class="mt-4 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2 {{ $selectedParkingEnabled ? '' : 'hidden' }}">
                     <div>
                         <label for="parking_vehicle_type" class="mb-1 block text-sm font-semibold text-slate-700">Loại xe *</label>
                         <select id="parking_vehicle_type" name="parking_vehicle_type" data-parking-vehicle-type @disabled(! $selectedParkingEnabled) class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                            <option value="{{ \App\Models\Contract::PARKING_MOTORCYCLE }}" @selected($selectedParkingVehicleType === \App\Models\Contract::PARKING_MOTORCYCLE)>Xe máy — {{ number_format((float) $setting->motorcycle_parking_fee, 0, ',', '.') }}đ/xe/tháng</option>
-                            <option value="{{ \App\Models\Contract::PARKING_CAR }}" @selected($selectedParkingVehicleType === \App\Models\Contract::PARKING_CAR)>Ô tô — {{ number_format((float) $setting->car_parking_fee, 0, ',', '.') }}đ/xe/tháng</option>
+                            <option value="{{ \App\Models\Contract::PARKING_MOTORCYCLE }}">Xe máy — miễn phí</option>
                         </select>
                         @error('parking_vehicle_type') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                     </div>

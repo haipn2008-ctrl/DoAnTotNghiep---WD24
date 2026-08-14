@@ -13,7 +13,7 @@ class SettingController extends Controller
             'field' => null,
             'label' => 'Phí dịch vụ',
             'unit' => '',
-            'description' => 'Quản lý tập trung đơn giá điện, nước, Internet, dịch vụ chung và phí gửi xe.',
+            'description' => 'Quản lý tập trung đơn giá điện, nước, Internet và dịch vụ chung.',
         ],
         'property-payment' => [
             'field' => null,
@@ -44,12 +44,6 @@ class SettingController extends Controller
             'label' => 'Phí dịch vụ',
             'unit' => 'VNĐ/tháng',
             'description' => 'Phí dịch vụ chung tính vào hóa đơn.',
-        ],
-        'parking' => [
-            'field' => null,
-            'label' => 'Phí gửi xe',
-            'unit' => 'VNĐ/xe/tháng',
-            'description' => 'Cấu hình đơn giá trông xe máy và ô tô theo từng xe mỗi tháng.',
         ],
         'bank' => [
             'field' => null,
@@ -89,9 +83,6 @@ class SettingController extends Controller
 
         if ($type === 'fees') {
             $data = $request->validate($this->feeRules());
-            $setting->update($data);
-        } elseif ($type === 'parking') {
-            $data = $request->validate($this->parkingRules());
             $setting->update($data);
         } elseif ($type === 'property-payment') {
             $data = $request->validate(array_merge($this->propertyRules(), $this->bankRules()));
@@ -133,18 +124,6 @@ class SettingController extends Controller
             'water_price' => $priceRule,
             'internet_fee' => $priceRule,
             'service_fee' => $priceRule,
-            'motorcycle_parking_fee' => $priceRule,
-            'car_parking_fee' => $priceRule,
-        ];
-    }
-
-    private function parkingRules(): array
-    {
-        $priceRule = ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'];
-
-        return [
-            'motorcycle_parking_fee' => $priceRule,
-            'car_parking_fee' => $priceRule,
         ];
     }
 

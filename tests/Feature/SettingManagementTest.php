@@ -54,8 +54,8 @@ class SettingManagementTest extends TestCase
             ->assertSee('Đơn giá điện')
             ->assertSee('Đơn giá nước')
             ->assertSee('Phí Internet')
-            ->assertSee('Phí trông xe máy')
-            ->assertSee('Phí trông ô tô');
+            ->assertDontSee('Phí trông xe máy')
+            ->assertDontSee('Phí trông ô tô');
     }
 
     public function test_consolidated_fee_form_updates_every_fee_atomically(): void
@@ -66,8 +66,6 @@ class SettingManagementTest extends TestCase
             'water_price' => 22000,
             'internet_fee' => 120000,
             'service_fee' => 65000,
-            'motorcycle_parking_fee' => 80000,
-            'car_parking_fee' => 600000,
         ];
 
         $this->actingAs($this->admin)->put('/admin/settings/fees', $payload)
@@ -170,12 +168,12 @@ class SettingManagementTest extends TestCase
         $this->actingAs($this->admin)->put('/admin/settings/parking', [
             'motorcycle_parking_fee' => 999999,
             'car_parking_fee' => 1999999,
-        ])->assertRedirect('/admin/settings/parking')->assertSessionHasNoErrors();
+        ])->assertNotFound();
 
         $this->assertDatabaseCount('settings', 1);
         $this->assertSame('3500.00', $setting->fresh()->electric_price);
-        $this->assertSame('999999.00', $setting->fresh()->motorcycle_parking_fee);
-        $this->assertSame('1999999.00', $setting->fresh()->car_parking_fee);
+        $this->assertSame('0.00', $setting->fresh()->motorcycle_parking_fee);
+        $this->assertSame('0.00', $setting->fresh()->car_parking_fee);
     }
 
     public function test_setting_routes_enforce_authentication_and_admin_role_for_direct_requests(): void

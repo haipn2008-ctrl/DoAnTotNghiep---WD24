@@ -72,14 +72,14 @@ class InvoiceManagementTest extends TestCase
             ->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=7&year=2026")
             ->assertOk()->assertJsonPath('invoice_date', '2026-07-31')
             ->assertJsonPath('due_date', '2026-08-10')
-            ->assertJsonPath('total_amount', 3395000);
-        $this->assertSame(['room', 'electricity', 'water', 'internet', 'service', 'parking'],
+            ->assertJsonPath('total_amount', 3320000);
+        $this->assertSame(['room', 'electricity', 'water', 'internet', 'service'],
             collect($response->json('lines'))->pluck('type')->all());
         $this->assertDatabaseCount('invoices', 0);
         $this->assertDatabaseCount('invoice_details', 0);
     }
 
-    public function test_parking_line_uses_the_selected_vehicle_type_price_and_quantity(): void
+    public function test_historical_parking_registration_never_creates_a_charge(): void
     {
         [$contract] = $this->fixture('CAR-PARKING');
         $contract->update([
@@ -88,12 +88,8 @@ class InvoiceManagementTest extends TestCase
         ]);
 
         $preview = app(InvoiceGenerator::class)->preview($contract->fresh(), 7, 2026);
-        $parkingLine = collect($preview['lines'])->firstWhere('type', 'parking');
-
-        $this->assertSame('Phí trông ô tô', $parkingLine['name']);
-        $this->assertSame(2, $parkingLine['quantity']);
-        $this->assertSame(500000.0, $parkingLine['unit_price']);
-        $this->assertSame(1000000.0, $parkingLine['amount']);
+        $this->assertNull(collect($preview['lines'])->firstWhere('type', 'parking'));
+        $this->assertSame(3320000.0, $preview['total_amount']);
     }
 
     public function test_issue_creates_immutable_snapshot_details_and_concurrency_safe_code_once(): void
@@ -105,18 +101,18 @@ class InvoiceManagementTest extends TestCase
         $invoice = Invoice::findOrFail($response->json('invoice_id'));
         $this->assertSame(sprintf('INV-202607-%06d', $invoice->id), $invoice->invoice_code);
         $this->assertSame($reading->id, $invoice->utility_reading_id);
-        $this->assertSame('3395000.00', $invoice->total_amount);
-        $this->assertDatabaseCount('invoice_details', 6);
+        $this->assertSame('3320000.00', $invoice->total_amount);
+        $this->assertDatabaseCount('invoice_details', 5);
 
         Setting::first()->update(['electric_price' => 999999]);
         $reading->update(['electricity_new' => 120]);
-        $this->assertSame('3395000.00', $invoice->fresh()->total_amount);
+        $this->assertSame('3320000.00', $invoice->fresh()->total_amount);
         $this->assertSame('70000.00', $invoice->fresh()->electricity_fee);
 
         $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", ['month' => 7, 'year' => 2026])
             ->assertStatus(422)->assertJson(['success' => false]);
         $this->assertDatabaseCount('invoices', 1);
-        $this->assertDatabaseCount('invoice_details', 6);
+        $this->assertDatabaseCount('invoice_details', 5);
     }
 
     public function test_missing_or_unconfirmed_reading_and_contract_outside_period_are_rejected(): void
@@ -188,7 +184,7 @@ class InvoiceManagementTest extends TestCase
         $this->assertSame(sprintf('INV-202607-%06d', $first->id), $first->invoice_code);
         $this->assertSame(sprintf('INV-202607-%06d', $second->id), $second->invoice_code);
         $this->assertDatabaseCount('invoices', 2);
-        $this->assertDatabaseCount('invoice_details', 12);
+        $this->assertDatabaseCount('invoice_details', 10);
     }
 
     public function test_issuing_final_invoice_moves_inactive_former_tenant_to_settling(): void

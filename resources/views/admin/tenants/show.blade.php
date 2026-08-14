@@ -20,7 +20,7 @@
         ['label' => 'Số điện thoại', 'value' => $tenant->phone],
         ['label' => 'Email', 'value' => $tenant->email ?: 'Chưa cập nhật'],
         ['label' => 'Địa chỉ', 'value' => $tenant->address ?: 'Chưa cập nhật'],
-        ['label' => 'Tài khoản', 'value' => $tenant->user ? $tenant->user->name . ' (' . $tenant->user->email . ')' : 'Chưa gắn tài khoản'],
+        ['label' => 'Hình thức quản lý', 'value' => $tenant->user ? 'Có tài khoản portal: ' . $tenant->user->email : 'Khách offline — admin quản lý thay'],
     ];
 @endphp
 

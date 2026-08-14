@@ -87,13 +87,8 @@
 
                 <div>
                     <label for="contract_duration" class="mb-1.5 block text-sm font-semibold text-slate-700">Thời hạn *</label>
-                    <select id="contract_duration" data-contract-duration name="contract_duration" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
-                        <option value="">Chọn thời hạn</option>
-                        <option value="short_term" @selected(old('contract_duration') === 'short_term')>Thuê ít ngày</option>
-                        <option value="3" @selected((string) old('contract_duration') === '3')>3 tháng</option>
-                        <option value="6" @selected((string) old('contract_duration') === '6')>6 tháng</option>
-                        <option value="12" @selected((string) old('contract_duration') === '12')>1 năm</option>
-                    </select>
+                    <input id="contract_duration" data-contract-duration type="number" min="12" max="120" name="contract_duration" value="{{ old('contract_duration', 12) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
+                    <p class="mt-1 text-xs text-slate-500">Tối thiểu 12 tháng.</p>
                     @error('contract_duration') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
@@ -118,16 +113,6 @@
                     <input id="reservation_expires_at" data-contract-move-in-deadline type="date" name="reservation_expires_at" value="{{ old('reservation_expires_at') }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
                     <p data-contract-deadline-error class="mt-1 hidden text-sm font-semibold text-rose-600"></p>
                     @error('reservation_expires_at') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
-                </div>
-
-                <div data-contract-move-in-warning class="hidden md:col-span-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">Hạn cuối chuyển vào quá dài so với thời gian thuê, bạn có chắc chắn không?</div>
-
-                <div data-move-in-terms-confirmation class="hidden md:col-span-2">
-                    <label class="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-                        <input data-move-in-terms-confirmed type="checkbox" name="move_in_terms_confirmed" value="1" @checked(old('move_in_terms_confirmed')) class="mt-0.5">
-                        <span>Tôi xác nhận đã trao đổi và thống nhất với khách về ngày dự kiến nhận phòng và hạn cuối nhận phòng.</span>
-                    </label>
-                    @error('move_in_terms_confirmed') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>

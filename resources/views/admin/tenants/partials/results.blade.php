@@ -30,7 +30,11 @@
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-3">
                                 <div class="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-50 text-sm font-bold text-indigo-700 ring-1 ring-indigo-100">{{ mb_substr($tenant->full_name ?? 'K', 0, 1) }}</div>
-                                <div><p class="font-semibold text-slate-950">{{ $tenant->full_name }}</p><p class="text-xs text-slate-500">{{ $tenant->email ?: 'Chưa có email' }}</p></div>
+                                <div>
+                                    <p class="font-semibold text-slate-950">{{ $tenant->full_name }}</p>
+                                    <p class="text-xs text-slate-500">{{ $tenant->email ?: 'Chưa có email' }}</p>
+                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $tenant->isOffline() ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700' }}">{{ $tenant->isOffline() ? 'Khách offline' : 'Có tài khoản portal' }}</span>
+                                </div>
                             </div>
                         </td>
                         <td class="px-5 py-4 text-slate-600">{{ $tenant->cccd }}</td>

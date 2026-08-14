@@ -21,7 +21,7 @@ class TenantRequest extends FormRequest
 
         return [
             'user_id' => [
-                'required',
+                'nullable',
                 'exists:users,id',
                 Rule::unique('tenants', 'user_id')->ignore($tenantId),
             ],
@@ -57,7 +57,7 @@ class TenantRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
-            if ($validator->errors()->has('user_id')) {
+            if ($validator->errors()->has('user_id') || blank($this->input('user_id'))) {
                 return;
             }
 
@@ -81,7 +81,6 @@ class TenantRequest extends FormRequest
     public function messages()
     {
         return [
-            'user_id.required' => 'Vui lòng chọn tài khoản đăng nhập.',
             'user_id.exists' => 'Tài khoản không tồn tại.',
             'user_id.unique' => 'Tài khoản đã được liên kết với khách thuê khác.',
             'full_name.required' => 'Vui lòng nhập họ và tên.',

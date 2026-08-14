@@ -229,13 +229,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const roomCanBeScheduled = applyRoomAvailability();
             const start = parseDate(startInput?.value);
             const durationOption = durationInput?.value || '';
-            const shortTerm = durationOption === 'short_term';
             const duration = Number(durationOption || 0);
-            termsConfirmation?.classList.toggle('hidden', !shortTerm);
+            const shortTerm = false;
+            termsConfirmation?.classList.add('hidden');
             if (termsConfirmed) {
-                termsConfirmed.required = shortTerm;
-                termsConfirmed.disabled = !shortTerm;
-                if (!shortTerm) termsConfirmed.checked = false;
+                termsConfirmed.required = false;
+                termsConfirmed.disabled = true;
+                termsConfirmed.checked = false;
             }
             if (endInput) {
                 endInput.readOnly = !shortTerm;
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     deadlineInput.tabIndex = -1;
                 }
             }
-            if (!roomCanBeScheduled || !start || (!shortTerm && ![3, 6, 12].includes(duration))) {
+            if (!roomCanBeScheduled || !start || duration < 12 || duration > 120) {
                 if (endInput) {
                     endInput.value = '';
                     endInput.removeAttribute('min');
@@ -305,8 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const endValue = formatDate(end);
-            const fixedDeadline = new Date(start);
-            fixedDeadline.setDate(fixedDeadline.getDate() + 10);
+            const fixedDeadline = addMonthsWithoutOverflow(start, 1);
             if (fixedDeadline > end) fixedDeadline.setTime(end.getTime());
             const fixedDeadlineValue = formatDate(fixedDeadline);
             if (moveInInput) {
@@ -394,11 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const parkingVehicleType = section.querySelector('[data-parking-vehicle-type]');
         const parkingQuantity = section.querySelector('[data-parking-quantity]');
         const parkingEstimate = section.querySelector('[data-parking-estimate]');
-        const parkingFees = {
-            motorcycle: Number(section.dataset.motorcycleParkingFee || 0),
-            car: Number(section.dataset.carParkingFee || 0),
-        };
-
         const refreshInventory = () => {
             const roomId = roomSelector?.value || '';
             inventoryPrompt?.classList.toggle('hidden', roomId !== '');
@@ -421,10 +415,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const quantity = Math.max(0, Number(parkingQuantity.value || 0));
-            const parkingUnitPrice = parkingFees[parkingVehicleType?.value] || 0;
-            parkingEstimate.textContent = parkingUnitPrice > 0
-                ? `Dự kiến: ${new Intl.NumberFormat('vi-VN').format(parkingUnitPrice * quantity)}đ/tháng`
-                : 'Loại xe này chưa được cấu hình đơn giá.';
+            parkingEstimate.textContent = quantity > 0
+                ? `Miễn phí · ${quantity} xe máy/${quantity} người ở tối thiểu`
+                : 'Gửi xe máy miễn phí.';
         };
 
         roomSelector?.addEventListener('change', refreshInventory);

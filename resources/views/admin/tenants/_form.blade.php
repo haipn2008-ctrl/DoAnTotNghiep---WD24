@@ -23,20 +23,21 @@
 
     <div class="border-b border-slate-200 px-5 py-4">
         <h3 class="font-semibold text-slate-950">Thông tin khách thuê</h3>
-        <p class="text-sm text-slate-500">Thông tin định danh, liên hệ và tài khoản đăng nhập.</p>
+        <p class="text-sm text-slate-500">Khách offline không cần email, mật khẩu hoặc tài khoản đăng nhập; admin sẽ quản lý hồ sơ và thanh toán thay.</p>
     </div>
 
     <div class="grid gap-5 p-5 md:grid-cols-2">
         <div class="md:col-span-2">
-            <label for="user_id" class="mb-1.5 block text-sm font-semibold text-slate-700">Tài khoản đăng nhập</label>
+            <label for="user_id" class="mb-1.5 block text-sm font-semibold text-slate-700">Hình thức sử dụng hệ thống</label>
             <select id="user_id" name="user_id" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                <option value="">Chọn tài khoản</option>
+                <option value="">Khách offline — admin nhập và quản lý thay</option>
                 @foreach ($users as $user)
                     <option value="{{ $user->id }}" @selected((string) $selectedUser === (string) $user->id)>
                         {{ $user->name }} ({{ $user->email }})
                     </option>
                 @endforeach
             </select>
+            <p class="mt-1.5 text-xs text-slate-500">Chỉ chọn tài khoản nếu khách có thể tự đăng nhập portal.</p>
             @error('user_id') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
         </div>
 

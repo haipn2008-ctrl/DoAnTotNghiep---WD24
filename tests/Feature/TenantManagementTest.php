@@ -160,6 +160,29 @@ class TenantManagementTest extends TestCase
         $this->assertSame($tenant->id, $client->fresh()->tenant->id);
     }
 
+    public function test_admin_can_create_offline_tenant_without_login_or_email(): void
+    {
+        $this->actingAs($this->admin)->post('/admin/tenants', [
+            'user_id' => null,
+            'full_name' => 'Khách đóng tiền mặt',
+            'date_of_birth' => '1960-01-01',
+            'gender' => 'female',
+            'cccd' => '079000000777',
+            'phone' => '0900000777',
+            'email' => null,
+            'address' => 'Quản lý trực tiếp tại nhà trọ',
+        ])->assertRedirect('/admin/tenants')->assertSessionHasNoErrors();
+
+        $tenant = Tenant::where('cccd', '079000000777')->sole();
+        $this->assertNull($tenant->user_id);
+        $this->assertNull($tenant->email);
+        $this->assertTrue($tenant->isOffline());
+
+        $this->get('/admin/tenants/create')
+            ->assertOk()
+            ->assertSee('Khách offline — admin nhập và quản lý thay');
+    }
+
     public function test_create_validation_rejects_invalid_identity_dates_contact_and_account_links(): void
     {
         $linkedClient = $this->user($this->clientRole, 'linked@example.com');
