@@ -94,10 +94,9 @@ class InvoiceController extends Controller
         );
 
         if ($availableAmount <= 0) {
-            return back()->with(
-                'error',
-                'Hóa đơn đã được thanh toán đủ hoặc đang có xác nhận chờ duyệt.'
-            );
+            throw ValidationException::withMessages([
+                'amount_paid' => 'Hóa đơn đã được thanh toán đủ hoặc đang có xác nhận chờ duyệt.',
+            ]);
         }
 
         $data = $request->validate([

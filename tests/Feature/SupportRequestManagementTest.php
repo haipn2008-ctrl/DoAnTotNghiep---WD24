@@ -82,7 +82,7 @@ class SupportRequestManagementTest extends TestCase
     public function test_request_creation_fails_safely_and_removes_file_without_active_contract(): void
     {
         [$client, , $contract] = $this->createClientContext('NOCONTRACT');
-        $contract->update(['status' => Contract::STATUS_TERMINATED]);
+        $contract->forceFill(['status' => Contract::STATUS_SETTLING])->save();
 
         $this->actingAs($client)->post('/client/support', [
             'submission_token' => (string) Str::uuid(),
@@ -289,7 +289,7 @@ class SupportRequestManagementTest extends TestCase
             'area' => 25,
             'status' => Room::STATUS_OCCUPIED,
         ]);
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD-SP-'.$suffix,
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,

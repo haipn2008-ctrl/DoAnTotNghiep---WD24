@@ -43,6 +43,81 @@ class SettingManagementTest extends TestCase
         $this->assertDatabaseHas('settings', ['is_active' => true]);
     }
 
+    public function test_sidebar_only_shows_two_consolidated_setting_entries(): void
+    {
+        $this->actingAs($this->admin)->get('/admin/settings/fees')
+            ->assertSuccessful()
+            ->assertSee('href="'.route('admin.settings.edit', ['type' => 'fees']).'"', false)
+            ->assertSee('href="'.route('admin.settings.edit', ['type' => 'property-payment']).'"', false)
+            ->assertDontSee('href="'.route('admin.settings.edit', ['type' => 'electricity']).'"', false)
+            ->assertDontSee('href="'.route('admin.settings.edit', ['type' => 'bank']).'"', false)
+            ->assertSee('Đơn giá điện')
+            ->assertSee('Đơn giá nước')
+            ->assertSee('Phí Internet')
+            ->assertDontSee('Phí trông xe máy')
+            ->assertDontSee('Phí trông ô tô');
+    }
+
+    public function test_consolidated_fee_form_updates_every_fee_atomically(): void
+    {
+        $setting = $this->createSetting();
+        $payload = [
+            'electric_price' => 4100,
+            'water_price' => 22000,
+            'internet_fee' => 120000,
+            'service_fee' => 65000,
+        ];
+
+        $this->actingAs($this->admin)->put('/admin/settings/fees', $payload)
+            ->assertRedirect('/admin/settings/fees')
+            ->assertSessionHasNoErrors();
+        foreach ($payload as $field => $value) {
+            $this->assertSame(number_format($value, 2, '.', ''), $setting->fresh()->{$field});
+        }
+
+        $this->put('/admin/settings/fees', array_merge($payload, [
+            'electric_price' => 5000,
+            'water_price' => -1,
+        ]))->assertSessionHasErrors('water_price');
+        $this->assertSame('4100.00', $setting->fresh()->electric_price);
+        $this->assertSame('22000.00', $setting->fresh()->water_price);
+    }
+
+    public function test_property_and_payment_form_updates_both_sections_together(): void
+    {
+        $setting = $this->createSetting();
+        $payload = [
+            'property_name' => 'Nhà trọ QA',
+            'property_address' => '123 Đường Kiểm Thử, Hà Nội',
+            'landlord_name' => 'Nguyễn Chủ Nhà',
+            'landlord_date_of_birth' => '1980-01-01',
+            'landlord_identity_number' => '001080000001',
+            'landlord_identity_issued_at' => '2020-01-01',
+            'landlord_identity_issued_by' => 'Cục Cảnh sát QLHC',
+            'landlord_phone' => '0901234567',
+            'landlord_address' => 'Hà Nội',
+            'bank_id' => 'VCB',
+            'bank_account_no' => '1234567890',
+            'bank_account_name' => 'NGUYEN CHU NHA',
+        ];
+
+        $this->actingAs($this->admin)->put('/admin/settings/property-payment', $payload)
+            ->assertRedirect('/admin/settings/property-payment')
+            ->assertSessionHasNoErrors();
+        $setting->refresh();
+        $this->assertSame('Nhà trọ QA', $setting->property_name);
+        $this->assertSame('Nguyễn Chủ Nhà', $setting->landlord_name);
+        $this->assertSame('VCB', $setting->bank_id);
+        $this->assertSame('1234567890', $setting->bank_account_no);
+
+        $this->actingAs($this->admin)->get('/admin/settings/property-payment')
+            ->assertOk()
+            ->assertSee('Thông tin tài sản và chủ nhà')
+            ->assertSee('Tài khoản nhận thanh toán và VietQR')
+            ->assertSee('Nhà trọ QA')
+            ->assertSee('1234567890');
+    }
+
     public function test_each_price_type_updates_only_its_own_field(): void
     {
         $setting = $this->createSetting();
@@ -91,12 +166,14 @@ class SettingManagementTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/settings/unknown')->assertNotFound();
         $this->actingAs($this->admin)->put('/admin/settings/parking', [
-            'parking_fee' => 999999,
-        ])->assertRedirect('/admin/settings/parking')->assertSessionHasNoErrors();
+            'motorcycle_parking_fee' => 999999,
+            'car_parking_fee' => 1999999,
+        ])->assertNotFound();
 
         $this->assertDatabaseCount('settings', 1);
         $this->assertSame('3500.00', $setting->fresh()->electric_price);
-        $this->assertSame('999999.00', $setting->fresh()->parking_fee);
+        $this->assertSame('0.00', $setting->fresh()->motorcycle_parking_fee);
+        $this->assertSame('0.00', $setting->fresh()->car_parking_fee);
     }
 
     public function test_setting_routes_enforce_authentication_and_admin_role_for_direct_requests(): void
@@ -197,6 +274,8 @@ class SettingManagementTest extends TestCase
             'internet_fee' => 100000,
             'service_fee' => 50000,
             'parking_fee' => 0,
+            'motorcycle_parking_fee' => 0,
+            'car_parking_fee' => 0,
             'invoice_day' => 5,
             'payment_due_days' => 10,
             'is_active' => true,

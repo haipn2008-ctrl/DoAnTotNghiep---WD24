@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TenantRequest;
+use App\Models\Contract;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Csv;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class TenantController extends Controller
@@ -18,46 +20,44 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', Rule::in(['renting', 'not_renting'])],
         ]);
         $search = trim($validated['search'] ?? '');
+        $status = $validated['status'] ?? '';
 
-        $tenants = Tenant::with([
+        $query = Tenant::with([
             'user',
             'contracts.room',
-        ])
-            ->when($search, function ($query, $search) {
-                $query->where(function ($query) use ($search) {
-                    $query->where('full_name', 'like', "%{$search}%")
-                        ->orWhere('cccd', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
-                });
-            })
-            ->latest()
-            ->paginate(10);
+            'memberContracts.room',
+        ]);
+        $this->applyFilters($query, $search, $status);
+        $tenants = $query->latest()->paginate(10)->withQueryString();
+
+        if ($request->ajax()) {
+            return view('admin.tenants.partials.results', compact('tenants'));
+        }
 
         return view(
             'admin.tenants.index',
-            compact('tenants', 'search')
+            compact('tenants', 'search', 'status')
         );
     }
 
-    public function exportForm()
+    public function export(Request $request)
     {
-        $tenants = Tenant::with(['contracts.room'])
-            ->latest()
-            ->paginate(10);
-
-        return view('admin.tenants.export', compact('tenants'));
-    }
-
-    public function export()
-    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', Rule::in(['renting', 'not_renting'])],
+        ]);
+        $search = trim($validated['search'] ?? '');
+        $status = $validated['status'] ?? '';
         $tenants = Tenant::with([
             'user',
             'contracts.room',
-        ])
-            ->orderBy('id');
+            'memberContracts.room',
+        ]);
+        $this->applyFilters($tenants, $search, $status);
+        $tenants->orderBy('id');
 
         $filename = 'danh_sach_khach_thue_'.now()->format('Ymd_His').'.csv';
 
@@ -83,8 +83,8 @@ class TenantController extends Controller
             Csv::writeRow($file, $columns);
 
             foreach ($tenants->lazy(500) as $tenant) {
-                $activeRoom = $tenant->contracts
-                    ->where('status', 'active')
+                $activeRoom = $tenant->contracts->concat($tenant->memberContracts)
+                    ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
                     ->pluck('room.room_code')
                     ->first();
 
@@ -134,7 +134,7 @@ class TenantController extends Controller
 
     public function show(Tenant $tenant)
     {
-        $tenant->load(['user', 'contracts.room']);
+        $tenant->load(['user', 'contracts.room', 'memberContracts.room']);
 
         return view(
             'admin.tenants.show',
@@ -177,7 +177,7 @@ class TenantController extends Controller
             $deleted = DB::transaction(function () use ($tenant): bool {
                 $tenant = Tenant::lockForUpdate()->findOrFail($tenant->id);
 
-                if ($tenant->contracts()->exists()) {
+                if ($tenant->contracts()->exists() || $tenant->memberContracts()->exists()) {
                     return false;
                 }
 
@@ -221,5 +221,28 @@ class TenantController extends Controller
         }
 
         throw $exception;
+    }
+
+    private function applyFilters($query, string $search, string $status): void
+    {
+        $query->when($search, function ($query, $search): void {
+            $query->where(function ($query) use ($search): void {
+                $query->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('cccd', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        });
+
+        $occupying = fn ($query) => $query->whereIn('contracts.status', Contract::OPEN_OCCUPANCY_STATUSES);
+        if ($status === 'renting') {
+            $query->where(function ($query) use ($occupying): void {
+                $query->whereHas('contracts', $occupying)
+                    ->orWhereHas('memberContracts', $occupying);
+            });
+        } elseif ($status === 'not_renting') {
+            $query->whereDoesntHave('contracts', $occupying)
+                ->whereDoesntHave('memberContracts', $occupying);
+        }
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contract;
 use App\Models\Room;
 use App\Models\Setting;
 use App\Models\UtilityReading;
@@ -36,16 +37,16 @@ class UtilityController extends Controller
         }
 
         $rooms = Room::with(['contracts' => function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
-            $query->where('status', 'active')
+            $query->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
                 ->whereDate('start_date', '<=', $billingPeriodEnd)
-                ->whereDate('end_date', '>=', $billingPeriodStart)
+                ->where(fn ($query) => $query->where('status', Contract::STATUS_EXPIRED)->orWhereDate('end_date', '>=', $billingPeriodStart))
                 ->orderByDesc('start_date');
         }])
             ->where('status', 'occupied')
             ->whereHas('contracts', function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
-                $query->where('status', 'active')
+                $query->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
                     ->whereDate('start_date', '<=', $billingPeriodEnd)
-                    ->whereDate('end_date', '>=', $billingPeriodStart);
+                    ->where(fn ($query) => $query->where('status', Contract::STATUS_EXPIRED)->orWhereDate('end_date', '>=', $billingPeriodStart));
             })
             ->orderBy('room_code')
             ->get();
@@ -66,8 +67,7 @@ class UtilityController extends Controller
             $currentReading = $activeContract ? $periodReadings
                 ->where('room_id', $room->id)
                 ->first(fn ($reading) => (int) $reading->contract_id === $activeContract->id)
-                ?? $periodReadings->where('room_id', $room->id)->first(fn ($reading) =>
-                    $reading->contract_id === null && $reading->record_date?->toDateString() >= $contractStart
+                ?? $periodReadings->where('room_id', $room->id)->first(fn ($reading) => $reading->contract_id === null && $reading->record_date?->toDateString() >= $contractStart
                 ) : null;
             $previousReading = $activeContract ? UtilityReading::where('room_id', $room->id)
                 ->where(fn ($query) => $query->where('contract_id', $activeContract->id)
@@ -144,9 +144,9 @@ class UtilityController extends Controller
 
                     $room = Room::query()->lockForUpdate()->findOrFail($roomId);
                     $eligible = $room->status === Room::STATUS_OCCUPIED
-                        && $room->contracts()->where('status', 'active')
+                        && $room->contracts()->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
                             ->whereDate('start_date', '<=', $periodEnd)
-                            ->whereDate('end_date', '>=', $periodStart)
+                            ->where(fn ($query) => $query->where('status', Contract::STATUS_EXPIRED)->orWhereDate('end_date', '>=', $periodStart))
                             ->exists();
 
                     if (! $eligible) {
@@ -161,9 +161,9 @@ class UtilityController extends Controller
                         ]);
                     }
 
-                    $contract = $room->contracts()->where('status', 'active')
+                    $contract = $room->contracts()->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
                         ->whereDate('start_date', '<=', $periodEnd)
-                        ->whereDate('end_date', '>=', $periodStart)
+                        ->where(fn ($query) => $query->where('status', Contract::STATUS_EXPIRED)->orWhereDate('end_date', '>=', $periodStart))
                         ->latest('start_date')->firstOrFail();
 
                     $reading = UtilityReading::query()
@@ -174,12 +174,12 @@ class UtilityController extends Controller
                         ->where('year', $data['year'])
                         ->where('reading_type', 'periodic')
                         ->lockForUpdate()->first() ?? new UtilityReading([
-                        'room_id' => $roomId,
-                        'contract_id' => $contract->id,
-                        'month' => $data['month'],
-                        'year' => $data['year'],
-                        'reading_type' => 'periodic',
-                    ]);
+                            'room_id' => $roomId,
+                            'contract_id' => $contract->id,
+                            'month' => $data['month'],
+                            'year' => $data['year'],
+                            'reading_type' => 'periodic',
+                        ]);
 
                     if ($reading->exists && $reading->invoice()->exists()) {
                         throw ValidationException::withMessages([
@@ -283,18 +283,18 @@ class UtilityController extends Controller
         // Đồng bộ logic với hàm create để Tiến độ chốt số (A/B phòng) chính xác tuyệt đối
         $totalRooms = Room::where('status', 'occupied')
             ->whereHas('contracts', function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
-                $query->where('status', 'active')
+                $query->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
                     ->whereDate('start_date', '<=', $billingPeriodEnd)
-                    ->whereDate('end_date', '>=', $billingPeriodStart);
+                    ->where(fn ($query) => $query->where('status', Contract::STATUS_EXPIRED)->orWhereDate('end_date', '>=', $billingPeriodStart));
             })
             ->count();
 
         // 2. Lấy dữ liệu chốt số của tháng hiện tại kèm hợp đồng active để hiển thị ngày thuê
         $readings = UtilityReading::with([
             'room.contracts' => function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
-                $query->where('status', 'active')
+                $query->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
                     ->whereDate('start_date', '<=', $billingPeriodEnd)
-                    ->whereDate('end_date', '>=', $billingPeriodStart)
+                    ->where(fn ($query) => $query->where('status', Contract::STATUS_EXPIRED)->orWhereDate('end_date', '>=', $billingPeriodStart))
                     ->orderByDesc('start_date');
             },
         ])

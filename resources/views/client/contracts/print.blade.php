@@ -312,11 +312,13 @@ Tiền nước:
 </p>
 
 <p>
-Tiền đặt cọc:
+Tiền đặt cọc (tách biệt với tiền phòng tháng đầu):
 <span class="line ExtraLarge">
 {{ number_format($contract->deposit_amount,0,',','.') }}
 </span>
 </p>
+
+<p>Tiền phòng tháng đầu: <strong>{{ number_format($contract->first_month_rent_amount,0,',','.') }} đồng</strong> ({{ $contract->first_month_rent_days <= 5 ? 'miễn do thời gian còn lại của tháng không quá 5 ngày' : $contract->first_month_rent_days.' ngày, tính theo giá tháng / số ngày của tháng × số ngày thuê' }}). Tổng phải đóng sau khi ký: <strong>{{ number_format($contract->deposit_amount + $contract->first_month_rent_amount,0,',','.') }} đồng</strong>.</p>
 
 <p>
 Hợp đồng có giá trị kể từ ngày
@@ -406,7 +408,7 @@ năm
     </p>
 
     <p>
-        - Bên A phải trả lại tiền đặt cọc cho bên B.
+        - Bên A hoàn lại phần tiền cọc còn lại cho Bên B sau khi đối trừ công nợ, hư hỏng và các nghĩa vụ có chứng từ.
     </p>
 
     <p>
@@ -429,7 +431,7 @@ năm
     </p>
 
     <p>
-        - Bên A phải trả lại tiền đặt cọc cho bên B.
+        - Bên A hoàn lại phần tiền cọc còn lại cho Bên B sau khi đối trừ công nợ, hư hỏng và các nghĩa vụ có chứng từ.
     </p>
 
     <p>

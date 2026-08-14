@@ -176,6 +176,7 @@
             CÁC CHỨC NĂNG KHÁC - GIỮ NGUYÊN
         ====================================================== --}}
 
+        @if(auth()->user()?->isActive())
         {{-- ĐIỆN NƯỚC --}}
         <a href="{{ route('client.utilities.index') }}"
            class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.utilities.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
@@ -187,6 +188,7 @@
             <span>Điện nước</span>
 
         </a>
+        @endif
 
 
         {{-- HÓA ĐƠN --}}
@@ -208,6 +210,7 @@
         </a>
 
 
+        @if(auth()->user()?->isActive())
         {{-- HỖ TRỢ --}}
         <a href="{{ route('client.support.index') }}"
            class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.support.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
@@ -219,6 +222,7 @@
             <span>Hỗ trợ</span>
 
         </a>
+        @endif
 
     </nav>
 

@@ -34,7 +34,7 @@
 
             <div class="border-b border-slate-200 px-5 py-4">
                 <h3 class="font-semibold text-slate-950">Thông tin phòng</h3>
-                <p class="text-sm text-slate-500">Cập nhật thông tin cơ bản, trạng thái và tiện ích.</p>
+                <p class="text-sm text-slate-500">Số người chỉ được cập nhật khi nhận hoặc trả phòng; ảnh mới được nối vào nhật ký và không xóa ảnh cũ.</p>
             </div>
 
             <div class="grid gap-5 p-5 md:grid-cols-2">
@@ -67,48 +67,40 @@
                 </div>
 
                 <div>
-                    <label for="current_people" class="mb-1.5 block text-sm font-semibold text-slate-700">Số người hiện tại</label>
-                    <input id="current_people" type="number" min="0" name="current_people" value="{{ old('current_people', $room->current_people) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                    <label for="max_people" class="mt-3 mb-1.5 block text-sm font-semibold text-slate-700">Sức chứa tối đa</label>
+                    <label for="max_people" class="mb-1.5 block text-sm font-semibold text-slate-700">Sức chứa tối đa</label>
                     <input id="max_people" type="number" min="1" max="20" name="max_people" value="{{ old('max_people', $room->max_people) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                     @error('max_people') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
-                    @error('current_people') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+                    <p class="mt-2 text-xs text-slate-500">Hiện có {{ $room->current_people }} người; không thể sửa tay tại đây.</p>
                 </div>
 
                 <div>
                     <label for="status" class="mb-1.5 block text-sm font-semibold text-slate-700">Trạng thái</label>
                     <select id="status" name="status" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         <option value="available" @selected(old('status', $room->status) === 'available')>Trống</option>
-                        <option value="occupied" @selected(old('status', $room->status) === 'occupied')>Đang thuê</option>
+                        @if ($room->status === 'occupied')
+                            <option value="occupied" selected>Đang thuê (do hợp đồng quản lý)</option>
+                        @endif
                         <option value="maintenance" @selected(old('status', $room->status) === 'maintenance')>Bảo trì</option>
                     </select>
                     @error('status') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="md:col-span-2">
-                    <label class="mb-2 block text-sm font-semibold text-slate-700">Tiện ích phòng</label>
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        @php($selectedAmenities = old('amenities', $room->amenities->pluck('id')->toArray()))
-                        @forelse ($amenities as $amenity)
-                            <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                                <input type="checkbox" name="amenities[]" value="{{ $amenity->id }}" @checked(in_array($amenity->id, $selectedAmenities)) class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                                {{ $amenity->name }}
-                            </label>
-                        @empty
-                            <p class="text-sm text-slate-500">Chưa có tiện ích nào.</p>
-                        @endforelse
-                    </div>
-                    @error('amenities') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+                    <label class="mb-1 block text-sm font-semibold text-slate-700">Tài sản bàn giao</label>
+                    <p class="mb-3 text-xs text-slate-500">Chọn hoặc bỏ tài sản và cập nhật số lượng, tình trạng thực tế của phòng.</p>
+                    @include('admin.rooms.partials.inventory-fields')
                 </div>
 
                 <div class="md:col-span-2">
-                    <label for="image" class="mb-1.5 block text-sm font-semibold text-slate-700">Ảnh phòng</label>
-                    <input id="image" type="file" name="image" class="block w-full rounded-lg border border-slate-200 text-sm text-slate-600 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200">
-                    @error('image') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
-
-                    @if ($room->thumbnail)
-                        <img src="{{ asset('storage/' . $room->thumbnail) }}" alt="Phòng {{ $room->room_code }}" class="mt-3 h-28 w-40 rounded-lg object-cover ring-1 ring-slate-200">
-                    @endif
+                    <label for="images" class="mb-1.5 block text-sm font-semibold text-slate-700">Bổ sung ảnh hiện trạng ban đầu</label>
+                    <input id="images" type="file" name="images[]" multiple accept="image/jpeg,image/png,image/webp" data-preview-target="images-preview" data-max-files="15" class="js-image-preview-input block w-full rounded-lg border border-slate-200 text-sm text-slate-600 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200">
+                    <p class="mt-1 text-xs text-slate-500">Ảnh mới chỉ được thêm vào nhật ký; {{ $room->images->count() }} ảnh cũ vẫn được giữ nguyên.</p>
+                    <div id="images-preview" class="mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <p data-preview-count class="mb-2 text-xs font-semibold text-slate-600"></p>
+                        <div data-preview-grid class="flex flex-wrap gap-3"></div>
+                        <p data-preview-error class="mt-2 hidden text-xs font-semibold text-rose-600"></p>
+                    </div>
+                    @error('images.*') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="md:col-span-2">

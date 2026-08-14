@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Tenant;
 use App\Models\User;
@@ -17,7 +18,13 @@ class TenantAccountLifecycle
         }
 
         $hasOpenContract = $tenant->contracts()
-            ->whereIn('status', ['pending', 'active'])
+            ->whereIn('status', [
+                Contract::STATUS_PENDING_SIGNATURE,
+                Contract::STATUS_PENDING_DEPOSIT,
+                Contract::STATUS_AWAITING_MOVE_IN,
+                Contract::STATUS_ACTIVE,
+                Contract::STATUS_EXPIRED,
+            ])
             ->exists();
 
         if ($hasOpenContract) {
@@ -31,7 +38,8 @@ class TenantAccountLifecycle
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
             ->exists();
 
-        $status = $hasOutstandingInvoice ? User::STATUS_SETTLING : User::STATUS_INACTIVE;
+        $hasSettlement = $tenant->contracts()->where('status', Contract::STATUS_SETTLING)->exists();
+        $status = $hasOutstandingInvoice || $hasSettlement ? User::STATUS_SETTLING : User::STATUS_INACTIVE;
         $user->update(['status' => $status]);
 
         return $status;

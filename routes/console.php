@@ -4,9 +4,11 @@ use App\Models\Contract;
 use App\Models\Setting;
 use App\Models\SupportRequest;
 use App\Models\UtilityReading;
+use App\Services\ContractLifecycleService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -125,3 +127,54 @@ Artisan::command('portal:audit-private-files', function () {
 
     return 1;
 })->purpose('Kiểm tra file hợp đồng và ảnh đồng hồ bị thiếu mà không thay đổi dữ liệu');
+
+Artisan::command('contracts:process-lifecycle', function () {
+    $result = app(ContractLifecycleService::class)->processDailyAlerts();
+    $this->info("Đã đánh dấu {$result['expired']} hợp đồng expired; tạo {$result['alerts_created']} cảnh báo mới.");
+
+    return 0;
+})->purpose('Xử lý hết hạn hợp đồng và cảnh báo vòng đời theo cách idempotent');
+
+Artisan::command('contracts:audit-lifecycle', function () {
+    $issues = collect();
+    Contract::query()->with(['room', 'utilityReadings'])->orderBy('id')->each(function (Contract $contract) use ($issues): void {
+        $add = function (string $problem) use ($issues, $contract): void {
+            $issues->push([$contract->id, $contract->contract_code, $contract->status, $problem]);
+        };
+        if (in_array($contract->status, [Contract::STATUS_DRAFT, Contract::STATUS_PENDING_SIGNATURE], true) && $contract->signed_at) {
+            $add('Trạng thái chưa ký nhưng signed_at có dữ liệu.');
+        }
+        if (in_array($contract->status, [Contract::STATUS_PENDING_DEPOSIT, Contract::STATUS_AWAITING_MOVE_IN, Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED], true) && ! $contract->signed_at) {
+            $add('Trạng thái sau ký nhưng thiếu signed_at.');
+        }
+        if ($contract->status === Contract::STATUS_AWAITING_MOVE_IN && (! $contract->scheduled_move_in_date || ! $contract->reservation_expires_at)) {
+            $add('Chờ nhận phòng nhưng thiếu lịch/hạn giữ phòng.');
+        }
+        if (in_array($contract->status, Contract::OPEN_OCCUPANCY_STATUSES, true)) {
+            if (! $contract->actual_move_in_at || ! $contract->utilityReadings->contains('reading_type', 'handover')) {
+                $add('Đang ở/quá hạn nhưng thiếu thời điểm hoặc chỉ số bàn giao.');
+            }
+            if (! $contract->room || $contract->room->status !== 'occupied' || (int) $contract->room->current_people <= 0) {
+                $add('Hợp đồng đang có người ở nhưng trạng thái/số người của phòng mâu thuẫn.');
+            }
+        }
+        if ($contract->status === Contract::STATUS_CANCELLED && blank($contract->cancel_reason)) {
+            $add('Hợp đồng hủy thiếu lý do.');
+        }
+        if ($contract->status === Contract::STATUS_COMPLETED && (! $contract->actual_move_out_at || ! $contract->deposit_resolution)) {
+            $add('Hợp đồng completed thiếu checkout hoặc trạng thái tài chính cuối cùng.');
+        }
+    });
+
+    if ($issues->isEmpty()) {
+        $this->info('Không phát hiện dữ liệu vòng đời hợp đồng mâu thuẫn.');
+
+        return 0;
+    }
+    $this->error('Phát hiện dữ liệu cần admin đối soát. Lệnh chỉ đọc và không sửa dữ liệu.');
+    $this->table(['ID', 'Mã hợp đồng', 'Trạng thái', 'Vấn đề'], $issues->all());
+
+    return 1;
+})->purpose('Audit read-only dữ liệu vòng đời hợp đồng và dữ liệu cũ mâu thuẫn');
+
+Schedule::command('contracts:process-lifecycle')->dailyAt('01:15')->withoutOverlapping();

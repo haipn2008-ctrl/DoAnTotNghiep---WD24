@@ -14,6 +14,16 @@ return new class extends Migration
         if ($indexes->contains(fn ($index) =>
             $index['name'] === 'invoices_room_id_month_year_unique'
         )) {
+            // MySQL needs a separate room_id index before the composite unique
+            // index can be removed because the foreign key currently uses it.
+            if (! $indexes->contains(fn ($index) =>
+                $index['name'] === 'invoices_room_id_index'
+            )) {
+                Schema::table('invoices', function (Blueprint $table) {
+                    $table->index('room_id', 'invoices_room_id_index');
+                });
+            }
+
             Schema::table('invoices', function (Blueprint $table) {
                 $table->dropUnique('invoices_room_id_month_year_unique');
             });
@@ -52,6 +62,15 @@ return new class extends Migration
                     ['room_id', 'month', 'year'],
                     'invoices_room_id_month_year_unique'
                 );
+            });
+        }
+
+        $indexes = collect(Schema::getIndexes('invoices'));
+        if ($indexes->contains(fn ($index) =>
+            $index['name'] === 'invoices_room_id_index'
+        )) {
+            Schema::table('invoices', function (Blueprint $table) {
+                $table->dropIndex('invoices_room_id_index');
             });
         }
     }

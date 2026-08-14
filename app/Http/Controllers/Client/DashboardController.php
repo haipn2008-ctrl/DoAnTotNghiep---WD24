@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\SupportRequest;
 use Illuminate\Contracts\View\View;
@@ -16,7 +17,7 @@ class DashboardController extends Controller
 
         $activeContract = $tenant?->contracts()
             ->with('room')
-            ->where('status', 'active')
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->latest('start_date')
             ->first();
 

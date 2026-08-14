@@ -166,10 +166,14 @@ Tiền nước:
 </p>
 
 <p>
-Tiền đặt cọc:
+Tiền đặt cọc (tách biệt với tiền phòng tháng đầu):
 <span class="line ExtraLarge">
 
 </span>
+</p>
+
+<p>
+Tiền phòng tháng đầu được tính từ ngày bắt đầu hợp đồng đến hết tháng theo công thức giá thuê tháng chia số ngày của tháng nhân số ngày thuê thực tế. Nếu thời gian còn lại không quá 5 ngày thì miễn tiền phòng; điện, nước và dịch vụ vẫn tính theo thực tế.
 </p>
 
 <p>
@@ -260,7 +264,7 @@ năm
     </p>
 
     <p>
-        - Bên A phải trả lại tiền đặt cọc cho bên B.
+        - Bên A hoàn lại phần tiền cọc còn lại cho Bên B sau khi đối trừ công nợ, hư hỏng và các nghĩa vụ có chứng từ.
     </p>
 
     <p>

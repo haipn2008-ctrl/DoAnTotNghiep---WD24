@@ -206,7 +206,7 @@ class DashboardStatisticsTest extends TestCase
             'address' => 'Hà Nội',
         ]);
         $room = $this->createRoom('ROOM-DASHBOARD', Room::STATUS_OCCUPIED);
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD-DASHBOARD',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,

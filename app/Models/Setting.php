@@ -23,12 +23,26 @@ class Setting extends Model
 
         'parking_fee',
 
+        'motorcycle_parking_fee',
+
+        'car_parking_fee',
+
         'invoice_day',
 
         'payment_due_days',
         'bank_id',
         'bank_account_no',
         'bank_account_name',
+
+        'property_name',
+        'property_address',
+        'landlord_name',
+        'landlord_date_of_birth',
+        'landlord_identity_number',
+        'landlord_identity_issued_at',
+        'landlord_identity_issued_by',
+        'landlord_phone',
+        'landlord_address',
 
         'is_active',
     ];
@@ -48,9 +62,16 @@ class Setting extends Model
 
         'parking_fee' => 'decimal:2',
 
+        'motorcycle_parking_fee' => 'decimal:2',
+
+        'car_parking_fee' => 'decimal:2',
+
         'invoice_day' => 'integer',
 
         'payment_due_days' => 'integer',
+
+        'landlord_date_of_birth' => 'date',
+        'landlord_identity_issued_at' => 'date',
 
         'is_active' => 'boolean',
     ];
@@ -89,6 +110,8 @@ class Setting extends Model
             'internet_fee' => 0,
             'service_fee' => 0,
             'parking_fee' => 0,
+            'motorcycle_parking_fee' => 0,
+            'car_parking_fee' => 0,
             'invoice_day' => 5,
             'payment_due_days' => 10,
         ], $defaults);

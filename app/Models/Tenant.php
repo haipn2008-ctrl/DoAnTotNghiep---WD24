@@ -72,6 +72,18 @@ class Tenant extends Model
         );
     }
 
+    public function memberContracts()
+    {
+        return $this->belongsToMany(Contract::class, 'contract_occupants')
+            ->withPivot(['role', 'status', 'full_name', 'actual_move_in_at', 'actual_move_out_at'])
+            ->withTimestamps();
+    }
+
+    public function contractOccupancies()
+    {
+        return $this->hasMany(ContractOccupant::class);
+    }
+
     // Xe của người thuê (chuẩn bị cho giai đoạn 2)
     // public function vehicles()
     // {
@@ -94,7 +106,7 @@ class Tenant extends Model
     public function activeContract()
     {
         return $this->contracts()
-            ->where('status', 'active')
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->first();
     }
 
@@ -102,7 +114,17 @@ class Tenant extends Model
     public function isRenting()
     {
         return $this->contracts()
-            ->where('status', 'active')
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->exists();
+    }
+
+    public function usesPortal(): bool
+    {
+        return $this->user_id !== null;
+    }
+
+    public function isOffline(): bool
+    {
+        return ! $this->usesPortal();
     }
 }

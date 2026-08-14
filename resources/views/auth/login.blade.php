@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Đăng nhập | Quản lý phòng trọ</title>
-    <link href="{{ asset('assets/images/favicon.ico') }}" rel="shortcut icon">
+    <link rel="icon" href="data:,">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&display=swap">
 </head>

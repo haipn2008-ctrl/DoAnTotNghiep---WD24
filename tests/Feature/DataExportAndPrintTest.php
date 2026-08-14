@@ -27,8 +27,8 @@ class DataExportAndPrintTest extends TestCase
     {
         [$client, , $contract, , $invoice] = $this->context('AUTH');
         $urls = [
-            route('admin.rooms.export'), route('admin.rooms.export.download'),
-            route('admin.tenants.export'), route('admin.tenants.export.download'),
+            route('admin.rooms.export'),
+            route('admin.tenants.export'),
             route('admin.invoices.export'), route('admin.invoices.export.download'),
             route('admin.invoices.payments.export'), route('admin.invoices.payments.export.download'),
             route('admin.contracts.print', $contract), route('admin.invoices.print', $invoice),
@@ -46,14 +46,23 @@ class DataExportAndPrintTest extends TestCase
         [, $tenant, , $room] = $this->context('MATCH');
         $this->context('OTHER');
 
-        $roomCsv = $this->csv($this->actingAs($admin)->get(route('admin.rooms.export.download', ['room_code' => $room->room_code])));
+        $roomCsv = $this->csv($this->actingAs($admin)->get(route('admin.rooms.export', ['room_code' => $room->room_code])));
         $this->assertCount(2, $roomCsv);
         $this->assertSame($room->room_code, $roomCsv[1][0]);
 
-        $tenantCsv = $this->csv($this->actingAs($admin)->get(route('admin.tenants.export.download')));
-        $this->assertTrue(collect($tenantCsv)->contains(fn ($row) => ($row[0] ?? null) === $tenant->full_name));
+        $tenantCsv = $this->csv($this->actingAs($admin)->get(route('admin.tenants.export', [
+            'search' => $tenant->cccd,
+            'status' => 'renting',
+        ])));
+        $this->assertCount(2, $tenantCsv);
+        $this->assertSame($tenant->full_name, $tenantCsv[1][0]);
 
-        $empty = $this->csv($this->actingAs($admin)->get(route('admin.rooms.export.download', ['room_code' => 'NOT-FOUND'])));
+        $emptyTenantCsv = $this->csv($this->actingAs($admin)->get(route('admin.tenants.export', [
+            'status' => 'not_renting',
+        ])));
+        $this->assertCount(1, $emptyTenantCsv);
+
+        $empty = $this->csv($this->actingAs($admin)->get(route('admin.rooms.export', ['room_code' => 'NOT-FOUND'])));
         $this->assertCount(1, $empty);
     }
 
@@ -101,7 +110,7 @@ class DataExportAndPrintTest extends TestCase
 
         $invoiceRows = $this->csv($this->actingAs($admin)->get(route('admin.invoices.export.download')));
         $paymentRows = $this->csv($this->actingAs($admin)->get(route('admin.invoices.payments.export.download')));
-        $tenantRows = $this->csv($this->actingAs($admin)->get(route('admin.tenants.export.download')));
+        $tenantRows = $this->csv($this->actingAs($admin)->get(route('admin.tenants.export')));
 
         $this->assertSame("'@DANGEROUS", $invoiceRows[1][0]);
         $this->assertSame("'=PAYLOAD", $paymentRows[1][0]);
@@ -166,7 +175,7 @@ class DataExportAndPrintTest extends TestCase
         $user = User::create(['name' => 'Client '.$suffix, 'email' => strtolower($suffix).'@export.test', 'phone' => '091'.str_pad((string) User::count(), 7, '0', STR_PAD_LEFT), 'role_id' => $role->id, 'password' => 'Password@123', 'status' => User::STATUS_ACTIVE]);
         $tenant = Tenant::create(['user_id' => $user->id, 'full_name' => 'Tenant '.$suffix, 'cccd' => 'CCCD-'.$suffix, 'phone' => $user->phone, 'email' => $user->email, 'address' => 'Address '.$suffix]);
         $room = Room::create(['room_code' => 'ROOM-'.$suffix, 'floor' => 1, 'price' => 3000000, 'area' => 25, 'status' => Room::STATUS_OCCUPIED]);
-        $contract = Contract::create(['contract_code' => 'CONTRACT-'.$suffix, 'room_id' => $room->id, 'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'deposit_amount' => 3000000, 'start_date' => '2026-01-01', 'end_date' => '2026-12-31', 'status' => Contract::STATUS_ACTIVE]);
+        $contract = Contract::query()->forceCreate(['contract_code' => 'CONTRACT-'.$suffix, 'room_id' => $room->id, 'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'deposit_amount' => 3000000, 'start_date' => '2026-01-01', 'end_date' => '2026-12-31', 'status' => Contract::STATUS_ACTIVE]);
         $invoice = Invoice::create(['contract_id' => $contract->id, 'room_id' => $room->id, 'invoice_code' => 'INVOICE-'.$suffix, 'month' => 8, 'year' => 2026, 'invoice_date' => '2026-08-01', 'due_date' => '2026-08-10', 'room_fee' => 100000, 'total_amount' => 100000, 'status' => Invoice::STATUS_UNPAID]);
 
         return [$user, $tenant, $contract, $room, $invoice];

@@ -8,19 +8,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('users', 'last_login_at')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->timestamp('last_login_at')->nullable()->after('updated_at');
-            });
+        if (Schema::hasColumn('users', 'last_login_at')) {
+            return;
         }
+
+        Schema::table('users', function (Blueprint $table) {
+            $table->timestamp('last_login_at')->nullable()->after('updated_at');
+        });
     }
 
     public function down(): void
     {
-        if (Schema::hasColumn('users', 'last_login_at')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->dropColumn('last_login_at');
-            });
+        if (! Schema::hasColumn('users', 'last_login_at')) {
+            return;
         }
+
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('last_login_at');
+        });
     }
 };

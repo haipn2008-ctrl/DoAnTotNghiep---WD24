@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Quản lý phòng trọ')</title>
+    <link rel="icon" href="data:,">
 
     @stack('styles')
 
@@ -57,6 +58,8 @@
             const closeButton = document.getElementById('admin-sidebar-close');
             const userMenuButton = document.getElementById('admin-user-menu-button');
             const userMenu = document.getElementById('admin-user-menu');
+            const notificationButton = document.getElementById('admin-notification-button');
+            const notificationMenu = document.getElementById('admin-notification-menu');
 
             const openSidebar = () => {
                 sidebar?.classList.remove('-translate-x-full');
@@ -74,11 +77,23 @@
 
             userMenuButton?.addEventListener('click', (event) => {
                 event.stopPropagation();
+                notificationMenu?.classList.add('hidden');
                 userMenu?.classList.toggle('hidden');
             });
 
+            notificationButton?.addEventListener('click', (event) => {
+                event.stopPropagation();
+                userMenu?.classList.add('hidden');
+                notificationMenu?.classList.toggle('hidden');
+                notificationButton.setAttribute('aria-expanded', notificationMenu?.classList.contains('hidden') ? 'false' : 'true');
+            });
+
+            notificationMenu?.addEventListener('click', (event) => event.stopPropagation());
+
             document.addEventListener('click', () => {
                 userMenu?.classList.add('hidden');
+                notificationMenu?.classList.add('hidden');
+                notificationButton?.setAttribute('aria-expanded', 'false');
             });
         });
     </script>

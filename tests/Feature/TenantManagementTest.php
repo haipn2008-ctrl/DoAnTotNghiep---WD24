@@ -72,7 +72,57 @@ class TenantManagementTest extends TestCase
                 ->assertDontSee($bob->cccd);
         }
 
-        $this->get('/admin/tenants?search=missing-record')->assertOk()->assertSee('Chưa có khách thuê nào');
+        $this->get('/admin/tenants?search=missing-record')->assertOk()->assertSee('Không tìm thấy khách thuê');
+    }
+
+    public function test_tenant_list_has_direct_export_and_live_filter_controls_without_search_button(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.tenants.index'));
+
+        $response->assertOk()
+            ->assertSee('data-tenant-filter', false)
+            ->assertSee('data-tenant-search', false)
+            ->assertSee('data-tenant-status', false)
+            ->assertSee('data-tenant-export', false)
+            ->assertSee('href="'.route('admin.tenants.export').'"', false)
+            ->assertDontSee('>Tìm</button>', false);
+
+        $this->get('/admin/tenants/export/download')->assertNotFound();
+    }
+
+    public function test_ajax_search_and_rental_status_filters_return_only_matching_rows(): void
+    {
+        $renting = $this->tenant($this->user($this->clientRole, 'renting@example.com'), [
+            'full_name' => 'Nguyễn Đang Thuê',
+            'cccd' => '079000000881',
+            'phone' => '0900000881',
+            'email' => 'renting.tenant@example.com',
+        ]);
+        $available = $this->tenant($this->user($this->clientRole, 'available@example.com'), [
+            'full_name' => 'Trần Chưa Thuê',
+            'cccd' => '079000000882',
+            'phone' => '0900000882',
+            'email' => 'available.tenant@example.com',
+        ]);
+        $this->contract($renting);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.tenants.index', ['search' => 'Nguyễn', 'status' => 'renting']), [
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
+            ->assertOk()
+            ->assertSee($renting->cccd)
+            ->assertDontSee($available->cccd)
+            ->assertDontSee('data-tenant-filter', false);
+
+        $this->get(route('admin.tenants.index', ['status' => 'not_renting']), [
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])->assertOk()
+            ->assertSee($available->cccd)
+            ->assertDontSee($renting->cccd);
+
+        $this->get(route('admin.tenants.index', ['status' => 'unknown']))
+            ->assertSessionHasErrors('status');
     }
 
     public function test_create_form_lists_only_unlinked_eligible_client_accounts(): void
@@ -110,6 +160,29 @@ class TenantManagementTest extends TestCase
         $this->assertSame($tenant->id, $client->fresh()->tenant->id);
     }
 
+    public function test_admin_can_create_offline_tenant_without_login_or_email(): void
+    {
+        $this->actingAs($this->admin)->post('/admin/tenants', [
+            'user_id' => null,
+            'full_name' => 'Khách đóng tiền mặt',
+            'date_of_birth' => '1960-01-01',
+            'gender' => 'female',
+            'cccd' => '079000000777',
+            'phone' => '0900000777',
+            'email' => null,
+            'address' => 'Quản lý trực tiếp tại nhà trọ',
+        ])->assertRedirect('/admin/tenants')->assertSessionHasNoErrors();
+
+        $tenant = Tenant::where('cccd', '079000000777')->sole();
+        $this->assertNull($tenant->user_id);
+        $this->assertNull($tenant->email);
+        $this->assertTrue($tenant->isOffline());
+
+        $this->get('/admin/tenants/create')
+            ->assertOk()
+            ->assertSee('Khách offline — admin nhập và quản lý thay');
+    }
+
     public function test_create_validation_rejects_invalid_identity_dates_contact_and_account_links(): void
     {
         $linkedClient = $this->user($this->clientRole, 'linked@example.com');
@@ -127,14 +200,13 @@ class TenantManagementTest extends TestCase
             'date_of_birth' => now()->addDay()->toDateString(),
             'gender' => 'invalid',
             'cccd' => $existing->cccd,
-            'cccd_issue_date' => now()->addDay()->toDateString(),
             'phone' => $existing->phone,
             'email' => $existing->email,
             'address' => str_repeat('a', 501),
         ])->assertRedirect('/admin/tenants/create')
             ->assertSessionHasErrors([
                 'user_id', 'full_name', 'date_of_birth', 'gender', 'cccd',
-                'cccd_issue_date', 'phone', 'email', 'address',
+                'phone', 'email', 'address',
             ]);
 
         $this->assertSame($before, Tenant::count());
@@ -331,7 +403,7 @@ class TenantManagementTest extends TestCase
             'area' => 25,
             'status' => $status === Contract::STATUS_ACTIVE ? Room::STATUS_OCCUPIED : Room::STATUS_AVAILABLE,
         ]);
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'TENANT-CONTRACT-'.$tenant->id,
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,

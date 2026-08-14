@@ -146,7 +146,11 @@
     </p>
 
     <p>
-        Tiền đặt cọc: <u>{{deposit}}</u>
+        Tiền đặt cọc: <u>{{deposit}}</u> (tách biệt với tiền phòng tháng đầu)
+    </p>
+
+    <p>
+        Tiền phòng tháng đầu được tính từ ngày bắt đầu hợp đồng đến hết tháng theo công thức giá thuê tháng chia số ngày của tháng nhân số ngày thuê thực tế. Nếu thời gian còn lại không quá 5 ngày thì miễn tiền phòng; điện, nước và dịch vụ vẫn tính theo thực tế.
     </p>
 
     <p>
@@ -211,7 +215,7 @@
         báo trước cho bên kia ít nhất 30 ngày và hai bên phải có sự thống nhất.
     </p>
 
-    <p>- Bên A phải trả lại tiền đặt cọc cho bên B.</p>
+    <p>- Bên A hoàn lại phần tiền cọc còn lại cho Bên B sau khi đối trừ công nợ, hư hỏng và các nghĩa vụ có chứng từ.</p>
 
     <p>
         - Bên nào vi phạm điều khoản chung thì phải chịu trách nhiệm trước pháp luật.

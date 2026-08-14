@@ -54,6 +54,10 @@ class DepositRefundController extends Controller
             'Bạn không có quyền yêu cầu hoàn cọc cho hợp đồng này.'
         );
 
+        if ($contract->deposit_resolution === Contract::DEPOSIT_NOT_REQUIRED) {
+            return back()->with('error', 'Khoản thu sau khi ký đã được cấn vào tiền phòng tháng đầu nên không phải tiền cọc hoàn lại.');
+        }
+
         if (!$contract->canRequestDepositRefund()) {
             return back()->with(
                 'error',

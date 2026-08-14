@@ -58,7 +58,7 @@ class InvoiceModuleTest extends TestCase
             'address' => 'Hà Nội',
         ]);
 
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD001',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,
@@ -78,9 +78,9 @@ class InvoiceModuleTest extends TestCase
 
         UtilityReading::create([
             'room_id' => $room->id,
-            'month' => 7,
+            'month' => 6,
             'year' => 2026,
-            'record_date' => '2026-07-01',
+            'record_date' => '2026-06-30',
             'electricity_old' => 100,
             'electricity_new' => 120,
             'water_old' => 50,
@@ -151,7 +151,7 @@ class InvoiceModuleTest extends TestCase
             'address' => 'Hà Nội',
         ]);
 
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD002',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,
@@ -222,7 +222,7 @@ class InvoiceModuleTest extends TestCase
             'address' => 'Hà Nội',
         ]);
 
-        $contract = Contract::create([
+        $contract = Contract::query()->forceCreate([
             'contract_code' => 'HD003',
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,

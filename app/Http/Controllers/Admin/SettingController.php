@@ -9,6 +9,18 @@ use Illuminate\Http\Request;
 class SettingController extends Controller
 {
     private static array $types = [
+        'fees' => [
+            'field' => null,
+            'label' => 'Phí dịch vụ',
+            'unit' => '',
+            'description' => 'Quản lý tập trung đơn giá điện, nước, Internet và dịch vụ chung.',
+        ],
+        'property-payment' => [
+            'field' => null,
+            'label' => 'Thông tin nhà trọ và thanh toán',
+            'unit' => '',
+            'description' => 'Thông tin tài sản, chủ nhà và tài khoản nhận tiền dùng trên hợp đồng, hóa đơn và VietQR.',
+        ],
         'electricity' => [
             'field' => 'electric_price',
             'label' => 'Đơn giá điện',
@@ -33,17 +45,17 @@ class SettingController extends Controller
             'unit' => 'VNĐ/tháng',
             'description' => 'Phí dịch vụ chung tính vào hóa đơn.',
         ],
-        'parking' => [
-            'field' => 'parking_fee',
-            'label' => 'Phí gửi xe',
-            'unit' => 'VNĐ/xe/tháng',
-            'description' => 'Phí gửi xe được nhân với số xe đăng ký trong hợp đồng.',
-        ],
         'bank' => [
             'field' => null,
             'label' => 'Tài khoản nhận thanh toán',
             'unit' => '',
             'description' => 'Thông tin dùng để tạo mã VietQR có sẵn số tiền và nội dung hóa đơn.',
+        ],
+        'property' => [
+            'field' => null,
+            'label' => 'Thông tin tài sản và chủ nhà',
+            'unit' => '',
+            'description' => 'Dùng để chụp snapshot khi tạo hợp đồng và in đúng dữ liệu lịch sử.',
         ],
     ];
 
@@ -55,7 +67,7 @@ class SettingController extends Controller
 
         $setting = $this->setting();
         $typeData = self::$types[$type];
-        $currentValue = $type === 'bank' ? null : $setting->{$typeData['field']};
+        $currentValue = $typeData['field'] ? $setting->{$typeData['field']} : null;
 
         return view('admin.settings.edit', compact('setting', 'type', 'typeData', 'currentValue'));
     }
@@ -69,12 +81,17 @@ class SettingController extends Controller
         $typeData = self::$types[$type];
         $setting = $this->setting();
 
-        if ($type === 'bank') {
-            $data = $request->validate([
-                'bank_id' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9]+$/'],
-                'bank_account_no' => ['required', 'string', 'max:30', 'regex:/^[0-9]+$/'],
-                'bank_account_name' => ['required', 'string', 'max:100'],
-            ]);
+        if ($type === 'fees') {
+            $data = $request->validate($this->feeRules());
+            $setting->update($data);
+        } elseif ($type === 'property-payment') {
+            $data = $request->validate(array_merge($this->propertyRules(), $this->bankRules()));
+            $setting->update($data);
+        } elseif ($type === 'property') {
+            $data = $request->validate($this->propertyRules());
+            $setting->update($data);
+        } elseif ($type === 'bank') {
+            $data = $request->validate($this->bankRules());
             $setting->update($data);
         } else {
             $data = $request->validate([
@@ -96,5 +113,41 @@ class SettingController extends Controller
             'internet_fee' => 0,
             'service_fee' => 0,
         ]);
+    }
+
+    private function feeRules(): array
+    {
+        $priceRule = ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'];
+
+        return [
+            'electric_price' => $priceRule,
+            'water_price' => $priceRule,
+            'internet_fee' => $priceRule,
+            'service_fee' => $priceRule,
+        ];
+    }
+
+    private function propertyRules(): array
+    {
+        return [
+            'property_name' => ['required', 'string', 'max:255'],
+            'property_address' => ['required', 'string', 'max:1000'],
+            'landlord_name' => ['required', 'string', 'max:255'],
+            'landlord_date_of_birth' => ['nullable', 'date', 'before:today'],
+            'landlord_identity_number' => ['nullable', 'string', 'max:30'],
+            'landlord_identity_issued_at' => ['nullable', 'date', 'before_or_equal:today'],
+            'landlord_identity_issued_by' => ['nullable', 'string', 'max:255'],
+            'landlord_phone' => ['required', 'string', 'max:30'],
+            'landlord_address' => ['required', 'string', 'max:1000'],
+        ];
+    }
+
+    private function bankRules(): array
+    {
+        return [
+            'bank_id' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9]+$/'],
+            'bank_account_no' => ['required', 'string', 'max:30', 'regex:/^[0-9]+$/'],
+            'bank_account_name' => ['required', 'string', 'max:100'],
+        ];
     }
 }

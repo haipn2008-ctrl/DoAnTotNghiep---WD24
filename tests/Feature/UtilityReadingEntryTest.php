@@ -79,11 +79,11 @@ class UtilityReadingEntryTest extends TestCase
     {
         $room = $this->createOccupiedRoom('TURNOVER-ROOM');
         $oldContract = $this->createActiveContract($room, 'HD-OLD-TURNOVER');
-        $oldContract->update([
+        $oldContract->forceFill([
             'status' => Contract::STATUS_TERMINATED,
             'end_date' => '2026-08-10',
             'actual_end_date' => '2026-08-10',
-        ]);
+        ])->save();
         $oldReading = UtilityReading::create([
             'room_id' => $room->id, 'month' => 8, 'year' => 2026, 'record_date' => '2026-08-10',
             'reading_type' => 'periodic', 'electricity_old' => 0, 'electricity_new' => 125,
@@ -456,7 +456,7 @@ class UtilityReadingEntryTest extends TestCase
 
     private function createActiveContract(Room $room, string $code): Contract
     {
-        return Contract::create([
+        return Contract::query()->forceCreate([
             'contract_code' => $code,
             'room_id' => $room->id,
             'tenant_id' => $this->tenant->id,

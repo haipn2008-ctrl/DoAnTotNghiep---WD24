@@ -4,8 +4,6 @@
 @section('page_title', 'Chi tiết hóa đơn')
 
 @php
-    $isDeposit = $invoice->invoice_type === 'deposit';
-
     $statuses = [
         'unpaid' => ['label' => 'Chưa thanh toán', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
         'partial' => ['label' => 'Thanh toán một phần', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
@@ -24,9 +22,7 @@
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
                 <a href="{{ route('client.invoices.index') }}" class="text-sm font-semibold text-indigo-700">← Hóa đơn của tôi</a>
-                <h2 class="mt-2 text-2xl font-bold text-slate-950">
-                    {{ $isDeposit ? 'Hóa đơn tiền cọc' : 'Hóa đơn tháng ' . $invoice->month . '/' . $invoice->year }}
-                </h2>
+                <h2 class="mt-2 text-2xl font-bold text-slate-950">{{ $invoice->isDeposit() ? 'Hóa đơn tiền cọc' : ($invoice->isFirstMonthRent() ? 'Hóa đơn tiền phòng tháng đầu' : 'Hóa đơn tháng '.$invoice->month.'/'.$invoice->year) }}</h2>
                 <p class="mt-1 text-sm text-slate-500">{{ $invoice->invoice_code }} · Phòng {{ $invoice->room->room_code ?? '-' }}</p>
             </div>
             <a href="{{ route('client.invoices.print', $invoice) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm"><i class="bx bx-printer text-lg"></i>In hóa đơn</a>
@@ -38,80 +34,23 @@
             <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Còn phải trả</p><p class="mt-2 text-2xl font-bold {{ $remainingAmount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format($remainingAmount, 0, ',', '.') }}đ</p></div>
         </div>
 
-        @if ($isDeposit)
-            <section class="overflow-hidden rounded-lg border border-amber-200 bg-white shadow-sm">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 px-5 py-4">
-                    <div>
-                        <h3 class="font-semibold text-slate-950">Tiền cọc hợp đồng</h3>
-                        <p class="mt-1 text-sm text-slate-500">Khoản tiền đặt cọc cho hợp đồng</p>
-                    </div>
-                    <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">
-                        {{ $status['label'] }}
-                    </span>
-                </div>
-                <div class="p-5">
-                    <div class="flex items-center justify-between rounded-lg bg-amber-50 px-5 py-4">
-                        <span class="font-semibold text-slate-700">Tiền cọc</span>
-                        <span class="text-xl font-bold text-amber-600">
-                            {{ number_format($invoice->total_amount, 0, ',', '.') }}đ
-                        </span>
-                    </div>
-                </div>
-            </section>
-        @else
-            <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-                    <div>
-                        <h3 class="font-semibold text-slate-950">Các khoản cần thanh toán</h3>
-                        <p class="mt-1 text-sm text-slate-500">Hạn thanh toán {{ $invoice->due_date?->format('d/m/Y') }}</p>
-                    </div>
-                    <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">
-                        {{ $status['label'] }}
-                    </span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-                            <tr>
-                                <th class="px-5 py-3">Khoản tiền</th>
-                                <th class="px-5 py-3 text-center">Đã sử dụng</th>
-                                <th class="px-5 py-3 text-right">Đơn giá</th>
-                                <th class="px-5 py-3 text-right">Thành tiền</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            @foreach ($invoice->details as $detail)
-                                <tr>
-                                    <td class="px-5 py-4">
-                                        <p class="font-semibold text-slate-950">{{ $detail->name }}</p>
-                                        @if($detail->note)
-                                            <p class="mt-1 text-xs text-slate-500">{{ $detail->note }}</p>
-                                        @endif
-                                    </td>
-                                    <td class="px-5 py-4 text-center text-slate-700">
-                                        {{ number_format($detail->quantity, 0, ',', '.') }} {{ $detail->unit }}
-                                    </td>
-                                    <td class="px-5 py-4 text-right text-slate-600">
-                                        {{ number_format($detail->unit_price, 0, ',', '.') }}đ
-                                    </td>
-                                    <td class="px-5 py-4 text-right font-semibold text-slate-950">
-                                        {{ number_format($detail->amount, 0, ',', '.') }}đ
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                        <tfoot class="bg-slate-50">
-                            <tr>
-                                <th colspan="3" class="px-5 py-4 text-right">Tổng cộng</th>
-                                <th class="px-5 py-4 text-right text-lg text-emerald-700">
-                                    {{ number_format($invoice->total_amount, 0, ',', '.') }}đ
-                                </th>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </section>
-        @endif
+        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                <div><h3 class="font-semibold text-slate-950">Các khoản cần thanh toán</h3><p class="mt-1 text-sm text-slate-500">Hạn thanh toán {{ $invoice->due_date?->format('d/m/Y') }}</p></div>
+                <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th class="px-5 py-3">Khoản tiền</th><th class="px-5 py-3 text-center">Đã sử dụng</th><th class="px-5 py-3 text-right">Đơn giá</th><th class="px-5 py-3 text-right">Thành tiền</th></tr></thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach ($invoice->details as $detail)
+                            <tr><td class="px-5 py-4"><p class="font-semibold text-slate-950">{{ $detail->name }}</p>@if($detail->note)<p class="mt-1 text-xs text-slate-500">{{ $detail->note }}</p>@endif</td><td class="px-5 py-4 text-center text-slate-700">{{ number_format($detail->quantity, 0, ',', '.') }} {{ $detail->unit }}</td><td class="px-5 py-4 text-right text-slate-600">{{ number_format($detail->unit_price, 0, ',', '.') }}đ</td><td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($detail->amount, 0, ',', '.') }}đ</td></tr>
+                        @endforeach
+                    </tbody>
+                    <tfoot class="bg-slate-50"><tr><th colspan="3" class="px-5 py-4 text-right">Tổng cộng</th><th class="px-5 py-4 text-right text-lg text-emerald-700">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</th></tr></tfoot>
+                </table>
+            </div>
+        </section>
 
         @if ($remainingAmount > 0)
             <section class="grid gap-5 rounded-lg border border-indigo-200 bg-white p-5 shadow-sm lg:grid-cols-[320px_1fr]">

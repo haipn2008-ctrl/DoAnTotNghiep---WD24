@@ -6,6 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
+    const TYPE_RENTAL = 'rental';
+
+    const TYPE_DEPOSIT = 'deposit';
+
+    const TYPE_FIRST_MONTH_RENT = 'first_month_rent';
+
+    const TYPE_SETTLEMENT = 'settlement';
+
     /*
     |--------------------------------------------------------------------------
     | Invoice Status
@@ -18,6 +26,8 @@ class Invoice extends Model
 
     const STATUS_PAID = 'paid';
 
+    const STATUS_WRITTEN_OFF = 'written_off';
+
     /*
     |--------------------------------------------------------------------------
     | Fillable
@@ -29,6 +39,8 @@ class Invoice extends Model
         'contract_id',
 
         'invoice_code',
+
+        'invoice_type',
 
         'room_id',
 
@@ -176,6 +188,8 @@ class Invoice extends Model
 
             self::STATUS_PARTIAL => 'Thanh toán một phần',
 
+            self::STATUS_WRITTEN_OFF => 'Đã xóa nợ có phê duyệt',
+
             default => 'Chưa thanh toán',
         };
     }
@@ -201,12 +215,22 @@ class Invoice extends Model
         return $this->status === self::STATUS_UNPAID;
     }
 
+    public function isFirstMonthRent(): bool
+    {
+        return $this->invoice_type === self::TYPE_FIRST_MONTH_RENT;
+    }
+
+    public function isDeposit(): bool
+    {
+        return $this->invoice_type === self::TYPE_DEPOSIT;
+    }
+
     /**
      * Hóa đơn có thể nhận thêm thanh toán không
      */
     public function canPay(): bool
     {
-        return $this->status !== self::STATUS_PAID;
+        return ! in_array($this->status, [self::STATUS_PAID, self::STATUS_WRITTEN_OFF], true);
     }
 
     public function isOverdue()

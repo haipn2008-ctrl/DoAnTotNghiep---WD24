@@ -236,7 +236,7 @@ class TenantPortalManagementTest extends TestCase
 
     private function createContract(Tenant $tenant, Room $room, string $code, string $status): Contract
     {
-        return Contract::create([
+        return Contract::query()->forceCreate([
             'contract_code' => $code,
             'room_id' => $room->id,
             'tenant_id' => $tenant->id,

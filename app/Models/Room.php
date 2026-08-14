@@ -78,7 +78,7 @@ class Room extends Model
     public function activeContract()
     {
         return $this->hasOne(Contract::class)
-            ->where('status', Contract::STATUS_ACTIVE);
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES);
     }
 
     /**
@@ -90,14 +90,24 @@ class Room extends Model
     }
 
     /**
-     * Tiện ích
+     * Tài sản bàn giao đang áp dụng cho phòng.
      */
     public function amenities()
     {
         return $this->belongsToMany(
             Amenity::class,
             'amenity_room'
-        );
+        )->where('amenities.is_active', true)
+            ->withPivot(['quantity', 'condition', 'note'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Nhật ký ảnh hiện trạng của phòng. Ảnh chỉ được thêm mới để giữ bằng chứng.
+     */
+    public function images()
+    {
+        return $this->hasMany(RoomImage::class)->latest('taken_at')->latest('id');
     }
 
     /*

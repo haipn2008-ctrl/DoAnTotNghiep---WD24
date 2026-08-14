@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Đồng bộ deposit_status với các trạng thái mà Contract model
         // và DepositRefundController đang sử dụng.
         DB::statement("
@@ -29,6 +33,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         // Chỉ rollback được khi dữ liệu hiện tại không còn các trạng thái
         // mới như refund_approved, refund_requested...
         DB::statement("
