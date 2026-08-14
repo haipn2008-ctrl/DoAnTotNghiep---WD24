@@ -794,7 +794,7 @@ class ContractManagementTest extends TestCase
         $this->assertSame($historyCount, ContractStatusHistory::count());
     }
 
-    public function test_signed_contract_always_requires_first_month_rent_before_move_in(): void
+    public function test_signed_contract_requires_separate_deposit_and_first_month_rent_before_move_in(): void
     {
         $contract = $this->draft(0);
         $this->sign($contract);
@@ -804,13 +804,20 @@ class ContractManagementTest extends TestCase
         $this->assertDatabaseCount('invoices', 0);
         $this->payFirstMonth($contract);
         $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $contract->fresh()->status);
-        $this->assertSame(Contract::DEPOSIT_NOT_REQUIRED, $contract->fresh()->deposit_resolution);
+        $this->assertNull($contract->fresh()->deposit_resolution);
+        $this->assertDatabaseHas('invoices', [
+            'contract_id' => $contract->id,
+            'invoice_type' => Invoice::TYPE_DEPOSIT,
+            'room_fee' => 0,
+            'total_amount' => 3000000,
+        ]);
         $this->assertDatabaseHas('invoices', [
             'contract_id' => $contract->id,
             'invoice_type' => Invoice::TYPE_FIRST_MONTH_RENT,
             'room_fee' => 3000000,
             'total_amount' => 3000000,
         ]);
+        $this->assertSame(6000000.0, (float) $contract->invoices()->sum('total_amount'));
         $this->assertSame(Room::STATUS_AVAILABLE, $contract->room->fresh()->status);
     }
 
@@ -862,14 +869,16 @@ class ContractManagementTest extends TestCase
         }
     }
 
-    public function test_first_month_invoice_is_unique_and_only_successful_full_payment_advances_state(): void
+    public function test_initial_invoices_are_unique_and_both_must_be_fully_paid(): void
     {
         $contract = $this->draft(2000000);
         $this->sign($contract);
         $this->actingAs($this->admin)->post(route('admin.contracts.deposit-invoice.issue', $contract))->assertRedirect();
         $invoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->sole();
+        $depositInvoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->sole();
         $this->post(route('admin.contracts.deposit-invoice.issue', $contract));
         $this->assertSame(1, $contract->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->count());
+        $this->assertSame(1, $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->count());
 
         Payment::query()->forceCreate(['invoice_id' => $invoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_PENDING]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
@@ -884,6 +893,10 @@ class ContractManagementTest extends TestCase
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
         $this->post(route('admin.invoices.payments.store', $invoice), [
             'amount_paid' => 1500000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
+        $this->post(route('admin.invoices.payments.store', $depositInvoice), [
+            'amount_paid' => 3000000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
         ])->assertSessionHasNoErrors();
         $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $contract->fresh()->status);
         $this->post(route('admin.invoices.payments.store', $invoice), [
@@ -961,7 +974,7 @@ class ContractManagementTest extends TestCase
         $this->artisan('contracts:process-lifecycle')->assertSuccessful();
         $this->assertSame(1, ContractLifecycleAlert::where('contract_id', $contract->id)->where('type', 'move_in_overdue')->count());
         $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $contract->fresh()->status);
-        $this->assertDatabaseCount('payments', 1);
+        $this->assertDatabaseCount('payments', 2);
 
         $this->actingAs($this->admin)->post(route('admin.contracts.extend-move-in-deadline', $contract), [
             'reservation_expires_at' => now()->addDays(3), 'reason' => 'Khách xin lùi lịch.',
@@ -1023,7 +1036,7 @@ class ContractManagementTest extends TestCase
         $this->assertSame($history, $contract->statusHistories()->count());
     }
 
-    public function test_completion_requires_no_debt_but_never_requires_first_month_refund(): void
+    public function test_completion_requires_no_debt_and_explicit_deposit_resolution(): void
     {
         $contract = $this->active();
         $contract->forceFill(['deposit_amount' => 1000000, 'deposit_status' => Contract::DEPOSIT_PAID])->save();
@@ -1042,6 +1055,7 @@ class ContractManagementTest extends TestCase
         $this->assertSame(Contract::STATUS_SETTLING, $contract->fresh()->status);
 
         $this->post(route('admin.contracts.complete-settlement', $contract), [
+            'deposit_resolution' => Contract::DEPOSIT_RETAINED,
             'settlement_note' => 'Biên bản BT-01',
             'write_off_outstanding' => 1, 'write_off_reason' => 'Quản lý phê duyệt miễn khoản nhỏ.',
             'confirm_complete' => 1,
@@ -1049,7 +1063,7 @@ class ContractManagementTest extends TestCase
         $this->assertSame(Contract::STATUS_COMPLETED, $contract->fresh()->status);
         $this->assertSame(Invoice::STATUS_WRITTEN_OFF, $invoice->fresh()->status);
         $this->assertSame($this->admin->id, $contract->fresh()->completed_by);
-        $this->assertSame(Contract::DEPOSIT_NOT_REQUIRED, $contract->fresh()->deposit_resolution);
+        $this->assertSame(Contract::DEPOSIT_RETAINED, $contract->fresh()->deposit_resolution);
         $this->assertNotNull($contract->fresh()->deposit_resolved_at);
     }
 
@@ -1108,15 +1122,22 @@ class ContractManagementTest extends TestCase
     {
         $contract = $this->draft(1000000, [], 'deposit-reversal');
         $this->sign($contract);
-        $invoice = $this->lifecycle->issueDepositInvoice($contract, $this->admin);
-        $payment = Payment::query()->forceCreate([
-            'invoice_id' => $invoice->id, 'amount_paid' => $invoice->total_amount, 'payment_date' => today(),
+        $depositInvoice = $this->lifecycle->issueDepositInvoice($contract, $this->admin);
+        $firstMonthInvoice = $contract->invoices()
+            ->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)
+            ->sole();
+        $depositPayment = Payment::query()->forceCreate([
+            'invoice_id' => $depositInvoice->id, 'amount_paid' => $depositInvoice->total_amount, 'payment_date' => today(),
+            'payment_method' => Payment::METHOD_CASH, 'status' => Payment::STATUS_SUCCESS,
+        ]);
+        Payment::query()->forceCreate([
+            'invoice_id' => $firstMonthInvoice->id, 'amount_paid' => $firstMonthInvoice->total_amount, 'payment_date' => today(),
             'payment_method' => Payment::METHOD_CASH, 'status' => Payment::STATUS_SUCCESS,
         ]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->lifecycle->checkIn($contract, $this->admin, $this->checkInPayload());
 
-        $payment->update(['status' => Payment::STATUS_FAILED]);
+        $depositPayment->update(['status' => Payment::STATUS_FAILED]);
         $this->lifecycle->syncDepositState($contract, $this->admin, 'Ngân hàng đảo giao dịch.');
 
         $this->assertSame(Contract::STATUS_ACTIVE, $contract->fresh()->status);
@@ -1126,7 +1147,7 @@ class ContractManagementTest extends TestCase
         ]);
     }
 
-    public function test_cancelling_after_collecting_first_month_rent_does_not_create_refundable_deposit(): void
+    public function test_cancelling_after_collecting_initial_payment_requires_deposit_resolution(): void
     {
         $contract = $this->draft(1000000, [], 'cancel-paid-deposit');
         $this->sign($contract);
@@ -1139,9 +1160,9 @@ class ContractManagementTest extends TestCase
         $this->lifecycle->cancel($contract, $this->admin, 'Khách hủy sau khi đã đóng một phần tiền tháng đầu.');
 
         $this->assertSame(Contract::STATUS_CANCELLED, $contract->fresh()->status);
-        $this->assertSame(Contract::DEPOSIT_NOT_REQUIRED, $contract->fresh()->deposit_resolution);
+        $this->assertSame(Contract::DEPOSIT_NEEDS_RESOLUTION, $contract->fresh()->deposit_resolution);
         $this->assertDatabaseHas('contract_lifecycle_alerts', [
-            'contract_id' => $contract->id, 'type' => 'cancelled_first_month_payment',
+            'contract_id' => $contract->id, 'type' => 'cancelled_deposit_resolution',
         ]);
         $this->assertSame(500000.0, $contract->fresh()->deposit_paid_amount);
     }
@@ -1236,14 +1257,15 @@ class ContractManagementTest extends TestCase
 
     private function payFirstMonth(Contract $contract): void
     {
-        $invoice = $this->lifecycle->issueDepositInvoice($contract, $this->admin);
-        Payment::query()->forceCreate([
-            'invoice_id' => $invoice->id,
-            'amount_paid' => $invoice->total_amount,
-            'payment_date' => today(),
-            'payment_method' => Payment::METHOD_CASH,
-            'status' => Payment::STATUS_SUCCESS,
-        ]);
+        $this->lifecycle->issueDepositInvoice($contract, $this->admin);
+        $contract->invoices()->whereIn('invoice_type', [Invoice::TYPE_DEPOSIT, Invoice::TYPE_FIRST_MONTH_RENT])
+            ->get()->each(function (Invoice $invoice): void {
+                Payment::query()->forceCreate([
+                    'invoice_id' => $invoice->id, 'amount_paid' => $invoice->total_amount,
+                    'payment_date' => today(), 'payment_method' => Payment::METHOD_CASH,
+                    'status' => Payment::STATUS_SUCCESS,
+                ]);
+            });
         $this->lifecycle->syncDepositState($contract, $this->admin);
     }
 

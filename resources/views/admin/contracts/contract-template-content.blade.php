@@ -166,7 +166,7 @@ Tiền nước:
 </p>
 
 <p>
-Tiền phòng tháng đầu trả trước (cấn vào tháng đầu, không hoàn cuối hợp đồng):
+Tiền đặt cọc (tách biệt với tiền phòng tháng đầu):
 <span class="line ExtraLarge">
 
 </span>
@@ -260,7 +260,7 @@ năm
     </p>
 
     <p>
-        - Khoản tiền phòng tháng đầu đã được cấn vào tháng đầu tiên và không phải là khoản ký quỹ hoàn lại khi hợp đồng kết thúc.
+        - Bên A hoàn lại phần tiền cọc còn lại cho Bên B sau khi đối trừ công nợ, hư hỏng và các nghĩa vụ có chứng từ.
     </p>
 
     <p>

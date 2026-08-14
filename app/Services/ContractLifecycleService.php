@@ -244,51 +244,59 @@ class ContractLifecycleService
     {
         return DB::transaction(function () use ($contract): Invoice {
             $contract = $this->lockContract($contract);
-            $this->requireStatus($contract, [Contract::STATUS_PENDING_DEPOSIT], 'Chỉ phát hành hóa đơn tiền phòng tháng đầu sau khi hợp đồng đã được xác nhận ký.');
+            $this->requireStatus($contract, [Contract::STATUS_PENDING_DEPOSIT], 'Chỉ phát hành cọc và tiền phòng tháng đầu sau khi hợp đồng đã được xác nhận ký.');
             if ((float) $contract->deposit_amount <= 0) {
-                $this->fail('deposit_amount', 'Hợp đồng không có tiền phòng tháng đầu phải thu.');
-            }
-            $existing = Invoice::query()->where('lifecycle_event_key', $this->invoiceKey($contract, 'first-month-rent'))
-                ->orWhere(fn ($query) => $query->where('contract_id', $contract->id)
-                    ->whereIn('invoice_type', [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT]))
-                ->lockForUpdate()->first();
-            if ($existing) {
-                return $existing;
+                $this->fail('deposit_amount', 'Hợp đồng không có tiền cọc phải thu.');
             }
 
             $now = now();
             $setting = Setting::currentOrCreate();
             $dueAt = $contract->deposit_due_at ?: $now->copy()->addDays((int) $setting->payment_due_days);
-            $invoice = Invoice::query()->forceCreate([
-                'contract_id' => $contract->id,
-                'room_id' => $contract->room_id,
-                'invoice_type' => Invoice::TYPE_FIRST_MONTH_RENT,
-                'invoice_code' => null,
-                'lifecycle_event_key' => $this->invoiceKey($contract, 'first-month-rent'),
-                'month' => $contract->start_date->month,
-                'year' => $contract->start_date->year,
-                'invoice_date' => $now->toDateString(),
-                'due_date' => Carbon::parse($dueAt)->toDateString(),
-                'room_fee' => $contract->deposit_amount,
-                'total_amount' => $contract->deposit_amount,
-                'status' => Invoice::STATUS_UNPAID,
-            ]);
-            $invoice->forceFill(['invoice_code' => sprintf('FMR-%04d%02d-%06d', $contract->start_date->year, $contract->start_date->month, $invoice->id)])->save();
-            $invoice->details()->create([
-                'type' => Invoice::TYPE_FIRST_MONTH_RENT,
-                'name' => 'Tiền phòng tháng đầu '.$contract->start_date->format('m/Y'),
-                'quantity' => 1,
-                'unit' => 'tháng',
-                'unit_price' => $contract->deposit_amount,
-                'amount' => $contract->deposit_amount,
-                'note' => 'Khoản thu sau khi ký được cấn toàn bộ vào tiền phòng tháng đầu và không hoàn lại cuối hợp đồng',
-                'sort_order' => 1,
-            ]);
+
+            $depositInvoice = Invoice::query()->where('contract_id', $contract->id)
+                ->where('invoice_type', Invoice::TYPE_DEPOSIT)->lockForUpdate()->first();
+            if (! $depositInvoice) {
+                $depositInvoice = Invoice::query()->forceCreate([
+                    'contract_id' => $contract->id, 'room_id' => $contract->room_id,
+                    'invoice_type' => Invoice::TYPE_DEPOSIT, 'invoice_code' => null,
+                    'lifecycle_event_key' => $this->invoiceKey($contract, 'deposit'),
+                    'month' => $contract->start_date->month, 'year' => $contract->start_date->year,
+                    'invoice_date' => $now->toDateString(), 'due_date' => Carbon::parse($dueAt)->toDateString(),
+                    'room_fee' => 0, 'total_amount' => $contract->deposit_amount,
+                    'status' => Invoice::STATUS_UNPAID,
+                ]);
+                $depositInvoice->forceFill(['invoice_code' => sprintf('DEP-%04d%02d-%06d', $contract->start_date->year, $contract->start_date->month, $depositInvoice->id)])->save();
+                $depositInvoice->details()->create([
+                    'type' => Invoice::TYPE_DEPOSIT, 'name' => 'Tiền cọc hợp đồng '.$contract->contract_code,
+                    'quantity' => 1, 'unit' => 'lần', 'unit_price' => $contract->deposit_amount,
+                    'amount' => $contract->deposit_amount, 'note' => 'Khoản cọc được giữ để quyết toán khi kết thúc hợp đồng', 'sort_order' => 1,
+                ]);
+            }
+
+            $firstMonthInvoice = Invoice::query()->where('contract_id', $contract->id)
+                ->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->lockForUpdate()->first();
+            if (! $firstMonthInvoice) {
+                $firstMonthInvoice = Invoice::query()->forceCreate([
+                    'contract_id' => $contract->id, 'room_id' => $contract->room_id,
+                    'invoice_type' => Invoice::TYPE_FIRST_MONTH_RENT, 'invoice_code' => null,
+                    'lifecycle_event_key' => $this->invoiceKey($contract, 'first-month-rent'),
+                    'month' => $contract->start_date->month, 'year' => $contract->start_date->year,
+                    'invoice_date' => $now->toDateString(), 'due_date' => Carbon::parse($dueAt)->toDateString(),
+                    'room_fee' => $contract->monthly_rent, 'total_amount' => $contract->monthly_rent,
+                    'status' => Invoice::STATUS_UNPAID,
+                ]);
+                $firstMonthInvoice->forceFill(['invoice_code' => sprintf('FMR-%04d%02d-%06d', $contract->start_date->year, $contract->start_date->month, $firstMonthInvoice->id)])->save();
+                $firstMonthInvoice->details()->create([
+                    'type' => Invoice::TYPE_FIRST_MONTH_RENT, 'name' => 'Tiền phòng tháng đầu '.$contract->start_date->format('m/Y'),
+                    'quantity' => 1, 'unit' => 'tháng', 'unit_price' => $contract->monthly_rent,
+                    'amount' => $contract->monthly_rent, 'note' => 'Tiền phòng tháng đầu trả trước, tách biệt với tiền cọc', 'sort_order' => 1,
+                ]);
+            }
             if (! $contract->deposit_due_at) {
                 $contract->forceFill(['deposit_due_at' => Carbon::parse($dueAt)])->save();
             }
 
-            return $invoice;
+            return $depositInvoice;
         }, 3);
     }
 
@@ -297,33 +305,39 @@ class ContractLifecycleService
         return DB::transaction(function () use ($contract, $actor, $reason): Contract {
             $contract = $this->lockContract($contract);
             $invoices = Invoice::query()->where('contract_id', $contract->id)
-                ->whereIn('invoice_type', [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT])->lockForUpdate()->get();
-            $paid = (float) DB::table('payments')->whereIn('invoice_id', $invoices->pluck('id'))
-                ->where('status', 'success')->lockForUpdate()->sum('amount_paid');
-            $required = (float) $contract->deposit_amount;
-            $enough = $required <= 0 || round($paid, 2) >= round($required, 2);
+                ->whereIn('invoice_type', [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT])
+                ->lockForUpdate()->get()->keyBy('invoice_type');
+            $paidFor = fn (string $type): float => ($invoice = $invoices->get($type))
+                ? (float) DB::table('payments')->where('invoice_id', $invoice->id)
+                    ->where('status', 'success')->lockForUpdate()->sum('amount_paid')
+                : 0.0;
+            $depositPaid = $paidFor(Invoice::TYPE_DEPOSIT);
+            $firstMonthPaid = $paidFor(Invoice::TYPE_FIRST_MONTH_RENT);
+            $depositRequired = (float) $contract->deposit_amount;
+            $firstMonthRequired = (float) $contract->monthly_rent;
+            $depositEnough = $depositRequired <= 0 || round($depositPaid, 2) >= round($depositRequired, 2);
+            $firstMonthEnough = round($firstMonthPaid, 2) >= round($firstMonthRequired, 2);
+            $enough = $depositEnough && $firstMonthEnough;
             $contract->forceFill([
-                'deposit_status' => $enough ? Contract::DEPOSIT_PAID : Contract::DEPOSIT_PENDING,
-                'deposit_paid_at' => $enough && $required > 0 ? ($contract->deposit_paid_at ?: now()) : null,
-                'deposit_resolution' => $enough ? Contract::DEPOSIT_NOT_REQUIRED : null,
+                'deposit_status' => $depositEnough ? Contract::DEPOSIT_PAID : Contract::DEPOSIT_PENDING,
+                'deposit_paid_at' => $depositEnough && $depositRequired > 0 ? ($contract->deposit_paid_at ?: now()) : null,
+                'deposit_resolution' => null,
             ])->save();
 
             if ($enough && $contract->status === Contract::STATUS_PENDING_DEPOSIT) {
                 $this->ensureScheduleIsComplete($contract);
                 $this->transition($contract, Contract::STATUS_AWAITING_MOVE_IN, 'deposit_completed', $reason, $actor, [
-                    'paid' => $paid,
-                    'required' => $required,
+                    'deposit_paid' => $depositPaid, 'deposit_required' => $depositRequired,
+                    'first_month_paid' => $firstMonthPaid, 'first_month_required' => $firstMonthRequired,
                 ]);
                 $this->resolveAlerts($contract, ['deposit_overdue']);
             } elseif (! $enough && $contract->status === Contract::STATUS_AWAITING_MOVE_IN) {
-                $this->transition($contract, Contract::STATUS_PENDING_DEPOSIT, 'deposit_reversed', $reason ?: 'Tiền phòng tháng đầu không còn đủ sau đối soát.', $actor, [
-                    'paid' => $paid,
-                    'required' => $required,
+                $this->transition($contract, Contract::STATUS_PENDING_DEPOSIT, 'deposit_reversed', $reason ?: 'Tiền cọc hoặc tiền phòng tháng đầu không còn đủ sau đối soát.', $actor, [
+                    'deposit_paid' => $depositPaid, 'first_month_paid' => $firstMonthPaid,
                 ]);
             } elseif (! $enough && in_array($contract->status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED], true)) {
-                $this->alert($contract, 'deposit_exception', 'Ngoại lệ tiền phòng tháng đầu', 'Thanh toán thành công cho tháng đầu thấp hơn mức yêu cầu sau khi khách đã nhận phòng.', [
-                    'paid' => $paid,
-                    'required' => $required,
+                $this->alert($contract, 'deposit_exception', 'Ngoại lệ khoản thu ban đầu', 'Tiền cọc hoặc tiền phòng tháng đầu thấp hơn mức yêu cầu sau khi khách đã nhận phòng.', [
+                    'deposit_paid' => $depositPaid, 'first_month_paid' => $firstMonthPaid,
                 ]);
             }
 
@@ -394,7 +408,10 @@ class ContractLifecycleService
                 $this->fail('contract', 'Hợp đồng chưa có ngày ký hợp lệ.');
             }
             if ((float) $contract->deposit_amount > 0 && $contract->deposit_remaining_amount > 0) {
-                $this->fail('deposit', 'Tiền phòng tháng đầu chưa được thanh toán đủ.');
+                $this->fail('deposit', 'Tiền cọc chưa được thanh toán đủ.');
+            }
+            if ($contract->first_month_rent_remaining_amount > 0) {
+                $this->fail('first_month_rent', 'Tiền phòng tháng đầu chưa được thanh toán đủ.');
             }
             $moveInAt = Carbon::parse($data['actual_move_in_at']);
             if ($moveInAt->isFuture()) {
@@ -538,15 +555,15 @@ class ContractLifecycleService
                 'cancelled_at' => now(),
                 'cancelled_by' => $actor->id,
                 'cancel_reason' => $reason,
-                'deposit_resolution' => Contract::DEPOSIT_NOT_REQUIRED,
+                'deposit_resolution' => $paid > 0 ? Contract::DEPOSIT_NEEDS_RESOLUTION : null,
             ])->save();
             $this->occupantService->withdrawForCancellation($contract, $actor, $reason);
             $this->transition($contract, Contract::STATUS_CANCELLED, 'cancel', $reason, $actor, [
                 'deposit_received' => $paid,
-                'deposit_requires_resolution' => false,
+                'deposit_requires_resolution' => $paid > 0,
             ]);
             if ($paid > 0) {
-                $this->alert($contract, 'cancelled_first_month_payment', 'Hợp đồng hủy đã thu tiền tháng đầu', 'Khoản tiền phòng tháng đầu đã thu không được hệ thống tự động hoàn; admin cần lưu kết quả xử lý việc hủy theo thỏa thuận.', ['paid' => $paid]);
+                $this->alert($contract, 'cancelled_deposit_resolution', 'Hợp đồng hủy có khoản đã thu cần xử lý', 'Hợp đồng đã hủy sau khi phát sinh thanh toán; admin cần xác định tiền cọc được hoàn, khấu trừ hay giữ lại theo thỏa thuận.', ['paid' => $paid]);
             }
             $this->resolveAlerts($contract, ['signature_overdue', 'deposit_overdue', 'move_in_overdue']);
             app(TenantAccountLifecycle::class)->sync($contract->tenant()->with('user')->firstOrFail());
@@ -683,7 +700,17 @@ class ContractLifecycleService
                 }
             }
 
-            $resolution = Contract::DEPOSIT_NOT_REQUIRED;
+            $resolution = (float) $contract->deposit_amount <= 0
+                ? Contract::DEPOSIT_NOT_REQUIRED
+                : ($data['deposit_resolution'] ?? null);
+            if ((float) $contract->deposit_amount > 0
+                && ! in_array($resolution, [Contract::DEPOSIT_REFUNDED, Contract::DEPOSIT_DEDUCTED, Contract::DEPOSIT_RETAINED], true)) {
+                $this->fail('deposit_resolution', 'Phải ghi rõ tiền cọc đã hoàn, khấu trừ hay giữ lại.');
+            }
+            if (in_array($resolution, [Contract::DEPOSIT_DEDUCTED, Contract::DEPOSIT_RETAINED], true)
+                && blank($data['settlement_note'] ?? null)) {
+                $this->fail('settlement_note', 'Khấu trừ hoặc giữ cọc bắt buộc có lý do/chứng từ.');
+            }
 
             $contract->forceFill([
                 'deposit_resolution' => $resolution,
@@ -748,7 +775,7 @@ class ContractLifecycleService
         $created = 0;
         $definitions = [
             [Contract::STATUS_PENDING_SIGNATURE, 'signature_due_at', 'signature_overdue', 'Quá hạn ký hợp đồng', 'Hợp đồng đã quá hạn ký và cần admin xử lý.'],
-            [Contract::STATUS_PENDING_DEPOSIT, 'deposit_due_at', 'deposit_overdue', 'Quá hạn tiền phòng tháng đầu', 'Hợp đồng chưa thanh toán đủ tiền phòng tháng đầu sau hạn thanh toán.'],
+            [Contract::STATUS_PENDING_DEPOSIT, 'deposit_due_at', 'deposit_overdue', 'Quá hạn khoản thu ban đầu', 'Hợp đồng chưa thanh toán đủ tiền cọc và tiền phòng tháng đầu sau hạn thanh toán.'],
             [Contract::STATUS_AWAITING_MOVE_IN, 'reservation_expires_at', 'move_in_overdue', 'Quá hạn nhận phòng', 'Đã quá hạn giữ phòng; hệ thống không tự hủy hợp đồng.'],
         ];
         foreach ($definitions as [$status, $column, $type, $title, $message]) {

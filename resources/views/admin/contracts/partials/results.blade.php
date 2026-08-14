@@ -2,7 +2,7 @@
     $statusOptions = [
         'draft' => ['label' => 'Bản nháp', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'],
         'pending_signature' => ['label' => 'Chờ ký', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
-        'pending_deposit' => ['label' => 'Chờ tiền tháng đầu', 'class' => 'bg-orange-50 text-orange-700 ring-orange-200', 'dot' => 'bg-orange-500'],
+        'pending_deposit' => ['label' => 'Chờ cọc và tiền tháng đầu', 'class' => 'bg-orange-50 text-orange-700 ring-orange-200', 'dot' => 'bg-orange-500'],
         'awaiting_move_in' => ['label' => 'Chờ nhận phòng', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200', 'dot' => 'bg-sky-500'],
         'active' => ['label' => 'Đang thuê', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
         'expired' => ['label' => 'Quá hạn vẫn ở', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
@@ -39,7 +39,7 @@
                     <tr class="hover:bg-slate-50/70">
                         <td class="px-5 py-4">
                             <p class="font-semibold text-slate-950">{{ $contract->contract_code ?: 'HD' . str_pad($contract->id, 3, '0', STR_PAD_LEFT) }}</p>
-                            <p class="mt-1 text-xs text-slate-500">Tiền phòng tháng đầu {{ number_format($contract->deposit_amount ?? 0, 0, ',', '.') }}đ</p>
+                            <p class="mt-1 text-xs text-slate-500">Cọc {{ number_format($contract->deposit_amount ?? 0, 0, ',', '.') }}đ + phòng tháng đầu {{ number_format($contract->monthly_rent ?? 0, 0, ',', '.') }}đ</p>
                         </td>
                         <td class="px-5 py-4">
                             <p class="font-medium text-slate-900">{{ $contract->tenant->full_name ?? 'Không có' }}</p>

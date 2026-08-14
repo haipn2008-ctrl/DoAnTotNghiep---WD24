@@ -217,7 +217,12 @@ class Invoice extends Model
 
     public function isFirstMonthRent(): bool
     {
-        return in_array($this->invoice_type, [self::TYPE_FIRST_MONTH_RENT, self::TYPE_DEPOSIT], true);
+        return $this->invoice_type === self::TYPE_FIRST_MONTH_RENT;
+    }
+
+    public function isDeposit(): bool
+    {
+        return $this->invoice_type === self::TYPE_DEPOSIT;
     }
 
     /**

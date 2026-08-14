@@ -22,7 +22,7 @@
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
                 <a href="{{ route('client.invoices.index') }}" class="text-sm font-semibold text-indigo-700">← Hóa đơn của tôi</a>
-                <h2 class="mt-2 text-2xl font-bold text-slate-950">{{ $invoice->isFirstMonthRent() ? 'Hóa đơn tiền phòng tháng đầu' : 'Hóa đơn tháng '.$invoice->month.'/'.$invoice->year }}</h2>
+                <h2 class="mt-2 text-2xl font-bold text-slate-950">{{ $invoice->isDeposit() ? 'Hóa đơn tiền cọc' : ($invoice->isFirstMonthRent() ? 'Hóa đơn tiền phòng tháng đầu' : 'Hóa đơn tháng '.$invoice->month.'/'.$invoice->year) }}</h2>
                 <p class="mt-1 text-sm text-slate-500">{{ $invoice->invoice_code }} · Phòng {{ $invoice->room->room_code ?? '-' }}</p>
             </div>
             <a href="{{ route('client.invoices.print', $invoice) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm"><i class="bx bx-printer text-lg"></i>In hóa đơn</a>

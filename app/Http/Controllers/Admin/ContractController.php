@@ -107,10 +107,13 @@ class ContractController extends Controller
         $totalOutstanding = max(0, $totalInvoiced - $totalPaid);
         $depositPaid = $contract->deposit_paid_amount;
         $depositRemaining = $contract->deposit_remaining_amount;
+        $firstMonthPaid = $contract->first_month_rent_paid_amount;
+        $firstMonthRemaining = $contract->first_month_rent_remaining_amount;
 
         return view('admin.contracts.show', compact(
             'contract', 'handoverReading', 'checkoutReading', 'latestReading', 'setting',
-            'totalInvoiced', 'totalPaid', 'totalOutstanding', 'depositPaid', 'depositRemaining'
+            'totalInvoiced', 'totalPaid', 'totalOutstanding', 'depositPaid', 'depositRemaining',
+            'firstMonthPaid', 'firstMonthRemaining'
         ));
     }
 
@@ -225,13 +228,13 @@ class ContractController extends Controller
         try {
             $invoice = $this->lifecycle->issueDepositInvoice($contract, $request->user());
         } catch (QueryException $exception) {
-            $invoice = $contract->invoices()->whereIn('invoice_type', [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT])->first();
+            $invoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->first();
             if (! $invoice) {
                 throw $exception;
             }
         }
 
-        return redirect()->route('admin.invoices.show', $invoice)->with('success', 'Đã phát hành hóa đơn tiền phòng tháng đầu.');
+        return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã phát hành riêng hóa đơn tiền cọc và hóa đơn tiền phòng tháng đầu.');
     }
 
     public function checkIn(Request $request, Contract $contract)
@@ -301,6 +304,7 @@ class ContractController extends Controller
     {
         Gate::authorize('manageLifecycle', $contract);
         $data = $request->validate([
+            'deposit_resolution' => ['nullable', Rule::in([Contract::DEPOSIT_REFUNDED, Contract::DEPOSIT_DEDUCTED, Contract::DEPOSIT_RETAINED])],
             'settlement_note' => ['nullable', 'string', 'max:2000'],
             'write_off_outstanding' => ['nullable', 'boolean'],
             'write_off_reason' => ['nullable', 'required_if:write_off_outstanding,1', 'string', 'max:2000'],

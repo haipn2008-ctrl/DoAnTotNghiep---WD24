@@ -151,7 +151,7 @@
             </div>
             <div class="grid gap-4 p-5 sm:grid-cols-2">
                 <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Tiền phòng mỗi tháng</p><p class="mt-2 text-lg font-bold text-slate-950">{{ number_format($contract->monthly_rent, 0, ',', '.') }}đ</p></div>
-                <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Tiền phòng tháng đầu trả trước</p><p class="mt-2 text-lg font-bold text-slate-950">{{ number_format($contract->deposit_amount, 0, ',', '.') }}đ</p></div>
+                <div class="rounded-lg bg-slate-50 p-4"><p class="text-sm text-slate-500">Cọc + tiền phòng tháng đầu</p><p class="mt-2 text-lg font-bold text-slate-950">{{ number_format($contract->deposit_amount + $contract->monthly_rent, 0, ',', '.') }}đ</p></div>
             </div>
         </section>
 

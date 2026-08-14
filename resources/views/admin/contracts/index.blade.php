@@ -43,7 +43,7 @@
                         <option value="">Tất cả trạng thái</option>
                         <option value="draft" @selected(request('status') === 'draft')>Bản nháp</option>
                         <option value="pending_signature" @selected(request('status') === 'pending_signature')>Chờ ký</option>
-                        <option value="pending_deposit" @selected(request('status') === 'pending_deposit')>Chờ tiền tháng đầu</option>
+                        <option value="pending_deposit" @selected(request('status') === 'pending_deposit')>Chờ cọc và tiền tháng đầu</option>
                         <option value="awaiting_move_in" @selected(request('status') === 'awaiting_move_in')>Chờ nhận phòng</option>
                         <option value="active" @selected(request('status') === 'active')>Đang thuê</option>
                         <option value="expired" @selected(request('status') === 'expired')>Quá hạn vẫn ở</option>

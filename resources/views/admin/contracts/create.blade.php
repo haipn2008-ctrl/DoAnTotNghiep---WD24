@@ -116,8 +116,8 @@
                 </div>
 
                 <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 md:col-span-2">
-                    <p class="text-sm font-semibold text-indigo-950">Tiền phòng tháng đầu trả trước</p>
-                    <p class="mt-1 text-sm text-indigo-800">Hệ thống lấy đúng một tháng tiền phòng theo phòng đã chọn. Khoản này chỉ được thu sau khi ký, được cấn toàn bộ vào tháng đầu và không hoàn lại khi kết thúc hợp đồng.</p>
+                    <p class="text-sm font-semibold text-indigo-950">Khoản phải đóng sau khi ký: 1 tháng cọc + 1 tháng tiền phòng</p>
+                    <p class="mt-1 text-sm text-indigo-800">Mỗi khoản bằng đúng giá thuê tháng của phòng đã chọn và được lập thành hai hóa đơn riêng. Phải thanh toán đủ cả hai trước khi nhận phòng; tiền cọc được giữ để quyết toán cuối hợp đồng.</p>
                 </div>
 
                 @include('admin.contracts.partials.service-fields', [
