@@ -28,6 +28,11 @@
         </div>
     </div>
 
+    <div class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <strong>Lưu ý khi khai báo trẻ em:</strong>
+        Người ở dưới 14 tuổi không bắt buộc nhập số căn cước, ảnh căn cước và số điện thoại.
+    </div>
+
     <div data-occupant-list class="space-y-3 p-4">
         @foreach($selectedOccupants as $index => $occupant)
             @include('admin.contracts.partials.occupant-row', ['index' => $index, 'occupant' => $occupant])

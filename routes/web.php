@@ -2,6 +2,10 @@
 
 // Admin routes
 use App\Http\Controllers\Admin\ContractController;
+use App\Http\Controllers\Admin\ContractOccupantController;
+use App\Http\Controllers\Admin\ContractExtensionRequestController as AdminContractExtensionRequestController;
+use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminContractTerminationRequestController;
+use App\Http\Controllers\Admin\DepositRefundController as AdminDepositRefundController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\OverviewController;
@@ -14,29 +18,25 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
 use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Admin\ContractExtensionRequestController as AdminContractExtensionRequestController;
-use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminContractTerminationRequestController;
-use App\Http\Controllers\Admin\DepositRefundController as AdminDepositRefundController;
-
-
-// Client routes
 use App\Http\Controllers\Client\AccountController as ClientAccountController;
-use App\Http\Controllers\Client\DepositRefundController as ClientDepositRefundController;
 use App\Http\Controllers\Client\ContractController as ClientContractController;
+use App\Http\Controllers\Client\ContractOccupantController as ClientContractOccupantController;
+use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
+use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
+use App\Http\Controllers\Client\DepositRefundController as ClientDepositRefundController;
+use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\RoomController as ClientRoomController;
 use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
-use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
-use App\Http\Controllers\Client\RequestHistoryController;
-use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
+use App\Services\ContractLifecycleService;
 use Illuminate\Support\Facades\Route;
 
 // Tự động chuyển hướng về trang dashboard để kiểm tra đăng nhập
@@ -73,146 +73,92 @@ Route::middleware('auth')->group(function () {
                 ->name('rooms.evidence.store');
             Route::resource('rooms', RoomController::class);
 
-        // =====================================================
-        // QUẢN LÝ HỢP ĐỒNG THUÊ PHÒNG
-        // =====================================================
+            // Chức năng thêm sửa xoá khách thuê
+            Route::get('tenants/export', [TenantController::class, 'export'])
+                ->name('tenants.export');
+            Route::resource('tenants', TenantController::class);
 
-        Route::post(
-            'contracts/{contract}/terminate',
-            [ContractController::class, 'end']
-        )->name('contracts.terminate');
+            // Quản lý hợp đồng thuê phòng
 
-        Route::post(
-            'contracts/{contract}/extend',
-            [ContractController::class, 'extend']
-        )->name('contracts.extend');
+            Route::view('contracts/template', 'admin.contracts.template')
+                ->name('contracts.template');
+            Route::view('contracts/template/print', 'admin.contracts.template-print')
+                ->name('contracts.template.print');
 
-        // In hợp đồng cụ thể
-        Route::get(
-            'contracts/{id}/print',
-            [ContractController::class, 'print']
-        )->whereNumber('id')->name('contracts.print');
+            // Danh sách kết thúc hợp đồng (ĐẶT TRƯỚC resource)
+            Route::get('contracts/end', [ContractController::class, 'endList'])
+                ->name('contracts.end.list');
 
-        // Mẫu hợp đồng trắng
-        Route::get(
-            'contracts/template',
-            function () {
-                return view('admin.contracts.template');
-            }
-        )->name('contracts.template');
+            // Xử lý kết thúc hợp đồng
+            Route::post('contracts/{id}/end', [ContractController::class, 'end'])
+                ->name('contracts.end');
 
-        // In mẫu hợp đồng trắng
-        Route::get(
-            'contracts/template/print',
-            function () {
-                return view('admin.contracts.template-print');
-            }
-        )->name('contracts.template.print');
-        // Hoàn cọc
-        Route::get(
-            'deposit-refunds',
-            [AdminDepositRefundController::class, 'index']
-        )->name('deposit-refunds.index');
+            // Form kết thúc hợp đồng
+            Route::get('contracts/{id}/end-form', [ContractController::class, 'endForm'])->name('contracts.end.form');
 
-        Route::post(
-            'deposit-refunds/{contract}/approve',
-            [AdminDepositRefundController::class, 'approve']
-        )->name('deposit-refunds.approve');
+            // Danh sách gia hạn hợp đồng
+            Route::get('contracts/extend', [ContractController::class, 'extendList'])
+                ->name('contracts.extend.list');
 
-        Route::post(
-            'deposit-refunds/{contract}/complete',
-            [AdminDepositRefundController::class, 'complete']
-        )->name('deposit-refunds.complete');
+            // Form gia hạn
+            Route::get('contracts/{id}/extend-form', [ContractController::class, 'extendForm'])
+                ->name('contracts.extend.form');
 
-        Route::post(
-            'deposit-refunds/{contract}/reject',
-            [AdminDepositRefundController::class, 'reject']
-        )->name('deposit-refunds.reject');
+            // Xử lý gia hạn
+            Route::post('contracts/{id}/extend', [ContractController::class, 'extend'])
+                ->name('contracts.extend');
 
-        Route::get(
-            'deposit-refunds/{contract}/qr',
-            [AdminDepositRefundController::class, 'qr']
-        )->name('deposit-refunds.qr');
+            // In hợp đồng
+            Route::get('contracts/{id}/print', [ContractController::class, 'print'])
+                ->name('contracts.print');
+            Route::get('contracts/{contract}/file', [ContractController::class, 'file'])
+                ->name('contracts.file');
 
-        Route::get(
-            'deposit-refunds/{contract}/proof',
-            [AdminDepositRefundController::class, 'proof']
-        )->name('deposit-refunds.proof');
+            Route::post('contracts/{contract}/deposit-invoice', [ContractController::class, 'issueDepositInvoice'])
+                ->name('contracts.deposit-invoice.issue');
 
-        Route::post(
-            'contracts/{contract}/send-signature',
-            [ContractController::class, 'sendSignature']
-        )->name('contracts.send-signature');
+            Route::post('contracts/{contract}/submit-for-signature', [ContractController::class, 'submitForSignature'])
+                ->name('contracts.submit-for-signature');
+            Route::post('contracts/{contract}/return-to-draft', [ContractController::class, 'returnToDraft'])
+                ->name('contracts.return-to-draft');
+            Route::post('contracts/{contract}/mark-signed', [ContractController::class, 'markAsSigned'])
+                ->name('contracts.mark-signed');
+            Route::post('contracts/{contract}/check-in', [ContractController::class, 'checkIn'])
+                ->name('contracts.check-in');
+            Route::post('contracts/{contract}/extend-move-in-deadline', [ContractController::class, 'extendMoveInDeadline'])
+                ->name('contracts.extend-move-in-deadline');
+            Route::post('contracts/{contract}/cancel', [ContractController::class, 'cancel'])
+                ->name('contracts.cancel');
+            Route::post('contracts/{contract}/check-out', [ContractController::class, 'checkOut'])
+                ->name('contracts.check-out');
+            Route::post('contracts/{contract}/complete-settlement', [ContractController::class, 'completeSettlement'])
+                ->name('contracts.complete-settlement');
+            Route::post('contract-occupants/{occupant}/approve', [ContractOccupantController::class, 'approve'])
+                ->name('contract-occupants.approve');
+            Route::post('contract-occupants/{occupant}/reject', [ContractOccupantController::class, 'reject'])
+                ->name('contract-occupants.reject');
+            Route::post('contract-occupants/{occupant}/move-out', [ContractOccupantController::class, 'moveOut'])
+                ->name('contract-occupants.move-out');
+            Route::get('contract-occupants/{occupant}/identity/{side}', [ContractController::class, 'identityDocument'])
+                ->whereIn('side', ['front', 'back'])
+                ->name('contract-occupants.identity-document');
 
-        Route::post(
-            'contracts/{contract}/recall-signature',
-            [ContractController::class, 'recallSignature']
-        )->name('contracts.recall-signature');
+            // Resource phải đặt SAU CÙNG
+            Route::resource('contracts', ContractController::class)->except(['destroy']);
 
-        Route::post(
-            'contracts/{contract}/confirm-signature',
-            [ContractController::class, 'confirmSignature']
-        )->name('contracts.confirm-signature');
+            Route::get('deposit-refunds', [AdminDepositRefundController::class, 'index'])->name('deposit-refunds.index');
+            Route::post('deposit-refunds/{contract}/approve', [AdminDepositRefundController::class, 'approve'])->name('deposit-refunds.approve');
+            Route::post('deposit-refunds/{contract}/complete', [AdminDepositRefundController::class, 'complete'])->name('deposit-refunds.complete');
+            Route::post('deposit-refunds/{contract}/reject', [AdminDepositRefundController::class, 'reject'])->name('deposit-refunds.reject');
+            Route::get('deposit-refunds/{contract}/qr', [AdminDepositRefundController::class, 'qr'])->name('deposit-refunds.qr');
+            Route::get('deposit-refunds/{contract}/proof', [AdminDepositRefundController::class, 'proof'])->name('deposit-refunds.proof');
 
-        Route::post(
-            'contracts/{contract}/confirm-deposit',
-            [ContractController::class, 'confirmDeposit']
-        )->name('contracts.confirm-deposit');
-
-        Route::post(
-            'contracts/{contract}/activate',
-            [ContractController::class, 'activate']
-        )->name('contracts.activate');
-
-        Route::get(
-            'contracts/{contract}/modal',
-            [ContractController::class, 'modal']
-        )->name('contracts.modal');
-
-        // Yêu cầu gia hạn
-        Route::get(
-            'extension-requests',
-            [AdminContractExtensionRequestController::class, 'index']
-        )->name('extension-requests.index');
-
-        Route::post(
-            'extension-requests/{extensionRequest}/approve',
-            [AdminContractExtensionRequestController::class, 'approve']
-        )->name('extension-requests.approve');
-
-        Route::post(
-            'extension-requests/{extensionRequest}/reject',
-            [AdminContractExtensionRequestController::class, 'reject']
-        )->name('extension-requests.reject');
-
-        // Yêu cầu trả phòng
-        Route::get(
-            'termination-requests',
-            [AdminContractTerminationRequestController::class, 'index']
-        )->name('termination-requests.index');
-
-        Route::post(
-            'termination-requests/{terminationRequest}/approve',
-            [AdminContractTerminationRequestController::class, 'approve']
-        )->name('termination-requests.approve');
-
-        Route::post(
-            'termination-requests/{terminationRequest}/reject',
-            [AdminContractTerminationRequestController::class, 'reject']
-        )->name('termination-requests.reject');
-
-        // Khách thuê
-        Route::get('tenants/export', [TenantController::class, 'export'])
-             ->name('tenants.export');
-        Route::resource('tenants', TenantController::class);
-
-        // Tải file hợp đồng
-        Route::get('contracts/{contract}/file', [ContractController::class, 'file'])
-            ->name('contracts.file');
-
-        // Resource hợp đồng đặt sau các route cụ thể
-        Route::resource('contracts', ContractController::class);
-        //
+            Route::get('extension-requests', [AdminContractExtensionRequestController::class, 'index'])->name('extension-requests.index');
+            Route::post('extension-requests/{extensionRequest}/approve', [AdminContractExtensionRequestController::class, 'approve'])->name('extension-requests.approve');
+            Route::post('extension-requests/{extensionRequest}/reject', [AdminContractExtensionRequestController::class, 'reject'])->name('extension-requests.reject');
+            Route::get('termination-requests', [AdminContractTerminationRequestController::class, 'index'])->name('termination-requests.index');
+            Route::post('termination-requests/{terminationRequest}/approve', [AdminContractTerminationRequestController::class, 'approve'])->name('termination-requests.approve');
+            Route::post('termination-requests/{terminationRequest}/reject', [AdminContractTerminationRequestController::class, 'reject'])->name('termination-requests.reject');
             //
             // Chức năng điện nước
             Route::get('/utilities/create', [UtilityController::class, 'create'])
@@ -251,9 +197,6 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/invoices/contracts/{contract}/preview', [InvoiceController::class, 'preview'])
                 ->name('invoices.preview');
-
-            Route::post('/contracts/{contract}/deposit-invoice', [InvoiceController::class, 'createDepositInvoice'])
-                ->name('contracts.deposit-invoice');
 
             Route::post('/invoices/contracts/{contract}/issue', [InvoiceController::class, 'issue'])
                 ->name('invoices.issue');
@@ -299,8 +242,9 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');
             Route::get('/support/{supportRequest}/attachment', [AdminSupportController::class, 'attachment'])->name('support.attachment');
-            Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
             Route::put('/support/{supportRequest}', [AdminSupportController::class, 'update'])->name('support.update');
+
+            Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
 
             Route::get('/roles', function () {
                 $roles = Role::all();
@@ -309,6 +253,9 @@ Route::middleware('auth')->group(function () {
             })->name('roles');
 
             Route::get('/', function () {
+                // Scheduler vẫn là nguồn xử lý chính; lần mở dashboard này là fallback idempotent
+                // để Admin luôn thấy cảnh báo mới trên chuông ngay cả khi local scheduler chưa chạy.
+                app(ContractLifecycleService::class)->processDailyAlerts();
                 $currentMonth = now()->month;
                 $currentYear = now()->year;
 
@@ -338,91 +285,39 @@ Route::middleware('auth')->group(function () {
 
                 return view('layouts.admin.home', compact('stats', 'recentInvoices', 'recentContracts'));
             })->name('home');
+        });
 
-    });
-        // Client portal
         Route::prefix('client')->name('client.')->middleware('role:client')->group(function () {
             Route::get('/', [ClientDashboardController::class, 'index'])->name('home');
-
-            // Hóa đơn
             Route::get('/invoices', [ClientInvoiceController::class, 'index'])->name('invoices.index');
             Route::get('/invoices/{invoice}', [ClientInvoiceController::class, 'show'])->name('invoices.show');
             Route::get('/invoices/{invoice}/print', [ClientInvoiceController::class, 'print'])->name('invoices.print');
-            Route::post('/invoices/{invoice}/payments', [ClientInvoiceController::class, 'storePayment'])
-                ->name('invoices.payments.store');
-
-            // Điện nước
-            Route::get('/utilities', [ClientUtilityController::class, 'index'])
-                ->middleware('rental.active')->name('utilities.index');
-            Route::get('/utilities/{reading}/{type}-image', [ClientUtilityController::class, 'image'])
-                ->middleware('rental.active')->name('utilities.image');
-
-            // Phòng
-            Route::get('/room', [ClientRoomController::class, 'show'])
-                ->middleware('rental.active')->name('room.show');
-
-            // Hợp đồng
+            Route::post('/invoices/{invoice}/payments', [ClientInvoiceController::class, 'storePayment'])->name('invoices.payments.store');
+            Route::get('/utilities', [ClientUtilityController::class, 'index'])->middleware('rental.active')->name('utilities.index');
+            Route::get('/utilities/{reading}/{type}-image', [ClientUtilityController::class, 'image'])->middleware('rental.active')->name('utilities.image');
+            Route::get('/room', [ClientRoomController::class, 'show'])->middleware('rental.active')->name('room.show');
             Route::get('/contracts', [ClientContractController::class, 'index'])->name('contracts.index');
             Route::get('/contracts/{contract}', [ClientContractController::class, 'show'])->name('contracts.show');
             Route::get('/contracts/{contract}/file', [ClientContractController::class, 'file'])->name('contracts.file');
-            Route::get('/contracts/{contract}/print', [ClientContractController::class, 'print'])->name('contracts.print');
-            Route::get('/contracts/{contract}/download', [ClientContractController::class, 'download'])->name('contracts.download');
-            Route::post('/contracts/{contract}/sign', [ClientContractController::class, 'sign'])->name('contracts.sign');
-            Route::post('/contracts/{contract}/schedule-move-in', [ClientContractController::class, 'scheduleMoveIn'])
-                ->name('contracts.schedule-move-in');
-            Route::post('/contracts/{contract}/confirm-move-in', [ClientContractController::class, 'confirmMoveIn'])
-                ->name('contracts.confirm-move-in');
-            // Yêu cầu hoàn cọc
-            Route::get(
-                '/deposit-refunds/{contract}',
-                [ClientDepositRefundController::class, 'index']
-            )->name('deposit-refunds.index');
-
-            Route::post(
-                '/contracts/{contract}/deposit-refund',
-                [ClientDepositRefundController::class, 'store']
-            )->name('deposit-refunds.store');
-
-            Route::get(
-                '/contracts/{contract}/deposit-refund/qr',
-                [ClientDepositRefundController::class, 'qr']
-            )->name('deposit-refunds.qr');
-
-            // Bằng chứng Admin đã chuyển tiền hoàn cọc
-            Route::get(
-                '/contracts/{contract}/deposit-refund/proof',
-                [ClientDepositRefundController::class, 'proof']
-            )->name('deposit-refunds.proof');
-
-            // Yêu cầu gia hạn
-            Route::get('/extension-requests', [ClientContractExtensionRequestController::class, 'index'])
-                ->name('extension-requests.index');
-            Route::post('/extension-requests', [ClientContractExtensionRequestController::class, 'store'])
-                ->name('extension-requests.store');
-
-            // Yêu cầu trả phòng
-            Route::get('/termination-requests', [ClientContractTerminationRequestController::class, 'index'])
-                ->name('termination-requests.index');
-            Route::post('/termination-requests', [ClientContractTerminationRequestController::class, 'store'])
-                ->name('termination-requests.store');
-
-            // Hỗ trợ
-            Route::get('/support', [ClientSupportController::class, 'index'])
-                ->middleware('rental.active')->name('support.index');
-            Route::post('/support', [ClientSupportController::class, 'store'])
-                ->middleware('rental.active')->name('support.store');
-            Route::get('/support/{supportRequest}/attachment', [ClientSupportController::class, 'attachment'])
-                ->middleware('rental.active')->name('support.attachment');
-
-            // Tài khoản
+            Route::post('/contracts/{contract}/move-in-details/confirm', [ClientContractController::class, 'confirmMoveInDetails'])
+                ->name('contracts.move-in-details.confirm');
+            Route::post('/contracts/{contract}/occupants', [ClientContractOccupantController::class, 'store'])->name('contracts.occupants.store');
+            Route::post('/contracts/{contract}/occupants/{occupant}/withdraw', [ClientContractOccupantController::class, 'withdraw'])->name('contracts.occupants.withdraw');
+            Route::get('/deposit-refunds/{contract}', [ClientDepositRefundController::class, 'index'])->name('deposit-refunds.index');
+            Route::post('/contracts/{contract}/deposit-refund', [ClientDepositRefundController::class, 'store'])->name('deposit-refunds.store');
+            Route::get('/contracts/{contract}/deposit-refund/qr', [ClientDepositRefundController::class, 'qr'])->name('deposit-refunds.qr');
+            Route::get('/contracts/{contract}/deposit-refund/proof', [ClientDepositRefundController::class, 'proof'])->name('deposit-refunds.proof');
+            Route::get('/extension-requests', [ClientContractExtensionRequestController::class, 'index'])->name('extension-requests.index');
+            Route::post('/extension-requests', [ClientContractExtensionRequestController::class, 'store'])->name('extension-requests.store');
+            Route::get('/termination-requests', [ClientContractTerminationRequestController::class, 'index'])->name('termination-requests.index');
+            Route::post('/termination-requests', [ClientContractTerminationRequestController::class, 'store'])->name('termination-requests.store');
+            Route::get('/support', [ClientSupportController::class, 'index'])->middleware('rental.active')->name('support.index');
+            Route::post('/support', [ClientSupportController::class, 'store'])->middleware('rental.active')->name('support.store');
+            Route::get('/support/{supportRequest}/attachment', [ClientSupportController::class, 'attachment'])->middleware('rental.active')->name('support.attachment');
             Route::get('/account', [ClientAccountController::class, 'edit'])->name('account.edit');
             Route::put('/account', [ClientAccountController::class, 'update'])->name('account.update');
-            Route::put('/account/password', [ClientAccountController::class, 'updatePassword'])
-                ->name('account.password.update');
-
-            // Lịch sử yêu cầu
-            Route::get('/request-history', [RequestHistoryController::class, 'index'])
-                ->name('requests.history');
+            Route::put('/account/password', [ClientAccountController::class, 'updatePassword'])->name('account.password.update');
+            Route::get('/request-history', [RequestHistoryController::class, 'index'])->name('requests.history');
         });
     });
 });
