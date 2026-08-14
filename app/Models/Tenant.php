@@ -7,11 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class Tenant extends Model
 {
     protected $fillable = [
-
         'user_id',
 
         'full_name',
-
         'date_of_birth',
         'gender',
 
@@ -26,9 +24,7 @@ class Tenant extends Model
     ];
 
     protected $casts = [
-
         'date_of_birth' => 'date',
-
         'cccd_issue_date' => 'date',
     ];
 
@@ -59,17 +55,17 @@ class Tenant extends Model
         );
     }
 
-    // Xe của người thuê (chuẩn bị cho giai đoạn 2)
-    // public function vehicles()
-    // {
-    //     return $this->hasMany(Vehicle::class);
-    // }
+    // Xe của người thuê
+    public function vehicles()
+    {
+        return $this->hasMany(Vehicle::class);
+    }
 
-    // // Người ở (chuẩn bị cho giai đoạn 2)
-    // public function occupants()
-    // {
-    //     return $this->hasMany(Occupant::class);
-    // }
+    // Lịch sử đăng ký tạm trú
+    public function temporaryResidences()
+    {
+        return $this->hasMany(TemporaryResidence::class);
+    }
 
     /*
     |--------------------------------------------------------------------------

@@ -30,9 +30,10 @@
                 ['label' => 'Danh sách khách thuê', 'route' => 'admin.tenants.index', 'active' => request()->routeIs('admin.tenants.index')],
                 ['label' => 'Thêm khách thuê', 'route' => 'admin.tenants.create', 'active' => request()->routeIs('admin.tenants.create')],
                 ['label' => 'Xuất danh sách khách thuê', 'route' => 'admin.tenants.export', 'active' => request()->routeIs('admin.tenants.export')],
+
             ],
         ],
-            [
+        [
             'label' => 'Hợp đồng',
             'icon' => 'bx bx-file',
             'active' => request()->routeIs('admin.contracts*')
@@ -63,7 +64,7 @@
                 ],
             ],
         ],
-            [
+        [
             'label' => 'Điện nước',
             'icon' => 'bx bx-bolt-circle',
             'active' => request()->routeIs('admin.utilities*'),
@@ -107,17 +108,20 @@
     ];
 @endphp
 
-<aside id="admin-sidebar" class="fixed inset-y-0 left-0 z-40 w-72 -translate-x-full border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0">
+<aside id="admin-sidebar"
+    class="fixed inset-y-0 left-0 z-40 w-72 -translate-x-full border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0">
     <div class="flex h-16 items-center justify-between border-b border-slate-200 px-5">
         <a href="{{ route('admin.home') }}" class="flex items-center gap-3">
-            <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-xl font-bold text-white">S</span>
+            <span
+                class="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-xl font-bold text-white">S</span>
             <span>
                 <span class="block text-sm font-bold text-slate-900">Stay Master</span>
                 <span class="block text-xs text-slate-500">Quản lý phòng trọ</span>
             </span>
         </a>
 
-        <button id="admin-sidebar-close" type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden">
+        <button id="admin-sidebar-close" type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden">
             <i class="bx bx-x text-2xl"></i>
         </button>
     </div>
@@ -128,7 +132,8 @@
         <div class="mt-3 space-y-2">
             @foreach ($navGroups as $group)
                 <details class="group rounded-lg" {{ $group['active'] ? 'open' : '' }}>
-                    <summary class="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold {{ $group['active'] ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
+                    <summary
+                        class="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold {{ $group['active'] ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
                         <i class="{{ $group['icon'] }} text-xl"></i>
                         <span class="flex-1">{{ $group['label'] }}</span>
                         <i class="bx bx-chevron-down text-lg transition-transform group-open:rotate-180"></i>
@@ -136,7 +141,8 @@
 
                     <div class="mt-1 space-y-1 pl-10">
                         @foreach ($group['items'] as $item)
-                            <a href="{{ route($item['route'], $item['params'] ?? []) }}" class="block rounded-lg px-3 py-2 text-sm {{ $item['active'] ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
+                            <a href="{{ route($item['route'], $item['params'] ?? []) }}"
+                                class="block rounded-lg px-3 py-2 text-sm {{ $item['active'] ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
                                 {{ $item['label'] }}
                             </a>
                         @endforeach
