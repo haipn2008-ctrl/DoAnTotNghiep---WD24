@@ -5,7 +5,7 @@
             'icon' => 'bx bx-home-alt',
             'active' => request()->routeIs('admin.overview*') || request()->routeIs('admin.home'),
             'items' => [
-                ['label' => 'Bảng điều khiển', 'route' => 'admin.home', 'active' => request()->routeIs('admin.home')],
+                ['label' => 'Dashboard', 'route' => 'admin.home', 'active' => request()->routeIs('admin.home')],
                 ['label' => 'Biểu đồ doanh thu', 'route' => 'admin.overview.revenue-chart', 'active' => request()->routeIs('admin.overview.revenue-chart')],
                 ['label' => 'Thống kê doanh thu', 'route' => 'admin.overview.revenue-stats', 'active' => request()->routeIs('admin.overview.revenue-stats')],
                 ['label' => 'Thống kê phòng', 'route' => 'admin.overview.room-stats', 'active' => request()->routeIs('admin.overview.room-stats')],
@@ -19,6 +19,7 @@
             'items' => [
                 ['label' => 'Danh sách phòng', 'route' => 'admin.rooms.index', 'active' => request()->routeIs('admin.rooms.index')],
                 ['label' => 'Thêm phòng mới', 'route' => 'admin.rooms.create', 'active' => request()->routeIs('admin.rooms.create')],
+                ['label' => 'Xuất danh sách phòng', 'route' => 'admin.rooms.export', 'active' => request()->routeIs('admin.rooms.export')],
             ],
         ],
         [
@@ -28,18 +29,41 @@
             'items' => [
                 ['label' => 'Danh sách khách thuê', 'route' => 'admin.tenants.index', 'active' => request()->routeIs('admin.tenants.index')],
                 ['label' => 'Thêm khách thuê', 'route' => 'admin.tenants.create', 'active' => request()->routeIs('admin.tenants.create')],
+                ['label' => 'Xuất danh sách khách thuê', 'route' => 'admin.tenants.export', 'active' => request()->routeIs('admin.tenants.export')],
             ],
         ],
-        [
+            [
             'label' => 'Hợp đồng',
             'icon' => 'bx bx-file',
-            'active' => request()->routeIs('admin.contracts*'),
+            'active' => request()->routeIs('admin.contracts*')
+                || request()->routeIs('admin.extension-requests*')
+                || request()->routeIs('admin.termination-requests*')
+                || request()->routeIs('admin.deposit-refunds*'),
+
             'items' => [
-                ['label' => 'Tạo hợp đồng thuê', 'route' => 'admin.contracts.create', 'active' => request()->routeIs('admin.contracts.create')],
-                ['label' => 'Danh sách hợp đồng', 'route' => 'admin.contracts.index', 'active' => request()->routeIs('admin.contracts.index')],
+                [
+                    'label' => 'Danh sách hợp đồng',
+                    'route' => 'admin.contracts.index',
+                    'active' => request()->routeIs('admin.contracts.index')
+                ],
+                [
+                    'label' => 'Duyệt gia hạn',
+                    'route' => 'admin.extension-requests.index',
+                    'active' => request()->routeIs('admin.extension-requests*')
+                ],
+                [
+                    'label' => 'Duyệt trả phòng',
+                    'route' => 'admin.termination-requests.index',
+                    'active' => request()->routeIs('admin.termination-requests*')
+                ],
+                [
+                    'label' => 'Xử lý hoàn cọc',
+                    'route' => 'admin.deposit-refunds.index',
+                    'active' => request()->routeIs('admin.deposit-refunds*')
+                ],
             ],
         ],
-        [
+            [
             'label' => 'Điện nước',
             'icon' => 'bx bx-bolt-circle',
             'active' => request()->routeIs('admin.utilities*'),
@@ -74,8 +98,10 @@
             'items' => [
                 ['label' => 'Tài khoản', 'route' => 'admin.users.index', 'active' => request()->routeIs('admin.users*')],
                 ['label' => 'Phân quyền', 'route' => 'admin.roles', 'active' => request()->routeIs('admin.roles')],
-                ['label' => 'Phí dịch vụ', 'route' => 'admin.settings.edit', 'params' => ['type' => 'fees'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'fees']))],
-                ['label' => 'Nhà trọ & thanh toán', 'route' => 'admin.settings.edit', 'params' => ['type' => 'property-payment'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'property-payment']))],
+                ['label' => 'Đơn giá điện', 'route' => 'admin.settings.edit', 'params' => ['type' => 'electricity'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'electricity']))],
+                ['label' => 'Đơn giá nước', 'route' => 'admin.settings.edit', 'params' => ['type' => 'water'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'water']))],
+                ['label' => 'Đơn giá internet', 'route' => 'admin.settings.edit', 'params' => ['type' => 'internet'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'internet']))],
+                ['label' => 'Đơn giá dịch vụ', 'route' => 'admin.settings.edit', 'params' => ['type' => 'service'], 'active' => request()->fullUrlIs(route('admin.settings.edit', ['type' => 'service']))],
             ],
         ],
     ];
@@ -86,7 +112,7 @@
         <a href="{{ route('admin.home') }}" class="flex items-center gap-3">
             <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-xl font-bold text-white">S</span>
             <span>
-                <span class="block text-sm font-bold text-slate-900">Quản lý lưu trú</span>
+                <span class="block text-sm font-bold text-slate-900">Stay Master</span>
                 <span class="block text-xs text-slate-500">Quản lý phòng trọ</span>
             </span>
         </a>

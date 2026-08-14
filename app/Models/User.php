@@ -16,17 +16,12 @@ class User extends Authenticatable
     ];
 
     public const ROLE_ADMIN = 1;
-
     public const ROLE_CLIENT = 2;
 
     public const STATUS_PENDING = 'pending';
-
     public const STATUS_ACTIVE = 'active';
-
     public const STATUS_SETTLING = 'settling';
-
     public const STATUS_LOCKED = 'locked';
-
     public const STATUS_INACTIVE = 'inactive';
 
     protected $fillable = [
@@ -69,6 +64,11 @@ class User extends Authenticatable
         return $this->hasOne(Tenant::class);
     }
 
+    public function contractHistories()
+    {
+        return $this->hasMany(ContractHistory::class);
+    }
+
     public function hasRole(string ...$roles): bool
     {
         $roleName = strtolower((string) $this->role?->role_name);
@@ -94,6 +94,10 @@ class User extends Authenticatable
 
     public function canAccessPortal(): bool
     {
-        return in_array($this->status, [self::STATUS_ACTIVE, self::STATUS_SETTLING], true);
+        return in_array(
+            $this->status,
+            [self::STATUS_ACTIVE, self::STATUS_SETTLING],
+            true
+        );
     }
 }

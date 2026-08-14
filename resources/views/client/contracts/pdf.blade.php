@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Hợp đồng thuê phòng trọ</title>
+
+<style>
+@page {
+    size: A4 portrait;
+    margin: 18mm 20mm 18mm 20mm;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: "DejaVu Serif", serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #000;
+}
+
+.contract {
+    width: 168mm;
+    margin: 0 auto;
+    padding: 0;
+    border: none;
+}
+
+.center { text-align: center; }
+.national { font-weight: bold; font-size: 16px; }
+.slogan { text-align: center; font-size: 13px; margin-top: 4px; margin-bottom: 18px; }
+.title { text-align: center; font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 20px 0 18px; }
+.line { display: inline-block; border-bottom: 1px dotted #000; padding: 0 4px; text-align: center; }
+.short { min-width: 125px; }
+.small { min-width: 15px; }
+.mini { min-width: 65px; }
+.medium { min-width: 180px; }
+.Large { min-width: 250px; }
+.ExtraLarge { min-width: 320px; }
+.big { min-width: 430px; }
+.section { margin-top: 16px; }
+.bold { font-weight: bold; }
+p { margin: 6px 0; }
+.info-row { margin: 6px 0; }
+.info-row .line { display: inline-block; border-bottom: 1px dotted #000; padding: 0 3px; }
+.contract-info { margin-bottom: 8px; }
+h3 { page-break-after: avoid; }
+table { page-break-inside: avoid; }
+.signature-block { page-break-inside: avoid; }
+.page-break { page-break-before: always; }
+.page-title { margin-top: 0 !important; page-break-after: avoid; }
+.signature-block table { page-break-inside: avoid; }
+</style>
+
+</head>
+
+<body>
+
+<div class="contract">
+@php
+    $houseAddress = 'Cầu Giấy - Hà Nội';
+    $createdDate = \Carbon\Carbon::parse($contract->created_at);
+    $startDate = \Carbon\Carbon::parse($contract->start_date);
+    $endDate = \Carbon\Carbon::parse($contract->end_date);
+@endphp
+
+<div class="center national">
+     CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+</div>
+
+<div class="center slogan">
+    Độc lập – Tự do – Hạnh phúc
+</div>
+
+<div class="center title">
+    HỢP ĐỒNG THUÊ PHÒNG TRỌ
+</div>
+<p class="contract-info">
+Hôm nay ngày
+<span class="line small">{{ $createdDate->format('d') }}</span>
+tháng
+<span class="line small">{{ $createdDate->format('m') }}</span>
+năm
+<span class="line small">{{ $createdDate->format('Y') }}</span>;
+tại địa chỉ:
+<span class="line mini">
+    {{ $houseAddress }}
+</span>
+</p>
+<p>
+    <span class="line big"></span>
+</p>
+<p class="bold" style="margin-top:12px;">
+Chúng tôi gồm:
+</p>
+<p style="margin-top:7px;">
+1. Đại diện bên cho thuê phòng trọ (Bên A):
+</p>
+
+<p>
+Ông/bà:
+<span class="line medium">Nguyễn Văn A</span>
+
+&nbsp;&nbsp;&nbsp;&nbsp;
+
+Sinh ngày:
+<span class="line mini">08/01/2005</span>
+</p>
+
+<p>
+Nơi đăng ký hộ khẩu:
+<span class="line Large">{{ $houseAddress }}</span>
+</p>
+
+<p>
+Số CMND/CCCD:
+<span class="line short">012345678999</span>
+
+&nbsp;&nbsp;&nbsp;&nbsp;
+
+cấp ngày:
+<span class="line mini">01/01/2023</span>
+</p>
+
+<p>
+tại:
+<span class="line ExtraLarge">Cục CSQLHC về TTXH</span>
+</p>
+
+<p>
+Số điện thoại:
+<span class="line Large">0865819798</span>
+</p>
+<p style="margin-top:9px;">
+2. Bên thuê phòng trọ (Bên B):
+</p>
+
+<p class="info-row">
+Ông/bà:
+<span class="line medium">
+    {{ $contract->tenant->full_name }}
+</span>
+
+&nbsp;&nbsp;&nbsp;&nbsp;
+
+Sinh ngày:
+<span class="line mini">
+    {{ $contract->tenant->date_of_birth
+        ? \Carbon\Carbon::parse($contract->tenant->date_of_birth)->format('d/m/Y')
+        : '' }}
+</span>
+</p>
+
+<p>
+Nơi đăng ký HK thường trú:
+<span class="line Large">
+{{ $contract->tenant->address }}
+</span>
+</p>
+
+<p>
+
+Số CMND/CCCD:
+<span class="line short">
+{{ $contract->tenant->cccd }}
+</span>
+
+&nbsp;&nbsp;&nbsp;&nbsp;
+
+cấp ngày
+<span class="line mini">
+{{ $contract->tenant->cccd_issue_date
+    ? \Carbon\Carbon::parse($contract->tenant->cccd_issue_date)->format('d/m/Y')
+    : '' }}
+</span>
+
+</p>
+<p>
+tại:
+<span class="line ExtraLarge">
+{{ $contract->tenant->cccd_issue_place ?? '' }}
+</span>
+</p>
+<p>
+Số điện thoại:
+<span class="line Large">
+{{ $contract->tenant->phone }}
+</span>
+</p>
+
+<p class="bold" style="margin-top:11px;">
+Sau khi bàn bạc trên tinh thần dân chủ, hai bên cùng có lợi,
+cùng thống nhất như sau:
+</p>
+
+<p>
+Bên A đồng ý cho bên B thuê 01 phòng ở tại địa chỉ:
+<span class="line short">
+{{ $houseAddress }}, phòng {{ $contract->room->room_code }}
+</span>
+</p>
+<p>
+    <span class="line big"></span>
+</p>
+
+<p style="margin-top:12px;">
+Giá thuê:
+<span class="line short">
+{{ number_format($contract->room->price,0,',','.') }}
+</span>
+đ/tháng
+</p>
+
+<p>
+Hình thức thanh toán:
+<span class="line Large">
+Tiền mặt hoặc chuyển khoản
+</span>
+</p>
+
+<p>
+Tiền điện
+<span class="line mini">
+3.500
+</span>
+đ/kwh tính theo chỉ số công tơ,
+thanh toán vào cuối các tháng.
+</p>
+
+<p>
+Tiền nước:
+<span class="line short">
+100.000
+</span>
+đ/người thanh toán vào đầu các tháng.
+</p>
+
+<p>
+Tiền đặt cọc:
+<span class="line ExtraLarge">
+{{ number_format($contract->deposit_amount,0,',','.') }}
+</span>
+</p>
+
+<p>
+Hợp đồng có giá trị kể từ ngày
+<strong class="line small">{{ $startDate->format('d') }}</strong>
+tháng
+<strong class="line small">{{ $startDate->format('m') }}</strong>
+năm
+<strong class="line small">{{ $startDate->format('Y') }}</strong>
+
+đến ngày
+<strong class="line small">{{ $endDate->format('d') }}</strong>
+tháng
+<strong class="line small">{{ $endDate->format('m') }}</strong>
+năm
+<strong class="line small">{{ $endDate->format('Y') }}</strong>
+</p>
+<div class="page-break"></div>
+<div>
+
+    <h3 class="page-title" style="
+        font-size:16px;
+        font-weight:bold;
+        margin-bottom:15px;
+    ">
+        TRÁCH NHIỆM CỦA CÁC BÊN
+    </h3>
+
+    <p class="bold" style="margin-top:18px; margin-bottom:14px;">
+        * Trách nhiệm của bên A:
+    </p>
+
+    <p style="margin:14px 0; line-height:1.75;">
+        - Tạo mọi điều kiện thuận lợi để bên B thực hiện theo hợp đồng.
+    </p>
+
+    <p style="margin:14px 0; line-height:1.75;">
+        - Cung cấp nguồn điện, nước, wifi cho bên B sử dụng.
+    </p>
+
+    <p class="bold" style="margin-top:24px; margin-bottom:14px;">
+        * Trách nhiệm của bên B:
+    </p>
+
+    <p style="margin:14px 0; line-height:1.75;">
+        - Thanh toán đầy đủ các khoản tiền theo đúng thỏa thuận.
+    </p>
+
+    <p style="margin:14px 0; line-height:1.75;">
+        - Bảo quản các trang thiết bị và cơ sở vật chất của bên A trang bị cho ban đầu (làm hỏng phải sửa, mất phải đền).
+    </p>
+
+    <p style="margin:14px 0; line-height:1.75;">
+        - Không được tự ý sửa chữa, cải tạo cơ sở vật chất khi chưa được sự đồng ý của bên A.
+    </p>
+
+    <p style="margin:14px 0; line-height:1.75;">
+        - Giữ gìn vệ sinh trong và ngoài khuôn viên của phòng trọ.
+    </p>
+
+    <p style="margin:14px 0; line-height:1.75;">
+        - Bên B phải chấp hành mọi quy định của pháp luật Nhà nước và quy định của địa phương.
+    </p>
+
+    <p style="margin:14px 0; line-height:1.75;">
+        - Nếu bên B cho khách ở qua đêm thì phải báo và được sự đồng ý của chủ nhà đồng thời phải chịu trách nhiệm về các hành vi vi phạm pháp luật của khách trong thời gian ở lại.
+    </p>
+
+    <h3 class="page-title" style="
+        font-size:16px;
+        font-weight:bold;
+        margin-top:28px !important;
+        margin-bottom:16px;
+    ">
+        TRÁCH NHIỆM CHUNG
+    </h3>
+
+    <p style="margin:12px 0; line-height:1.65;">
+        - Hai bên phải tạo điều kiện cho nhau thực hiện hợp đồng.
+    </p>
+
+    <p style="margin:12px 0; line-height:1.65;">
+        - Trong thời gian hợp đồng còn hiệu lực nếu bên nào vi phạm các điều khoản đã thỏa thuận thì bên còn lại có quyền đơn phương chấm dứt hợp đồng; nếu vi phạm hợp đồng đó gây tổn thất cho bên bị vi phạm hợp đồng thì bên vi phạm hợp đồng phải bồi thường thiệt hại.
+    </p>
+
+    <div class="page-break"></div>
+
+    <h3 class="page-title" style="
+        font-size:16px;
+        font-weight:bold;
+        margin-bottom:18px;
+    ">
+        TRÁCH NHIỆM CHUNG (TIẾP)
+    </h3>
+
+    <p style="margin:13px 0; line-height:1.7;">
+        - Một trong hai bên muốn chấm dứt hợp đồng trước thời hạn thì phải báo trước cho bên kia ít nhất 30 ngày và hai bên phải có sự thống nhất.
+    </p>
+
+    <p style="margin:13px 0; line-height:1.7;">
+        - Bên A phải trả lại tiền đặt cọc cho bên B.
+    </p>
+
+    <p style="margin:13px 0; line-height:1.7;">
+        - Bên nào vi phạm điều khoản chung thì phải chịu trách nhiệm trước pháp luật.
+    </p>
+
+    <p style="margin:13px 0; line-height:1.7;">
+        - Hợp đồng được lập thành 02 bản có giá trị pháp lý như nhau, mỗi bên giữ một bản.
+    </p>
+
+</div>
+
+
+<div class="signature-block" style="margin-top:38px;">
+    <hr style="margin-top:0; margin-bottom:22px;">
+
+    <table style="width:100%; text-align:center;">
+        <tr>
+            <td width="50%">
+                <strong>
+                    ĐẠI DIỆN BÊN A
+                </strong>
+                <br>
+                <span>(Bên cho thuê)</span>
+            </td>
+
+            <td width="50%">
+                <strong>
+                    ĐẠI DIỆN BÊN B
+                </strong>
+                <br>
+                <span>(Bên thuê)</span>
+            </td>
+        </tr>
+
+        <tr>
+            <td style="height:130px; vertical-align:bottom;">
+
+                <div style="height:88px; text-align:center;">
+                    <img
+                        src="{{ public_path('storage/signatures/contracts/chukyD.jpg') }}"
+                        alt="Chữ ký chủ trọ"
+                        style="
+                            max-width:180px;
+                            max-height:80px;
+                            object-fit:contain;
+                        "
+                    >
+                </div>
+
+                <strong>Nguyễn Văn A</strong>
+                <br>
+                <small>Chủ nhà trọ</small>
+
+            </td>
+
+            <td style="height:130px; vertical-align:bottom;">
+
+                @if(!empty($contract->tenant_signature))
+
+                    <div style="height:88px; text-align:center;">
+
+                        <img
+                            src="{{ public_path('storage/' . $contract->tenant_signature) }}"
+                            alt="Chữ ký khách thuê"
+                            style="
+                                max-width:180px;
+                                max-height:80px;
+                                object-fit:contain;
+                            "
+                        >
+
+                    </div>
+
+                @else
+
+                    <div style="height:88px;"></div>
+
+                @endif
+
+                <strong>
+                    {{ $contract->tenant->full_name }}
+                </strong>
+
+                <br>
+
+                <small>Khách thuê</small>
+
+            </td>
+        </tr>
+    </table>
+
+</div>
+
+</div>
+
+
+
+</body>
+</html>

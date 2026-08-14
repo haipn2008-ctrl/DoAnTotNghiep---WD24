@@ -4,122 +4,172 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
-use LogicException;
 
 class Contract extends Model
 {
-    public const STATUS_DRAFT = 'draft';
+    /*
+    |--------------------------------------------------------------------------
+    | Contract Status
+    |--------------------------------------------------------------------------
+    */
 
-    public const STATUS_PENDING_SIGNATURE = 'pending_signature';
+    const STATUS_DRAFT = 'draft';
 
-    public const STATUS_PENDING_DEPOSIT = 'pending_deposit';
+    const STATUS_PENDING_SIGNATURE = 'pending_signature';
 
-    public const STATUS_AWAITING_MOVE_IN = 'awaiting_move_in';
+    const STATUS_SIGNED = 'signed';
 
-    public const STATUS_ACTIVE = 'active';
+    const STATUS_DEPOSIT_PAID = 'deposit_paid';
 
-    public const STATUS_EXPIRED = 'expired';
+    const STATUS_ACTIVE = 'active';
 
-    public const STATUS_SETTLING = 'settling';
+    const STATUS_EXPIRED = 'expired';
 
-    public const STATUS_COMPLETED = 'completed';
+    const STATUS_PENDING_DEPOSIT = 'pending_deposit';
 
-    public const STATUS_CANCELLED = 'cancelled';
+    const STATUS_AWAITING_MOVE_IN = 'awaiting_move_in';
 
-    /** Tên cũ được giữ để code tích hợp có thời gian chuyển đổi. */
-    public const STATUS_PENDING = self::STATUS_PENDING_SIGNATURE;
+    const STATUS_SETTLING = 'settling';
 
-    public const STATUS_TERMINATED = self::STATUS_SETTLING;
+    const STATUS_CANCELLED = 'cancelled';
 
-    public const DEPOSIT_PENDING = 'pending';
+    const STATUS_TERMINATED = 'terminated';
 
-    public const DEPOSIT_PAID = 'paid';
+    // const STATUS_DEPOSIT_RETURNED = 'deposit_returned';
 
-    public const DEPOSIT_NEEDS_RESOLUTION = 'needs_resolution';
+    const STATUS_COMPLETED = 'completed';
 
-    public const DEPOSIT_RETURNED = 'returned';
+    /*
+    |--------------------------------------------------------------------------
+    | Deposit Status
+    |--------------------------------------------------------------------------
+    */
 
-    public const DEPOSIT_REFUNDED = 'refunded';
+    const DEPOSIT_PENDING = 'pending';
+    const DEPOSIT_PAID = 'paid';
 
-    public const DEPOSIT_DEDUCTED = 'deducted';
+    const DEPOSIT_REFUND_REQUESTED = 'refund_requested';
+    const DEPOSIT_REFUND_APPROVED = 'refund_approved';
+    const DEPOSIT_REFUND_REJECTED = 'refund_rejected';
+    const DEPOSIT_REFUND_PROCESSING = 'refund_processing';
 
-    public const DEPOSIT_RETAINED = 'retained';
+    const DEPOSIT_RETURNED = 'returned';
+    const DEPOSIT_REFUNDED = 'refunded';
+    const DEPOSIT_DEDUCTED = 'deducted';
+    const DEPOSIT_RETAINED = 'retained';
+    const DEPOSIT_NOT_REQUIRED = 'not_required';
+    const DEPOSIT_PARTIAL = 'partial_returned';
+    const DEPOSIT_FORFEITED = 'forfeited';
 
-    public const DEPOSIT_NOT_REQUIRED = 'not_required';
-
-    public const RESERVING_STATUSES = [
+    const RESERVING_STATUSES = [
         self::STATUS_PENDING_DEPOSIT,
         self::STATUS_AWAITING_MOVE_IN,
         self::STATUS_ACTIVE,
         self::STATUS_EXPIRED,
     ];
 
-    public const OPEN_OCCUPANCY_STATUSES = [self::STATUS_ACTIVE, self::STATUS_EXPIRED];
-
+    const OPEN_OCCUPANCY_STATUSES = [self::STATUS_ACTIVE, self::STATUS_EXPIRED];
     /**
-     * Chỉ dữ liệu nội dung được mass assign. Status và toàn bộ audit fields phải được
-     * ContractLifecycleService ghi bằng forceFill bên trong transaction.
+     * Các trường được phép ghi dữ liệu
      */
     protected $fillable = [
+
         'contract_code',
+
         'room_id',
         'tenant_id',
         'representative_tenant_id',
-        'representative_is_occupant',
+
         'monthly_rent',
+
         'deposit_amount',
+        'deposit_status',
+        'deposit_paid_at',
+        'deposit_process_type',
+        'deposit_refund_amount',
+        'deposit_deduction_amount',
+        'deposit_processed_at',
+        'deposit_process_reason',
+        'deposit_process_note',
+        'deposit_bank_name',
+        'deposit_bank_account_number',
+        'deposit_bank_account_name',
+        'deposit_qr_image',
+        'deposit_refund_requested_at',
+        'deposit_refund_approved_at',
+        'deposit_transfer_amount',
+        'deposit_transferred_at',
+        'deposit_transfer_proof',
+        'deposit_damage_proof',
+        'deposit_admin_note',
+        
         'number_of_people',
-        'internet_enabled',
-        'service_enabled',
-        'parking_quantity',
+
+        'signed_at',
+        'tenant_signature',
+        'planned_move_in_date',
+        'move_in_date',
+        'move_in_confirmed_at',
+        'move_in_confirmed_by',
         'start_date',
         'end_date',
-        'rental_duration_option',
-        'signature_due_at',
-        'deposit_due_at',
-        'scheduled_move_in_date',
-        'reservation_expires_at',
+        'actual_end_date',
+
+        'extended_at',
+        'extend_start_date',
+        'extend_end_date',
+        'extend_reason',
+        'extend_note',
+
+        'terminated_at',
+        'terminated_by',
+        'termination_reason',
+        'termination_note',
+
         'contract_file',
+
+        'contract_content',
+
+        'status',
+
         'note',
     ];
 
+    /**
+     * Ép kiểu dữ liệu
+     */
     protected $casts = [
-        'signed_at' => 'datetime',
-        'signature_due_at' => 'datetime',
-        'deposit_due_at' => 'datetime',
-        'deposit_paid_at' => 'datetime',
-        'scheduled_move_in_date' => 'date',
-        'reservation_expires_at' => 'datetime',
-        'move_in_terms_confirmed_at' => 'datetime',
-        'move_in_inventory_snapshotted_at' => 'datetime',
-        'move_in_details_confirmed_at' => 'datetime',
-        'actual_move_in_at' => 'datetime',
-        'actual_move_out_at' => 'datetime',
-        'cancelled_at' => 'datetime',
-        'completed_at' => 'datetime',
-        'deposit_resolved_at' => 'datetime',
-        'extended_at' => 'datetime',
-        'terminated_at' => 'datetime',
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'actual_end_date' => 'date',
+
+        'signed_at'         => 'datetime',
+        'planned_move_in_date' => 'date',
+        'move_in_date'      => 'date',
+        'move_in_confirmed_at' => 'datetime',
+
+        'deposit_paid_at'   => 'datetime',
+        'deposit_processed_at' => 'datetime',
+        'deposit_refund_amount' => 'decimal:2',
+        'deposit_deduction_amount' => 'decimal:2',
+        'deposit_refund_requested_at' => 'datetime',
+        'deposit_refund_approved_at' => 'datetime',
+        'deposit_transfer_amount' => 'decimal:2',
+        'deposit_transferred_at' => 'datetime',
+
+        'extended_at'       => 'datetime',
+        'terminated_at'     => 'datetime',
+
+        'start_date'        => 'date',
+        'end_date'          => 'date',
+        'actual_end_date'   => 'date',
+
         'extend_start_date' => 'date',
-        'extend_end_date' => 'date',
-        'internet_enabled' => 'boolean',
-        'service_enabled' => 'boolean',
-        'parking_quantity' => 'integer',
-        'number_of_people' => 'integer',
-        'representative_is_occupant' => 'boolean',
-        'monthly_rent' => 'decimal:2',
-        'deposit_amount' => 'decimal:2',
+        'extend_end_date'   => 'date',
     ];
 
-    protected static function booted(): void
-    {
-        static::deleting(function (): never {
-            throw new LogicException('Không được xóa hợp đồng. Hãy dùng hành động hủy để giữ lịch sử.');
-        });
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
 
     public function room()
     {
@@ -133,19 +183,18 @@ class Contract extends Model
 
     public function representative()
     {
-        return $this->belongsTo(Tenant::class, 'representative_tenant_id');
+        return $this->belongsTo(
+            Tenant::class,
+            'representative_tenant_id'
+        );
     }
 
-    public function occupants()
+    public function moveInConfirmedBy()
     {
-        return $this->hasMany(ContractOccupant::class);
-    }
-
-    public function representativeOccupant()
-    {
-        return $this->hasOne(ContractOccupant::class)
-            ->where('role', ContractOccupant::ROLE_REPRESENTATIVE)
-            ->latestOfMany();
+        return $this->belongsTo(
+            User::class,
+            'move_in_confirmed_by'
+        );
     }
 
     public function invoices()
@@ -155,62 +204,42 @@ class Contract extends Model
 
     public function utilityReadings()
     {
-        return $this->hasMany(UtilityReading::class, 'contract_id');
+        return $this->hasMany(UtilityReading::class);
     }
 
     public function payments()
     {
-        return $this->hasManyThrough(Payment::class, Invoice::class);
+        return $this->hasManyThrough(
+            Payment::class,
+            Invoice::class
+        );
+    }
+    public function histories()
+    {
+        return $this->hasMany(ContractHistory::class)
+            ->latest();
+    }
+    
+
+    /*
+    |--------------------------------------------------------------------------
+    | Query Scope
+    |--------------------------------------------------------------------------
+    */
+
+    public function scopeDraft($query)
+    {
+        return $query->where('status', self::STATUS_DRAFT);
     }
 
-    public function statusHistories()
+    public function scopePendingSignature($query)
     {
-        return $this->hasMany(ContractStatusHistory::class)->orderBy('performed_at')->orderBy('id');
+        return $query->where('status', self::STATUS_PENDING_SIGNATURE);
     }
 
-    public function lifecycleAlerts()
+    public function scopeSigned($query)
     {
-        return $this->hasMany(ContractLifecycleAlert::class);
-    }
-
-    public function handoverItems()
-    {
-        return $this->hasMany(ContractHandoverItem::class)->orderBy('name')->orderBy('id');
-    }
-
-    public function signedConfirmer()
-    {
-        return $this->belongsTo(User::class, 'signed_confirmed_by');
-    }
-
-    public function moveInTermsConfirmer()
-    {
-        return $this->belongsTo(User::class, 'move_in_terms_confirmed_by');
-    }
-
-    public function moveInDetailsConfirmer()
-    {
-        return $this->belongsTo(User::class, 'move_in_details_confirmed_by');
-    }
-
-    public function checkedInBy()
-    {
-        return $this->belongsTo(User::class, 'checked_in_by');
-    }
-
-    public function checkedOutBy()
-    {
-        return $this->belongsTo(User::class, 'checked_out_by');
-    }
-
-    public function cancelledBy()
-    {
-        return $this->belongsTo(User::class, 'cancelled_by');
-    }
-
-    public function completedBy()
-    {
-        return $this->belongsTo(User::class, 'completed_by');
+        return $query->where('status', self::STATUS_SIGNED);
     }
 
     public function scopeActive($query)
@@ -218,67 +247,110 @@ class Contract extends Model
         return $query->where('status', self::STATUS_ACTIVE);
     }
 
-    public function scopeOccupying($query)
+    public function scopeExpired($query)
     {
-        return $query->whereIn('status', self::OPEN_OCCUPANCY_STATUSES);
+        return $query->where('status', self::STATUS_EXPIRED);
     }
 
-    public function scopeReserving($query)
+    public function scopeTerminated($query)
     {
-        return $query->whereIn('status', self::RESERVING_STATUSES);
+        return $query->where('status', self::STATUS_TERMINATED);
+    }
+    public function scopeDepositPaid($query)
+    {
+        return $query->where('status', self::STATUS_DEPOSIT_PAID);
     }
 
-    public function isActive(): bool
+    // public function scopeDepositReturned($query)
+    // {
+    //     return $query->where('status', self::STATUS_DEPOSIT_RETURNED);
+    // }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Status Helper
+    |--------------------------------------------------------------------------
+    */
+
+    public function isDraft()
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
+
+    public function isPendingSignature()
+    {
+        return $this->status === self::STATUS_PENDING_SIGNATURE;
+    }
+
+    public function isSigned()
+    {
+        return $this->status === self::STATUS_SIGNED;
+    }
+
+    public function isMoveInConfirmed(): bool
+    {
+        return !empty($this->move_in_date)
+            && !empty($this->move_in_confirmed_at)
+            && !empty($this->move_in_confirmed_by);
+    }
+
+    public function isDepositPaidStatus()
+    {
+        return $this->status === self::STATUS_DEPOSIT_PAID;
+    }
+
+    // public function isDepositReturnedStatus()
+    // {
+    //     return $this->status === self::STATUS_DEPOSIT_RETURNED;
+    // }
+
+    public function isActive()
     {
         return $this->status === self::STATUS_ACTIVE;
     }
 
-    public function isExpired(): bool
+    public function isExpired()
     {
         return $this->status === self::STATUS_EXPIRED;
     }
 
-    public function isDepositPaid(): bool
+    public function isTerminated()
+    {
+        return $this->status === self::STATUS_TERMINATED;
+    }
+    
+
+    /*
+    |--------------------------------------------------------------------------
+    | Deposit Helper
+    |--------------------------------------------------------------------------
+    */
+
+    public function isDepositPending()
+    {
+        return $this->deposit_status === self::DEPOSIT_PENDING;
+    }
+
+    public function isDepositPaid()
     {
         return $this->deposit_status === self::DEPOSIT_PAID;
     }
 
-    public function isReservationOverdue(): bool
+    public function isDepositReturned()
     {
-        return $this->status === self::STATUS_AWAITING_MOVE_IN
-            && $this->reservation_expires_at?->isPast();
+        return $this->deposit_status === self::DEPOSIT_RETURNED;
     }
 
-    public function isSignatureOverdue(): bool
-    {
-        return $this->status === self::STATUS_PENDING_SIGNATURE
-            && $this->signature_due_at?->isPast();
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Business Helper
+    |--------------------------------------------------------------------------
+    */
 
-    public function isDepositOverdue(): bool
+    public function canRecordUtility()
     {
-        return $this->status === self::STATUS_PENDING_DEPOSIT
-            && $this->deposit_due_at?->isPast();
-    }
-
-    public function canRecordUtility(): bool
-    {
-        return in_array($this->status, self::OPEN_OCCUPANCY_STATUSES, true);
-    }
-
-    public function canCreateInvoice(): bool
-    {
-        return in_array($this->status, [self::STATUS_ACTIVE, self::STATUS_EXPIRED, self::STATUS_SETTLING], true);
-    }
-
-    public function canExtend(): bool
-    {
-        return in_array($this->status, self::OPEN_OCCUPANCY_STATUSES, true);
-    }
-
-    public function canTerminate(): bool
-    {
-        return in_array($this->status, self::OPEN_OCCUPANCY_STATUSES, true);
+        return $this->status === self::STATUS_ACTIVE
+            && $this->deposit_status === self::DEPOSIT_PAID;
     }
 
     public function contractFileExists(): bool
@@ -286,49 +358,131 @@ class Contract extends Model
         return filled($this->contract_file) && Storage::disk('local')->exists($this->contract_file);
     }
 
-    public function getDepositPaidAmountAttribute(): float
+    public function canCreateInvoice()
     {
-        $depositInvoice = $this->relationLoaded('invoices')
-            ? $this->invoices->firstWhere('invoice_type', Invoice::TYPE_DEPOSIT)
-            : $this->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->first();
-
-        return $depositInvoice ? (float) $depositInvoice->payments()->success()->sum('amount_paid') : 0.0;
+        return $this->status === self::STATUS_ACTIVE;
     }
 
-    public function getDepositRemainingAmountAttribute(): float
+    public function canExtend(): bool
     {
-        return max(0, (float) $this->deposit_amount - $this->deposit_paid_amount);
+        return in_array($this->status, [
+            self::STATUS_ACTIVE,
+            self::STATUS_EXPIRED,
+        ]);
     }
 
-    public function getStatusLabelAttribute(): string
+    public function canTerminate()
+    {
+        return $this->status === self::STATUS_ACTIVE;
+    }
+        
+    public function canActivate()
+    {
+        return $this->status === self::STATUS_DEPOSIT_PAID;
+    }
+    public function canReturnDeposit(): bool
+    {
+        return $this->status === self::STATUS_TERMINATED
+            && in_array($this->deposit_status, [
+                self::DEPOSIT_REFUND_REQUESTED,
+                self::DEPOSIT_REFUND_APPROVED,
+                self::DEPOSIT_REFUND_PROCESSING,
+            ], true);
+    }
+
+    public function canRequestDepositRefund(): bool
+    {
+        return $this->status === self::STATUS_TERMINATED
+            && in_array($this->deposit_status, [
+                self::DEPOSIT_PAID,
+                self::DEPOSIT_REFUND_REJECTED,
+            ], true);
+    }
+
+    public function isRefundRequested(): bool
+    {
+        return $this->deposit_status === self::DEPOSIT_REFUND_REQUESTED;
+    }
+
+    public function isRefundApproved(): bool
+    {
+        return $this->deposit_status === self::DEPOSIT_REFUND_APPROVED;
+    }
+
+    public function isRefundCompleted(): bool
+    {
+        return in_array($this->deposit_status, [
+            self::DEPOSIT_RETURNED,
+            self::DEPOSIT_PARTIAL,
+            self::DEPOSIT_FORFEITED,
+        ], true);
+    }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED;
+    }
+
+    public function canEdit()
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Accessor
+    |--------------------------------------------------------------------------
+    */
+
+    public function getStatusTextAttribute()
     {
         return match ($this->status) {
             self::STATUS_DRAFT => 'Bản nháp',
             self::STATUS_PENDING_SIGNATURE => 'Chờ ký',
-            self::STATUS_PENDING_DEPOSIT => 'Chờ đủ cọc',
-            self::STATUS_AWAITING_MOVE_IN => 'Chờ nhận phòng',
-            self::STATUS_ACTIVE => 'Đang ở',
-            self::STATUS_EXPIRED => 'Quá hạn hợp đồng',
-            self::STATUS_SETTLING => 'Đang quyết toán',
-            self::STATUS_COMPLETED => 'Đã hoàn tất',
-            self::STATUS_CANCELLED => 'Đã hủy',
-            default => $this->status,
+            self::STATUS_SIGNED => 'Đã ký',
+            self::STATUS_DEPOSIT_PAID => 'Đã thanh toán cọc',
+            self::STATUS_ACTIVE => 'Đang hoạt động',
+            self::STATUS_EXPIRED => 'Hết hạn',
+            self::STATUS_TERMINATED => 'Đã kết thúc',
+            // self::STATUS_DEPOSIT_RETURNED => 'Đã hoàn cọc',
+            self::STATUS_COMPLETED => 'Hoàn tất',
+            default => 'Không xác định',
         };
     }
-
     public function getDurationAttribute()
     {
         return $this->start_date->diffInMonths($this->end_date);
     }
 
-    public function isNearExpired(int $days = 30): bool
+    public function isNearExpired($days = 30)
     {
-        return in_array($this->status, self::OPEN_OCCUPANCY_STATUSES, true)
-            && now()->diffInDays($this->end_date, false) <= $days;
+        return now()->diffInDays(
+            $this->end_date,
+            false
+        ) <= $days;
     }
 
-    public function isOverExpired(): bool
+    public function isOverExpired()
     {
-        return now()->startOfDay()->gt($this->end_date->startOfDay());
+        return now()->greaterThan($this->end_date);
+    }
+    public function extensionRequests()
+    {
+        return $this->hasMany(ContractExtensionRequest::class);
+    }
+    public function getDepositStatusTextAttribute(): string
+    {
+        return match ($this->deposit_status) {
+            self::DEPOSIT_PENDING => 'Chưa đóng cọc',
+            self::DEPOSIT_PAID => 'Đã đóng cọc',
+            self::DEPOSIT_REFUND_REQUESTED => 'Chờ duyệt hoàn cọc',
+            self::DEPOSIT_REFUND_APPROVED => 'Đã duyệt hoàn cọc',
+            self::DEPOSIT_REFUND_REJECTED => 'Từ chối hoàn cọc',
+            self::DEPOSIT_REFUND_PROCESSING => 'Đang chuyển khoản',
+            self::DEPOSIT_RETURNED => 'Đã hoàn toàn bộ',
+            self::DEPOSIT_PARTIAL => 'Đã hoàn một phần',
+            self::DEPOSIT_FORFEITED => 'Không hoàn cọc',
+            default => 'Không xác định',
+        };
     }
 }

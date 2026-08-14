@@ -7,10 +7,16 @@
     <title>@yield('title', 'Quản lý phòng trọ')</title>
     <link rel="icon" href="data:,">
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&display=swap">
-    <link href="{{ asset('assets/css/icons.min.css') }}" rel="stylesheet" type="text/css">
     @stack('styles')
+
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <link rel="stylesheet"
+        href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&display=swap">
+
+    <link href="{{ asset('assets/css/icons.min.css') }}"
+        rel="stylesheet"
+        type="text/css">
 </head>
 <body class="bg-slate-50 text-slate-700 antialiased">
     <div class="min-h-screen lg:flex">

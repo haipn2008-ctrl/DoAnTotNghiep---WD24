@@ -67,7 +67,14 @@
                                 $remaining = max(0, (float) $invoice->total_amount - (float) ($invoice->paid_amount ?? 0));
                             @endphp
                             <tr class="hover:bg-slate-50">
-                                <td class="px-5 py-4"><p class="font-semibold text-slate-950">Tháng {{ $invoice->month }}/{{ $invoice->year }}</p><p class="mt-1 text-xs text-slate-500">{{ $invoice->invoice_code }}</p></td>
+                                <td class="px-5 py-4">
+                                    <p class="font-semibold text-slate-950">
+                                        {{ $invoice->invoice_type === 'deposit'
+                                            ? 'Hóa đơn tiền cọc'
+                                            : 'Tháng ' . $invoice->month . '/' . $invoice->year }}
+                                    </p>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $invoice->invoice_code }}</p>
+                                </td>
                                 <td class="px-5 py-4 text-slate-600">{{ $invoice->room->room_code ?? '-' }}</td>
                                 <td class="px-5 py-4 text-slate-600">{{ $invoice->due_date?->format('d/m/Y') }}</td>
                                 <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</td>
@@ -90,7 +97,16 @@
                     @endphp
                     <a href="{{ route('client.invoices.show', $invoice) }}" class="block space-y-3 p-4 hover:bg-slate-50">
                         <div class="flex items-start justify-between gap-3">
-                            <div><p class="font-bold text-slate-950">Tháng {{ $invoice->month }}/{{ $invoice->year }}</p><p class="mt-1 text-xs text-slate-500">{{ $invoice->invoice_code }} · Phòng {{ $invoice->room->room_code ?? '-' }} · Hạn {{ $invoice->due_date?->format('d/m/Y') }}</p></div>
+                            <div>
+                                <p class="font-bold text-slate-950">
+                                    {{ $invoice->invoice_type === 'deposit'
+                                        ? 'Hóa đơn tiền cọc'
+                                        : 'Tháng ' . $invoice->month . '/' . $invoice->year }}
+                                </p>
+                                <p class="mt-1 text-xs text-slate-500">
+                                    {{ $invoice->invoice_code }} · Phòng {{ $invoice->room->room_code ?? '-' }} · Hạn {{ $invoice->due_date?->format('d/m/Y') }}
+                                </p>
+                            </div>
                             <span class="rounded-full px-2 py-1 text-[11px] font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span>
                         </div>
                         <div class="flex justify-between text-sm"><span class="text-slate-500">Còn phải trả</span><strong class="text-rose-700">{{ number_format($remaining, 0, ',', '.') }}đ</strong></div>
