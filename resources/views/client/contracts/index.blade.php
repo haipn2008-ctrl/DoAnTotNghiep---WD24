@@ -4,12 +4,12 @@
 @section('page_title', 'Hợp đồng của tôi')
 
 @php
-    $statuses = ['draft'=>['Bản nháp','bg-slate-100 text-slate-700'],'pending_signature'=>['Chờ ký','bg-amber-50 text-amber-700'],'pending_deposit'=>['Chờ cọc','bg-orange-50 text-orange-700'],'awaiting_move_in'=>['Chờ nhận phòng','bg-sky-50 text-sky-700'],'active'=>['Đang ở','bg-emerald-50 text-emerald-700'],'expired'=>['Quá hạn vẫn ở','bg-rose-50 text-rose-700'],'settling'=>['Quyết toán','bg-violet-50 text-violet-700'],'completed'=>['Hoàn tất','bg-green-50 text-green-700'],'cancelled'=>['Đã hủy','bg-gray-50 text-gray-700']];
+    $statuses = ['draft'=>['Bản nháp','bg-slate-100 text-slate-700'],'pending_signature'=>['Chờ ký','bg-amber-50 text-amber-700'],'pending_deposit'=>['Chờ tiền tháng đầu','bg-orange-50 text-orange-700'],'awaiting_move_in'=>['Chờ nhận phòng','bg-sky-50 text-sky-700'],'active'=>['Đang ở','bg-emerald-50 text-emerald-700'],'expired'=>['Quá hạn vẫn ở','bg-rose-50 text-rose-700'],'settling'=>['Quyết toán','bg-violet-50 text-violet-700'],'completed'=>['Hoàn tất','bg-green-50 text-green-700'],'cancelled'=>['Đã hủy','bg-gray-50 text-gray-700']];
 @endphp
 
 @section('content')
     <div class="space-y-5">
-        <div><p class="text-sm font-medium text-slate-500">Hồ sơ thuê phòng</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Hợp đồng của tôi</h2><p class="mt-2 text-sm text-slate-500">Xem thời hạn, tiền thuê, tiền cọc và file hợp đồng.</p></div>
+        <div><p class="text-sm font-medium text-slate-500">Hồ sơ thuê phòng</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Hợp đồng của tôi</h2><p class="mt-2 text-sm text-slate-500">Xem thời hạn, tiền thuê, khoản trả trước tháng đầu và file hợp đồng.</p></div>
         <div class="space-y-4">
             @forelse($contracts as $contract)
                 @php($status = $statuses[$contract->status] ?? ['Không xác định', 'bg-slate-100 text-slate-700'])

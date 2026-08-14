@@ -189,10 +189,6 @@ class InvoiceController extends Controller
             1
         )->startOfMonth();
 
-        $periodEnd = $periodStart
-            ->copy()
-            ->endOfMonth();
-
         $contracts = Contract::with([
             'room',
             'tenant',
@@ -200,8 +196,8 @@ class InvoiceController extends Controller
             ->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_SETTLING])
             ->whereDate(
                 'start_date',
-                '<=',
-                $periodEnd
+                '<',
+                $periodStart
             )
             // Kỳ hiệu lực kết thúc ưu tiên: actual_end_date > extend_end_date > end_date
             ->where(function ($query) use ($periodStart) {
@@ -845,7 +841,7 @@ class InvoiceController extends Controller
             ]);
 
             $lockedInvoice->refreshStatus();
-            if ($lockedInvoice->invoice_type === Invoice::TYPE_DEPOSIT) {
+            if (in_array($lockedInvoice->invoice_type, [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT], true)) {
                 app(ContractLifecycleService::class)->syncDepositState($lockedInvoice->contract, auth()->user());
             }
             $this->syncTenantAccountAfterPayment($lockedInvoice);
@@ -890,7 +886,7 @@ class InvoiceController extends Controller
             ]);
 
             $invoice->refreshStatus();
-            if ($invoice->invoice_type === Invoice::TYPE_DEPOSIT) {
+            if (in_array($invoice->invoice_type, [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT], true)) {
                 app(ContractLifecycleService::class)->syncDepositState($invoice->contract, auth()->user());
             }
             $this->syncTenantAccountAfterPayment($invoice);
@@ -922,8 +918,8 @@ class InvoiceController extends Controller
             ]);
             $invoice = Invoice::query()->lockForUpdate()->findOrFail($lockedPayment->invoice_id);
             $invoice->refreshStatus();
-            if ($invoice->invoice_type === Invoice::TYPE_DEPOSIT) {
-                app(ContractLifecycleService::class)->syncDepositState($invoice->contract, auth()->user(), 'Thanh toán cọc bị từ chối.');
+            if (in_array($invoice->invoice_type, [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT], true)) {
+                app(ContractLifecycleService::class)->syncDepositState($invoice->contract, auth()->user(), 'Thanh toán tiền phòng tháng đầu bị từ chối.');
             }
         });
 

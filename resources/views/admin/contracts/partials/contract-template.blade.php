@@ -146,7 +146,7 @@
     </p>
 
     <p>
-        Tiền đặt cọc: <u>{{deposit}}</u>
+        Tiền phòng tháng đầu trả trước: <u>{{deposit}}</u> (cấn vào tháng đầu, không hoàn cuối hợp đồng)
     </p>
 
     <p>
@@ -211,7 +211,7 @@
         báo trước cho bên kia ít nhất 30 ngày và hai bên phải có sự thống nhất.
     </p>
 
-    <p>- Bên A phải trả lại tiền đặt cọc cho bên B.</p>
+    <p>- Khoản tiền phòng tháng đầu đã được cấn vào tháng đầu tiên và không phải là khoản ký quỹ hoàn lại khi hợp đồng kết thúc.</p>
 
     <p>
         - Bên nào vi phạm điều khoản chung thì phải chịu trách nhiệm trước pháp luật.

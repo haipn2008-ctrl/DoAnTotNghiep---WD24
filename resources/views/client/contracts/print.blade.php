@@ -312,7 +312,7 @@ Tiền nước:
 </p>
 
 <p>
-Tiền đặt cọc:
+Tiền phòng tháng đầu trả trước (cấn vào tháng đầu, không hoàn cuối hợp đồng):
 <span class="line ExtraLarge">
 {{ number_format($contract->deposit_amount,0,',','.') }}
 </span>
@@ -406,7 +406,7 @@ năm
     </p>
 
     <p>
-        - Bên A phải trả lại tiền đặt cọc cho bên B.
+        - Khoản tiền phòng tháng đầu đã được cấn vào tháng đầu tiên và không phải là khoản ký quỹ hoàn lại khi hợp đồng kết thúc.
     </p>
 
     <p>
@@ -429,7 +429,7 @@ năm
     </p>
 
     <p>
-        - Bên A phải trả lại tiền đặt cọc cho bên B.
+        - Khoản tiền phòng tháng đầu đã được cấn vào tháng đầu tiên và không phải là khoản ký quỹ hoàn lại khi hợp đồng kết thúc.
     </p>
 
     <p>

@@ -33,7 +33,7 @@
 
             <div class="border-b border-slate-200 px-5 py-4">
                 <h3 class="font-semibold text-slate-950">Thông tin hợp đồng</h3>
-                <p class="text-sm text-slate-500">Bước này chỉ lưu bản nháp; chưa ký, chưa thu cọc và chưa chiếm phòng.</p>
+                <p class="text-sm text-slate-500">Bước này chỉ lưu bản nháp; chưa ký, chưa thu tiền phòng tháng đầu và chưa chiếm phòng.</p>
             </div>
 
             <div class="grid gap-5 p-5 md:grid-cols-2">
@@ -99,7 +99,7 @@
                 </div>
 
                 <div class="md:col-span-2 border-t border-slate-200 pt-5">
-                    <h4 class="font-semibold text-slate-950">Ký, đặt cọc và nhận phòng</h4>
+                    <h4 class="font-semibold text-slate-950">Ký, thu tiền tháng đầu và nhận phòng</h4>
                 </div>
 
                 <div>
@@ -115,10 +115,9 @@
                     @error('reservation_expires_at') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
-                <div>
-                    <label for="deposit_amount" class="mb-1.5 block text-sm font-semibold text-slate-700">Tiền cọc (VNĐ)</label>
-                    <input id="deposit_amount" type="number" min="0" name="deposit_amount" value="{{ old('deposit_amount', 0) }}" placeholder="Nhập 0 nếu không thu cọc" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                    @error('deposit_amount') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+                <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 md:col-span-2">
+                    <p class="text-sm font-semibold text-indigo-950">Tiền phòng tháng đầu trả trước</p>
+                    <p class="mt-1 text-sm text-indigo-800">Hệ thống lấy đúng một tháng tiền phòng theo phòng đã chọn. Khoản này chỉ được thu sau khi ký, được cấn toàn bộ vào tháng đầu và không hoàn lại khi kết thúc hợp đồng.</p>
                 </div>
 
                 @include('admin.contracts.partials.service-fields', [

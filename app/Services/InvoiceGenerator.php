@@ -18,18 +18,21 @@ class InvoiceGenerator
 
         $this->ensureContractCanBeBilled($contract, $month, $year);
 
+        $billingPeriod = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $utilityPeriod = $billingPeriod->copy()->subMonthNoOverflow();
+
         $reading = UtilityReading::where('room_id', $contract->room_id)
             ->where(fn ($query) => $query->where('contract_id', $contract->id)
                 ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contract->start_date)))
-            ->where('month', $month)
-            ->where('year', $year)
+            ->where('month', $utilityPeriod->month)
+            ->where('year', $utilityPeriod->year)
             ->where('reading_type', 'periodic')
             ->where('status', 'confirmed')
             ->first();
 
         if (! $reading) {
             throw ValidationException::withMessages([
-                'utility_reading' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$month}/{$year}.",
+                'utility_reading' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$utilityPeriod->month}/{$utilityPeriod->year}.",
             ]);
         }
 
@@ -47,17 +50,14 @@ class InvoiceGenerator
 
         $setting = Setting::currentOrCreate();
 
-        // Ngày lập hóa đơn theo cấu hình invoice_day, clamp theo số ngày thực tế của tháng.
-        $invoiceDateCarbon = Carbon::createFromDate($year, $month, 1)->startOfMonth();
-        $invoiceDay = (int) ($setting->invoice_day ?? 1);
+        // Ngày 5 thu tiền phòng tháng hiện tại cùng điện, nước và dịch vụ của tháng trước.
+        $invoiceDateCarbon = $billingPeriod->copy();
+        $invoiceDay = 5;
         $invoiceDay = max(1, min($invoiceDay, $invoiceDateCarbon->daysInMonth));
         $invoiceDateCarbon->day($invoiceDay);
 
         $invoiceDate = $invoiceDateCarbon->toDateString();
-        $dueDate = $invoiceDateCarbon
-            ->copy()
-            ->addDays((int) ($setting->payment_due_days ?? 10))
-            ->toDateString();
+        $dueDate = $invoiceDate;
 
         $electricityUsage = $reading->electricity_new - $reading->electricity_old;
         $waterUsage = $reading->water_new - $reading->water_old;
@@ -71,19 +71,19 @@ class InvoiceGenerator
         $lines = [
             [
                 'type' => 'room',
-                'name' => 'Tiền thuê phòng',
+                'name' => "Tiền phòng tháng {$month}/{$year}",
                 'quantity' => 1,
                 'unit' => 'thang',
                 'unit_price' => (float) $contract->monthly_rent,
                 'amount' => (float) $contract->monthly_rent,
                 'old_index' => null,
                 'new_index' => null,
-                'note' => "Hợp đồng {$contract->contract_code}",
+                'note' => "Thu trước cho tháng {$month}/{$year} · Hợp đồng {$contract->contract_code}",
                 'sort_order' => 1,
             ],
             [
                 'type' => 'electricity',
-                'name' => 'Tiền điện',
+                'name' => "Tiền điện tháng {$utilityPeriod->month}/{$utilityPeriod->year}",
                 'quantity' => $electricityUsage,
                 'unit' => 'kWh',
                 'unit_price' => (float) $setting->electric_price,
@@ -95,7 +95,7 @@ class InvoiceGenerator
             ],
             [
                 'type' => 'water',
-                'name' => 'Tiền nước',
+                'name' => "Tiền nước tháng {$utilityPeriod->month}/{$utilityPeriod->year}",
                 'quantity' => $waterUsage,
                 'unit' => 'm³',
                 'unit_price' => (float) $setting->water_price,
@@ -111,8 +111,8 @@ class InvoiceGenerator
         $parkingName = 'Gửi xe máy miễn phí';
 
         $serviceLines = [
-            ['internet', 'Phí internet', $contract->internet_enabled ? (float) ($setting->internet_fee ?? 0) : 0, 1, 4],
-            ['service', 'Phí dịch vụ chung', $contract->service_enabled ? (float) ($setting->service_fee ?? 0) : 0, 1, 5],
+            ['internet', "Phí internet tháng {$utilityPeriod->month}/{$utilityPeriod->year}", $contract->internet_enabled ? (float) ($setting->internet_fee ?? 0) : 0, 1, 4],
+            ['service', "Phí dịch vụ tháng {$utilityPeriod->month}/{$utilityPeriod->year}", $contract->service_enabled ? (float) ($setting->service_fee ?? 0) : 0, 1, 5],
             ['parking', $parkingName, $parkingUnitPrice, (int) $contract->parking_quantity, 6],
         ];
 
@@ -148,6 +148,8 @@ class InvoiceGenerator
             'reading' => $reading,
             'month' => $month,
             'year' => $year,
+            'utility_month' => $utilityPeriod->month,
+            'utility_year' => $utilityPeriod->year,
             'invoice_date' => $invoiceDate,
             'due_date' => $dueDate,
             'room_fee' => (float) $contract->monthly_rent,
@@ -214,6 +216,13 @@ class InvoiceGenerator
 
         $periodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $periodEnd = $periodStart->copy()->endOfMonth();
+        $contractStart = Carbon::parse($contract->start_date)->startOfMonth();
+
+        if ($periodStart->lte($contractStart)) {
+            throw ValidationException::withMessages([
+                'invoice' => 'Tiền phòng tháng đầu đã được thu bằng hóa đơn trả trước sau khi ký hợp đồng.',
+            ]);
+        }
 
         $effectiveEnd = $this->resolveContractEffectiveEnd($contract);
 

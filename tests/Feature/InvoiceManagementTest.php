@@ -70,13 +70,32 @@ class InvoiceManagementTest extends TestCase
         [$contract] = $this->fixture('PREVIEW');
         $response = $this->actingAs($this->admin)
             ->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=7&year=2026")
-            ->assertOk()->assertJsonPath('invoice_date', '2026-07-31')
-            ->assertJsonPath('due_date', '2026-08-10')
+            ->assertOk()->assertJsonPath('invoice_date', '2026-07-05')
+            ->assertJsonPath('due_date', '2026-07-05')
             ->assertJsonPath('total_amount', 3320000);
         $this->assertSame(['room', 'electricity', 'water', 'internet', 'service'],
             collect($response->json('lines'))->pluck('type')->all());
         $this->assertDatabaseCount('invoices', 0);
         $this->assertDatabaseCount('invoice_details', 0);
+    }
+
+    public function test_june_fifth_collects_june_rent_and_may_utilities(): void
+    {
+        [$contract] = $this->fixture('MAY-JUNE', 6);
+
+        $preview = app(InvoiceGenerator::class)->preview($contract, 6, 2026);
+
+        $this->assertSame('2026-06-05', $preview['invoice_date']);
+        $this->assertSame('2026-06-05', $preview['due_date']);
+        $this->assertSame(5, $preview['utility_month']);
+        $this->assertSame(2026, $preview['utility_year']);
+        $this->assertSame([
+            'Tiền phòng tháng 6/2026',
+            'Tiền điện tháng 5/2026',
+            'Tiền nước tháng 5/2026',
+            'Phí internet tháng 5/2026',
+            'Phí dịch vụ tháng 5/2026',
+        ], collect($preview['lines'])->pluck('name')->all());
     }
 
     public function test_historical_parking_registration_never_creates_a_charge(): void
@@ -120,13 +139,13 @@ class InvoiceManagementTest extends TestCase
         [$contract, , , $reading] = $this->fixture('INVALID');
         $reading->delete();
         $this->actingAs($this->admin)->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=7&year=2026")
-            ->assertStatus(422)->assertJsonFragment(['message' => 'Phòng ROOM-INVALID chưa chốt điện nước tháng 7/2026.']);
-        $reading = $this->reading($contract->room, 7, 'draft');
+            ->assertStatus(422)->assertJsonFragment(['message' => 'Phòng ROOM-INVALID chưa chốt điện nước tháng 6/2026.']);
+        $reading = $this->reading($contract->room, 6, 'draft');
         $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", ['month' => 7, 'year' => 2026])->assertStatus(422);
         $reading->update(['status' => 'confirmed']);
         $contract->update(['start_date' => '2026-08-01']);
         $this->post('/admin/invoices/generate', ['contract_id' => $contract->id, 'month' => 7, 'year' => 2026])
-            ->assertSessionHasErrors('contract');
+            ->assertSessionHasErrors('invoice');
         $contract->forceFill([
             'start_date' => '2026-01-01',
             'actual_end_date' => '2026-06-30',
@@ -151,7 +170,7 @@ class InvoiceManagementTest extends TestCase
         ]);
         UtilityReading::create([
             'room_id' => $room->id, 'contract_id' => $oldContract->id,
-            'month' => 8, 'year' => 2026, 'record_date' => '2026-08-10',
+            'month' => 7, 'year' => 2026, 'record_date' => '2026-07-31',
             'reading_type' => 'periodic', 'electricity_old' => 100, 'electricity_new' => 110,
             'water_old' => 20, 'water_new' => 22, 'status' => 'confirmed',
         ]);
@@ -266,7 +285,7 @@ class InvoiceManagementTest extends TestCase
             'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'start_date' => '2026-01-01',
             'end_date' => '2026-12-31', 'status' => Contract::STATUS_ACTIVE,
             'internet_enabled' => true, 'service_enabled' => true, 'parking_quantity' => 1]);
-        $reading = $this->reading($room, $month);
+        $reading = $this->reading($room, $month - 1);
         $reading->update(['contract_id' => $contract->id, 'reading_type' => 'periodic']);
 
         return [$contract, $room, $tenant, $reading];

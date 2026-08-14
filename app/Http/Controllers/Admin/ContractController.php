@@ -225,13 +225,13 @@ class ContractController extends Controller
         try {
             $invoice = $this->lifecycle->issueDepositInvoice($contract, $request->user());
         } catch (QueryException $exception) {
-            $invoice = $contract->invoices()->where('lifecycle_event_key', "contract:{$contract->id}:deposit")->first();
+            $invoice = $contract->invoices()->whereIn('invoice_type', [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT])->first();
             if (! $invoice) {
                 throw $exception;
             }
         }
 
-        return redirect()->route('admin.invoices.show', $invoice)->with('success', 'Đã phát hành hóa đơn cọc.');
+        return redirect()->route('admin.invoices.show', $invoice)->with('success', 'Đã phát hành hóa đơn tiền phòng tháng đầu.');
     }
 
     public function checkIn(Request $request, Contract $contract)
@@ -301,7 +301,6 @@ class ContractController extends Controller
     {
         Gate::authorize('manageLifecycle', $contract);
         $data = $request->validate([
-            'deposit_resolution' => ['nullable', Rule::in([Contract::DEPOSIT_REFUNDED, Contract::DEPOSIT_DEDUCTED, Contract::DEPOSIT_RETAINED])],
             'settlement_note' => ['nullable', 'string', 'max:2000'],
             'write_off_outstanding' => ['nullable', 'boolean'],
             'write_off_reason' => ['nullable', 'required_if:write_off_outstanding,1', 'string', 'max:2000'],
@@ -445,7 +444,7 @@ class ContractController extends Controller
             'scheduled_move_in_date' => ['required', 'date', 'after_or_equal:start_date', 'before_or_equal:reservation_expires_at'],
             'reservation_expires_at' => ['required', 'date', 'after_or_equal:scheduled_move_in_date', 'before_or_equal:end_date'],
             'move_in_terms_confirmed' => ['exclude'],
-            'deposit_amount' => ['nullable', 'numeric', 'min:0'],
+            'deposit_amount' => ['exclude'],
             'occupants' => ['nullable', 'array', 'max:100'],
             'occupants.*.id' => ['nullable', 'integer', Rule::exists('contract_occupants', 'id')->where(
                 fn ($query) => $contract ? $query->where('contract_id', $contract->id) : $query->whereRaw('1 = 0')

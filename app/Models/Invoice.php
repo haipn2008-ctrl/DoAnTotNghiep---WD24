@@ -10,6 +10,8 @@ class Invoice extends Model
 
     const TYPE_DEPOSIT = 'deposit';
 
+    const TYPE_FIRST_MONTH_RENT = 'first_month_rent';
+
     const TYPE_SETTLEMENT = 'settlement';
 
     /*
@@ -211,6 +213,11 @@ class Invoice extends Model
     public function isUnpaid()
     {
         return $this->status === self::STATUS_UNPAID;
+    }
+
+    public function isFirstMonthRent(): bool
+    {
+        return in_array($this->invoice_type, [self::TYPE_FIRST_MONTH_RENT, self::TYPE_DEPOSIT], true);
     }
 
     /**

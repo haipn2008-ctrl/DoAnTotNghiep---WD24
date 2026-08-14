@@ -303,8 +303,8 @@ class Contract extends Model
     public function getDepositPaidAmountAttribute(): float
     {
         $depositInvoice = $this->relationLoaded('invoices')
-            ? $this->invoices->firstWhere('invoice_type', Invoice::TYPE_DEPOSIT)
-            : $this->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->first();
+            ? $this->invoices->first(fn (Invoice $invoice) => in_array($invoice->invoice_type, [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT], true))
+            : $this->invoices()->whereIn('invoice_type', [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT])->first();
 
         return $depositInvoice ? (float) $depositInvoice->payments()->success()->sum('amount_paid') : 0.0;
     }
@@ -319,7 +319,7 @@ class Contract extends Model
         return match ($this->status) {
             self::STATUS_DRAFT => 'Bản nháp',
             self::STATUS_PENDING_SIGNATURE => 'Chờ ký',
-            self::STATUS_PENDING_DEPOSIT => 'Chờ đủ cọc',
+            self::STATUS_PENDING_DEPOSIT => 'Chờ tiền phòng tháng đầu',
             self::STATUS_AWAITING_MOVE_IN => 'Chờ nhận phòng',
             self::STATUS_ACTIVE => 'Đang ở',
             self::STATUS_EXPIRED => 'Quá hạn hợp đồng',

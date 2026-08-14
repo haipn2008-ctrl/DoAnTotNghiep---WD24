@@ -69,8 +69,8 @@
                             <tr class="hover:bg-slate-50">
                                 <td class="px-5 py-4">
                                     <p class="font-semibold text-slate-950">
-                                        {{ $invoice->invoice_type === 'deposit'
-                                            ? 'Hóa đơn tiền cọc'
+                                        {{ $invoice->isFirstMonthRent()
+                                            ? 'Tiền phòng tháng đầu'
                                             : 'Tháng ' . $invoice->month . '/' . $invoice->year }}
                                     </p>
                                     <p class="mt-1 text-xs text-slate-500">{{ $invoice->invoice_code }}</p>
@@ -99,8 +99,8 @@
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <p class="font-bold text-slate-950">
-                                    {{ $invoice->invoice_type === 'deposit'
-                                        ? 'Hóa đơn tiền cọc'
+                                    {{ $invoice->isFirstMonthRent()
+                                        ? 'Tiền phòng tháng đầu'
                                         : 'Tháng ' . $invoice->month . '/' . $invoice->year }}
                                 </p>
                                 <p class="mt-1 text-xs text-slate-500">
