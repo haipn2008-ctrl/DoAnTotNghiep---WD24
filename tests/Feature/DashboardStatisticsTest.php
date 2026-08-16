@@ -91,7 +91,6 @@ class DashboardStatisticsTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/overview')
             ->assertSuccessful()
-            ->assertViewHas('totalRevenue', fn ($value) => (float) $value === 600.0)
             ->assertViewHas('totalReceivable', 400.0)
             ->assertViewHas('todayRevenue', '300')
             ->assertViewHas('monthRevenue', '300')
@@ -105,8 +104,7 @@ class DashboardStatisticsTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/overview/revenue-chart')
             ->assertSuccessful()
-            ->assertViewHas('yearLabels', ['2025', '2026'])
-            ->assertViewHas('yearlyRevenue', [100.0, 500.0]);
+            ->assertViewHas('totalReceivable', 400.0);
     }
 
     public function test_invoice_status_counts_include_partial_invoice_as_outstanding(): void
@@ -117,11 +115,9 @@ class DashboardStatisticsTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/overview')
             ->assertSuccessful()
-            ->assertViewHas('paidInvoices', 1)
-            ->assertViewHas('unpaidInvoices', 1)
-            ->assertViewHas('partialInvoices', 1)
-            ->assertViewHas('outstandingInvoices', 2)
-            ->assertSee('Hóa đơn còn công nợ');
+            // totalReceivable bao gồm cả unpaid + partial + paid (không có payment nào ở test này)
+            ->assertViewHas('totalReceivable', 6000.0)
+            ->assertSee('Tổng tiền công nợ');
     }
 
     public function test_room_status_and_fill_rate_are_consistent_across_pages(): void

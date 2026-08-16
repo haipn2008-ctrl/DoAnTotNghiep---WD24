@@ -6,8 +6,7 @@
             'active' => request()->routeIs('admin.overview*') || request()->routeIs('admin.home'),
             'items' => [
                 ['label' => 'Dashboard', 'route' => 'admin.home', 'active' => request()->routeIs('admin.home')],
-                ['label' => 'Biểu đồ doanh thu', 'route' => 'admin.overview.revenue-chart', 'active' => request()->routeIs('admin.overview.revenue-chart')],
-                ['label' => 'Thống kê doanh thu', 'route' => 'admin.overview.revenue-stats', 'active' => request()->routeIs('admin.overview.revenue-stats')],
+                ['label' => 'Phân tích doanh thu', 'route' => 'admin.overview.revenue-chart', 'active' => request()->routeIs('admin.overview.revenue-chart')],
                 ['label' => 'Thống kê phòng', 'route' => 'admin.overview.room-stats', 'active' => request()->routeIs('admin.overview.room-stats')],
                 ['label' => 'Tỷ lệ lấp đầy', 'route' => 'admin.overview.fill-rate', 'active' => request()->routeIs('admin.overview.fill-rate')],
             ],
