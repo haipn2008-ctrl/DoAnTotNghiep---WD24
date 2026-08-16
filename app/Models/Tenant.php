@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tenant extends Model
 {
@@ -34,19 +35,16 @@ class Tenant extends Model
     |--------------------------------------------------------------------------
     */
 
-    // Tài khoản đăng nhập
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Các hợp đồng đứng tên
     public function contracts()
     {
         return $this->hasMany(Contract::class);
     }
 
-    // Các hợp đồng mà tenant là người đại diện
     public function representativeContracts()
     {
         return $this->hasMany(
@@ -55,13 +53,21 @@ class Tenant extends Model
         );
     }
 
-    // Xe của người thuê
+    /**
+     * Giấy tờ nhận diện / CCCD
+     */
+    public function document(): HasOne
+    {
+        return $this->hasOne(
+            TenantDocument::class
+        );
+    }
+
     public function vehicles()
     {
         return $this->hasMany(Vehicle::class);
     }
 
-    // Lịch sử đăng ký tạm trú
     public function temporaryResidences()
     {
         return $this->hasMany(TemporaryResidence::class);
@@ -73,7 +79,6 @@ class Tenant extends Model
     |--------------------------------------------------------------------------
     */
 
-    // Lấy hợp đồng đang hoạt động
     public function activeContract()
     {
         return $this->contracts()
@@ -81,7 +86,6 @@ class Tenant extends Model
             ->first();
     }
 
-    // Kiểm tra đang thuê phòng hay không
     public function isRenting()
     {
         return $this->contracts()

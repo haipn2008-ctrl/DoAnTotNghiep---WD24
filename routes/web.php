@@ -331,9 +331,19 @@ Route::middleware('auth')->group(function () {
                 // =================================================
 
                 Route::resource(
-                    'temporary-residences',
+                    'temporary_residences',
                     TemporaryResidenceController::class
                 );
+
+                Route::post(
+                    'temporary-residences/{temporaryResidence}/sign',
+                    [TemporaryResidenceController::class, 'sign']
+                )->name('temporary_residences.sign');
+
+                Route::get(
+                    'temporary-residences/{temporaryResidence}/pdf',
+                    [TemporaryResidenceController::class, 'pdf']
+                )->name('temporary_residences.pdf');
 
 
                 // =================================================

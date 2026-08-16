@@ -20,43 +20,73 @@ class TemporaryResidenceController extends Controller
             'contract.room',
         ]);
 
-        // Tìm kiếm theo họ tên, số điện thoại hoặc CCCD
+        /*
+        |--------------------------------------------------------------------------
+        | Tìm kiếm
+        |--------------------------------------------------------------------------
+        */
         if ($request->filled('search')) {
-            $search = trim($request->search);
+            $search = trim($request->input('search'));
 
             $query->whereHas('tenant', function ($q) use ($search) {
                 $q->where(function ($query) use ($search) {
-                    $query->where('full_name', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%")
-                        ->orWhere('cccd', 'like', "%{$search}%");
+                    $query->where(
+                        'full_name',
+                        'like',
+                        "%{$search}%"
+                    )
+                        ->orWhere(
+                            'phone',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'cccd',
+                            'like',
+                            "%{$search}%"
+                        );
                 });
             });
         }
 
-        // Lọc theo trạng thái
+        /*
+        |--------------------------------------------------------------------------
+        | Lọc trạng thái
+        |--------------------------------------------------------------------------
+        */
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where(
+                'status',
+                $request->input('status')
+            );
         }
 
-        // Lọc từ ngày bắt đầu
+        /*
+        |--------------------------------------------------------------------------
+        | Lọc ngày bắt đầu từ
+        |--------------------------------------------------------------------------
+        */
         if ($request->filled('start_date')) {
             $query->whereDate(
                 'start_date',
                 '>=',
-                $request->start_date
+                $request->input('start_date')
             );
         }
 
-        // Lọc đến ngày bắt đầu
+        /*
+        |--------------------------------------------------------------------------
+        | Lọc ngày bắt đầu đến
+        |--------------------------------------------------------------------------
+        */
         if ($request->filled('end_date')) {
             $query->whereDate(
                 'start_date',
                 '<=',
-                $request->end_date
+                $request->input('end_date')
             );
         }
 
-        // Lấy danh sách đăng ký tạm trú
         $temporaryResidences = $query
             ->latest()
             ->paginate(10)
@@ -73,24 +103,41 @@ class TemporaryResidenceController extends Controller
      */
     public function create()
     {
-        // Lấy danh sách khách thuê
+        /*
+        |--------------------------------------------------------------------------
+        | Danh sách khách thuê
+        |--------------------------------------------------------------------------
+        */
         $tenants = Tenant::orderBy('full_name')->get();
 
-        // Lấy các hợp đồng phù hợp để đăng ký tạm trú
+        /*
+        |--------------------------------------------------------------------------
+        | Danh sách hợp đồng có thể đăng ký tạm trú
+        |--------------------------------------------------------------------------
+        */
         $contracts = Contract::with([
             'tenant',
             'room',
         ])
-            ->whereIn('status', ['active', 'pending'])
+            ->whereIn(
+                'status',
+                ['active', 'pending']
+            )
             ->latest()
             ->get();
 
         return view(
             'admin.temporary_residences.create',
-            compact('tenants', 'contracts')
+            compact(
+                'tenants',
+                'contracts'
+            )
         );
     }
 
+    /**
+     * Lưu đăng ký tạm trú.
+     */
     /**
      * Lưu đăng ký tạm trú.
      */
@@ -107,17 +154,6 @@ class TemporaryResidenceController extends Controller
                 'exists:contracts,id',
             ],
 
-            'start_date' => [
-                'required',
-                'date',
-            ],
-
-            'end_date' => [
-                'nullable',
-                'date',
-                'after_or_equal:start_date',
-            ],
-
             'status' => [
                 'required',
                 'in:pending,active,expired,cancelled',
@@ -129,34 +165,50 @@ class TemporaryResidenceController extends Controller
                 'max:1000',
             ],
         ], [
-            'tenant_id.required' => 'Vui lòng chọn khách thuê.',
-            'tenant_id.exists' => 'Khách thuê không tồn tại.',
+            'tenant_id.required' =>
+            'Vui lòng chọn khách thuê.',
 
-            'contract_id.required' => 'Vui lòng chọn hợp đồng.',
-            'contract_id.exists' => 'Hợp đồng không tồn tại.',
+            'tenant_id.exists' =>
+            'Khách thuê không tồn tại.',
 
-            'start_date.required' => 'Vui lòng nhập ngày bắt đầu.',
-            'start_date.date' => 'Ngày bắt đầu không hợp lệ.',
+            'contract_id.required' =>
+            'Vui lòng chọn hợp đồng.',
 
-            'end_date.date' => 'Ngày kết thúc không hợp lệ.',
-            'end_date.after_or_equal' =>
-            'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.',
+            'contract_id.exists' =>
+            'Hợp đồng không tồn tại.',
 
-            'status.required' => 'Vui lòng chọn trạng thái.',
-            'status.in' => 'Trạng thái không hợp lệ.',
+            'status.required' =>
+            'Vui lòng chọn trạng thái.',
 
-            'note.max' => 'Ghi chú không được vượt quá 1000 ký tự.',
+            'status.in' =>
+            'Trạng thái không hợp lệ.',
+
+            'note.max' =>
+            'Ghi chú không được vượt quá 1000 ký tự.',
         ]);
 
         /*
     |--------------------------------------------------------------------------
-    | 1. Kiểm tra hợp đồng có tồn tại và thuộc đúng khách thuê
+    | Lấy hợp đồng
     |--------------------------------------------------------------------------
     */
+        $contract = Contract::with([
+            'tenant',
+            'room',
+        ])->findOrFail(
+            $validated['contract_id']
+        );
 
-        $contract = Contract::findOrFail($validated['contract_id']);
-
-        if ((int) $contract->tenant_id !== (int) $validated['tenant_id']) {
+        /*
+    |--------------------------------------------------------------------------
+    | Kiểm tra hợp đồng thuộc đúng khách thuê
+    |--------------------------------------------------------------------------
+    */
+        if (
+            (int) $contract->tenant_id
+            !==
+            (int) $validated['tenant_id']
+        ) {
             return back()
                 ->withInput()
                 ->withErrors([
@@ -167,15 +219,16 @@ class TemporaryResidenceController extends Controller
 
         /*
     |--------------------------------------------------------------------------
-    | 2. Kiểm tra trạng thái hợp đồng
+    | Kiểm tra trạng thái hợp đồng
     |--------------------------------------------------------------------------
-    |
-    | Chỉ cho phép đăng ký tạm trú với hợp đồng đang hoạt động
-    | hoặc đang chờ xử lý.
-    |
     */
-
-        if (!in_array($contract->status, ['active', 'pending'])) {
+        if (
+            !in_array(
+                $contract->status,
+                ['active', 'pending'],
+                true
+            )
+        ) {
             return back()
                 ->withInput()
                 ->withErrors([
@@ -186,18 +239,17 @@ class TemporaryResidenceController extends Controller
 
         /*
     |--------------------------------------------------------------------------
-    | 3. Kiểm tra hợp đồng đã có đăng ký tạm trú chưa
+    | Kiểm tra hợp đồng đã có đăng ký tạm trú hay chưa
     |--------------------------------------------------------------------------
-    |
-    | Một hợp đồng chỉ có một đăng ký tạm trú đang chờ hoặc đang hoạt động.
-    |
     */
-
         $exists = TemporaryResidence::where(
             'contract_id',
             $validated['contract_id']
         )
-            ->whereIn('status', ['pending', 'active'])
+            ->whereIn(
+                'status',
+                ['pending', 'active']
+            )
             ->exists();
 
         if ($exists) {
@@ -211,29 +263,50 @@ class TemporaryResidenceController extends Controller
 
         /*
     |--------------------------------------------------------------------------
-    | 4. Tạo đăng ký tạm trú
+    | THỜI GIAN TẠM TRÚ LẤY TRỰC TIẾP TỪ HỢP ĐỒNG
     |--------------------------------------------------------------------------
     */
-
-        TemporaryResidence::create($validated);
+        if (!$contract->start_date) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'contract_id' =>
+                    'Hợp đồng chưa có ngày bắt đầu nên không thể đăng ký tạm trú.',
+                ]);
+        }
 
         /*
     |--------------------------------------------------------------------------
-    | 5. Quay lại danh sách
+    | Gán thời gian tạm trú theo thời gian thuê trong hợp đồng
     |--------------------------------------------------------------------------
     */
+        $validated['start_date'] = $contract->start_date;
+        $validated['end_date'] = $contract->end_date;
+
+        /*
+    |--------------------------------------------------------------------------
+    | Tạo đăng ký tạm trú
+    |--------------------------------------------------------------------------
+    */
+        TemporaryResidence::create($validated);
 
         return redirect()
             ->route('admin.temporary_residences.index')
             ->with(
                 'success',
-                'Đăng ký tạm trú đã được tạo thành công.'
+                'Đăng ký tạm trú đã được tạo thành công. Thời gian tạm trú được lấy theo thời gian thuê trong hợp đồng.'
             );
     }
-    public function show(TemporaryResidence $temporaryResidence)
-    {
+
+    /**
+     * Xem chi tiết đăng ký tạm trú.
+     */
+    public function show(
+        TemporaryResidence $temporaryResidence
+    ) {
         $temporaryResidence->load([
-            'tenant',
+            'tenant.document',
+            'tenant.vehicles',
             'contract.room',
         ]);
 
@@ -246,16 +319,33 @@ class TemporaryResidenceController extends Controller
     /**
      * Hiển thị form chỉnh sửa.
      */
-    public function edit(TemporaryResidence $temporaryResidence)
-    {
-        $tenants = Tenant::orderBy('name')->get();
+    public function edit(
+        TemporaryResidence $temporaryResidence
+    ) {
+        /*
+        |--------------------------------------------------------------------------
+        | Lưu ý:
+        | tenants dùng full_name, không phải name
+        |--------------------------------------------------------------------------
+        */
+        $tenants = Tenant::orderBy('full_name')->get();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Lấy hợp đồng đang active/pending
+        | và giữ lại hợp đồng hiện tại nếu nó đã đổi trạng thái
+        |--------------------------------------------------------------------------
+        */
         $contracts = Contract::with([
             'tenant',
             'room',
         ])
             ->where(function ($query) use ($temporaryResidence) {
-                $query->whereIn('status', ['active', 'pending'])
+                $query
+                    ->whereIn(
+                        'status',
+                        ['active', 'pending']
+                    )
                     ->orWhere(
                         'id',
                         $temporaryResidence->contract_id
@@ -314,31 +404,54 @@ class TemporaryResidenceController extends Controller
                 'max:1000',
             ],
         ], [
-            'tenant_id.required' => 'Vui lòng chọn khách thuê.',
-            'tenant_id.exists' => 'Khách thuê không tồn tại.',
+            'tenant_id.required' =>
+            'Vui lòng chọn khách thuê.',
 
-            'contract_id.required' => 'Vui lòng chọn hợp đồng.',
-            'contract_id.exists' => 'Hợp đồng không tồn tại.',
+            'tenant_id.exists' =>
+            'Khách thuê không tồn tại.',
 
-            'start_date.required' => 'Vui lòng nhập ngày bắt đầu.',
-            'start_date.date' => 'Ngày bắt đầu không hợp lệ.',
+            'contract_id.required' =>
+            'Vui lòng chọn hợp đồng.',
 
-            'end_date.date' => 'Ngày kết thúc không hợp lệ.',
+            'contract_id.exists' =>
+            'Hợp đồng không tồn tại.',
+
+            'start_date.required' =>
+            'Vui lòng nhập ngày bắt đầu.',
+
+            'start_date.date' =>
+            'Ngày bắt đầu không hợp lệ.',
+
+            'end_date.date' =>
+            'Ngày kết thúc không hợp lệ.',
+
             'end_date.after_or_equal' =>
             'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.',
 
-            'status.required' => 'Vui lòng chọn trạng thái.',
-            'status.in' => 'Trạng thái không hợp lệ.',
+            'status.required' =>
+            'Vui lòng chọn trạng thái.',
 
-            'note.max' => 'Ghi chú không được vượt quá 1000 ký tự.',
+            'status.in' =>
+            'Trạng thái không hợp lệ.',
+
+            'note.max' =>
+            'Ghi chú không được vượt quá 1000 ký tự.',
         ]);
 
         /*
-         * Kiểm tra hợp đồng có thuộc khách thuê đã chọn hay không.
-         */
-        $contract = Contract::findOrFail($validated['contract_id']);
+        |--------------------------------------------------------------------------
+        | Kiểm tra hợp đồng
+        |--------------------------------------------------------------------------
+        */
+        $contract = Contract::findOrFail(
+            $validated['contract_id']
+        );
 
-        if ((int) $contract->tenant_id !== (int) $validated['tenant_id']) {
+        if (
+            (int) $contract->tenant_id
+            !==
+            (int) $validated['tenant_id']
+        ) {
             return back()
                 ->withInput()
                 ->withErrors([
@@ -348,16 +461,18 @@ class TemporaryResidenceController extends Controller
         }
 
         /*
-         * Không cho phép một hợp đồng có nhiều đăng ký
-         * tạm trú đang chờ hoặc đang hoạt động.
-         *
-         * Bỏ qua chính bản ghi đang chỉnh sửa.
-         */
+        |--------------------------------------------------------------------------
+        | Không cho phép trùng đăng ký active/pending
+        |--------------------------------------------------------------------------
+        */
         $exists = TemporaryResidence::where(
             'contract_id',
             $validated['contract_id']
         )
-            ->whereIn('status', ['pending', 'active'])
+            ->whereIn(
+                'status',
+                ['pending', 'active']
+            )
             ->where(
                 'id',
                 '!=',
@@ -375,11 +490,18 @@ class TemporaryResidenceController extends Controller
         }
 
         /*
-         * Kiểm tra trạng thái hợp đồng.
-         */
+        |--------------------------------------------------------------------------
+        | Kiểm tra trạng thái hợp đồng
+        |--------------------------------------------------------------------------
+        */
         if (
-            !in_array($contract->status, ['active', 'pending'])
-            && $contract->id != $temporaryResidence->contract_id
+            !in_array(
+                $contract->status,
+                ['active', 'pending'],
+                true
+            )
+            &&
+            $contract->id != $temporaryResidence->contract_id
         ) {
             return back()
                 ->withInput()
@@ -390,8 +512,10 @@ class TemporaryResidenceController extends Controller
         }
 
         /*
-         * Cập nhật dữ liệu.
-         */
+        |--------------------------------------------------------------------------
+        | Cập nhật
+        |--------------------------------------------------------------------------
+        */
         $temporaryResidence->update($validated);
 
         return redirect()
@@ -405,8 +529,9 @@ class TemporaryResidenceController extends Controller
     /**
      * Xóa đăng ký tạm trú.
      */
-    public function destroy(TemporaryResidence $temporaryResidence)
-    {
+    public function destroy(
+        TemporaryResidence $temporaryResidence
+    ) {
         $temporaryResidence->delete();
 
         return redirect()
@@ -415,5 +540,41 @@ class TemporaryResidenceController extends Controller
                 'success',
                 'Đăng ký tạm trú đã được xóa thành công.'
             );
+    }
+    public function sign(
+        Request $request,
+        TemporaryResidence $temporaryResidence
+    ) {
+        $validated = $request->validate([
+            'signature' => [
+                'required',
+                'string',
+            ],
+        ], [
+            'signature.required' => 'Vui lòng ký tên trước khi lưu.',
+        ]);
+
+        $temporaryResidence->update([
+            'signature' => $validated['signature'],
+            'signed_at' => now(),
+        ]);
+
+        return back()->with(
+            'success',
+            'Chữ ký đã được lưu thành công.'
+        );
+    }
+    public function pdf(TemporaryResidence $temporaryResidence)
+    {
+        $temporaryResidence->load([
+            'tenant.document',
+            'tenant.vehicles',
+            'contract.room',
+        ]);
+
+        return view(
+            'admin.temporary_residences.pdf',
+            compact('temporaryResidence')
+        );
     }
 }

@@ -1,65 +1,357 @@
 @extends('layouts.admin.index')
 
+@section('title', 'Đăng ký tạm trú')
+
 @section('content')
 
-<div class="space-y-6">
+    <style>
+        .temporary-page {
+            background: #f8f9fc;
+        }
 
-{{-- ================================================================
-     HEADER
-================================================================= --}}
+        .temporary-header {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        }
 
-<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        .temporary-header-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(85, 110, 230, .1);
+            color: #556ee6;
+            font-size: 22px;
+            margin-right: 12px;
+        }
 
-    <div>
-        <div class="flex items-center gap-3">
+        .form-card {
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .03);
+            overflow: hidden;
+            margin-bottom: 20px;
+            background: #fff;
+        }
 
-            <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <i class="fas fa-house-user text-lg"></i>
-            </div>
+        .form-card .card-header {
+            background: #fff;
+            border-bottom: 1px solid #eff0f2;
+            padding: 16px 20px;
+        }
 
-            <div>
-                <h1 class="text-xl font-bold text-slate-950">
-                    Đăng ký tạm trú
-                </h1>
+        .form-card .card-body {
+            padding: 20px;
+        }
 
-                <p class="mt-1 text-sm text-slate-500">
-                    Tạo hồ sơ đăng ký tạm trú cho khách thuê.
-                </p>
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .section-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(85, 110, 230, .1);
+            color: #556ee6;
+            flex-shrink: 0;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: #343a40;
+            margin-bottom: 7px;
+        }
+
+        .form-control,
+        .form-select {
+            min-height: 42px;
+            border-radius: 8px;
+            border-color: #dfe3e8;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #556ee6;
+            box-shadow: 0 0 0 .15rem rgba(85, 110, 230, .12);
+        }
+
+        /*
+            |--------------------------------------------------------------------------
+            | Preview
+            |--------------------------------------------------------------------------
+            */
+
+        .tenant-preview,
+        .contract-preview,
+        .period-preview {
+            border-radius: 10px;
+            padding: 15px;
+            background: #f8f9fc;
+            border: 1px solid #e9ecef;
+            margin-top: 15px;
+        }
+
+        .preview-item {
+            padding: 10px 12px;
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #edf0f3;
+            height: 100%;
+        }
+
+        .preview-label {
+            display: block;
+            font-size: 12px;
+            color: #74788d;
+            margin-bottom: 3px;
+        }
+
+        .preview-value {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #343a40;
+            word-break: break-word;
+        }
+
+        /*
+            |--------------------------------------------------------------------------
+            | Readonly date
+            |--------------------------------------------------------------------------
+            */
+
+        .contract-date-input {
+            background-color: #f8f9fc !important;
+            cursor: not-allowed;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .contract-date-input:focus {
+            border-color: #dfe3e8;
+            box-shadow: none;
+        }
+
+        /*
+            |--------------------------------------------------------------------------
+            | Side cards
+            |--------------------------------------------------------------------------
+            */
+
+        .side-card {
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .03);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .side-card-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid #eff0f2;
+            font-weight: 600;
+        }
+
+        .side-card-body {
+            padding: 18px;
+        }
+
+        .summary-card {
+            position: sticky;
+            top: 20px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 15px;
+            padding: 12px 0;
+            border-bottom: 1px dashed #e5e7eb;
+        }
+
+        .summary-row:last-child {
+            border-bottom: 0;
+        }
+
+        .summary-label {
+            color: #74788d;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .summary-value {
+            text-align: right;
+            font-size: 13px;
+            font-weight: 600;
+            color: #343a40;
+            word-break: break-word;
+        }
+
+        /*
+            |--------------------------------------------------------------------------
+            | Steps
+            |--------------------------------------------------------------------------
+            */
+
+        .step-item {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .step-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            flex: 0 0 32px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(85, 110, 230, .1);
+            color: #556ee6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .step-content h6 {
+            font-size: 13px;
+            margin: 0 0 3px;
+            font-weight: 600;
+        }
+
+        .step-content p {
+            margin: 0;
+            font-size: 12px;
+            color: #74788d;
+            line-height: 1.5;
+        }
+
+        /*
+            |--------------------------------------------------------------------------
+            | Action
+            |--------------------------------------------------------------------------
+            */
+
+        .action-card {
+            border: 0;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .04);
+        }
+
+        .btn-save {
+            min-height: 44px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .required {
+            color: #f46a6a;
+        }
+
+        /*
+            |--------------------------------------------------------------------------
+            | Empty contract
+            |--------------------------------------------------------------------------
+            */
+
+        .empty-contract {
+            display: none;
+            margin-top: 15px;
+            padding: 12px 15px;
+            border-radius: 8px;
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            color: #856404;
+            font-size: 13px;
+        }
+
+        /*
+            |--------------------------------------------------------------------------
+            | Responsive
+            |--------------------------------------------------------------------------
+            */
+
+        @media (max-width: 991px) {
+            .summary-card {
+                position: static;
+            }
+        }
+    </style>
+
+
+    <div class="container-fluid temporary-page py-1">
+
+        {{-- ================================================================
+        HEADER
+        ================================================================= --}}
+
+        <div class="temporary-header">
+
+            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+
+                <div class="d-flex align-items-center">
+
+                    <div class="temporary-header-icon">
+                        <i class="mdi mdi-home-map-marker"></i>
+                    </div>
+
+                    <div>
+                        <h4 class="mb-1 fw-semibold">
+                            Đăng ký tạm trú
+                        </h4>
+
+                        <p class="text-muted mb-0 small">
+                            Tạo hồ sơ đăng ký tạm trú cho khách thuê
+                        </p>
+                    </div>
+
+                </div>
+
+                <a href="{{ route('admin.temporary_residences.index') }}" class="btn btn-light">
+                    <i class="mdi mdi-arrow-left me-1"></i>
+                    Quay lại
+                </a>
+
             </div>
 
         </div>
-    </div>
-
-    <a href="{{ route('admin.temporary-residences.index') }}"
-       class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
-
-        <i class="fas fa-arrow-left"></i>
-        Quay lại
-
-    </a>
-
-</div>
 
 
-{{-- ================================================================
-     VALIDATION ERROR
-================================================================= --}}
+        {{-- ================================================================
+        ERRORS
+        ================================================================= --}}
 
-@if ($errors->any())
+        @if ($errors->any())
 
-    <div class="rounded-lg border border-rose-200 bg-rose-50 p-4">
+            <div class="alert alert-danger border-0 shadow-sm mb-4">
 
-        <div class="flex items-start gap-3">
-
-            <i class="bx bx-error-circle mt-0.5 text-xl text-rose-600"></i>
-
-            <div>
-
-                <h3 class="font-semibold text-rose-800">
+                <div class="fw-semibold mb-2">
+                    <i class="mdi mdi-alert-circle-outline me-1"></i>
                     Vui lòng kiểm tra lại thông tin
-                </h3>
+                </div>
 
-                <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-rose-700">
+                <ul class="mb-0 ps-3">
 
                     @foreach ($errors->all() as $error)
 
@@ -73,732 +365,1326 @@
 
             </div>
 
-        </div>
-
-    </div>
-
-@endif
+        @endif
 
 
-{{-- ================================================================
-     FORM
-================================================================= --}}
+        {{-- ================================================================
+        FORM
+        ================================================================= --}}
 
-<form action="{{ route('admin.temporary-residences.store') }}"
-      method="POST">
+        <form action="{{ route('admin.temporary_residences.store') }}" method="POST">
 
-    @csrf
+            @csrf
 
+            <div class="row">
 
-    {{-- ============================================================
-         1. THÔNG TIN KHÁCH THUÊ
-    ============================================================= --}}
+                {{-- ========================================================
+                LEFT
+                ========================================================= --}}
 
-    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div class="col-lg-8">
 
-        <div class="border-b border-slate-200 px-5 py-4">
+                    {{-- ====================================================
+                    1. KHÁCH THUÊ
+                    ===================================================== --}}
 
-            <h3 class="font-semibold text-slate-950">
-                1. Thông tin khách thuê
-            </h3>
+                    <div class="form-card">
 
-            <p class="mt-1 text-sm text-slate-500">
-                Chọn khách thuê và hợp đồng thuê tương ứng.
-            </p>
+                        <div class="card-header">
 
-        </div>
+                            <h5 class="section-title">
 
+                                <span class="section-icon">
+                                    <i class="mdi mdi-account-outline"></i>
+                                </span>
 
-        <div class="p-5">
+                                Thông tin khách thuê
 
-            <div class="grid gap-5 md:grid-cols-2">
+                            </h5>
 
-                {{-- KHÁCH THUÊ --}}
+                        </div>
 
-                <div>
+                        <div class="card-body">
 
-                    <label for="tenant_id"
-                           class="mb-1.5 block text-sm font-semibold text-slate-700">
+                            <label for="tenant_id" class="form-label">
+                                Khách thuê
+                                <span class="required">*</span>
+                            </label>
 
-                        Khách thuê
-                        <span class="text-rose-500">*</span>
+                            <select name="tenant_id" id="tenant_id"
+                                class="form-select @error('tenant_id') is-invalid @enderror" required>
 
-                    </label>
+                                <option value="">
+                                    -- Chọn khách thuê --
+                                </option>
 
-                    <select
-                        id="tenant_id"
-                        name="tenant_id"
-                        required
-                        class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 @error('tenant_id') border-rose-400 @enderror"
-                    >
+                                @foreach ($tenants as $tenant)
 
-                        <option value="">
-                            Chọn khách thuê
-                        </option>
+                                    <option value="{{ $tenant->id }}" @selected(old('tenant_id') == $tenant->id)>
+                                        {{ $tenant->full_name }}
 
-                        @foreach ($tenants as $tenant)
+                                        @if ($tenant->phone)
+                                            — {{ $tenant->phone }}
+                                        @endif
+                                    </option>
 
-                            <option
-                                value="{{ $tenant->id }}"
-                                @selected(old('tenant_id') == $tenant->id)
-                            >
-                                {{ $tenant->full_name }}
-                                -
-                                {{ $tenant->phone }}
-                                -
-                                CCCD: {{ $tenant->cccd }}
-                            </option>
+                                @endforeach
 
-                        @endforeach
+                            </select>
 
-                    </select>
+                            @error('tenant_id')
 
-                    @error('tenant_id')
+                                <div class="invalid-feedback">
+                                    {{ $message }}
+                                </div>
 
-                        <p class="mt-1 text-sm text-rose-600">
-                            {{ $message }}
-                        </p>
-
-                    @enderror
-
-                    <p class="mt-1 text-xs text-slate-400">
-                        Chọn khách thuê cần đăng ký tạm trú.
-                    </p>
-
-                </div>
+                            @enderror
 
 
-                {{-- HỢP ĐỒNG --}}
+                            {{-- THÔNG TIN KHÁCH --}}
 
-                <div>
+                            <div id="tenant-info" class="tenant-preview d-none">
 
-                    <label for="contract_id"
-                           class="mb-1.5 block text-sm font-semibold text-slate-700">
+                                <div class="row g-3">
 
-                        Hợp đồng thuê
-                        <span class="text-rose-500">*</span>
+                                    <div class="col-md-6">
 
-                    </label>
+                                        <div class="preview-item">
 
-                    <select
-                        id="contract_id"
-                        name="contract_id"
-                        required
-                        class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 @error('contract_id') border-rose-400 @enderror"
-                    >
+                                            <span class="preview-label">
+                                                Họ và tên
+                                            </span>
 
-                        <option value="">
-                            Chọn hợp đồng
-                        </option>
+                                            <span id="tenant-name" class="preview-value">
+                                                -
+                                            </span>
 
-                        @foreach ($contracts as $contract)
+                                        </div>
 
-                            <option
-                                value="{{ $contract->id }}"
-                                data-tenant="{{ $contract->tenant_id }}"
-                                data-room="{{ $contract->room->room_number ?? '' }}"
-                                @selected(old('contract_id') == $contract->id)
-                            >
-                                Hợp đồng #{{ $contract->id }}
-
-                                @if ($contract->room)
-                                    - Phòng {{ $contract->room->room_number }}
-                                @endif
-                            </option>
-
-                        @endforeach
-
-                    </select>
-
-                    @error('contract_id')
-
-                        <p class="mt-1 text-sm text-rose-600">
-                            {{ $message }}
-                        </p>
-
-                    @enderror
-
-                    <p class="mt-1 text-xs text-slate-400">
-                        Chỉ hiển thị hợp đồng của khách thuê đã chọn.
-                    </p>
-
-                </div>
-
-            </div>
+                                    </div>
 
 
-            {{-- PHÒNG THUÊ --}}
+                                    <div class="col-md-6">
 
-            <div class="mt-5">
+                                        <div class="preview-item">
 
-                <label class="mb-1.5 block text-sm font-semibold text-slate-700">
-                    Phòng thuê
-                </label>
+                                            <span class="preview-label">
+                                                Số điện thoại
+                                            </span>
 
-                <div id="room_box"
-                     class="flex min-h-[72px] items-center gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 transition">
+                                            <span id="tenant-phone" class="preview-value">
+                                                -
+                                            </span>
 
-                    <div id="room_icon"
-                         class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 shadow-sm">
+                                        </div>
 
-                        <i class="fas fa-door-open"></i>
+                                    </div>
+
+
+                                    <div class="col-md-6">
+
+                                        <div class="preview-item">
+
+                                            <span class="preview-label">
+                                                CCCD
+                                            </span>
+
+                                            <span id="tenant-cccd" class="preview-value">
+                                                -
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="col-md-6">
+
+                                        <div class="preview-item">
+
+                                            <span class="preview-label">
+                                                Địa chỉ thường trú
+                                            </span>
+
+                                            <span id="tenant-address" class="preview-value">
+                                                -
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
 
                     </div>
 
-                    <div class="min-w-0">
 
-                        <p id="room_title"
-                           class="text-sm font-semibold text-slate-500">
+                    {{-- ====================================================
+                    2. HỢP ĐỒNG
+                    ===================================================== --}}
 
-                            Chưa chọn phòng
+                    <div class="form-card">
 
-                        </p>
+                        <div class="card-header">
 
-                        <p id="room_description"
-                           class="mt-0.5 text-xs text-slate-400">
+                            <h5 class="section-title">
 
-                            Phòng sẽ được xác định tự động từ hợp đồng.
+                                <span class="section-icon">
+                                    <i class="mdi mdi-file-document-outline"></i>
+                                </span>
 
-                        </p>
+                                Hợp đồng thuê phòng
+
+                            </h5>
+
+                        </div>
+
+                        <div class="card-body">
+
+                            <label for="contract_id" class="form-label">
+                                Hợp đồng
+                                <span class="required">*</span>
+                            </label>
+
+                            <select name="contract_id" id="contract_id"
+                                class="form-select @error('contract_id') is-invalid @enderror" required>
+
+                                <option value="">
+                                    -- Chọn hợp đồng --
+                                </option>
+
+                                @foreach ($contracts as $contract)
+
+                                    <option value="{{ $contract->id }}" data-tenant-id="{{ $contract->tenant_id }}"
+                                        data-room="{{ $contract->room->room_code ?? 'N/A' }}"
+                                        data-contract="{{ $contract->contract_code ?? 'HD-' . $contract->id }}"
+                                        data-start-date="{{ $contract->start_date ? \Carbon\Carbon::parse($contract->start_date)->format('Y-m-d') : '' }}"
+                                        data-end-date="{{ $contract->end_date ? \Carbon\Carbon::parse($contract->end_date)->format('Y-m-d') : '' }}"
+                                        @selected(old('contract_id') == $contract->id)>
+
+                                        {{ $contract->contract_code ?? 'HD-' . $contract->id }}
+
+                                        —
+
+                                        {{ $contract->tenant->full_name ?? 'N/A' }}
+
+                                        —
+
+                                        Phòng {{ $contract->room->room_code ?? 'N/A' }}
+
+                                    </option>
+
+                                @endforeach
+
+                            </select>
+
+                            @error('contract_id')
+
+                                <div class="invalid-feedback">
+                                    {{ $message }}
+                                </div>
+
+                            @enderror
+
+
+                            {{-- KHÔNG CÓ HỢP ĐỒNG --}}
+
+                            <div id="empty-contract" class="empty-contract">
+
+                                <i class="mdi mdi-alert-outline me-1"></i>
+
+                                Khách thuê này chưa có hợp đồng phù hợp để đăng ký tạm trú.
+
+                            </div>
+
+
+                            {{-- THÔNG TIN HỢP ĐỒNG --}}
+
+                            <div id="contract-info" class="contract-preview d-none">
+
+                                <div class="row g-3">
+
+                                    <div class="col-md-4">
+
+                                        <div class="preview-item">
+
+                                            <span class="preview-label">
+                                                Mã hợp đồng
+                                            </span>
+
+                                            <span id="contract-code" class="preview-value">
+                                                -
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="col-md-4">
+
+                                        <div class="preview-item">
+
+                                            <span class="preview-label">
+                                                Phòng
+                                            </span>
+
+                                            <span id="contract-room" class="preview-value">
+                                                -
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="col-md-4">
+
+                                        <div class="preview-item">
+
+                                            <span class="preview-label">
+                                                Trạng thái
+                                            </span>
+
+                                            <span class="badge bg-success-subtle text-success">
+
+                                                <i class="mdi mdi-check-circle-outline me-1"></i>
+
+                                                Hợp đồng hợp lệ
+
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="col-md-6">
+
+                                        <div class="preview-item">
+
+                                            <span class="preview-label">
+                                                Ngày bắt đầu thuê
+                                            </span>
+
+                                            <span id="contract-start-date" class="preview-value">
+                                                -
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="col-md-6">
+
+                                        <div class="preview-item">
+
+                                            <span class="preview-label">
+                                                Ngày kết thúc thuê
+                                            </span>
+
+                                            <span id="contract-end-date" class="preview-value">
+                                                -
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
 
                     </div>
 
-                    <input
-                        type="hidden"
-                        id="room_display"
-                        value=""
-                    >
+
+                    {{-- ====================================================
+                    3. THỜI GIAN TẠM TRÚ
+                    ===================================================== --}}
+                    {{-- THỜI GIAN TẠM TRÚ --}}
+                    <div class="form-card">
+
+                        <div class="card-header">
+                            <h5 class="section-title">
+                                <span class="section-icon">
+                                    <i class="mdi mdi-calendar-clock"></i>
+                                </span>
+
+                                Thời gian tạm trú
+                            </h5>
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="alert alert-info border-0 mb-3">
+                                <div class="d-flex align-items-start">
+                                    <i class="mdi mdi-information-outline fs-5 me-2"></i>
+
+                                    <div>
+                                        <strong>Thời gian tạm trú được lấy theo hợp đồng thuê.</strong>
+
+                                        <div class="small mt-1">
+                                            Hệ thống tự động sử dụng ngày bắt đầu và ngày kết thúc
+                                            của hợp đồng đã chọn.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+
+                                <div class="col-md-6">
+
+                                    <label class="form-label">
+                                        Ngày bắt đầu
+                                    </label>
+
+                                   <input type="date"
+       name="start_date"
+       id="start_date"
+       class="form-control"
+       readonly>
+
+                                </div>
+
+                                <div class="col-md-6">
+
+                                    <label class="form-label">
+                                        Ngày kết thúc
+                                    </label>
+<input type="date"
+       name="end_date"
+       id="end_date"
+       class="form-control"
+       readonly>
+
+                                    <div class="form-text">
+                                        Được lấy tự động từ hợp đồng.
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    {{-- ====================================================
+                    4. THÔNG TIN ĐĂNG KÝ
+                    ===================================================== --}}
+
+                    <div class="form-card">
+
+                        <div class="card-header">
+
+                            <h5 class="section-title">
+
+                                <span class="section-icon">
+                                    <i class="mdi mdi-clipboard-text-outline"></i>
+                                </span>
+
+                                Thông tin đăng ký
+
+                            </h5>
+
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-5">
+
+                                    <label for="status" class="form-label">
+                                        Trạng thái
+                                        <span class="required">*</span>
+                                    </label>
+
+                                    <select name="status" id="status"
+                                        class="form-select @error('status') is-invalid @enderror" required>
+
+                                        <option value="pending" @selected(old('status', 'active') === 'pending')>
+                                            Chờ xác nhận
+                                        </option>
+
+                                        <option value="active" @selected(old('status', 'active') === 'active')>
+                                            Đang tạm trú
+                                        </option>
+
+                                        <option value="expired" @selected(old('status') === 'expired')>
+                                            Đã hết hạn
+                                        </option>
+
+                                        <option value="cancelled" @selected(old('status') === 'cancelled')>
+                                            Đã hủy
+                                        </option>
+
+                                    </select>
+
+                                    @error('status')
+
+                                        <div class="invalid-feedback">
+                                            {{ $message }}
+                                        </div>
+
+                                    @enderror
+
+                                </div>
+
+
+                                <div class="col-md-7">
+
+                                    <label for="note" class="form-label">
+                                        Ghi chú
+                                    </label>
+
+                                    <textarea name="note" id="note" rows="3" maxlength="1000"
+                                        class="form-control @error('note') is-invalid @enderror"
+                                        placeholder="Nhập ghi chú...">{{ old('note') }}</textarea>
+
+                                    @error('note')
+
+                                        <div class="invalid-feedback">
+                                            {{ $message }}
+                                        </div>
+
+                                    @enderror
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                {{-- ========================================================
+                RIGHT
+                ========================================================= --}}
+
+                <div class="col-lg-4">
+
+                    {{-- ====================================================
+                    TÓM TẮT
+                    ===================================================== --}}
+
+                    <div class="side-card summary-card">
+
+                        <div class="side-card-header">
+
+                            <i class="mdi mdi-clipboard-check-outline text-primary me-1"></i>
+
+                            Tóm tắt hồ sơ
+
+                        </div>
+
+                        <div class="side-card-body">
+
+                            <div class="summary-row">
+
+                                <span class="summary-label">
+                                    Khách thuê
+                                </span>
+
+                                <span id="summary-tenant" class="summary-value">
+                                    Chưa chọn
+                                </span>
+
+                            </div>
+
+
+                            <div class="summary-row">
+
+                                <span class="summary-label">
+                                    Phòng
+                                </span>
+
+                                <span id="summary-room" class="summary-value">
+                                    Chưa chọn
+                                </span>
+
+                            </div>
+
+
+                            <div class="summary-row">
+
+                                <span class="summary-label">
+                                    Hợp đồng
+                                </span>
+
+                                <span id="summary-contract" class="summary-value">
+                                    Chưa chọn
+                                </span>
+
+                            </div>
+
+
+                            <div class="summary-row">
+
+                                <span class="summary-label">
+                                    Thời gian
+                                </span>
+
+                                <span id="summary-date" class="summary-value">
+                                    Chưa chọn
+                                </span>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    {{-- ====================================================
+                    HƯỚNG DẪN
+                    ===================================================== --}}
+
+                    <div class="side-card">
+
+                        <div class="side-card-header">
+
+                            <i class="mdi mdi-help-circle-outline text-primary me-1"></i>
+
+                            Quy trình đăng ký
+
+                        </div>
+
+                        <div class="side-card-body">
+
+                            <div class="step-item">
+
+                                <div class="step-number">
+                                    1
+                                </div>
+
+                                <div class="step-content">
+
+                                    <h6>
+                                        Chọn khách thuê
+                                    </h6>
+
+                                    <p>
+                                        Chọn đúng khách cần đăng ký tạm trú.
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="step-item">
+
+                                <div class="step-number">
+                                    2
+                                </div>
+
+                                <div class="step-content">
+
+                                    <h6>
+                                        Chọn hợp đồng
+                                    </h6>
+
+                                    <p>
+                                        Hợp đồng phải thuộc đúng khách thuê.
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="step-item">
+
+                                <div class="step-number">
+                                    3
+                                </div>
+
+                                <div class="step-content">
+
+                                    <h6>
+                                        Tự động lấy thời gian
+                                    </h6>
+
+                                    <p>
+                                        Thời gian tạm trú được lấy trực tiếp từ hợp đồng.
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="step-item">
+
+                                <div class="step-number">
+                                    4
+                                </div>
+
+                                <div class="step-content">
+
+                                    <h6>
+                                        Kiểm tra và lưu
+                                    </h6>
+
+                                    <p>
+                                        Kiểm tra thông tin trước khi tạo hồ sơ.
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    {{-- ====================================================
+                    ACTION
+                    ===================================================== --}}
+
+                    <div class="side-card action-card">
+
+                        <div class="side-card-body">
+
+                            <button type="submit" class="btn btn-primary btn-save w-100 mb-2">
+
+                                <i class="mdi mdi-content-save-outline me-1"></i>
+
+                                Lưu đăng ký tạm trú
+
+                            </button>
+
+
+                            <a href="{{ route('admin.temporary_residences.index') }}" class="btn btn-light w-100">
+
+                                <i class="mdi mdi-close me-1"></i>
+
+                                Hủy
+
+                            </a>
+
+                        </div>
+
+                    </div>
 
                 </div>
 
             </div>
 
-        </div>
+        </form>
 
     </div>
+    ```
 
-
-    {{-- ============================================================
-         2. THỜI GIAN TẠM TRÚ
-    ============================================================= --}}
-
-    <div class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-
-        <div class="border-b border-slate-200 px-5 py-4">
-
-            <h3 class="font-semibold text-slate-950">
-                2. Thời gian tạm trú
-            </h3>
-
-            <p class="mt-1 text-sm text-slate-500">
-                Xác định thời gian bắt đầu và kết thúc đăng ký tạm trú.
-            </p>
-
-        </div>
-
-
-        <div class="grid gap-5 p-5 md:grid-cols-2">
-
-            {{-- NGÀY BẮT ĐẦU --}}
-
-            <div>
-
-                <label for="start_date"
-                       class="mb-1.5 block text-sm font-semibold text-slate-700">
-
-                    Ngày bắt đầu
-                    <span class="text-rose-500">*</span>
-
-                </label>
-
-                <input
-                    id="start_date"
-                    type="date"
-                    name="start_date"
-                    value="{{ old('start_date') }}"
-                    required
-                    class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 @error('start_date') border-rose-400 @enderror"
-                >
-
-                @error('start_date')
-
-                    <p class="mt-1 text-sm text-rose-600">
-                        {{ $message }}
-                    </p>
-
-                @enderror
-
-            </div>
-
-
-            {{-- NGÀY KẾT THÚC --}}
-
-            <div>
-
-                <label for="end_date"
-                       class="mb-1.5 block text-sm font-semibold text-slate-700">
-
-                    Ngày kết thúc
-
-                </label>
-
-                <input
-                    id="end_date"
-                    type="date"
-                    name="end_date"
-                    value="{{ old('end_date') }}"
-                    class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 @error('end_date') border-rose-400 @enderror"
-                >
-
-                @error('end_date')
-
-                    <p class="mt-1 text-sm text-rose-600">
-                        {{ $message }}
-                    </p>
-
-                @enderror
-
-                <p class="mt-1 text-xs text-slate-400">
-                    Có thể bỏ trống nếu chưa xác định ngày kết thúc.
-                </p>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-    {{-- ============================================================
-         3. TRẠNG THÁI & GHI CHÚ
-    ============================================================= --}}
-
-    <div class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-
-        <div class="border-b border-slate-200 px-5 py-4">
-
-            <h3 class="font-semibold text-slate-950">
-                3. Trạng thái & ghi chú
-            </h3>
-
-            <p class="mt-1 text-sm text-slate-500">
-                Cập nhật trạng thái và thông tin bổ sung cho hồ sơ.
-            </p>
-
-        </div>
-
-
-        <div class="grid gap-5 p-5 md:grid-cols-2">
-
-            {{-- TRẠNG THÁI --}}
-
-            <div>
-
-                <label for="status"
-                       class="mb-1.5 block text-sm font-semibold text-slate-700">
-
-                    Trạng thái
-                    <span class="text-rose-500">*</span>
-
-                </label>
-
-                <select
-                    id="status"
-                    name="status"
-                    required
-                    class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 @error('status') border-rose-400 @enderror"
-                >
-
-                    <option value="pending"
-                        @selected(old('status') == 'pending')>
-                        Chờ xử lý
-                    </option>
-
-                    <option value="active"
-                        @selected(old('status', 'active') == 'active')>
-                        Đang hoạt động
-                    </option>
-
-                    <option value="expired"
-                        @selected(old('status') == 'expired')>
-                        Hết hạn
-                    </option>
-
-                    <option value="cancelled"
-                        @selected(old('status') == 'cancelled')>
-                        Đã hủy
-                    </option>
-
-                </select>
-
-                @error('status')
-
-                    <p class="mt-1 text-sm text-rose-600">
-                        {{ $message }}
-                    </p>
-
-                @enderror
-
-                <p class="mt-1 text-xs text-slate-400">
-                    Trạng thái hiện tại của hồ sơ tạm trú.
-                </p>
-
-            </div>
-
-
-            {{-- GHI CHÚ --}}
-
-            <div>
-
-                <label for="note"
-                       class="mb-1.5 block text-sm font-semibold text-slate-700">
-
-                    Ghi chú
-
-                </label>
-
-                <textarea
-                    id="note"
-                    name="note"
-                    rows="4"
-                    maxlength="1000"
-                    placeholder="Nhập ghi chú liên quan đến đăng ký tạm trú..."
-                    class="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 @error('note') border-rose-400 @enderror"
-                >{{ old('note') }}</textarea>
-
-                <div class="mt-1 flex items-center justify-between">
-
-                    @error('note')
-
-                        <p class="text-sm text-rose-600">
-                            {{ $message }}
-                        </p>
-
-                    @else
-
-                        <span class="text-xs text-slate-400">
-                            Thông tin không bắt buộc.
-                        </span>
-
-                    @enderror
-
-                    <span id="note_counter"
-                          class="text-xs text-slate-400">
-                        0/1000
-                    </span>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-    {{-- ============================================================
-         ACTIONS
-    ============================================================= --}}
-
-    <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-
-        <a href="{{ route('admin.temporary-residences.index') }}"
-           class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-
-            <i class="bx bx-x"></i>
-            Hủy
-
-        </a>
-
-        <button
-            type="submit"
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-100"
-        >
-
-            <i class="bx bx-save"></i>
-            Lưu đăng ký
-
-        </button>
-
-    </div>
-
-</form>
-
-
-</div>
-
-{{-- ================================================================
-JAVASCRIPT
-================================================================= --}}
+@endsection
 
 @push('scripts')
 
 <script>
 
-document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function () {
 
-    const tenantSelect = document.getElementById('tenant_id');
-    const contractSelect = document.getElementById('contract_id');
+        /*
+        |--------------------------------------------------------------------------
+        | ELEMENTS
+        |--------------------------------------------------------------------------
+        */
 
-    const roomBox = document.getElementById('room_box');
-    const roomIcon = document.getElementById('room_icon');
-    const roomTitle = document.getElementById('room_title');
-    const roomDescription = document.getElementById('room_description');
+        const tenantSelect =
+            document.getElementById('tenant_id');
 
-    const note = document.getElementById('note');
-    const noteCounter = document.getElementById('note_counter');
+        const contractSelect =
+            document.getElementById('contract_id');
 
-    const oldContract = @json(old('contract_id'));
+        const tenantInfo =
+            document.getElementById('tenant-info');
+
+        const contractInfo =
+            document.getElementById('contract-info');
+
+        const emptyContract =
+            document.getElementById('empty-contract');
+
+        const tenantName =
+            document.getElementById('tenant-name');
+
+        const tenantPhone =
+            document.getElementById('tenant-phone');
+
+        const tenantCccd =
+            document.getElementById('tenant-cccd');
+
+        const tenantAddress =
+            document.getElementById('tenant-address');
+
+        const contractCode =
+            document.getElementById('contract-code');
+
+        const contractRoom =
+            document.getElementById('contract-room');
+
+        const contractStartDate =
+            document.getElementById('contract-start-date');
+
+        const contractEndDate =
+            document.getElementById('contract-end-date');
+
+        const summaryTenant =
+            document.getElementById('summary-tenant');
+
+        const summaryRoom =
+            document.getElementById('summary-room');
+
+        const summaryContract =
+            document.getElementById('summary-contract');
+
+        const summaryDate =
+            document.getElementById('summary-date');
+
+        const startDate =
+            document.getElementById('start_date');
+
+        const endDate =
+            document.getElementById('end_date');
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Cập nhật thông tin phòng
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | TENANTS
+        |--------------------------------------------------------------------------
+        */
 
-    function updateRoom() {
+        const tenants = {{ Js::from(
+            $tenants->map(function ($tenant) {
 
-        const selectedOption =
-            contractSelect.options[contractSelect.selectedIndex];
+                return [
+                    'id' => $tenant->id,
+                    'full_name' => $tenant->full_name,
+                    'phone' => $tenant->phone,
+                    'cccd' => $tenant->cccd,
+                    'address' => $tenant->address,
+                ];
 
-        if (
-            selectedOption &&
-            selectedOption.value &&
-            !selectedOption.hidden
-        ) {
+            })->values()
+        ) }};
 
-            const room = selectedOption.dataset.room || '';
 
-            if (room) {
+        /*
+        |--------------------------------------------------------------------------
+        | CONTRACTS
+        |--------------------------------------------------------------------------
+        */
 
-                roomTitle.textContent = 'Phòng ' + room;
+        const contracts = {{ Js::from(
+            $contracts->map(function ($contract) {
 
-                roomDescription.textContent =
-                    'Phòng được xác định từ hợp đồng đã chọn.';
+                return [
+                    'id' => $contract->id,
 
-                roomBox.classList.remove(
-                    'border-dashed',
-                    'border-slate-200',
-                    'bg-slate-50'
-                );
+                    'tenant_id' =>
+                        $contract->tenant_id,
 
-                roomBox.classList.add(
-                    'border-indigo-200',
-                    'bg-indigo-50'
-                );
+                    'contract_code' =>
+                        $contract->contract_code
+                        ?? ('HD-' . $contract->id),
 
-                roomIcon.classList.remove(
-                    'bg-white',
-                    'text-slate-400'
-                );
+                    'room' =>
+                        $contract->room->room_code
+                        ?? 'N/A',
 
-                roomIcon.classList.add(
-                    'bg-indigo-100',
-                    'text-indigo-600'
-                );
+                    'start_date' =>
+                        $contract->start_date
+                        ? \Carbon\Carbon::parse(
+                            $contract->start_date
+                        )->format('Y-m-d')
+                        : null,
 
-                roomTitle.classList.remove(
-                    'text-slate-500'
-                );
+                    'end_date' =>
+                        $contract->end_date
+                        ? \Carbon\Carbon::parse(
+                            $contract->end_date
+                        )->format('Y-m-d')
+                        : null,
+                ];
 
-                roomTitle.classList.add(
-                    'text-indigo-700'
-                );
+            })->values()
+        ) }};
 
-            } else {
 
-                resetRoom();
+        /*
+        |--------------------------------------------------------------------------
+        | FORMAT DATE
+        |--------------------------------------------------------------------------
+        */
 
+        function formatDate(dateString) {
+
+            if (!dateString) {
+                return 'Chưa xác định';
             }
 
-        } else {
+            const parts =
+                dateString.split('-');
 
-            resetRoom();
+            if (parts.length !== 3) {
+                return dateString;
+            }
 
+            return (
+                parts[2] +
+                '/' +
+                parts[1] +
+                '/' +
+                parts[0]
+            );
         }
 
-    }
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESET CONTRACT INFO
+        |--------------------------------------------------------------------------
+        */
+
+        function resetContractInfo() {
+
+            contractInfo.classList.add('d-none');
+
+            contractCode.textContent = '-';
+
+            contractRoom.textContent = '-';
+
+            contractStartDate.textContent = '-';
+
+            contractEndDate.textContent = '-';
+
+            startDate.value = '';
+
+            endDate.value = '';
+
+            summaryContract.textContent =
+                'Chưa chọn';
+
+            summaryRoom.textContent =
+                'Chưa chọn';
+
+            summaryDate.textContent =
+                'Chưa chọn';
+        }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Reset phòng
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | RESET TENANT INFO
+        |--------------------------------------------------------------------------
+        */
 
-    function resetRoom() {
+        function resetTenantInfo() {
 
-        roomTitle.textContent = 'Chưa chọn phòng';
+            tenantInfo.classList.add('d-none');
 
-        roomDescription.textContent =
-            'Phòng sẽ được xác định tự động từ hợp đồng.';
+            tenantName.textContent = '-';
 
-        roomBox.classList.remove(
-            'border-indigo-200',
-            'bg-indigo-50'
-        );
+            tenantPhone.textContent = '-';
 
-        roomBox.classList.add(
-            'border-dashed',
-            'border-slate-200',
-            'bg-slate-50'
-        );
+            tenantCccd.textContent = '-';
 
-        roomIcon.classList.remove(
-            'bg-indigo-100',
-            'text-indigo-600'
-        );
+            tenantAddress.textContent = '-';
 
-        roomIcon.classList.add(
-            'bg-white',
-            'text-slate-400'
-        );
-
-        roomTitle.classList.remove(
-            'text-indigo-700'
-        );
-
-        roomTitle.classList.add(
-            'text-slate-500'
-        );
-
-    }
+            summaryTenant.textContent =
+                'Chưa chọn';
+        }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Lọc hợp đồng theo khách thuê
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE TENANT
+        |--------------------------------------------------------------------------
+        */
 
-    function filterContracts() {
+        function updateTenant() {
 
-        const tenantId = tenantSelect.value;
+            const tenantId =
+                tenantSelect.value;
 
-        Array.from(contractSelect.options).forEach(function (option) {
+            if (!tenantId) {
 
-            if (!option.value) {
+                resetTenantInfo();
 
-                option.hidden = false;
+                contractSelect.dataset.selected = '';
+
+                filterContracts();
 
                 return;
-
             }
 
-            const optionTenant = option.dataset.tenant;
 
-            if (
-                tenantId &&
-                optionTenant === tenantId
-            ) {
+            const tenant =
+                tenants.find(function (item) {
 
-                option.hidden = false;
+                    return String(item.id) ===
+                        String(tenantId);
 
-            } else {
+                });
 
-                option.hidden = true;
 
-                if (option.selected) {
-                    option.selected = false;
+            if (!tenant) {
+
+                resetTenantInfo();
+
+                return;
+            }
+
+
+            tenantInfo.classList.remove('d-none');
+
+
+            tenantName.textContent =
+                tenant.full_name || '-';
+
+            tenantPhone.textContent =
+                tenant.phone || '-';
+
+            tenantCccd.textContent =
+                tenant.cccd || '-';
+
+            tenantAddress.textContent =
+                tenant.address || '-';
+
+
+            summaryTenant.textContent =
+                tenant.full_name ||
+                'Chưa chọn';
+
+
+            filterContracts();
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | FILTER CONTRACTS
+        |--------------------------------------------------------------------------
+        */
+
+        function filterContracts() {
+
+            const tenantId =
+                tenantSelect.value;
+
+            const selectedContractId =
+                contractSelect.dataset.selected || '';
+
+
+            contractSelect.innerHTML =
+                '<option value="">-- Chọn hợp đồng --</option>';
+
+
+            emptyContract.style.display =
+                'none';
+
+
+            resetContractInfo();
+
+
+            if (!tenantId) {
+                return;
+            }
+
+
+            const tenantContracts =
+                contracts.filter(function (contract) {
+
+                    return String(contract.tenant_id) ===
+                        String(tenantId);
+
+                });
+
+
+            if (tenantContracts.length === 0) {
+
+                emptyContract.style.display =
+                    'block';
+
+                return;
+            }
+
+
+            tenantContracts.forEach(function (contract) {
+
+                const option =
+                    document.createElement('option');
+
+
+                option.value =
+                    contract.id;
+
+
+                option.dataset.tenantId =
+                    contract.tenant_id;
+
+
+                option.dataset.room =
+                    contract.room;
+
+
+                option.dataset.contract =
+                    contract.contract_code;
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | LƯU NGÀY HỢP ĐỒNG VÀO OPTION
+                |--------------------------------------------------------------------------
+                */
+
+                option.dataset.startDate =
+                    contract.start_date || '';
+
+
+                option.dataset.endDate =
+                    contract.end_date || '';
+
+
+                option.textContent =
+                    contract.contract_code +
+                    ' — Phòng ' +
+                    contract.room;
+
+
+                if (
+                    String(selectedContractId) ===
+                    String(contract.id)
+                ) {
+
+                    option.selected = true;
                 }
 
+
+                contractSelect.appendChild(option);
+
+            });
+
+
+            updateContract();
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE CONTRACT
+        |--------------------------------------------------------------------------
+        */
+
+        function updateContract() {
+
+            const option =
+                contractSelect.options[
+                    contractSelect.selectedIndex
+                ];
+
+
+            if (!option || !option.value) {
+
+                resetContractInfo();
+
+                return;
             }
 
-        });
+
+            contractInfo.classList.remove('d-none');
 
 
-        if (!tenantId) {
+            const code =
+                option.dataset.contract ||
+                option.textContent;
 
-            contractSelect.value = '';
 
-            resetRoom();
+            const room =
+                option.dataset.room ||
+                '-';
 
-            return;
 
+            const contractStart =
+                option.dataset.startDate ||
+                '';
+
+
+            const contractEnd =
+                option.dataset.endDate ||
+                '';
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CONTRACT PREVIEW
+            |--------------------------------------------------------------------------
+            */
+
+            contractCode.textContent =
+                code;
+
+
+            contractRoom.textContent =
+                room;
+
+
+            contractStartDate.textContent =
+                formatDate(contractStart);
+
+
+            contractEndDate.textContent =
+                formatDate(contractEnd);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CẬP NHẬT THỜI GIAN TẠM TRÚ THEO HỢP ĐỒNG
+            |--------------------------------------------------------------------------
+            */
+
+            startDate.value =
+                option.dataset.startDate || '';
+
+
+            endDate.value =
+                option.dataset.endDate || '';
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | SUMMARY
+            |--------------------------------------------------------------------------
+            */
+
+            summaryContract.textContent =
+                code;
+
+
+            summaryRoom.textContent =
+                'Phòng ' + room;
+
+
+            updateSummaryDate();
         }
 
-        updateRoom();
 
-    }
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE SUMMARY DATE
+        |--------------------------------------------------------------------------
+        */
 
+        function updateSummaryDate() {
 
-    /*
-    |--------------------------------------------------------------------------
-    | Chọn khách thuê
-    |--------------------------------------------------------------------------
-    */
+            if (!startDate.value) {
 
-    tenantSelect.addEventListener('change', function () {
+                summaryDate.textContent =
+                    'Chưa chọn';
 
-        contractSelect.value = '';
-
-        filterContracts();
-
-    });
+                return;
+            }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Chọn hợp đồng
-    |--------------------------------------------------------------------------
-    */
-
-    contractSelect.addEventListener('change', function () {
-
-        updateRoom();
-
-    });
+            const start =
+                formatDate(startDate.value);
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Đếm ký tự ghi chú
-    |--------------------------------------------------------------------------
-    */
+            if (endDate.value) {
 
-    function updateNoteCounter() {
+                summaryDate.textContent =
+                    start +
+                    ' → ' +
+                    formatDate(endDate.value);
 
-        const length = note.value.length;
-
-        noteCounter.textContent =
-            length + '/1000';
-
-    }
-
-    note.addEventListener(
-        'input',
-        updateNoteCounter
-    );
+                return;
+            }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Khôi phục dữ liệu khi validation lỗi
-    |--------------------------------------------------------------------------
-    */
-
-    if (tenantSelect.value) {
-
-        filterContracts();
-
-        if (oldContract) {
-
-            contractSelect.value = oldContract;
-
-            updateRoom();
-
+            summaryDate.textContent =
+                start +
+                ' → Không xác định';
         }
 
-    }
+
+        /*
+        |--------------------------------------------------------------------------
+        | EVENTS
+        |--------------------------------------------------------------------------
+        */
+
+        tenantSelect.addEventListener(
+            'change',
+            function () {
+
+                contractSelect.dataset.selected =
+                    '';
+
+                updateTenant();
+            }
+        );
 
 
-    updateNoteCounter();
+        contractSelect.addEventListener(
+            'change',
+            function () {
 
-});
+                contractSelect.dataset.selected =
+                    contractSelect.value;
+
+                updateContract();
+            }
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | INITIALIZE
+        |--------------------------------------------------------------------------
+        */
+
+        contractSelect.dataset.selected =
+            @json(old('contract_id'));
+
+
+        updateTenant();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESTORE OLD CONTRACT
+        |--------------------------------------------------------------------------
+        */
+
+        const oldContractId =
+            @json(old('contract_id'));
+
+
+        if (oldContractId) {
+
+            contractSelect.dataset.selected =
+                oldContractId;
+
+            updateContract();
+        }
+
+    });
 
 </script>
 
 @endpush
 
-@endsection
