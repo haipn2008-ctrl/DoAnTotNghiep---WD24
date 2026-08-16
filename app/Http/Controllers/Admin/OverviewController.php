@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\ContractExtensionRequest;
+use App\Models\ContractTerminationRequest;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Room;
+use App\Models\SupportRequest;
 use Illuminate\Support\Facades\DB;
 
 class OverviewController extends Controller
@@ -16,24 +19,29 @@ class OverviewController extends Controller
         $currentYear = now()->year;
         $previousYear = $currentYear - 1;
 
-        // Tổng doanh thu (tổng tiền đã thu thành công)
-        $totalRevenue = Payment::success()->sum('amount_paid');
-
         // Hợp đồng đang hoạt động
         $activeContracts = Contract::where('status', Contract::STATUS_ACTIVE)->count();
 
-        // Công nợ thực tế: tổng tiền hóa đơn trừ tổng thanh toán thành công
+        // Doanh thu tháng này
+        $monthRevenue = Payment::success()
+            ->whereYear('payment_date', $currentYear)
+            ->whereMonth('payment_date', now()->month)
+            ->sum('amount_paid');
+
+        // Tỷ lệ thu hồi và tổng tiền công nợ
         $totalBilledOut = Invoice::sum('total_amount');
+        $totalRevenue = Payment::success()->sum('amount_paid');
         $totalReceivable = max(0, $totalBilledOut - $totalRevenue);
+        $collectionRate = $totalBilledOut > 0
+            ? min(100, round(($totalRevenue / $totalBilledOut) * 100, 1))
+            : 0;
 
         // Doanh thu theo tháng
         $monthlyRevenueCurrentYear = $this->monthlyRevenue($currentYear);
         $monthlyRevenuePreviousYear = $this->monthlyRevenue($previousYear);
 
-        // Tổng số phòng
-        $totalRooms = Room::count();
-
         // Trạng thái phòng
+        $totalRooms = Room::count();
         $occupiedRooms = Room::occupied()->count();
         $availableRooms = Room::available()->count();
         $maintenanceRooms = Room::maintenance()->count();
@@ -42,27 +50,39 @@ class OverviewController extends Controller
         $availablePercent = $totalRooms > 0 ? round(($availableRooms / $totalRooms) * 100, 1) : 0;
         $maintenancePercent = $totalRooms > 0 ? round(($maintenanceRooms / $totalRooms) * 100, 1) : 0;
 
-        // Trạng thái hóa đơn
-        $paidInvoices = Invoice::where('status', Invoice::STATUS_PAID)->count();
-        $unpaidInvoices = Invoice::where('status', Invoice::STATUS_UNPAID)->count();
-        $partialInvoices = Invoice::where('status', Invoice::STATUS_PARTIAL)->count();
-        $outstandingInvoices = $unpaidInvoices + $partialInvoices;
-
-        // Doanh thu hôm nay & tháng này
+        // Doanh thu hôm nay
         $todayRevenue = Payment::success()
             ->whereDate('payment_date', today())
             ->sum('amount_paid');
 
-        $monthRevenue = Payment::success()
-            ->whereYear('payment_date', $currentYear)
-            ->whereMonth('payment_date', now()->month)
-            ->sum('amount_paid');
+        // --- Cảnh báo vận hành ---
+
+        // Hợp đồng sắp hết hạn trong 30 ngày
+        $expiringContracts = Contract::whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
+            ->whereBetween('end_date', [today(), today()->addDays(30)])
+            ->with('room:id,room_code')
+            ->orderBy('end_date')
+            ->get(['id', 'contract_code', 'end_date', 'room_id']);
+
+        // Hóa đơn quá hạn chưa thanh toán
+        $overdueInvoices = Invoice::whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+            ->where('due_date', '<', today())
+            ->selectRaw('COUNT(*) as count, SUM(total_amount) as total_amount')
+            ->first();
+
+        // Yêu cầu hỗ trợ chờ xử lý
+        $pendingSupportCount = SupportRequest::where('status', SupportRequest::STATUS_NEW)->count();
+
+        // Yêu cầu gia hạn và chấm dứt đang chờ duyệt
+        $pendingExtensionCount = ContractExtensionRequest::where('status', ContractExtensionRequest::STATUS_PENDING)->count();
+        $pendingTerminationCount = ContractTerminationRequest::where('status', ContractTerminationRequest::STATUS_PENDING)->count();
 
         return view('admin.overview.index', compact(
-            'totalRevenue',
             'totalRooms',
             'activeContracts',
+            'monthRevenue',
             'totalReceivable',
+            'collectionRate',
             'monthlyRevenueCurrentYear',
             'monthlyRevenuePreviousYear',
             'currentYear',
@@ -73,35 +93,98 @@ class OverviewController extends Controller
             'occupiedPercent',
             'availablePercent',
             'maintenancePercent',
-            'paidInvoices',
-            'unpaidInvoices',
-            'partialInvoices',
-            'outstandingInvoices',
             'todayRevenue',
-            'monthRevenue'
+            'expiringContracts',
+            'overdueInvoices',
+            'pendingSupportCount',
+            'pendingExtensionCount',
+            'pendingTerminationCount',
         ));
     }
 
     public function revenueChart()
     {
-        $currentYear = now()->year;
+        $currentYear  = now()->year;
+        $reportDate  = now()->subMonth();
+        $reportYear  = $reportDate->year;
+        $reportMonth = $reportDate->month;
 
-        $monthlyRevenue = $this->monthlyRevenue($currentYear);
-        $yearlyGrouped = Payment::success()
-            ->whereNotNull('payment_date')
-            ->selectRaw($this->yearExpression().' as revenue_year, SUM(amount_paid) as total')
-            ->groupByRaw($this->yearExpression())
-            ->orderBy('revenue_year')
-            ->get();
+        // Last month invoice breakdown
+        $monthSummary = Invoice::whereYear('invoice_date', $reportYear)
+            ->whereMonth('invoice_date', $reportMonth)
+            ->selectRaw('
+                COALESCE(SUM(room_fee),0)        as room_fee,
+                COALESCE(SUM(electricity_fee),0) as electricity_fee,
+                COALESCE(SUM(water_fee),0)       as water_fee,
+                COALESCE(SUM(internet_fee),0)    as internet_fee,
+                COALESCE(SUM(service_fee),0)     as service_fee,
+                COALESCE(SUM(total_amount),0)    as total_invoiced
+            ')
+            ->first();
 
-        $yearLabels = $yearlyGrouped->pluck('revenue_year')->map(fn ($year) => (string) $year)->all();
-        $yearlyRevenue = $yearlyGrouped->pluck('total')->map(fn ($total) => (float) $total)->all();
+        $fixedRevenue  = (float) ($monthSummary->room_fee ?? 0);
+        $totalInvoiced = (float) ($monthSummary->total_invoiced ?? 0);
+        // Chi phí cố định = internet + dịch vụ thu từ khách (phản ánh chi phí chủ trọ trả ra ngoài)
+        $fixedCosts    = (float) ($monthSummary->internet_fee ?? 0) + (float) ($monthSummary->service_fee ?? 0);
+
+        // Đã thu thực tế: chỉ tính payments thuộc hóa đơn tháng trước
+        $actualRevenue = (float) Payment::success()
+            ->whereHas('invoice', fn ($q) => $q
+                ->whereYear('invoice_date', $reportYear)
+                ->whereMonth('invoice_date', $reportMonth)
+            )
+            ->sum('amount_paid');
+
+        $totalBilled  = (float) Invoice::sum('total_amount');
+        $totalRevenue = (float) Payment::success()->sum('amount_paid');
+
+        $estimatedProfit = $actualRevenue - $fixedCosts;
+        $totalReceivable = max(0, $totalBilled - $totalRevenue);
+
+        $totalRooms    = Room::count();
+        $occupiedRooms = Room::occupied()->count();
+        $fillRate      = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
+
+        // Phân tích theo danh mục — 12 tháng trong năm hiện tại
+        $categoryLabels = [];
+        $catRoom = $catElec = $catWater = $catInternet = $catService = [];
+
+        for ($m = 1; $m <= 12; $m++) {
+            $row = Invoice::whereYear('invoice_date', $currentYear)
+                ->whereMonth('invoice_date', $m)
+                ->selectRaw('
+                    COALESCE(SUM(room_fee),0)        as room,
+                    COALESCE(SUM(electricity_fee),0) as elec,
+                    COALESCE(SUM(water_fee),0)       as water,
+                    COALESCE(SUM(internet_fee),0)    as internet,
+                    COALESCE(SUM(service_fee),0)     as service
+                ')
+                ->first();
+
+            $categoryLabels[] = 'T'.$m;
+            $catRoom[]     = (float) $row->room;
+            $catElec[]     = (float) $row->elec;
+            $catWater[]    = (float) $row->water;
+            $catInternet[] = (float) $row->internet;
+            $catService[]  = (float) $row->service;
+        }
+
+        $breakdownItems = [
+            ['label' => 'Tiền phòng',  'value' => (float) ($monthSummary->room_fee        ?? 0), 'color' => 'bg-indigo-500'],
+            ['label' => 'Tiền điện',   'value' => (float) ($monthSummary->electricity_fee ?? 0), 'color' => 'bg-amber-400'],
+            ['label' => 'Tiền nước',   'value' => (float) ($monthSummary->water_fee        ?? 0), 'color' => 'bg-cyan-400'],
+            ['label' => 'Internet',    'value' => (float) ($monthSummary->internet_fee    ?? 0), 'color' => 'bg-emerald-500'],
+            ['label' => 'Dịch vụ',     'value' => (float) ($monthSummary->service_fee     ?? 0), 'color' => 'bg-violet-500'],
+        ];
+        $remaining = max(0, $totalInvoiced - $actualRevenue);
 
         return view('admin.overview.revenue-chart', compact(
-            'currentYear',
-            'monthlyRevenue',
-            'yearlyRevenue',
-            'yearLabels'
+            'currentYear', 'reportYear', 'reportMonth',
+            'fixedRevenue', 'actualRevenue', 'totalInvoiced', 'remaining',
+            'fixedCosts', 'estimatedProfit',
+            'totalReceivable', 'fillRate', 'totalRooms', 'occupiedRooms',
+            'monthSummary', 'breakdownItems',
+            'categoryLabels', 'catRoom', 'catElec', 'catWater', 'catInternet', 'catService'
         ));
     }
 

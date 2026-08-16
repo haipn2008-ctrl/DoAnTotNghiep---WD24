@@ -31,10 +31,13 @@ use App\Http\Controllers\Client\RoomController as ClientRoomController;
 use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Models\Contract;
+use App\Models\ContractExtensionRequest;
+use App\Models\ContractTerminationRequest;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
+use App\Models\SupportRequest;
 use App\Models\Tenant;
 use App\Services\ContractLifecycleService;
 use Illuminate\Support\Facades\Route;
@@ -283,7 +286,26 @@ Route::middleware('auth')->group(function () {
                     ->take(5)
                     ->get();
 
-                return view('layouts.admin.home', compact('stats', 'recentInvoices', 'recentContracts'));
+                $expiringContracts = Contract::whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
+                    ->whereBetween('end_date', [today(), today()->addDays(30)])
+                    ->with('room:id,room_code')
+                    ->orderBy('end_date')
+                    ->get(['id', 'contract_code', 'end_date', 'room_id']);
+
+                $overdueInvoices = Invoice::whereIn('status', ['unpaid', 'partial'])
+                    ->where('due_date', '<', today())
+                    ->selectRaw('COUNT(*) as count, SUM(total_amount) as total_amount')
+                    ->first();
+
+                $pendingSupportCount = SupportRequest::where('status', 'new')->count();
+                $pendingExtensionCount = ContractExtensionRequest::where('status', 'pending')->count();
+                $pendingTerminationCount = ContractTerminationRequest::where('status', 'pending')->count();
+
+                return view('layouts.admin.home', compact(
+                    'stats', 'recentInvoices', 'recentContracts',
+                    'expiringContracts', 'overdueInvoices',
+                    'pendingSupportCount', 'pendingExtensionCount', 'pendingTerminationCount'
+                ));
             })->name('home');
         });
 
