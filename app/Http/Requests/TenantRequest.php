@@ -20,78 +20,172 @@ class TenantRequest extends FormRequest
         $tenantId = $this->route('tenant')?->id;
 
         return [
+            /*
+            |--------------------------------------------------------------------------
+            | Tài khoản
+            |--------------------------------------------------------------------------
+            */
+
             'user_id' => [
                 'nullable',
                 'exists:users,id',
-                Rule::unique('tenants', 'user_id')->ignore($tenantId),
+                Rule::unique('tenants', 'user_id')
+                    ->ignore($tenantId),
             ],
 
-            'full_name' => 'required|max:255',
+            /*
+            |--------------------------------------------------------------------------
+            | Thông tin cơ bản
+            |--------------------------------------------------------------------------
+            */
 
-            'date_of_birth' => 'nullable|date|before:today',
-
-            'gender' => ['nullable', Rule::in(['male', 'female', 'other'])],
-
-            'cccd' => [
+            'full_name' => [
                 'required',
-                'digits:12',
-                Rule::unique('tenants')->ignore($tenantId),
+                'string',
+                'max:255',
+            ],
+
+            'date_of_birth' => [
+                'nullable',
+                'date',
+                'before:today',
+            ],
+
+            'gender' => [
+                'nullable',
+                Rule::in([
+                    'male',
+                    'female',
+                    'other',
+                ]),
             ],
 
             'phone' => [
                 'required',
                 'regex:/^[0-9]{10,15}$/',
-                Rule::unique('tenants')->ignore($tenantId),
+                Rule::unique('tenants', 'phone')
+                    ->ignore($tenantId),
             ],
 
             'email' => [
                 'nullable',
                 'email',
-                Rule::unique('tenants')->ignore($tenantId),
+                'max:255',
+                Rule::unique('tenants', 'email')
+                    ->ignore($tenantId),
             ],
 
-            'address' => 'nullable|max:500',
+            'address' => [
+                'nullable',
+                'string',
+                'max:500',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | CCCD
+            |--------------------------------------------------------------------------
+            */
+
+            'cccd' => [
+                'required',
+                'digits:12',
+                Rule::unique('tenants', 'cccd')
+                    ->ignore($tenantId),
+            ],
+
+            'cccd_issue_date' => [
+                'nullable',
+                'date',
+                'before_or_equal:today',
+                Rule::when(
+                    $this->filled('date_of_birth'),
+                    'after:date_of_birth'
+                ),
+            ],
+
+            'cccd_issue_place' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Xe
+            |--------------------------------------------------------------------------
+            */
+
+            'vehicles' => [
+                'nullable',
+                'array',
+            ],
+
+            'vehicles.*.vehicle_type' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'vehicles.*.vehicle_name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'vehicles.*.license_plate' => [
+                'nullable',
+                'string',
+                'max:50',
+                'distinct',
+                'unique:vehicles,license_plate',
+            ],
+
+            'vehicles.*.color' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'vehicles.*.note' => [
+                'nullable',
+                'string',
+                'max:500',
+            ],
         ];
     }
 
-    public function after(): array
+    public function withValidator(Validator $validator): void
     {
-        return [function (Validator $validator): void {
-            if ($validator->errors()->has('user_id') || blank($this->input('user_id'))) {
+        $validator->after(function (Validator $validator): void {
+            $vehicles = $this->input('vehicles', []);
+
+            if (! is_array($vehicles)) {
                 return;
             }
 
-            $user = User::with('role')->find($this->input('user_id'));
-            $currentUserId = $this->route('tenant')?->user_id;
+            foreach ($vehicles as $index => $vehicle) {
+                if (! is_array($vehicle)) {
+                    continue;
+                }
 
-            if (! $user?->isClient()) {
-                $validator->errors()->add('user_id', 'Chỉ có thể liên kết tài khoản khách thuê.');
+                $hasAnyValue =
+                    filled($vehicle['vehicle_type'] ?? null)
+                    || filled($vehicle['vehicle_name'] ?? null)
+                    || filled($vehicle['license_plate'] ?? null)
+                    || filled($vehicle['color'] ?? null)
+                    || filled($vehicle['note'] ?? null);
 
-                return;
+                if (
+                    $hasAnyValue
+                    && blank($vehicle['license_plate'] ?? null)
+                ) {
+                    $validator->errors()->add(
+                        "vehicles.$index.license_plate",
+                        'Vui lòng nhập biển số xe.'
+                    );
+                }
             }
-
-            if ((int) $user->id !== (int) $currentUserId
-                && ! in_array($user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)) {
-                $validator->errors()->add('user_id', 'Tài khoản khách thuê không ở trạng thái có thể liên kết.');
-            }
-        }];
-    }
-
-    #[Override]
-    public function messages()
-    {
-        return [
-            'user_id.exists' => 'Tài khoản không tồn tại.',
-            'user_id.unique' => 'Tài khoản đã được liên kết với khách thuê khác.',
-            'full_name.required' => 'Vui lòng nhập họ và tên.',
-            'cccd.required' => 'Vui lòng nhập CCCD.',
-            'cccd.digits' => 'CCCD phải gồm 12 chữ số.',
-            'cccd.unique' => 'CCCD đã tồn tại.',
-            'phone.required' => 'Vui lòng nhập số điện thoại.',
-            'phone.regex' => 'Số điện thoại phải gồm từ 10 đến 15 chữ số.',
-            'phone.unique' => 'Số điện thoại đã tồn tại.',
-            'email.email' => 'Email không đúng định dạng.',
-            'email.unique' => 'Email đã tồn tại.',
-        ];
+        });
     }
 }

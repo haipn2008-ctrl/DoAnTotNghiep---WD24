@@ -3,17 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tenant extends Model
 {
     protected $fillable = [
-
         'user_id',
 
         'payment_code',
 
         'full_name',
-
         'date_of_birth',
         'gender',
 
@@ -28,9 +27,7 @@ class Tenant extends Model
     ];
 
     protected $casts = [
-
         'date_of_birth' => 'date',
-
         'cccd_issue_date' => 'date',
     ];
 
@@ -39,7 +36,12 @@ class Tenant extends Model
         static::created(function (Tenant $tenant) {
             if (! $tenant->payment_code) {
                 $tenant->updateQuietly([
-                    'payment_code' => 'KH'.str_pad((string) $tenant->id, 8, '0', STR_PAD_LEFT),
+                    'payment_code' => 'KH' . str_pad(
+                        (string) $tenant->id,
+                        8,
+                        '0',
+                        STR_PAD_LEFT
+                    ),
                 ]);
             }
         });
@@ -51,19 +53,16 @@ class Tenant extends Model
     |--------------------------------------------------------------------------
     */
 
-    // Tài khoản đăng nhập
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Các hợp đồng đứng tên
     public function contracts()
     {
         return $this->hasMany(Contract::class);
     }
 
-    // Các hợp đồng mà tenant là người đại diện
     public function representativeContracts()
     {
         return $this->hasMany(
@@ -72,29 +71,56 @@ class Tenant extends Model
         );
     }
 
+    /**
+     * Các hợp đồng mà khách thuê là thành viên/người ở cùng.
+     */
     public function memberContracts()
     {
-        return $this->belongsToMany(Contract::class, 'contract_occupants')
-            ->withPivot(['role', 'status', 'full_name', 'actual_move_in_at', 'actual_move_out_at'])
+        return $this->belongsToMany(
+            Contract::class,
+            'contract_occupants'
+        )
+            ->withPivot([
+                'role',
+                'status',
+                'full_name',
+                'actual_move_in_at',
+                'actual_move_out_at',
+            ])
             ->withTimestamps();
     }
 
+    /**
+     * Thông tin phân bổ/người ở trong hợp đồng.
+     */
     public function contractOccupancies()
     {
         return $this->hasMany(ContractOccupant::class);
     }
 
-    // Xe của người thuê (chuẩn bị cho giai đoạn 2)
-    // public function vehicles()
-    // {
-    //     return $this->hasMany(Vehicle::class);
-    // }
+    /**
+     * Giấy tờ nhận diện / CCCD.
+     */
+    public function document(): HasOne
+    {
+        return $this->hasOne(TenantDocument::class);
+    }
 
-    // // Người ở (chuẩn bị cho giai đoạn 2)
-    // public function occupants()
-    // {
-    //     return $this->hasMany(Occupant::class);
-    // }
+    /**
+     * Xe của khách thuê.
+     */
+    public function vehicles()
+    {
+        return $this->hasMany(Vehicle::class);
+    }
+
+    /**
+     * Thông tin tạm trú của khách thuê.
+     */
+    public function temporaryResidences()
+    {
+        return $this->hasMany(TemporaryResidence::class);
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -102,19 +128,23 @@ class Tenant extends Model
     |--------------------------------------------------------------------------
     */
 
-    // Lấy hợp đồng đang hoạt động
     public function activeContract()
     {
         return $this->contracts()
-            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+            ->whereIn(
+                'status',
+                Contract::OPEN_OCCUPANCY_STATUSES
+            )
             ->first();
     }
 
-    // Kiểm tra đang thuê phòng hay không
     public function isRenting()
     {
         return $this->contracts()
-            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+            ->whereIn(
+                'status',
+                Contract::OPEN_OCCUPANCY_STATUSES
+            )
             ->exists();
     }
 
