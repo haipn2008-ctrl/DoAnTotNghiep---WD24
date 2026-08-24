@@ -38,7 +38,7 @@
                             </span>
                             <span class="mt-1 block text-sm text-slate-600">{{ $notification->message }}</span>
                             <span class="mt-2 block text-xs text-slate-400">
-                                @if($notification->tenant_id)
+                                @if($notification->vehicle_id)
                                     {{ $notification->tenant?->full_name ?? 'Khách thuê' }} · Phương tiện
                                 @else
                                     {{ $notification->contract?->contract_code }} · Phòng {{ $notification->contract?->room?->room_code ?? '—' }} · {{ $notification->contract?->tenant?->full_name ?? '—' }}
@@ -53,7 +53,7 @@
                     <div class="px-6 py-16 text-center">
                         <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><i class="bx bx-check-shield text-3xl"></i></span>
                         <h3 class="mt-4 font-semibold text-slate-900">Không có thông báo trong nhóm này</h3>
-                        <p class="mt-1 text-sm text-slate-500">Các cảnh báo hợp đồng và yêu cầu liên quan đến phương tiện sẽ xuất hiện tại đây.</p>
+                        <p class="mt-1 text-sm text-slate-500">Các yêu cầu của khách thuê và cảnh báo vận hành sẽ xuất hiện tại đây.</p>
                     </div>
                 @endforelse
             </div>

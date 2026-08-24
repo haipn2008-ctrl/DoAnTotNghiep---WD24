@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Setting;
+use App\Services\AdminNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -155,7 +156,7 @@ class InvoiceController extends Controller
                     ]);
                 }
 
-                Payment::create([
+                $payment = Payment::create([
                     'invoice_id' => $lockedInvoice->id,
                     'amount_paid' => $data['amount_paid'],
                     'payment_date' => now()->toDateString(),
@@ -166,6 +167,8 @@ class InvoiceController extends Controller
                     'proof_image' => $proofPath,
                     'note' => $data['note'] ?? null,
                 ]);
+
+                app(AdminNotificationService::class)->paymentSubmitted($payment);
             });
         } catch (\Throwable $exception) {
             Storage::disk('public')->delete($proofPath);
@@ -214,8 +217,7 @@ class InvoiceController extends Controller
         );
 
         $bankSetting = Setting::currentOrCreate();
-        $paymentCode = $invoice->contract?->tenant?->payment_code;
-        $paymentContent = trim('TT ' . $invoice->invoice_code . ' ' . $paymentCode);
+        $paymentContent = 'TT ' . $invoice->invoice_code;
 
         return compact(
             'invoice',
@@ -224,8 +226,7 @@ class InvoiceController extends Controller
             'pendingAmount',
             'availableAmount',
             'bankSetting',
-            'paymentContent',
-            'paymentCode'
+            'paymentContent'
         );
     }
 

@@ -10,17 +10,10 @@
     {{-- HEADER --}}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Quản lý hợp đồng
-            </p>
-
-            <h1 class="mt-1 text-2xl font-bold text-slate-900">
+            <h1 class="text-2xl font-bold text-slate-900">
                 Yêu cầu trả phòng
             </h1>
 
-            <p class="mt-1 text-sm text-slate-500">
-                Xem và xử lý các yêu cầu trả phòng từ khách thuê.
-            </p>
         </div>
 
         <a href="{{ route('admin.contracts.index') }}"
@@ -141,9 +134,6 @@
                     Danh sách yêu cầu
                 </h2>
 
-                <p class="mt-1 text-sm text-slate-500">
-                    Các yêu cầu trả phòng từ khách thuê
-                </p>
             </div>
 
             <div class="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600">
@@ -200,7 +190,7 @@
 
                     @forelse($terminationRequests as $request)
 
-                        <tr class="transition hover:bg-slate-50/80">
+                        <tr id="request-{{ $request->id }}" class="scroll-mt-24 transition hover:bg-slate-50/80 target:bg-indigo-50">
 
                             {{-- STT --}}
                             <td class="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-500">

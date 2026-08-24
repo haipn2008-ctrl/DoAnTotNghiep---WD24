@@ -47,6 +47,8 @@ class Contract extends Model
 
     public const STATUS_PENDING_SIGNATURE = 'pending_signature';
 
+    public const SIGNATURE_DEADLINE_DAYS = 3;
+
     public const STATUS_PENDING_DEPOSIT = 'pending_deposit';
 
     public const STATUS_AWAITING_MOVE_IN = 'awaiting_move_in';
@@ -377,6 +379,12 @@ class Contract extends Model
         return $this->hasMany(ContractTenant::class);
     }
 
+    // Danh sách người đang còn hiệu lực trên hợp đồng; các bản cũ vẫn nằm trong lịch sử.
+    public function currentMembers()
+    {
+        return $this->hasMany(ContractTenant::class)->current();
+    }
+
     // Người xác nhận nhận phòng
     public function moveInConfirmedBy()
     {
@@ -390,11 +398,10 @@ class Contract extends Model
     public function representativeMember()
     {
         return $this->hasOne(ContractTenant::class)
-            ->where(
+            ->ofMany(['id' => 'max'], fn ($query) => $query->where(
                 'role',
                 ContractTenant::ROLE_REPRESENTATIVE
-            )
-            ->latestOfMany();
+            ));
     }
 
     // Hóa đơn
@@ -874,7 +881,7 @@ class Contract extends Model
 
             self::STATUS_PENDING_SIGNATURE => 'Chờ ký',
 
-            self::STATUS_PENDING_DEPOSIT => 'Chờ cọc và tiền phòng tháng đầu',
+            self::STATUS_PENDING_DEPOSIT => 'Chờ tiền cọc',
 
             self::STATUS_AWAITING_MOVE_IN => 'Chờ nhận phòng',
 

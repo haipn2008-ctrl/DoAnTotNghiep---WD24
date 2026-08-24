@@ -146,11 +146,11 @@
     </p>
 
     <p>
-        Tiền đặt cọc: <u>{{deposit}}</u> (tách biệt với tiền phòng tháng đầu)
+        Tiền đặt cọc trước khi nhận phòng: <u>{{deposit}}</u>
     </p>
 
     <p>
-        Tiền phòng tháng đầu được tính từ ngày bắt đầu hợp đồng đến hết tháng theo công thức giá thuê tháng chia số ngày của tháng nhân số ngày thuê thực tế. Nếu thời gian còn lại không quá 5 ngày thì miễn tiền phòng; điện, nước và dịch vụ vẫn tính theo thực tế.
+        Tiền đặt cọc được giữ riêng đến khi hợp đồng kết thúc để hoàn trả hoặc khấu trừ khi quyết toán. Vào ngày 05 hằng tháng, bên thuê thanh toán tiền phòng, điện, nước và dịch vụ đã sử dụng trong tháng liền trước. Tiền phòng tháng đầu được tính theo số ngày thuê thực tế; nếu thời gian thuê trong tháng không quá 5 ngày thì được miễn tiền phòng, còn điện, nước và dịch vụ vẫn tính theo thực tế.
     </p>
 
     <p>

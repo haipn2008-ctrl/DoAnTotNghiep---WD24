@@ -50,7 +50,15 @@ class ContractLifecycleAlert extends Model
             'cancelled_deposit_resolution' => 'Cọc hợp đồng đã hủy',
             'vehicle_review' => 'Phương tiện chờ duyệt',
             'vehicle_removed' => 'Phương tiện đã gỡ',
+            'extension_request' => 'Yêu cầu gia hạn',
+            'termination_request' => 'Yêu cầu trả phòng',
+            'deposit_refund_request' => 'Yêu cầu hoàn cọc',
+            'payment_review' => 'Thanh toán chờ duyệt',
+            'support_request' => 'Yêu cầu hỗ trợ',
+            'member_review' => 'Người ở cùng chờ duyệt',
+            'move_in_confirmation' => 'Sẵn sàng nhận phòng',
             default => 'Cần xử lý',
         };
     }
+
 }

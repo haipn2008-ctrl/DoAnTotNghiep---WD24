@@ -40,6 +40,7 @@ use App\Http\Controllers\Client\ContractTerminationRequestController as ClientCo
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\DepositRefundController as ClientDepositRefundController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
+use App\Http\Controllers\Client\LandlordInformationController as ClientLandlordInformationController;
 use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\RoomController as ClientRoomController;
 use App\Http\Controllers\Client\SupportController as ClientSupportController;
@@ -213,15 +214,11 @@ Route::middleware('auth')->group(function () {
                 // HỢP ĐỒNG - TEMPLATE
                 // =================================================
 
-                Route::view(
-                    'contracts/template',
-                    'admin.contracts.template'
-                )->name('contracts.template');
+                Route::get('contracts/template', [ContractController::class, 'template'])
+                    ->name('contracts.template');
 
-                Route::view(
-                    'contracts/template/print',
-                    'admin.contracts.template-print'
-                )->name('contracts.template.print');
+                Route::get('contracts/template/print', [ContractController::class, 'templatePrint'])
+                    ->name('contracts.template.print');
 
 
                 // =================================================
@@ -1049,6 +1046,11 @@ Route::middleware('auth')->group(function () {
                 )
                     ->middleware('rental.active')
                     ->name('support.attachment');
+
+                Route::get(
+                    '/landlord-information',
+                    ClientLandlordInformationController::class
+                )->name('landlord-information');
 
 
                 // =============================================

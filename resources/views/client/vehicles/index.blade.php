@@ -14,7 +14,7 @@
         <div>
             <p class="text-sm font-medium text-slate-500">Tự quản lý thông tin</p>
             <h2 class="mt-1 text-2xl font-bold text-slate-950">Phương tiện của tôi</h2>
-            <p class="mt-2 text-sm text-slate-500">Phương tiện mới hoặc vừa chỉnh sửa cần được quản trị viên duyệt trước khi được ghi nhận gửi tại nhà trọ. Xe đạp không cần khai báo biển số.</p>
+            <p class="mt-2 text-sm text-slate-500">Mỗi người đang ở được đăng ký tối đa một xe.</p>
         </div>
 
         @if(session('success'))
@@ -28,6 +28,14 @@
             <h3 class="font-semibold text-slate-950">Đăng ký phương tiện mới</h3>
             <form method="POST" action="{{ route('client.vehicles.store') }}" enctype="multipart/form-data" class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5" data-vehicle-form>
                 @csrf
+                <div>
+                    <label class="mb-1 block text-sm font-semibold">Chủ xe</label>
+                    <select name="owner_tenant_id" required class="h-11 w-full rounded-lg border border-slate-200 px-3">
+                        @foreach($owners as $owner)
+                            <option value="{{ $owner->id }}" @selected((int) old('owner_tenant_id', $tenant->id) === (int) $owner->id)>{{ $owner->full_name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div>
                     <label class="mb-1 block text-sm font-semibold">Loại xe</label>
                     <select name="vehicle_type" required class="h-11 w-full rounded-lg border border-slate-200 px-3" data-vehicle-type>
@@ -49,12 +57,13 @@
         </section>
 
         <section class="space-y-4">
-            @forelse($tenant->vehicles as $vehicle)
+            @forelse($vehicles as $vehicle)
                 <article class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h3 class="font-bold text-slate-950">{{ $vehicle->license_plate ?: 'Xe đạp không có biển số' }}</h3>
                             <p class="text-sm text-slate-500">{{ $typeLabels[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }} · {{ $vehicle->vehicle_name ?: 'Chưa ghi tên xe' }}</p>
+                            <p class="mt-1 text-sm font-semibold text-indigo-700">Chủ xe: {{ $vehicle->tenant->full_name }}</p>
                         </div>
                         <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $statusClasses[$vehicle->status] ?? 'bg-slate-100 text-slate-600' }}">{{ $statusLabels[$vehicle->status] ?? $vehicle->status }}</span>
                     </div>

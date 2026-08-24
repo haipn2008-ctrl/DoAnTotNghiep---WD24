@@ -8,17 +8,10 @@
 
     {{-- HEADER --}}
     <div class="mb-6">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            HỢP ĐỒNG
-        </p>
-
-        <h1 class="mt-1 text-2xl font-bold text-slate-950">
+        <h1 class="text-2xl font-bold text-slate-950">
             Yêu cầu trả phòng
         </h1>
 
-        <p class="mt-2 text-sm text-slate-500">
-            Gửi yêu cầu trả phòng và kết thúc thời gian thuê.
-        </p>
     </div>
 
 
@@ -65,9 +58,6 @@
                 Gửi yêu cầu trả phòng
             </h2>
 
-            <p class="mt-1 text-xs text-slate-500">
-                Chọn hợp đồng, ngày dự kiến trả phòng và nhập lý do.
-            </p>
 
         </div>
 
@@ -150,7 +140,7 @@
                                     {{ $contract->room->room_code
                                         ?? $contract->room->room_number
                                         ?? $contract->room->name
-                                        ?? 'N/A' }}
+                                        ?? 'Không có' }}
 
                                 </option>
 
@@ -389,7 +379,7 @@
                                         {{ $termination->contract->room->room_code
                                             ?? $termination->contract->room->room_number
                                             ?? $termination->contract->room->name
-                                            ?? 'N/A' }}
+                                            ?? 'Không có' }}
 
                                     </p>
 
@@ -453,7 +443,7 @@
                                     @else
 
                                         <span class="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                                            {{ $termination->status }}
+                                            Không xác định
                                         </span>
 
                                     @endif

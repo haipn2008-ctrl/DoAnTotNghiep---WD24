@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Contract;
+use App\Models\ContractTenant;
 use App\Models\Role;
 use App\Models\ContractLifecycleAlert;
+use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -207,6 +210,125 @@ class VehicleManagementTest extends TestCase
         $this->post('/client/vehicles', $this->payload(['license_plate' => '30A-67890']))
             ->assertRedirect()->assertSessionHasNoErrors();
         $this->assertDatabaseHas('vehicles', ['license_plate' => '30A-67890', 'status' => Vehicle::STATUS_PENDING]);
+    }
+
+    public function test_representative_selects_vehicle_owner_and_each_person_has_only_one_vehicle(): void
+    {
+        [$contract, $secondTenant] = $this->activeContractWithResidents(2);
+
+        $this->actingAs($this->client)->get(route('client.vehicles.index'))
+            ->assertOk()
+            ->assertSee('Chủ xe')
+            ->assertSee($this->tenant->full_name)
+            ->assertSee($secondTenant->full_name);
+
+        $this->post(route('client.vehicles.store'), $this->payload([
+            'owner_tenant_id' => $secondTenant->id,
+            'license_plate' => '30C-22222',
+        ]))->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('vehicles', [
+            'tenant_id' => $secondTenant->id,
+            'license_plate' => '30C-22222',
+            'submitted_by' => $this->client->id,
+        ]);
+        $this->get(route('client.vehicles.index'))
+            ->assertOk()
+            ->assertSee('Chủ xe: '.$secondTenant->full_name);
+
+        $this->post(route('client.vehicles.store'), $this->payload([
+            'owner_tenant_id' => $secondTenant->id,
+            'license_plate' => '30C-33333',
+        ]))->assertSessionHasErrors('owner_tenant_id');
+
+        $this->assertSame(1, $secondTenant->vehicles()->count());
+        $this->assertSame($contract->id, $secondTenant->contractMemberships()->sole()->contract_id);
+    }
+
+    public function test_room_cannot_reserve_more_vehicles_than_checked_in_residents(): void
+    {
+        [, $secondTenant, $thirdTenant] = $this->activeContractWithResidents(3);
+
+        $this->tenant->vehicles()->create($this->payload(['license_plate' => '30D-10001']) + [
+            'status' => Vehicle::STATUS_APPROVED,
+        ]);
+        // Dữ liệu cũ có thể đã có hơn một xe cho một người; giới hạn phòng vẫn phải chặn độc lập.
+        $this->tenant->vehicles()->create($this->payload(['license_plate' => '30D-10002']) + [
+            'status' => Vehicle::STATUS_PENDING,
+        ]);
+        $secondTenant->vehicles()->create($this->payload(['license_plate' => '30D-10003']) + [
+            'status' => Vehicle::STATUS_APPROVED,
+        ]);
+
+        $this->actingAs($this->client)->post(route('client.vehicles.store'), $this->payload([
+            'owner_tenant_id' => $thirdTenant->id,
+            'license_plate' => '30D-10004',
+        ]))->assertSessionHasErrors('vehicle');
+
+        $this->assertDatabaseMissing('vehicles', ['license_plate' => '30D-10004']);
+    }
+
+    public function test_admin_cannot_approve_a_second_vehicle_for_the_same_person(): void
+    {
+        $first = $this->tenant->vehicles()->create($this->payload() + [
+            'status' => Vehicle::STATUS_APPROVED,
+        ]);
+        $second = $this->tenant->vehicles()->create($this->payload(['license_plate' => '30E-22222']) + [
+            'status' => Vehicle::STATUS_PENDING,
+        ]);
+
+        $this->actingAs($this->admin)->put(route('admin.vehicles.review', $second), [
+            'status' => Vehicle::STATUS_APPROVED,
+        ])->assertSessionHasErrors('status');
+
+        $this->assertSame(Vehicle::STATUS_APPROVED, $first->fresh()->status);
+        $this->assertSame(Vehicle::STATUS_PENDING, $second->fresh()->status);
+    }
+
+    private function activeContractWithResidents(int $residentCount): array
+    {
+        $room = Room::create([
+            'room_code' => 'XE-'.$residentCount,
+            'floor' => 1,
+            'price' => 3000000,
+            'area' => 25,
+            'max_people' => $residentCount,
+            'current_people' => $residentCount,
+            'status' => Room::STATUS_OCCUPIED,
+        ]);
+        $contract = Contract::create([
+            'contract_code' => 'HD-XE-'.$residentCount,
+            'room_id' => $room->id,
+            'tenant_id' => $this->tenant->id,
+            'representative_tenant_id' => $this->tenant->id,
+            'monthly_rent' => 3000000,
+            'number_of_people' => $residentCount,
+            'start_date' => now()->subMonth()->toDateString(),
+            'end_date' => now()->addYear()->toDateString(),
+        ]);
+        $contract->forceFill(['status' => Contract::STATUS_ACTIVE])->save();
+
+        $tenants = [$this->tenant];
+        for ($index = 2; $index <= $residentCount; $index++) {
+            $tenants[] = Tenant::create([
+                'full_name' => 'Người ở '.$index,
+                'cccd' => '0790000000'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                'phone' => '09100000'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+            ]);
+        }
+
+        foreach ($tenants as $index => $tenant) {
+            ContractTenant::create([
+                'contract_id' => $contract->id,
+                'tenant_id' => $tenant->id,
+                'role' => $index === 0 ? ContractTenant::ROLE_REPRESENTATIVE : ContractTenant::ROLE_TENANT,
+                'full_name' => $tenant->full_name,
+                'status' => ContractTenant::STATUS_CHECKED_IN,
+                'actual_move_in_at' => now()->subMonth(),
+            ]);
+        }
+
+        return array_merge([$contract], array_slice($tenants, 1));
     }
 
     private function payload(array $overrides = []): array

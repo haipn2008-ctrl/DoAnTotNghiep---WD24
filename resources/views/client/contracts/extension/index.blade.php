@@ -8,9 +8,7 @@
 
     {{-- HEADER --}}
     <div class="mb-6">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">HỢP ĐỒNG</p>
-        <h1 class="mt-1 text-2xl font-bold text-slate-950">Yêu cầu gia hạn hợp đồng</h1>
-        <p class="mt-2 text-sm text-slate-500">Gửi yêu cầu gia hạn thời gian thuê phòng của bạn.</p>
+        <h1 class="text-2xl font-bold text-slate-950">Yêu cầu gia hạn hợp đồng</h1>
     </div>
 
     {{-- THÔNG BÁO --}}
@@ -35,7 +33,6 @@
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-6 py-4">
             <h2 class="font-bold text-slate-900">Gửi yêu cầu gia hạn</h2>
-            <p class="mt-1 text-xs text-slate-500">Chọn hợp đồng và thời gian bạn muốn tiếp tục thuê.</p>
         </div>
 
         <div class="p-6">
@@ -65,7 +62,7 @@
                                         data-end-date="{{ optional($contract->end_date)->format('Y-m-d') }}"
                                         {{ old('contract_id') == $contract->id ? 'selected' : '' }}>
                                     {{ $contract->contract_code ?? ('HD' . str_pad($contract->id, 3, '0', STR_PAD_LEFT)) }}
-                                    - Phòng {{ $contract->room->room_code ?? $contract->room->room_number ?? $contract->room->name ?? 'N/A' }}
+                                    - Phòng {{ $contract->room->room_code ?? $contract->room->room_number ?? $contract->room->name ?? 'Không có' }}
                                 </option>
                             @endforeach
                         </select>
@@ -96,7 +93,7 @@
                                       id="reason"
                                       rows="4"
                                       maxlength="1000"
-                                      placeholder="Ví dụ: Tôi muốn tiếp tục thuê phòng trong thời gian tới..."
+                                      placeholder="Nhập lý do"
                                       class="block w-full resize-none rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">{{ old('reason') }}</textarea>
                         </div>
                     </div>
@@ -119,7 +116,6 @@
     <div class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-6 py-4">
             <h2 class="font-bold text-slate-900">Lịch sử yêu cầu</h2>
-            <p class="mt-1 text-xs text-slate-500">Theo dõi trạng thái các yêu cầu gia hạn đã gửi.</p>
         </div>
 
         @if($extensionRequests->isEmpty())
@@ -130,7 +126,6 @@
                     </svg>
                 </div>
                 <h3 class="mt-4 font-bold text-slate-900">Chưa có yêu cầu gia hạn</h3>
-                <p class="mt-1 text-sm text-slate-500">Các yêu cầu bạn gửi sẽ xuất hiện tại đây.</p>
             </div>
         @else
             <div class="overflow-x-auto">
@@ -151,7 +146,7 @@
                                         {{ $extension->contract->contract_code ?? ('HD' . str_pad($extension->contract_id, 3, '0', STR_PAD_LEFT)) }}
                                     </p>
                                     <p class="mt-1 text-xs text-slate-500">
-                                        Phòng {{ $extension->contract->room->room_code ?? $extension->contract->room->room_number ?? $extension->contract->room->name ?? 'N/A' }}
+                                        Phòng {{ $extension->contract->room->room_code ?? $extension->contract->room->room_number ?? $extension->contract->room->name ?? 'Không có' }}
                                     </p>
                                     @if($extension->reason)
                                         <p class="mt-2 max-w-md text-xs leading-5 text-slate-500">
@@ -173,7 +168,7 @@
                                     @elseif($extension->status === 'rejected')
                                         <span class="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-bold text-red-700">Từ chối</span>
                                     @else
-                                        <span class="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{{ $extension->status }}</span>
+                                        <span class="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">Không xác định</span>
                                     @endif
                                 </td>
                             </tr>

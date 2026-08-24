@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Contract;
 use App\Models\ContractLifecycleAlert;
+use App\Models\ContractExtensionRequest;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\AdminNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -92,6 +94,35 @@ class AdminNotificationCenterTest extends TestCase
     public function test_client_cannot_access_admin_notification_center(): void
     {
         $this->actingAs($this->client)->get(route('admin.notifications.index'))->assertForbidden();
+    }
+
+    public function test_user_request_notification_opens_correct_queue_without_being_resolved(): void
+    {
+        $extensionRequest = ContractExtensionRequest::create([
+            'contract_id' => $this->contract->id,
+            'current_end_date' => today()->subDay(),
+            'requested_end_date' => today()->addMonth(),
+            'reason' => 'Muốn tiếp tục thuê phòng',
+            'status' => ContractExtensionRequest::STATUS_PENDING,
+        ]);
+
+        $notification = app(AdminNotificationService::class)->extensionRequested($extensionRequest);
+
+        $this->assertNull($notification->resolved_at);
+        $this->assertSame('extension_request', $notification->type);
+        $this->actingAs($this->admin)->get(route('admin.notifications.index'))
+            ->assertOk()
+            ->assertSee('Khách thuê vừa yêu cầu gia hạn hợp đồng')
+            ->assertSee('Muốn tiếp tục thuê phòng');
+
+        $this->get(route('admin.notifications.open', $notification))
+            ->assertRedirect(route('admin.extension-requests.index').'#request-'.$extensionRequest->id);
+
+        // Việc chỉ mở xem không được coi là đã xử lý.
+        $this->assertNull($notification->fresh()->resolved_at);
+
+        app(AdminNotificationService::class)->resolve('extension_request', $extensionRequest);
+        $this->assertNotNull($notification->fresh()->resolved_at);
     }
 
     private function alert(string $type, string $title, $resolvedAt = null): ContractLifecycleAlert

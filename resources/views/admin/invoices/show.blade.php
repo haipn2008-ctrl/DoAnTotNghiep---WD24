@@ -97,7 +97,7 @@
                                 @forelse ($invoice->payments as $payment)
                                     <tr>
                                         <td class="px-5 py-4 text-slate-600">{{ \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') }}</td>
-                                        <td class="px-5 py-4 text-slate-600">{{ $payment->payment_method ?? 'cash' }}</td>
+                                        <td class="px-5 py-4 text-slate-600">{{ match ($payment->payment_method) { \App\Models\Payment::METHOD_CASH => 'Tiền mặt', \App\Models\Payment::METHOD_BANK_TRANSFER => 'Chuyển khoản', \App\Models\Payment::METHOD_QR => 'Quét mã QR', default => 'Không xác định' } }}</td>
                                         <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</td>
                                         <td class="px-5 py-4 text-slate-600">{{ $payment->note ?? '-' }}</td>
                                     </tr>
@@ -116,7 +116,8 @@
                 <h3 class="font-semibold text-slate-950">Thông tin hóa đơn</h3>
 
                 <div class="mt-5 space-y-4 text-sm">
-                    <div class="flex justify-between gap-4"><span class="text-slate-500">Loại hóa đơn</span><span class="font-semibold text-slate-950">{{ $invoice->isDeposit() ? 'Tiền cọc hợp đồng' : ($invoice->isFirstMonthRent() ? 'Tiền phòng tháng đầu' : 'Tiền phòng tháng '.$invoice->month.'/'.$invoice->year.' + tiện ích tháng trước') }}</span></div>
+                    @php($servicePeriod = \Carbon\Carbon::createFromDate($invoice->year, $invoice->month, 1)->subMonthNoOverflow())
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Loại hóa đơn</span><span class="font-semibold text-slate-950">{{ $invoice->isDeposit() ? 'Tiền cọc hợp đồng' : ($invoice->isFirstMonthRent() ? 'Tiền phòng tháng đầu (dữ liệu cũ)' : 'Tiền phòng và tiện ích tháng '.$servicePeriod->month.'/'.$servicePeriod->year) }}</span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Ngày lập</span><span class="font-semibold text-slate-950">{{ \Carbon\Carbon::parse($invoice->invoice_date)->format('d/m/Y') }}</span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Hạn thanh toán</span><span class="font-semibold text-slate-950">{{ \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') }}</span></div>
                     <div class="border-t border-slate-200 pt-4"></div>
@@ -139,17 +140,16 @@
                         </div>
                         <div>
                             <label class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày thanh toán</label>
-                            <input type="date" name="payment_date" value="{{ old('payment_date', now()->toDateString()) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                            <input type="date" name="payment_date" max="{{ today()->toDateString() }}" value="{{ old('payment_date', today()->toDateString()) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         </div>
                         <div>
                             <label class="mb-1.5 block text-sm font-semibold text-slate-700">Phương thức</label>
                             <select name="payment_method" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                                 <option value="cash">Tiền mặt</option>
                                 <option value="bank_transfer">Chuyển khoản</option>
-                                <option value="qr">QR</option>
                             </select>
                         </div>
-                        <input type="text" name="transaction_code" value="{{ old('transaction_code') }}" placeholder="Mã giao dịch (nếu có)" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                        <input type="text" name="transaction_code" value="{{ old('transaction_code') }}" placeholder="Mã giao dịch — bắt buộc khi chuyển khoản" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         <textarea name="note" rows="2" placeholder="Ghi chú" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('note') }}</textarea>
                         <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
                             <i class="bx bx-check-circle text-lg"></i>

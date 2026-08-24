@@ -7,8 +7,7 @@
     <div class="space-y-6">
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
-                <p class="text-sm font-medium text-slate-500">Quản lý hợp đồng</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Danh sách hợp đồng</h2>
+                <h2 class="text-2xl font-bold text-slate-950">Danh sách hợp đồng</h2>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -43,7 +42,7 @@
                         <option value="">Tất cả trạng thái</option>
                         <option value="draft" @selected(request('status') === 'draft')>Bản nháp</option>
                         <option value="pending_signature" @selected(request('status') === 'pending_signature')>Chờ ký</option>
-                        <option value="pending_deposit" @selected(request('status') === 'pending_deposit')>Chờ cọc và tiền tháng đầu</option>
+                        <option value="pending_deposit" @selected(request('status') === 'pending_deposit')>Chờ tiền cọc</option>
                         <option value="awaiting_move_in" @selected(request('status') === 'awaiting_move_in')>Chờ nhận phòng</option>
                         <option value="active" @selected(request('status') === 'active')>Đang thuê</option>
                         <option value="expired" @selected(request('status') === 'expired')>Quá hạn vẫn ở</option>

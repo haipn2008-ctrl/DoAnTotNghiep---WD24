@@ -500,7 +500,7 @@
 
                                     <div class="refund-note">
                                         <i class="bx bx-info-circle"></i>
-                                        <span>Kiểm tra thông tin, xác định khoản khấu trừ và đính kèm minh chứng nếu có. Sau khi duyệt, Admin mới thực hiện chuyển khoản và tải bằng chứng giao dịch.</span>
+                                        <span>Kiểm tra khoản hoàn, khấu trừ và minh chứng trước khi duyệt.</span>
                                     </div>
                                 </section>
                             </div>

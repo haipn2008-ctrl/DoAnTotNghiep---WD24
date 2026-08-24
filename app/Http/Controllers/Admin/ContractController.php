@@ -51,9 +51,7 @@ class ContractController extends Controller
         ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
         $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
             ->orderBy('full_name')->get();
-        $setting = Setting::currentOrCreate();
-
-        return view('admin.contracts.create', compact('rooms', 'tenants', 'setting'));
+        return view('admin.contracts.create', compact('rooms', 'tenants'));
     }
 
     public function store(Request $request)
@@ -89,7 +87,7 @@ class ContractController extends Controller
     {
         $contract->load([
             'room', 'tenant.user', 'invoices.payments',
-            'members.histories.performer', 'members.tenant',
+            'currentMembers.histories.performer', 'currentMembers.tenant.vehicles.tenant',
             'statusHistories.performer', 'signedConfirmer', 'moveInTermsConfirmer', 'moveInDetailsConfirmer',
             'handoverItems', 'checkedInBy', 'checkedOutBy',
             'cancelledBy', 'completedBy', 'lifecycleAlerts' => fn ($query) => $query->whereNull('resolved_at')->latest('detected_at'),
@@ -98,19 +96,22 @@ class ContractController extends Controller
         $handoverReading = $readings->firstWhere('reading_type', 'handover');
         $checkoutReading = $readings->where('reading_type', 'checkout')->last();
         $latestReading = $readings->last();
+        $baselineReading = $contract->room?->utilityReadings()
+            ->where('reading_type', 'baseline')
+            ->oldest('record_date')->oldest('id')->first();
+        $suggestedHandoverReading = $latestReading ?? $contract->room?->utilityReadings()
+            ->latest('record_date')->latest('id')->first();
         $setting = Setting::currentOrCreate();
         $totalInvoiced = (float) $contract->invoices->where('status', '!=', Invoice::STATUS_WRITTEN_OFF)->sum('total_amount');
         $totalPaid = (float) $contract->invoices->flatMap->payments->where('status', Payment::STATUS_SUCCESS)->sum('amount_paid');
         $totalOutstanding = max(0, $totalInvoiced - $totalPaid);
         $depositPaid = $contract->deposit_paid_amount;
         $depositRemaining = $contract->deposit_remaining_amount;
-        $firstMonthPaid = $contract->first_month_rent_paid_amount;
-        $firstMonthRemaining = $contract->first_month_rent_remaining_amount;
 
         return view('admin.contracts.show', compact(
-            'contract', 'handoverReading', 'checkoutReading', 'latestReading', 'setting',
-            'totalInvoiced', 'totalPaid', 'totalOutstanding', 'depositPaid', 'depositRemaining',
-            'firstMonthPaid', 'firstMonthRemaining'
+            'contract', 'handoverReading', 'checkoutReading', 'latestReading', 'baselineReading',
+            'suggestedHandoverReading', 'setting',
+            'totalInvoiced', 'totalPaid', 'totalOutstanding', 'depositPaid', 'depositRemaining'
         ));
     }
 
@@ -118,16 +119,14 @@ class ContractController extends Controller
     {
         Gate::authorize('manageLifecycle', $contract);
         abort_unless($contract->status === Contract::STATUS_DRAFT, 409, 'Chỉ bản nháp mới được sửa.');
-        $contract->load('members');
+        $contract->load(['currentMembers.tenant', 'representativeMember.tenant']);
         $rooms = Room::query()->with([
             'activeContract',
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
         ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
         $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
             ->orderBy('full_name')->get();
-        $setting = Setting::currentOrCreate();
-
-        return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants', 'setting'));
+        return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants'));
     }
 
     public function update(Request $request, Contract $contract)
@@ -170,8 +169,16 @@ class ContractController extends Controller
     public function returnToDraft(Request $request, Contract $contract)
     {
         Gate::authorize('manageLifecycle', $contract);
-        $data = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+            'edit_after_return' => ['nullable', 'boolean'],
+        ]);
         $this->lifecycle->returnToDraft($contract, $request->user(), $data['reason']);
+
+        if ($request->boolean('edit_after_return')) {
+            return redirect()->route('admin.contracts.edit', $contract)
+                ->with('success', 'Hợp đồng đã chuyển về bản nháp. Bạn có thể chỉnh sửa ngay.');
+        }
 
         return back()->with('success', 'Hợp đồng đã được trả lại bản nháp.');
     }
@@ -189,6 +196,10 @@ class ContractController extends Controller
                 'mimes:pdf,jpg,jpeg,png,webp',
                 'max:10240',
             ],
+        ], [
+            'signed_at.required' => 'Vui lòng nhập thời gian ký.',
+            'signed_at.date' => 'Thời gian ký không hợp lệ.',
+            'signed_at.before_or_equal' => 'Thời gian ký không được ở tương lai.',
         ]);
         $oldPath = $contract->contract_file;
         $newPath = $request->file('signed_contract_file')?->store('contracts/signed', 'local');
@@ -226,7 +237,7 @@ class ContractController extends Controller
             }
         }
 
-        return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã phát hành riêng hóa đơn tiền cọc và hóa đơn tiền phòng tháng đầu.');
+        return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã phát hành hóa đơn tiền cọc.');
     }
 
     public function checkIn(Request $request, Contract $contract)
@@ -240,8 +251,9 @@ class ContractController extends Controller
             'schedule_variance_reason' => ['nullable', 'string', 'max:1000'],
         ]);
         $this->lifecycle->checkIn($contract, $request->user(), $data);
+        app(\App\Services\AdminNotificationService::class)->resolve('move_in_confirmation', $contract);
 
-        return back()->with('success', 'Check-in thành công. Phòng đã chuyển sang có người thuê.');
+        return back()->with('success', 'Nhận phòng thành công. Phòng đã chuyển sang có người thuê.');
     }
 
     public function extendMoveInDeadline(Request $request, Contract $contract)
@@ -278,7 +290,7 @@ class ContractController extends Controller
         ]);
         $this->lifecycle->checkOut($contract, $request->user(), $data);
 
-        return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã checkout. Hợp đồng đang chờ quyết toán.');
+        return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã trả phòng. Hợp đồng đang chờ quyết toán.');
     }
 
     /** Route cũ được giữ tương thích nhưng thực hiện đúng nghiệp vụ checkout mới. */
@@ -329,10 +341,28 @@ class ContractController extends Controller
 
     public function print($id)
     {
-        $contract = Contract::with(['room', 'tenant', 'representativeMember', 'handoverItems'])->findOrFail($id);
+        $contract = Contract::with([
+            'room.amenities', 'tenant', 'currentMembers.tenant', 'representativeMember.tenant', 'handoverItems',
+        ])->findOrFail($id);
+        $referenceReading = $contract->utilityReadings()->latest('record_date')->latest('id')->first()
+            ?? $contract->room?->utilityReadings()->latest('record_date')->latest('id')->first();
         $setting = Setting::currentOrCreate();
 
-        return view('admin.contracts.print', compact('contract', 'setting'));
+        return view('admin.contracts.print', compact('contract', 'referenceReading', 'setting'));
+    }
+
+    public function template()
+    {
+        $setting = Setting::currentOrCreate();
+
+        return view('admin.contracts.template', compact('setting'));
+    }
+
+    public function templatePrint()
+    {
+        $setting = Setting::currentOrCreate();
+
+        return view('admin.contracts.template-print', compact('setting'));
     }
 
     public function file(Contract $contract): StreamedResponse
@@ -446,23 +476,19 @@ class ContractController extends Controller
             )],
             'members.*.full_name' => ['required', 'string', 'max:150'],
             'members.*.date_of_birth' => ['required', 'date', new AdultDateOfBirth],
+            'members.*.gender' => ['required', Rule::in(['male', 'female', 'other'])],
             'members.*.identity_number' => ['required', 'digits:12', 'distinct'],
+            'members.*.cccd_issue_date' => ['required', 'date', 'before_or_equal:today'],
+            'members.*.cccd_issue_place' => ['required', 'string', 'max:255'],
             'members.*.identity_front' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'members.*.identity_back' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'members.*.phone' => ['required', 'regex:/^[0-9]{10,15}$/', 'distinct'],
-            'service_enabled' => ['nullable', 'boolean'],
-            'parking_enabled' => ['nullable', 'boolean'],
-            'parking_vehicle_type' => [
-                'exclude_unless:parking_enabled,1',
-                Rule::requiredIf($request->boolean('parking_enabled')),
-                'nullable',
-                Rule::in([Contract::PARKING_MOTORCYCLE]),
-            ],
-            'parking_quantity' => [
-                'exclude_unless:parking_enabled,1',
-                Rule::requiredIf($request->boolean('parking_enabled')),
-                'nullable', 'integer', 'min:1', 'max:20',
-            ],
+            'members.*.email' => ['nullable', 'email', 'max:255', 'distinct'],
+            'members.*.address' => ['required', 'string', 'max:500'],
+            'service_enabled' => ['exclude'],
+            'parking_enabled' => ['exclude'],
+            'parking_vehicle_type' => ['exclude'],
+            'parking_quantity' => ['exclude'],
             'note' => ['nullable', 'string', 'max:2000'],
             'edit_reason' => [$editing ? 'nullable' : 'exclude', 'string', 'max:1000'],
         ], [
@@ -475,15 +501,20 @@ class ContractController extends Controller
             'reservation_expires_at.required' => 'Vui lòng chọn hạn cuối phải nhận phòng.',
             'reservation_expires_at.after_or_equal' => 'Hạn cuối nhận phòng không được trước ngày dự kiến nhận phòng.',
             'reservation_expires_at.before_or_equal' => 'Hạn cuối nhận phòng không được sau ngày kết thúc hợp đồng.',
-            'move_in_terms_confirmed.accepted' => 'Admin phải xác nhận đã trao đổi và thống nhất lịch nhận phòng với khách.',
+            'move_in_terms_confirmed.accepted' => 'Quản trị viên phải xác nhận đã thống nhất lịch nhận phòng với khách.',
             'members.max' => 'Danh sách người thuê vượt quá giới hạn xử lý cho phép.',
             'members.*.full_name.required' => 'Vui lòng nhập họ và tên người thuê.',
             'members.*.full_name.max' => 'Họ và tên người thuê không được vượt quá 150 ký tự.',
             'members.*.date_of_birth.date' => 'Ngày sinh người thuê không đúng định dạng.',
             'members.*.date_of_birth.required' => 'Vui lòng nhập ngày sinh người thuê.',
             'members.*.date_of_birth.before_or_equal' => 'Ngày sinh người thuê không được ở tương lai.',
+            'members.*.gender.required' => 'Vui lòng chọn giới tính người thuê.',
+            'members.*.gender.in' => 'Giới tính người thuê không hợp lệ.',
             'members.*.identity_number.digits' => 'CCCD người thuê phải gồm đúng 12 chữ số.',
             'members.*.identity_number.distinct' => 'CCCD người thuê bị trùng trong danh sách.',
+            'members.*.cccd_issue_date.required' => 'Vui lòng nhập ngày cấp CCCD của người thuê.',
+            'members.*.cccd_issue_date.before_or_equal' => 'Ngày cấp CCCD không được ở tương lai.',
+            'members.*.cccd_issue_place.required' => 'Vui lòng nhập nơi cấp CCCD của người thuê.',
             'members.*.identity_front.required' => 'Vui lòng chọn ảnh mặt trước CCCD của người thuê.',
             'members.*.identity_front.file' => 'Ảnh mặt trước CCCD tải lên không hợp lệ.',
             'members.*.identity_front.image' => 'Mặt trước CCCD phải là một tệp ảnh.',
@@ -497,6 +528,9 @@ class ContractController extends Controller
             'members.*.phone.required' => 'Vui lòng nhập số điện thoại người thuê.',
             'members.*.phone.regex' => 'Số điện thoại người thuê phải gồm từ 10 đến 15 chữ số.',
             'members.*.phone.distinct' => 'Số điện thoại người thuê bị trùng trong danh sách.',
+            'members.*.email.email' => 'Email người thuê không đúng định dạng.',
+            'members.*.email.distinct' => 'Email người thuê bị trùng trong danh sách.',
+            'members.*.address.required' => 'Vui lòng nhập địa chỉ thường trú của người thuê.',
             'representative.cccd.required' => 'Vui lòng bổ sung CCCD của người đại diện trước khi tạo hợp đồng.',
             'representative.cccd.digits' => 'CCCD người đại diện phải gồm đúng 12 chữ số.',
             'representative.cccd.unique' => 'CCCD người đại diện đã thuộc hồ sơ khách thuê khác.',
@@ -508,12 +542,6 @@ class ContractController extends Controller
             'representative.identity_back.image' => 'Mặt sau CCCD người đại diện phải là một tệp ảnh.',
             'representative.identity_back.mimes' => 'Ảnh mặt sau CCCD người đại diện chỉ chấp nhận JPG, PNG hoặc WEBP.',
             'representative.identity_back.max' => 'Ảnh mặt sau CCCD người đại diện không được lớn hơn 5 MB.',
-            'parking_vehicle_type.required' => 'Vui lòng chọn loại xe cần trông.',
-            'parking_vehicle_type.in' => 'Loại xe đăng ký không hợp lệ.',
-            'parking_quantity.required' => 'Vui lòng nhập số lượng xe.',
-            'parking_quantity.integer' => 'Số lượng xe phải là số nguyên.',
-            'parking_quantity.min' => 'Số lượng xe phải ít nhất là 1.',
-            'parking_quantity.max' => 'Số lượng xe không được vượt quá 20.',
         ]);
 
         $start = Carbon::parse($data['start_date'])->startOfDay();
@@ -531,14 +559,11 @@ class ContractController extends Controller
             ]);
         }
         $data['reservation_expires_at'] = $deadline;
-        // Wi-Fi là tiện nghi mặc định đã nằm trong giá thuê, không còn là dịch vụ tính phí tùy chọn.
-        // Luôn ghi false với hợp đồng tạo/sửa từ form mới để input tự chèn không thể phát sinh phí Internet.
-        $data['internet_enabled'] = false;
-        if (! $request->boolean('parking_enabled')) {
-            $data['parking_vehicle_type'] = null;
-            $data['parking_quantity'] = 0;
-        }
-        unset($data['parking_enabled']);
+        // Internet là phí bắt buộc theo phòng, không phụ thuộc số người và không có lựa chọn tắt trên hợp đồng.
+        $data['internet_enabled'] = true;
+        $data['service_enabled'] = true;
+        $data['parking_vehicle_type'] = null;
+        $data['parking_quantity'] = 0;
         $totalDays = max(1, $start->diffInDays($end));
         $data['move_in_window_ratio'] = round($start->diffInDays($deadline->copy()->startOfDay()) / $totalDays, 4);
 
@@ -572,11 +597,6 @@ class ContractController extends Controller
             }
         }
         $data['number_of_people'] = count($data['members']) + 1;
-        if ((int) ($data['parking_quantity'] ?? 0) > $data['number_of_people']) {
-            throw ValidationException::withMessages([
-                'parking_quantity' => 'Số xe máy không được vượt quá số người thực tế ở trong phòng.',
-            ]);
-        }
 
         return $data;
     }

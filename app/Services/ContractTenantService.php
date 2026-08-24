@@ -41,21 +41,32 @@ class ContractTenantService
         $retainedIds = [];
 
         foreach ($members as $payload) {
-            $data = $this->profileData($payload);
-            $data['tenant_id'] = $this->resolveTenantProfile($data)->id;
+            $profile = $this->profileData($payload);
+            $data = $this->membershipData($profile);
+            $data['tenant_id'] = $this->resolveTenantProfile($profile)->id;
             $old = filled($payload['id'] ?? null) ? $existing->get((int) $payload['id']) : null;
 
-            if ($old && $this->profileMatches($old, $data)) {
+            if ($old) {
                 $retainedIds[] = $old->id;
+                $before = Arr::only($old->getAttributes(), array_keys($data));
+                $old->forceFill($data);
+                if ($old->isDirty(array_keys($data))) {
+                    $old->save();
+                    $this->history(
+                        $old,
+                        $old->status,
+                        $old->status,
+                        'admin_update_profile',
+                        'Admin cập nhật hồ sơ người thuê trong bản nháp.',
+                        $actor,
+                        ['before' => $before, 'after' => $data],
+                    );
+                }
                 if ($old->status === ContractTenant::STATUS_PENDING) {
                     $this->transition($old, ContractTenant::STATUS_APPROVED, 'admin_approve', 'Admin xác nhận trong bản nháp hợp đồng.', $actor);
                 }
 
                 continue;
-            }
-
-            if ($old) {
-                $this->transition($old, ContractTenant::STATUS_WITHDRAWN, 'replace_profile', 'Hồ sơ được thay bằng phiên bản mới trong bản nháp.', $actor);
             }
 
             $created = $this->createMember($contract, $data + [
@@ -64,9 +75,9 @@ class ContractTenantService
                 'declared_by' => $actor->id,
                 'reviewed_by' => $actor->id,
                 'reviewed_at' => now(),
-                'replaces_contract_tenant_id' => $old?->id,
-                'identity_front_path' => $old?->identity_front_path,
-                'identity_back_path' => $old?->identity_back_path,
+                'replaces_contract_tenant_id' => null,
+                'identity_front_path' => null,
+                'identity_back_path' => null,
             ], $actor, 'admin_declare', 'Admin khai báo và duyệt trong bản nháp.');
             $retainedIds[] = $created->id;
         }
@@ -92,17 +103,18 @@ class ContractTenantService
 
             $this->ensureCapacity($contract, 1);
             $profile = $this->profileData($data);
-            $profile['tenant_id'] = $this->resolveTenantProfile($profile)->id;
-            if (filled($profile['identity_number']) && ContractTenant::query()
+            $membership = $this->membershipData($profile);
+            $membership['tenant_id'] = $this->resolveTenantProfile($profile)->id;
+            if (filled($membership['identity_number']) && ContractTenant::query()
                 ->where('contract_id', $contract->id)
                 ->current()
-                ->where('identity_number', $profile['identity_number'])
+                ->where('identity_number', $membership['identity_number'])
                 ->lockForUpdate()
                 ->exists()) {
                 $this->fail('identity_number', 'CCCD/giấy tờ này đã có trong danh sách hiện tại.');
             }
 
-            $member = $this->createMember($contract, $profile + [
+            $member = $this->createMember($contract, $membership + [
                 'role' => ContractTenant::ROLE_TENANT,
                 'status' => ContractTenant::STATUS_PENDING,
                 'declared_by' => $actor->id,
@@ -311,16 +323,21 @@ class ContractTenantService
         return [
             'full_name' => trim((string) $data['full_name']),
             'date_of_birth' => $data['date_of_birth'] ?? null,
+            'gender' => $data['gender'] ?? null,
             'identity_number' => filled($data['identity_number'] ?? null) ? trim((string) $data['identity_number']) : null,
+            'cccd_issue_date' => $data['cccd_issue_date'] ?? null,
+            'cccd_issue_place' => filled($data['cccd_issue_place'] ?? null) ? trim((string) $data['cccd_issue_place']) : null,
             'phone' => filled($data['phone'] ?? null) ? trim((string) $data['phone']) : null,
+            'email' => filled($data['email'] ?? null) ? mb_strtolower(trim((string) $data['email'])) : null,
+            'address' => filled($data['address'] ?? null) ? trim((string) $data['address']) : null,
         ];
     }
 
-    private function profileMatches(ContractTenant $member, array $data): bool
+    private function membershipData(array $profile): array
     {
-        return collect(Arr::only($member->getAttributes(), array_keys($data)))
-            ->map(fn ($value) => $value === null ? null : (string) $value)
-            ->all() === collect($data)->map(fn ($value) => $value === null ? null : (string) $value)->all();
+        return Arr::only($profile, [
+            'full_name', 'date_of_birth', 'identity_number', 'phone', 'address',
+        ]);
     }
 
     private function resolveTenantProfile(array $profile): Tenant
@@ -346,6 +363,15 @@ class ContractTenantService
                 $this->fail('phone', 'Số điện thoại đã thuộc hồ sơ khách thuê khác.');
             }
 
+            $emailOwner = filled($profile['email']) && Tenant::query()
+                ->where('email', $profile['email'])
+                ->whereKeyNot($tenant->id)
+                ->lockForUpdate()
+                ->exists();
+            if ($emailOwner) {
+                $this->fail('email', 'Email đã thuộc hồ sơ khách thuê khác.');
+            }
+
             if ($tenant->user_id && $tenant->phone !== $phone) {
                 $this->fail('phone', 'Số điện thoại không khớp với hồ sơ khách thuê đã có tài khoản.');
             }
@@ -353,7 +379,12 @@ class ContractTenantService
             if (! $tenant->user_id) {
                 $tenant->forceFill([
                     'full_name' => $profile['full_name'],
+                    'gender' => $profile['gender'],
+                    'cccd_issue_date' => $profile['cccd_issue_date'],
+                    'cccd_issue_place' => $profile['cccd_issue_place'],
                     'phone' => $phone,
+                    'email' => $profile['email'],
+                    'address' => $profile['address'],
                 ])->save();
             }
 
@@ -363,13 +394,21 @@ class ContractTenantService
         if (Tenant::query()->where('phone', $phone)->lockForUpdate()->exists()) {
             $this->fail('phone', 'Số điện thoại đã thuộc hồ sơ khách thuê khác.');
         }
+        if (filled($profile['email']) && Tenant::query()->where('email', $profile['email'])->lockForUpdate()->exists()) {
+            $this->fail('email', 'Email đã thuộc hồ sơ khách thuê khác.');
+        }
 
         return Tenant::query()->create([
             'user_id' => null,
             'full_name' => $profile['full_name'],
             'date_of_birth' => $profile['date_of_birth'],
+            'gender' => $profile['gender'],
             'cccd' => $identityNumber,
+            'cccd_issue_date' => $profile['cccd_issue_date'],
+            'cccd_issue_place' => $profile['cccd_issue_place'],
             'phone' => $phone,
+            'email' => $profile['email'],
+            'address' => $profile['address'],
         ]);
     }
 

@@ -19,20 +19,20 @@ class InvoiceGenerator
         $this->ensureContractCanBeBilled($contract, $month, $year);
 
         $billingPeriod = Carbon::createFromDate($year, $month, 1)->startOfMonth();
-        $utilityPeriod = $billingPeriod->copy()->subMonthNoOverflow();
+        $servicePeriod = $billingPeriod->copy()->subMonthNoOverflow();
 
         $reading = UtilityReading::where('room_id', $contract->room_id)
             ->where(fn ($query) => $query->where('contract_id', $contract->id)
                 ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contract->start_date)))
-            ->where('month', $utilityPeriod->month)
-            ->where('year', $utilityPeriod->year)
+            ->where('month', $servicePeriod->month)
+            ->where('year', $servicePeriod->year)
             ->where('reading_type', 'periodic')
             ->where('status', 'confirmed')
             ->first();
 
         if (! $reading) {
             throw ValidationException::withMessages([
-                'utility_reading' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$utilityPeriod->month}/{$utilityPeriod->year}.",
+                'utility_reading' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$servicePeriod->month}/{$servicePeriod->year}.",
             ]);
         }
 
@@ -50,7 +50,7 @@ class InvoiceGenerator
 
         $setting = Setting::currentOrCreate();
 
-        // Ngày 5 thu tiền phòng tháng hiện tại cùng điện, nước và dịch vụ của tháng trước.
+        // Ngày 05 thu toàn bộ tiền phòng, điện, nước và dịch vụ của tháng trước.
         $invoiceDateCarbon = $billingPeriod->copy();
         $invoiceDay = 5;
         $invoiceDay = max(1, min($invoiceDay, $invoiceDateCarbon->daysInMonth));
@@ -61,6 +61,9 @@ class InvoiceGenerator
 
         $electricityUsage = $reading->electricity_new - $reading->electricity_old;
         $waterUsage = $reading->water_new - $reading->water_old;
+        $grossRoomFee = $this->roomFeeForPeriod($contract, $servicePeriod);
+        $firstMonthCredit = $this->firstMonthPrepaidCredit($contract, $servicePeriod, $grossRoomFee);
+        $roomFee = max(0, $grossRoomFee - $firstMonthCredit);
 
         if ($electricityUsage < 0 || $waterUsage < 0) {
             throw ValidationException::withMessages([
@@ -71,19 +74,23 @@ class InvoiceGenerator
         $lines = [
             [
                 'type' => 'room',
-                'name' => "Tiền phòng tháng {$month}/{$year}",
-                'quantity' => 1,
-                'unit' => 'thang',
-                'unit_price' => (float) $contract->monthly_rent,
-                'amount' => (float) $contract->monthly_rent,
+                'name' => "Tiền phòng tháng {$servicePeriod->month}/{$servicePeriod->year}",
+                'quantity' => $servicePeriod->isSameMonth($contract->start_date) ? $contract->first_month_rent_days : 1,
+                'unit' => $servicePeriod->isSameMonth($contract->start_date) ? 'ngày' : 'tháng',
+                'unit_price' => $servicePeriod->isSameMonth($contract->start_date)
+                    ? round((float) $contract->monthly_rent / $servicePeriod->daysInMonth, 2)
+                    : (float) $contract->monthly_rent,
+                'amount' => $grossRoomFee,
                 'old_index' => null,
                 'new_index' => null,
-                'note' => "Thu trước cho tháng {$month}/{$year} · Hợp đồng {$contract->contract_code}",
+                'note' => $servicePeriod->isSameMonth($contract->start_date) && $contract->first_month_rent_days <= 5
+                    ? 'Miễn tiền phòng vì thời gian thuê trong tháng không quá 5 ngày.'
+                    : "Thu sau cho tháng {$servicePeriod->month}/{$servicePeriod->year} · Hạn ngày 05/{$month}/{$year}",
                 'sort_order' => 1,
             ],
             [
                 'type' => 'electricity',
-                'name' => "Tiền điện tháng {$utilityPeriod->month}/{$utilityPeriod->year}",
+                'name' => "Tiền điện tháng {$servicePeriod->month}/{$servicePeriod->year}",
                 'quantity' => $electricityUsage,
                 'unit' => 'kWh',
                 'unit_price' => (float) $setting->electric_price,
@@ -95,7 +102,7 @@ class InvoiceGenerator
             ],
             [
                 'type' => 'water',
-                'name' => "Tiền nước tháng {$utilityPeriod->month}/{$utilityPeriod->year}",
+                'name' => "Tiền nước tháng {$servicePeriod->month}/{$servicePeriod->year}",
                 'quantity' => $waterUsage,
                 'unit' => 'm³',
                 'unit_price' => (float) $setting->water_price,
@@ -107,13 +114,25 @@ class InvoiceGenerator
             ],
         ];
 
-        $parkingUnitPrice = 0;
-        $parkingName = 'Gửi xe máy miễn phí';
+        if ($firstMonthCredit > 0) {
+            $lines[] = [
+                'type' => 'first_month_credit',
+                'name' => 'Khấu trừ tiền phòng tháng đầu đã thu trước',
+                'quantity' => 1,
+                'unit' => 'lần',
+                'unit_price' => -$firstMonthCredit,
+                'amount' => -$firstMonthCredit,
+                'old_index' => null,
+                'new_index' => null,
+                'note' => 'Tự động khấu trừ khoản đã thanh toán theo chính sách cũ.',
+                'sort_order' => 7,
+            ];
+        }
 
         $serviceLines = [
-            ['internet', "Phí internet tháng {$utilityPeriod->month}/{$utilityPeriod->year}", $contract->internet_enabled ? (float) ($setting->internet_fee ?? 0) : 0, 1, 4],
-            ['service', "Phí dịch vụ tháng {$utilityPeriod->month}/{$utilityPeriod->year}", $contract->service_enabled ? (float) ($setting->service_fee ?? 0) : 0, 1, 5],
-            ['parking', $parkingName, $parkingUnitPrice, (int) $contract->parking_quantity, 6],
+            // Internet là phí cố định theo phòng, thu một lần mỗi tháng và không phụ thuộc số người.
+            ['internet', "Phí internet tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($setting->internet_fee ?? 0), 1, 4],
+            ['service', "Phí dịch vụ tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($setting->service_fee ?? 0), 1, 5],
         ];
 
         foreach ($serviceLines as [$type, $name, $unitPrice, $quantity, $sortOrder]) {
@@ -148,11 +167,11 @@ class InvoiceGenerator
             'reading' => $reading,
             'month' => $month,
             'year' => $year,
-            'utility_month' => $utilityPeriod->month,
-            'utility_year' => $utilityPeriod->year,
+            'utility_month' => $servicePeriod->month,
+            'utility_year' => $servicePeriod->year,
             'invoice_date' => $invoiceDate,
             'due_date' => $dueDate,
-            'room_fee' => (float) $contract->monthly_rent,
+            'room_fee' => $roomFee,
             'electricity_fee' => collect($lines)->where('type', 'electricity')->sum('amount'),
             'water_fee' => collect($lines)->where('type', 'water')->sum('amount'),
             'internet_fee' => $internetFee,
@@ -214,13 +233,14 @@ class InvoiceGenerator
             ]);
         }
 
-        $periodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $billingPeriod = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $periodStart = $billingPeriod->copy()->subMonthNoOverflow()->startOfMonth();
         $periodEnd = $periodStart->copy()->endOfMonth();
         $contractStart = Carbon::parse($contract->start_date)->startOfMonth();
 
-        if ($periodStart->lte($contractStart)) {
+        if ($periodStart->lt($contractStart)) {
             throw ValidationException::withMessages([
-                'invoice' => 'Tiền phòng tháng đầu đã được thu bằng hóa đơn trả trước sau khi ký hợp đồng.',
+                'invoice' => 'Chưa đến kỳ thu tiền phòng và điện nước đầu tiên của hợp đồng.',
             ]);
         }
 
@@ -231,9 +251,34 @@ class InvoiceGenerator
             || $effectiveEnd->lt($periodStart)
         ) {
             throw ValidationException::withMessages([
-                'contract' => "Hợp đồng {$contract->contract_code} không nằm trong kỳ {$month}/{$year}.",
+                'contract' => "Hợp đồng {$contract->contract_code} không phát sinh chi phí trong tháng {$periodStart->month}/{$periodStart->year}.",
             ]);
         }
+    }
+
+    private function roomFeeForPeriod(Contract $contract, Carbon $servicePeriod): float
+    {
+        if ($servicePeriod->isSameMonth($contract->start_date)) {
+            return (float) $contract->calculated_first_month_rent_amount;
+        }
+
+        return (float) $contract->monthly_rent;
+    }
+
+    private function firstMonthPrepaidCredit(Contract $contract, Carbon $servicePeriod, float $roomFee): float
+    {
+        if (! $servicePeriod->isSameMonth($contract->start_date) || $roomFee <= 0) {
+            return 0.0;
+        }
+
+        $paid = (float) DB::table('payments')
+            ->join('invoices', 'invoices.id', '=', 'payments.invoice_id')
+            ->where('invoices.contract_id', $contract->id)
+            ->where('invoices.invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)
+            ->where('payments.status', 'success')
+            ->sum('payments.amount_paid');
+
+        return min($roomFee, $paid);
     }
 
     private function resolveContractEffectiveEnd(Contract $contract): Carbon

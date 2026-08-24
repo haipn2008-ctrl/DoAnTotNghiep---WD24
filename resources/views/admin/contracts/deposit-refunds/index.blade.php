@@ -10,17 +10,10 @@
     {{-- HEADER --}}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Quản lý hợp đồng
-            </p>
-
-            <h1 class="mt-1 text-2xl font-bold text-slate-900">
+            <h1 class="text-2xl font-bold text-slate-900">
                 Yêu cầu hoàn cọc
             </h1>
 
-            <p class="mt-1 text-sm text-slate-500">
-                Kiểm tra thông tin nhận tiền, duyệt số tiền hoàn và xác nhận chuyển khoản cho khách thuê.
-            </p>
         </div>
 
         <a href="{{ route('admin.contracts.index') }}"
@@ -114,9 +107,6 @@
                 <h2 class="text-base font-bold text-slate-900">
                     Danh sách yêu cầu
                 </h2>
-                <p class="mt-1 text-sm text-slate-500">
-                    Các yêu cầu hoàn cọc sau khi hợp đồng đã chấm dứt.
-                </p>
             </div>
 
             <div class="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600">

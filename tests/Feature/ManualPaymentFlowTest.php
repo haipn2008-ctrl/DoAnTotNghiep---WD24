@@ -21,6 +21,7 @@ class ManualPaymentFlowTest extends TestCase
         $this->assertFalse(Route::has('admin.payment-webhooks.index'));
         $this->assertFalse(Route::has('admin.payment-webhooks.reconcile'));
         $this->assertFalse(Schema::hasTable('payment_webhook_events'));
+        $this->assertFalse(Schema::hasColumn('tenants', 'payment_code'));
 
         $this->postJson('/webhooks/payments', [
             'transaction_id' => 'REMOVED-WEBHOOK',

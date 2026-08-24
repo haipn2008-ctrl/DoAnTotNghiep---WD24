@@ -280,6 +280,7 @@
                         <thead class="bg-slate-50">
 
                             <tr>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Chủ xe</th>
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Loại xe
                                 </th>
@@ -305,6 +306,7 @@
                             @foreach ($tenant->vehicles as $vehicle)
 
                                 <tr class="hover:bg-slate-50">
+                                    <td class="px-5 py-4 text-sm font-semibold text-slate-950">{{ $vehicle->tenant->full_name ?? $tenant->full_name }}</td>
 
                                     <td class="px-5 py-4 text-sm text-slate-700">
                                         {{ ['motorcycle' => 'Xe máy', 'electric_motorcycle' => 'Xe máy điện', 'bicycle' => 'Xe đạp'][$vehicle->vehicle_type] ?? $vehicle->vehicle_type ?? '---' }}

@@ -192,10 +192,11 @@
                 </div>
                 <div class="space-y-3">
                     @forelse ($roomAssets as $asset)
-                        <div class="grid gap-2 rounded-lg border border-slate-200 px-4 py-3 sm:grid-cols-[1fr_120px_220px] sm:items-center">
+                        <div class="grid gap-2 rounded-lg border border-slate-200 px-4 py-3 sm:grid-cols-[1fr_120px_190px_minmax(180px,1fr)] sm:items-center">
                             <p class="font-semibold text-slate-900">{{ $asset->name }}</p>
                             <p class="text-sm text-slate-600">Số lượng: {{ $asset->pivot->quantity }}</p>
                             <p class="text-sm text-slate-600">{{ $conditionLabels[$asset->pivot->condition] ?? 'Không xác định' }}</p>
+                            <p class="text-sm text-slate-600">{{ $asset->pivot->note ?: 'Không có ghi chú' }}</p>
                         </div>
                     @empty
                         <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">Chưa khai báo tài sản bàn giao.</div>

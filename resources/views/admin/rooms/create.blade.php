@@ -70,6 +70,20 @@
                     @error('max_people') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
+                <div>
+                    <label for="initial_electricity" class="mb-1.5 block text-sm font-semibold text-slate-700">Chỉ số điện ban đầu (kWh)</label>
+                    <input id="initial_electricity" type="number" min="0" name="initial_electricity" value="{{ old('initial_electricity') }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <p class="mt-1 text-xs text-slate-500">Nhập đúng số đang hiển thị trên công tơ khi tạo phòng.</p>
+                    @error('initial_electricity') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+                </div>
+
+                <div>
+                    <label for="initial_water" class="mb-1.5 block text-sm font-semibold text-slate-700">Chỉ số nước ban đầu (m³)</label>
+                    <input id="initial_water" type="number" min="0" name="initial_water" value="{{ old('initial_water') }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <p class="mt-1 text-xs text-slate-500">Chỉ số này là mốc đối chiếu khi bàn giao hợp đồng đầu tiên.</p>
+                    @error('initial_water') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+                </div>
+
                 <div class="md:col-span-2">
                     <label class="mb-1 block text-sm font-semibold text-slate-700">Tài sản bàn giao</label>
                     @include('admin.rooms.partials.inventory-fields')

@@ -145,7 +145,7 @@ FROM contract_status_histories WHERE contract_id = ID_HỢP_ĐỒNG ORDER BY id;
 
 - **Mục tiêu:** payment failed không được tính là cọc.
 - **Điều kiện ban đầu:** một hợp đồng mới `pending_deposit`, hóa đơn cọc 1.000.000.
-- **Các bước:** gửi/chờ duyệt một thanh toán chuyển khoản rồi Admin từ chối, hoặc mô phỏng webhook failed theo môi trường test.
+- **Các bước:** gửi một thanh toán chuyển khoản kèm biên lai rồi để Admin từ chối.
 - **Dữ liệu nhập:** 1.000.000, ghi chú “Sai nội dung chuyển khoản”.
 - **Giao diện mong đợi:** payment thất bại; hợp đồng vẫn `pending_deposit`; còn thiếu 1.000.000.
 - **Database mong đợi:** payment `failed`, không có `deposit_completed`.

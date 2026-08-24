@@ -39,7 +39,8 @@
             <div class="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
                 <div>
                     <h3 class="font-semibold text-slate-950">Hợp đồng đang hiệu lực</h3>
-                    <p class="text-sm text-slate-500">Thu ngày 05/{{ $month }}/{{ $year }}: tiền phòng tháng {{ $month }} + tiện ích tháng trước</p>
+                    @php($servicePeriod = \Carbon\Carbon::createFromDate($year, $month, 1)->subMonthNoOverflow())
+                    <p class="text-sm text-slate-500">Thu ngày 05/{{ $month }}/{{ $year }}: tiền phòng và tiện ích tháng {{ $servicePeriod->month }}/{{ $servicePeriod->year }}</p>
                 </div>
                 <span class="inline-flex w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200">
                     {{ $contracts->count() }} hợp đồng

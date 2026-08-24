@@ -115,6 +115,7 @@ class RoomManagementTest extends TestCase
         $response = $this->actingAs($this->admin)->post('/admin/rooms', $this->payload([
             'inventory' => [$amenity->id => [
                 'selected' => 1, 'quantity' => 2, 'condition' => 'damaged',
+                'note' => 'Dàn lạnh bị móp nhẹ ở góc phải.',
             ]],
             'images' => [
                 UploadedFile::fake()->image('overview.jpg'),
@@ -126,9 +127,19 @@ class RoomManagementTest extends TestCase
         $this->assertSame(6, $room->max_people);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->status);
         $this->assertSame(0, $room->current_people);
+        $this->assertDatabaseHas('utility_readings', [
+            'room_id' => $room->id,
+            'contract_id' => null,
+            'reading_type' => 'baseline',
+            'electricity_old' => 125,
+            'electricity_new' => 125,
+            'water_old' => 18,
+            'water_new' => 18,
+            'status' => 'confirmed',
+        ]);
         $this->assertDatabaseHas('amenity_room', [
             'room_id' => $room->id, 'amenity_id' => $amenity->id,
-            'quantity' => 2, 'condition' => 'damaged', 'note' => null,
+            'quantity' => 2, 'condition' => 'damaged', 'note' => 'Dàn lạnh bị móp nhẹ ở góc phải.',
         ]);
         $this->assertSame(0, $room->amenities()->utilities()->count());
         $this->assertDatabaseCount('room_images', 2);
@@ -152,6 +163,22 @@ class RoomManagementTest extends TestCase
         $this->assertSame($assetCount, $room->amenities()->assets()->count());
     }
 
+    public function test_damaged_room_asset_requires_its_own_note(): void
+    {
+        $amenity = Amenity::create(['name' => 'Tủ kiểm thử ghi chú', 'is_quantifiable' => true]);
+
+        $this->actingAs($this->admin)->post('/admin/rooms', $this->payload([
+            'inventory' => [$amenity->id => [
+                'selected' => 1,
+                'quantity' => 1,
+                'condition' => 'damaged',
+                'note' => '',
+            ]],
+        ]))->assertSessionHasErrors("inventory.{$amenity->id}.note");
+
+        $this->assertDatabaseMissing('rooms', ['room_code' => 'ROOM-NEW']);
+    }
+
     public function test_create_rejects_duplicate_invalid_boundaries_missing_amenity_and_bad_image_without_writes(): void
     {
         Storage::fake('public');
@@ -165,6 +192,36 @@ class RoomManagementTest extends TestCase
         $this->assertDatabaseCount('rooms', 1);
         $this->assertDatabaseCount('amenity_room', 0);
         $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_create_requires_non_negative_initial_meter_readings(): void
+    {
+        $this->actingAs($this->admin)->post('/admin/rooms', $this->payload([
+            'initial_electricity' => -1,
+            'initial_water' => null,
+        ]))->assertSessionHasErrors(['initial_electricity', 'initial_water']);
+
+        $this->assertDatabaseCount('rooms', 0);
+        $this->assertDatabaseCount('utility_readings', 0);
+    }
+
+    public function test_room_with_only_baseline_reading_can_still_be_deleted(): void
+    {
+        $this->actingAs($this->admin)->post('/admin/rooms', $this->payload())
+            ->assertRedirect(route('admin.rooms.index'));
+
+        $room = Room::where('room_code', 'ROOM-NEW')->firstOrFail();
+        $this->assertDatabaseHas('utility_readings', [
+            'room_id' => $room->id,
+            'reading_type' => 'baseline',
+        ]);
+
+        $this->delete("/admin/rooms/{$room->id}")
+            ->assertRedirect(route('admin.rooms.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
+        $this->assertDatabaseMissing('utility_readings', ['room_id' => $room->id]);
     }
 
     public function test_inactive_amenities_are_hidden_and_cannot_be_submitted(): void
@@ -352,7 +409,8 @@ class RoomManagementTest extends TestCase
     private function payload(array $overrides = []): array
     {
         return array_merge(['room_code' => 'ROOM-NEW', 'floor' => 2, 'price' => 3500000,
-            'area' => 25, 'max_people' => 6, 'description' => 'Phòng kiểm thử'], $overrides);
+            'area' => 25, 'max_people' => 6, 'initial_electricity' => 125,
+            'initial_water' => 18, 'description' => 'Phòng kiểm thử'], $overrides);
     }
 
     private function room(array $overrides = []): Room

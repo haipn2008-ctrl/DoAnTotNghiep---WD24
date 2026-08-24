@@ -379,7 +379,7 @@ if (contractForm && contractContent) {
             const html = await response.text();
 
             if (!html.trim()) {
-                throw new Error("Server trả về nội dung rỗng");
+                throw new Error("Máy chủ trả về nội dung rỗng");
             }
 
             modalContent.innerHTML = html;

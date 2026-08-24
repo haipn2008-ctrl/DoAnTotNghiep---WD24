@@ -216,19 +216,35 @@
         </a>
 
 
-        @if(auth()->user()?->isActive())
         {{-- HỖ TRỢ --}}
-        <a href="{{ route('client.support.index') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.support.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
+        <div>
+            <button type="button"
+                    id="supportMenuButton"
+                    class="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.support.*', 'client.landlord-information') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}"
+                    aria-expanded="{{ request()->routeIs('client.support.*', 'client.landlord-information') ? 'true' : 'false' }}">
+                <span class="flex items-center gap-3">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.support.*', 'client.landlord-information') ? 'bg-indigo-100' : 'bg-slate-100' }}">?</span>
+                    <span>Hỗ trợ</span>
+                </span>
+                <svg id="supportMenuArrow" class="h-4 w-4 transition-transform duration-200 {{ request()->routeIs('client.support.*', 'client.landlord-information') ? 'rotate-180' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 9-7 7-7-7" />
+                </svg>
+            </button>
 
-            <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.support.*') ? 'bg-indigo-100' : 'bg-slate-100' }}">
-                ?
-            </span>
-
-            <span>Hỗ trợ</span>
-
-        </a>
-        @endif
+            <div id="supportSubmenu"
+                 class="ml-4 mt-1 space-y-1 border-l-2 border-indigo-100 pl-2 {{ request()->routeIs('client.support.*', 'client.landlord-information') ? '' : 'hidden' }}">
+                @if(auth()->user()?->isActive())
+                    <a href="{{ route('client.support.index') }}"
+                       class="block rounded-lg px-3 py-2 text-sm font-medium transition {{ request()->routeIs('client.support.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
+                        Gửi yêu cầu hỗ trợ
+                    </a>
+                @endif
+                <a href="{{ route('client.landlord-information') }}"
+                   class="block rounded-lg px-3 py-2 text-sm font-medium transition {{ request()->routeIs('client.landlord-information') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
+                    Thông tin chủ trọ
+                </a>
+            </div>
+        </div>
 
     </nav>
 
@@ -250,9 +266,14 @@
                 hóa đơn hoặc hợp đồng.
             </p>
 
-            <p class="mt-3 text-sm font-bold text-indigo-700">
-                1900 xxxx
-            </p>
+            @if(filled($clientSupportPhone))
+                <a href="tel:{{ preg_replace('/[^0-9+]/', '', $clientSupportPhone) }}"
+                   class="mt-3 inline-block text-sm font-bold text-indigo-700 hover:text-indigo-800">
+                    {{ $clientSupportPhone }}
+                </a>
+            @else
+                <p class="mt-3 text-sm font-semibold text-slate-500">Chưa thiết lập số điện thoại</p>
+            @endif
 
         </div>
 
@@ -271,6 +292,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const contractButton = document.getElementById('contractMenuButton');
     const contractSubmenu = document.getElementById('contractSubmenu');
     const contractArrow = document.getElementById('contractMenuArrow');
+    const supportButton = document.getElementById('supportMenuButton');
+    const supportSubmenu = document.getElementById('supportSubmenu');
+    const supportArrow = document.getElementById('supportMenuArrow');
 
     if (!contractButton || !contractSubmenu) {
         return;
@@ -286,6 +310,12 @@ document.addEventListener('DOMContentLoaded', function () {
             contractArrow.classList.toggle('rotate-180');
         }
 
+    });
+
+    supportButton?.addEventListener('click', function () {
+        const isHidden = supportSubmenu?.classList.toggle('hidden');
+        supportArrow?.classList.toggle('rotate-180', !isHidden);
+        supportButton.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
     });
 
 });

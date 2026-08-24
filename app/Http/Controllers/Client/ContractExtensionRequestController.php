@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractExtensionRequest;
 use App\Services\ContractHistoryService;
+use App\Services\AdminNotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -104,7 +105,7 @@ class ContractExtensionRequestController extends Controller
 
         DB::transaction(function () use ($contract, $validated) {
 
-            ContractExtensionRequest::create([
+            $extensionRequest = ContractExtensionRequest::create([
                 'contract_id'        => $contract->id,
                 'current_end_date'   => $contract->end_date,
                 'requested_end_date' => $validated['requested_end_date'],
@@ -126,6 +127,8 @@ class ContractExtensionRequestController extends Controller
                     'request_status' => ContractExtensionRequest::STATUS_PENDING,
                 ]
             );
+
+            app(AdminNotificationService::class)->extensionRequested($extensionRequest);
         });
 
         return redirect()

@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\ContractTenant;
+use App\Models\Tenant;
 use App\Models\Vehicle;
 use App\Services\AdminNotificationService;
+use App\Services\VehicleCapacityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -14,27 +18,43 @@ use Throwable;
 
 class VehicleController extends Controller
 {
-    public function __construct(private readonly AdminNotificationService $notifications) {}
+    public function __construct(
+        private readonly AdminNotificationService $notifications,
+        private readonly VehicleCapacityService $capacity,
+    ) {}
 
     public function index(Request $request): View
     {
-        $tenant = $request->user()->tenant()->with(['vehicles.reviewer'])->firstOrFail();
+        $tenant = $request->user()->tenant()->firstOrFail();
+        $contract = $this->capacity->currentContract($tenant);
+        $owners = $contract && $contract->isManagedBy($request->user())
+            ? $contract->members()->with('tenant.vehicles.reviewer')
+                ->where('status', ContractTenant::STATUS_CHECKED_IN)
+                ->whereNotNull('tenant_id')->get()->pluck('tenant')->filter()->unique('id')->values()
+            : collect([$tenant->load('vehicles.reviewer')]);
+        $vehicles = $owners->flatMap(fn (Tenant $owner) => $owner->vehicles)
+            ->sortByDesc('created_at')->values();
 
-        return view('client.vehicles.index', compact('tenant'));
+        return view('client.vehicles.index', compact('tenant', 'contract', 'owners', 'vehicles'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $tenant = $request->user()->tenant()->firstOrFail();
+        $owner = $this->vehicleOwner($request, $tenant);
         $data = $this->validatedVehicle($request);
         $imagePath = $request->file('vehicle_image')?->store('vehicles', 'public');
 
         try {
-            $vehicle = $tenant->vehicles()->create($data + [
-                'vehicle_image' => $imagePath,
-                'status' => Vehicle::STATUS_PENDING,
-                'submitted_by' => $request->user()->id,
-            ]);
+            $vehicle = DB::transaction(function () use ($owner, $data, $imagePath, $request): Vehicle {
+                $this->capacity->ensureCanSubmit($owner);
+
+                return $owner->vehicles()->create($data + [
+                    'vehicle_image' => $imagePath,
+                    'status' => Vehicle::STATUS_PENDING,
+                    'submitted_by' => $request->user()->id,
+                ]);
+            }, 3);
             $this->notifications->vehicleSubmitted($vehicle);
         } catch (Throwable $exception) {
             if ($imagePath) {
@@ -48,21 +68,25 @@ class VehicleController extends Controller
 
     public function update(Request $request, Vehicle $vehicle): RedirectResponse
     {
-        $vehicle = $this->ownedVehicle($request, $vehicle);
+        $vehicle = $this->managedVehicle($request, $vehicle);
         abort_if($vehicle->status === Vehicle::STATUS_PENDING, 409, 'Yêu cầu đang chờ duyệt. Hãy hủy yêu cầu nếu cần đăng ký lại.');
         $data = $this->validatedVehicle($request, $vehicle);
         $oldImagePath = $vehicle->vehicle_image;
         $newImagePath = $request->file('vehicle_image')?->store('vehicles', 'public');
 
         try {
-            $vehicle->update($data + [
-                'vehicle_image' => $newImagePath ?: $oldImagePath,
-                'status' => Vehicle::STATUS_PENDING,
-                'submitted_by' => $request->user()->id,
-                'reviewed_by' => null,
-                'reviewed_at' => null,
-                'review_note' => null,
-            ]);
+            DB::transaction(function () use ($vehicle, $data, $newImagePath, $oldImagePath, $request): void {
+                $vehicle = Vehicle::query()->with('tenant')->lockForUpdate()->findOrFail($vehicle->id);
+                $this->capacity->ensureCanSubmit($vehicle->tenant, $vehicle);
+                $vehicle->update($data + [
+                    'vehicle_image' => $newImagePath ?: $oldImagePath,
+                    'status' => Vehicle::STATUS_PENDING,
+                    'submitted_by' => $request->user()->id,
+                    'reviewed_by' => null,
+                    'reviewed_at' => null,
+                    'review_note' => null,
+                ]);
+            }, 3);
             $this->notifications->vehicleSubmitted($vehicle, true);
         } catch (Throwable $exception) {
             if ($newImagePath) {
@@ -80,7 +104,7 @@ class VehicleController extends Controller
 
     public function destroy(Request $request, Vehicle $vehicle): RedirectResponse
     {
-        $vehicle = $this->ownedVehicle($request, $vehicle);
+        $vehicle = $this->managedVehicle($request, $vehicle);
         $imagePath = $vehicle->vehicle_image;
         $wasApproved = $vehicle->status === Vehicle::STATUS_APPROVED;
 
@@ -100,11 +124,33 @@ class VehicleController extends Controller
             : 'Đã hủy yêu cầu. Bạn có thể đăng ký lại phương tiện từ đầu.');
     }
 
-    private function ownedVehicle(Request $request, Vehicle $vehicle): Vehicle
+    private function managedVehicle(Request $request, Vehicle $vehicle): Vehicle
     {
-        abort_unless((int) $vehicle->tenant_id === (int) $request->user()->tenant?->id, 404);
+        $tenant = $request->user()->tenant;
+        $contract = $tenant ? $this->capacity->currentContract($tenant) : null;
+        $ownerIds = $contract && $contract->isManagedBy($request->user())
+            ? $contract->members()->where('status', ContractTenant::STATUS_CHECKED_IN)->pluck('tenant_id')
+            : collect([$tenant?->id]);
+        abort_unless($ownerIds->contains($vehicle->tenant_id), 404);
 
         return $vehicle;
+    }
+
+    private function vehicleOwner(Request $request, Tenant $tenant): Tenant
+    {
+        $contract = $this->capacity->currentContract($tenant);
+        $allowedOwnerIds = $contract && $contract->isManagedBy($request->user())
+            ? $contract->members()->where('status', ContractTenant::STATUS_CHECKED_IN)->whereNotNull('tenant_id')->pluck('tenant_id')
+            : collect([$tenant->id]);
+
+        $ownerId = (int) ($request->input('owner_tenant_id') ?: $tenant->id);
+        if (! $allowedOwnerIds->contains($ownerId)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'owner_tenant_id' => 'Chủ xe phải là người đang ở trong phòng.',
+            ]);
+        }
+
+        return Tenant::query()->findOrFail($ownerId);
     }
 
     private function validatedVehicle(Request $request, ?Vehicle $vehicle = null): array

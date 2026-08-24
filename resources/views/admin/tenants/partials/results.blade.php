@@ -22,9 +22,16 @@
             <tbody class="divide-y divide-slate-100">
                 @forelse ($tenants as $tenant)
                     @php
-                        $activeContract = $tenant->contracts->concat($tenant->memberContracts)
+                        $membershipContract = $tenant->memberContracts
                             ->whereIn('status', \App\Models\Contract::OPEN_OCCUPANCY_STATUSES)
                             ->first();
+                        $representativeContract = $tenant->contracts
+                            ->whereIn('status', \App\Models\Contract::OPEN_OCCUPANCY_STATUSES)
+                            ->first();
+                        $activeContract = $membershipContract ?? $representativeContract;
+                        $isRepresentative = $membershipContract
+                            ? $membershipContract->pivot->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE
+                            : $representativeContract !== null;
                     @endphp
                     <tr class="hover:bg-slate-50/70">
                         <td class="px-5 py-4">
@@ -33,7 +40,9 @@
                                 <div>
                                     <p class="font-semibold text-slate-950">{{ $tenant->full_name }}</p>
                                     <p class="text-xs text-slate-500">{{ $tenant->email ?: 'Chưa có email' }}</p>
-                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $tenant->isOffline() ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700' }}">{{ $tenant->isOffline() ? 'Dữ liệu cũ thiếu tài khoản' : 'Có tài khoản portal' }}</span>
+                                    @if ($activeContract && $isRepresentative)
+                                        <span class="mt-1 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">Người đại diện</span>
+                                    @endif
                                 </div>
                             </div>
                         </td>

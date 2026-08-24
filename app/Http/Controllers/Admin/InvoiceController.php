@@ -7,6 +7,7 @@ use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Services\ContractLifecycleService;
+use App\Services\AdminNotificationService;
 use App\Services\InvoiceGenerator;
 use App\Services\TenantAccountLifecycle;
 use App\Support\Csv;
@@ -188,6 +189,7 @@ class InvoiceController extends Controller
             $month,
             1
         )->startOfMonth();
+        $servicePeriodStart = $periodStart->copy()->subMonthNoOverflow()->startOfMonth();
 
         $contracts = Contract::with([
             'room',
@@ -200,9 +202,9 @@ class InvoiceController extends Controller
                 $periodStart
             )
             // Kỳ hiệu lực kết thúc ưu tiên: actual_end_date > extend_end_date > end_date
-            ->where(function ($query) use ($periodStart) {
+            ->where(function ($query) use ($servicePeriodStart) {
                 $query->where('status', Contract::STATUS_EXPIRED)
-                    ->orWhereRaw('COALESCE(actual_end_date, extend_end_date, end_date) >= ?', [$periodStart->toDateString()]);
+                    ->orWhereRaw('COALESCE(actual_end_date, extend_end_date, end_date) >= ?', [$servicePeriodStart->toDateString()]);
             })
             ->orderBy('id')
             ->get();
@@ -813,10 +815,26 @@ class InvoiceController extends Controller
             'payment_date' => 'required|date|before_or_equal:today',
             'payment_method' => 'required|in:'
                 .Payment::METHOD_CASH.','
-                .Payment::METHOD_BANK_TRANSFER.','
-                .Payment::METHOD_QR,
-            'transaction_code' => ['nullable', 'string', 'max:255', Rule::unique('payments', 'transaction_code')],
+                .Payment::METHOD_BANK_TRANSFER,
+            'transaction_code' => [
+                'nullable',
+                'required_if:payment_method,'.Payment::METHOD_BANK_TRANSFER,
+                'string',
+                'max:255',
+                Rule::unique('payments', 'transaction_code'),
+            ],
             'note' => 'nullable|string|max:1000',
+        ], [
+            'amount_paid.required' => 'Vui lòng nhập số tiền đã thu.',
+            'amount_paid.numeric' => 'Số tiền đã thu không hợp lệ.',
+            'amount_paid.min' => 'Số tiền đã thu phải lớn hơn 0.',
+            'payment_date.required' => 'Vui lòng chọn ngày thu tiền.',
+            'payment_date.date' => 'Ngày thu tiền không hợp lệ.',
+            'payment_date.before_or_equal' => 'Ngày thu tiền không được ở tương lai.',
+            'payment_method.required' => 'Vui lòng chọn hình thức thanh toán.',
+            'payment_method.in' => 'Hình thức thanh toán không hợp lệ.',
+            'transaction_code.required_if' => 'Vui lòng nhập mã giao dịch khi thu bằng chuyển khoản.',
+            'transaction_code.unique' => 'Mã giao dịch này đã được sử dụng.',
         ]);
 
         DB::transaction(function () use ($data, $invoice) {
@@ -846,6 +864,12 @@ class InvoiceController extends Controller
             }
             $this->syncTenantAccountAfterPayment($lockedInvoice);
         });
+
+        if ($request->boolean('return_to_contract')) {
+            return redirect()
+                ->route('admin.contracts.show', $invoice->contract_id)
+                ->with('success', 'Đã ghi nhận thanh toán.');
+        }
 
         return redirect()
             ->route(
@@ -890,6 +914,7 @@ class InvoiceController extends Controller
                 app(ContractLifecycleService::class)->syncDepositState($invoice->contract, auth()->user());
             }
             $this->syncTenantAccountAfterPayment($invoice);
+            app(AdminNotificationService::class)->resolve('payment_review', $payment);
         });
 
         return back()->with('success', 'Đã duyệt xác nhận thanh toán.');
@@ -919,8 +944,9 @@ class InvoiceController extends Controller
             $invoice = Invoice::query()->lockForUpdate()->findOrFail($lockedPayment->invoice_id);
             $invoice->refreshStatus();
             if (in_array($invoice->invoice_type, [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT], true)) {
-                app(ContractLifecycleService::class)->syncDepositState($invoice->contract, auth()->user(), 'Thanh toán tiền phòng tháng đầu bị từ chối.');
+                app(ContractLifecycleService::class)->syncDepositState($invoice->contract, auth()->user(), 'Thanh toán bị từ chối.');
             }
+            app(AdminNotificationService::class)->resolve('payment_review', $lockedPayment);
         });
 
         return back()->with('success', 'Đã từ chối xác nhận thanh toán.');

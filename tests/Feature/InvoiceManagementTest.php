@@ -79,7 +79,7 @@ class InvoiceManagementTest extends TestCase
         $this->assertDatabaseCount('invoice_details', 0);
     }
 
-    public function test_june_fifth_collects_june_rent_and_may_utilities(): void
+    public function test_june_fifth_collects_may_rent_and_may_utilities(): void
     {
         [$contract] = $this->fixture('MAY-JUNE', 6);
 
@@ -90,12 +90,60 @@ class InvoiceManagementTest extends TestCase
         $this->assertSame(5, $preview['utility_month']);
         $this->assertSame(2026, $preview['utility_year']);
         $this->assertSame([
-            'Tiền phòng tháng 6/2026',
+            'Tiền phòng tháng 5/2026',
             'Tiền điện tháng 5/2026',
             'Tiền nước tháng 5/2026',
             'Phí internet tháng 5/2026',
             'Phí dịch vụ tháng 5/2026',
         ], collect($preview['lines'])->pluck('name')->all());
+    }
+
+    public function test_first_month_rent_is_deferred_prorated_and_due_on_next_month_fifth(): void
+    {
+        [$contract] = $this->fixture('DEFERRED-FIRST-MONTH', 6);
+        $contract->forceFill(['start_date' => '2026-05-25'])->save();
+
+        $preview = app(InvoiceGenerator::class)->preview($contract->fresh(), 6, 2026);
+
+        $this->assertSame('2026-06-05', $preview['invoice_date']);
+        $this->assertSame('2026-06-05', $preview['due_date']);
+        $this->assertSame(677419.0, $preview['room_fee']);
+        $this->assertSame(997419.0, $preview['total_amount']);
+        $this->assertSame('Tiền phòng tháng 5/2026', $preview['lines'][0]['name']);
+        $this->assertSame(7, $preview['lines'][0]['quantity']);
+        $this->assertSame('ngày', $preview['lines'][0]['unit']);
+    }
+
+    public function test_legacy_first_month_payment_is_credited_instead_of_charged_twice(): void
+    {
+        [$contract, $room] = $this->fixture('FIRST-MONTH-CREDIT', 6);
+        $contract->forceFill(['start_date' => '2026-05-01'])->save();
+        $legacyInvoice = Invoice::create([
+            'contract_id' => $contract->id,
+            'invoice_type' => Invoice::TYPE_FIRST_MONTH_RENT,
+            'room_id' => $room->id,
+            'invoice_code' => 'FMR-LEGACY-CREDIT',
+            'month' => 5,
+            'year' => 2026,
+            'invoice_date' => '2026-05-01',
+            'due_date' => '2026-05-05',
+            'room_fee' => 3000000,
+            'total_amount' => 3000000,
+            'status' => Invoice::STATUS_PARTIAL,
+        ]);
+        Payment::create([
+            'invoice_id' => $legacyInvoice->id,
+            'amount_paid' => 1000000,
+            'payment_date' => '2026-05-02',
+            'payment_method' => Payment::METHOD_CASH,
+            'status' => Payment::STATUS_SUCCESS,
+        ]);
+
+        $preview = app(InvoiceGenerator::class)->preview($contract->fresh(), 6, 2026);
+
+        $this->assertSame(2000000.0, $preview['room_fee']);
+        $this->assertSame(2320000.0, $preview['total_amount']);
+        $this->assertSame(-1000000.0, collect($preview['lines'])->firstWhere('type', 'first_month_credit')['amount']);
     }
 
     public function test_historical_parking_registration_never_creates_a_charge(): void
@@ -151,8 +199,8 @@ class InvoiceManagementTest extends TestCase
             'actual_end_date' => '2026-06-30',
             'status' => Contract::STATUS_TERMINATED,
         ])->save();
-        $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", ['month' => 7, 'year' => 2026])->assertStatus(422);
-        $this->assertDatabaseCount('invoices', 0);
+        $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", ['month' => 7, 'year' => 2026])->assertOk();
+        $this->assertDatabaseCount('invoices', 1);
     }
 
     public function test_terminated_and_active_contracts_in_same_room_and_month_can_receive_separate_invoices(): void
@@ -284,7 +332,7 @@ class InvoiceManagementTest extends TestCase
         $contract = Contract::query()->forceCreate(['contract_code' => 'CONTRACT-'.$key, 'room_id' => $room->id,
             'tenant_id' => $tenant->id, 'monthly_rent' => 3000000, 'start_date' => '2026-01-01',
             'end_date' => '2026-12-31', 'status' => Contract::STATUS_ACTIVE,
-            'internet_enabled' => true, 'service_enabled' => true, 'parking_quantity' => 1]);
+            'internet_enabled' => false, 'service_enabled' => false, 'parking_quantity' => 1]);
         $reading = $this->reading($room, $month - 1);
         $reading->update(['contract_id' => $contract->id, 'reading_type' => 'periodic']);
 

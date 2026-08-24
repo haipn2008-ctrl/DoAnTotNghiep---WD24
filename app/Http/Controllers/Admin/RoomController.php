@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\RoomRequest;
 use App\Models\Amenity;
 use App\Models\Contract;
+use App\Models\ContractTenant;
 use App\Models\Room;
+use App\Models\UtilityReading;
 use App\Services\RoomEvidenceService;
 use App\Support\Csv;
 use Illuminate\Http\Request;
@@ -77,20 +79,41 @@ class RoomController extends Controller
     public function store(RoomRequest $request)
     {
         $data = $request->validated();
+        $initialElectricity = (int) $data['initial_electricity'];
+        $initialWater = (int) $data['initial_water'];
         $files = $request->file('images', []);
         if ($request->hasFile('image')) {
             $files[] = $request->file('image');
         }
 
-        unset($data['image'], $data['images'], $data['amenities'], $data['inventory'], $data['status'], $data['current_people']);
+        unset(
+            $data['image'], $data['images'], $data['amenities'], $data['inventory'],
+            $data['status'], $data['current_people'], $data['initial_electricity'], $data['initial_water']
+        );
         $data['status'] = Room::STATUS_AVAILABLE;
         $data['current_people'] = 0;
         $storedImages = collect();
 
         try {
-            DB::transaction(function () use ($data, $files, $request, &$storedImages): void {
+            DB::transaction(function () use ($data, $files, $request, $initialElectricity, $initialWater, &$storedImages): void {
                 $room = Room::create($data);
                 $room->amenities()->sync($this->inventoryPayload($request));
+
+                UtilityReading::query()->forceCreate([
+                    'room_id' => $room->id,
+                    'contract_id' => null,
+                    'month' => today()->month,
+                    'year' => today()->year,
+                    'record_date' => today(),
+                    'reading_type' => 'baseline',
+                    'lifecycle_event_key' => "room:{$room->id}:baseline",
+                    'electricity_old' => $initialElectricity,
+                    'electricity_new' => $initialElectricity,
+                    'water_old' => $initialWater,
+                    'water_new' => $initialWater,
+                    'status' => 'confirmed',
+                    'note' => 'Chỉ số công tơ ban đầu khi tạo phòng.',
+                ]);
 
                 $storedImages = $this->evidenceService->store($room, $files, [
                     'evidence_type' => 'baseline',
@@ -122,7 +145,7 @@ class RoomController extends Controller
             ->latest('id')
             ->first();
         $members = $occupancyContract?->members
-            ->where('status', \App\Models\ContractTenant::STATUS_CHECKED_IN)
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)
             ->values() ?? collect();
         $unidentifiedMembers = $occupancyContract
             ? max(0, (int) $room->current_people - $members->count())
@@ -181,7 +204,13 @@ class RoomController extends Controller
         $cannotDelete = DB::transaction(function () use ($room): bool {
             $lockedRoom = Room::query()->lockForUpdate()->findOrFail($room->id);
 
-            if ($lockedRoom->contracts()->exists() || $lockedRoom->utilityReadings()->exists()) {
+            $hasOperationalReadings = $lockedRoom->utilityReadings()
+                ->where(fn ($query) => $query
+                    ->whereNull('reading_type')
+                    ->orWhere('reading_type', '!=', 'baseline'))
+                ->exists();
+
+            if ($lockedRoom->contracts()->exists() || $hasOperationalReadings) {
                 return true;
             }
 
@@ -230,7 +259,7 @@ class RoomController extends Controller
             $payload[(int) $amenityId] = [
                 'quantity' => $amenity->is_quantifiable ? (int) ($item['quantity'] ?? 1) : 1,
                 'condition' => $item['condition'] ?? 'normal',
-                'note' => null,
+                'note' => filled($item['note'] ?? null) ? trim((string) $item['note']) : null,
             ];
         }
 

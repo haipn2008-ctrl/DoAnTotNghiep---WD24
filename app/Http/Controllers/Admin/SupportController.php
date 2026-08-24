@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SupportRequest;
+use App\Services\AdminNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -59,6 +60,9 @@ class SupportController extends Controller
                 'handled_by' => $request->user()->id,
                 'responded_at' => $response ? now() : null,
             ]);
+            if (in_array($data['status'], [SupportRequest::STATUS_RESOLVED, SupportRequest::STATUS_REJECTED], true)) {
+                app(AdminNotificationService::class)->resolve('support_request', $lockedRequest);
+            }
         });
 
         return back()->with('success', 'Đã cập nhật yêu cầu hỗ trợ.');

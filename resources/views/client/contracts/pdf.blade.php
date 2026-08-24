@@ -239,13 +239,14 @@ Tiền nước:
 </p>
 
 <p>
-Tiền đặt cọc (tách biệt với tiền phòng tháng đầu):
+Tiền đặt cọc trước khi nhận phòng:
 <span class="line ExtraLarge">
 {{ number_format($contract->deposit_amount,0,',','.') }}
 </span>
 </p>
 
-<p>Tiền phòng tháng đầu: <strong>{{ number_format($contract->first_month_rent_amount,0,',','.') }} đồng</strong> ({{ $contract->first_month_rent_days <= 5 ? 'miễn do thời gian còn lại của tháng không quá 5 ngày' : $contract->first_month_rent_days.' ngày, tính theo giá tháng / số ngày của tháng × số ngày thuê' }}). Tổng phải đóng sau khi ký: <strong>{{ number_format($contract->deposit_amount + $contract->first_month_rent_amount,0,',','.') }} đồng</strong>.</p>
+<p>Trước khi nhận phòng, bên thuê chỉ đóng tiền cọc: <strong>{{ number_format($contract->deposit_amount,0,',','.') }} đồng</strong>. Tiền cọc được giữ đến khi kết thúc hợp đồng để hoàn trả hoặc khấu trừ khi quyết toán.</p>
+<p>Vào ngày 05 hằng tháng, bên thuê thanh toán tiền phòng, điện, nước và dịch vụ đã sử dụng trong tháng liền trước. Tiền phòng tháng đầu tính theo số ngày thuê thực tế; nếu thời gian thuê trong tháng không quá 5 ngày thì được miễn tiền phòng.</p>
 
 <p>
 Hợp đồng có giá trị kể từ ngày

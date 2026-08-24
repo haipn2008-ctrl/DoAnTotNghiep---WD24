@@ -58,7 +58,6 @@
                     <p class="text-sm font-semibold text-indigo-700">Xác nhận đã chuyển khoản</p>
                     <h3 class="mt-1 text-xl font-bold text-slate-950">Gửi biên lai cho ban quản lý</h3>
                     <p class="mt-2 text-sm leading-6 text-slate-500">Quét mã VietQR để chuyển đúng số tiền và nội dung. Sau đó chỉ cần gửi ảnh biên lai; ngày gửi được hệ thống ghi tự động và tiền chỉ được ghi nhận sau khi quản trị viên duyệt.</p>
-                    @if($paymentCode)<div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"><p class="font-semibold">Mã thanh toán cố định của bạn: <span class="font-mono text-base">{{ $paymentCode }}</span></p><p class="mt-1 text-xs leading-5">Khi chuyển tiền ghi rõ mã thanh toán + nội dung chuyển tiền.</p></div>@endif
                     @if ($bankSetting->bank_id && $bankSetting->bank_account_no && $bankSetting->bank_account_name)
                         @php($qrBase = 'https://img.vietqr.io/image/'.$bankSetting->bank_id.'-'.$bankSetting->bank_account_no.'-compact2.png')
                         <div class="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-center">

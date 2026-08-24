@@ -27,6 +27,12 @@ class RoomRequest extends FormRequest
             'price' => ['required', 'numeric', 'min:0'],
             'area' => ['required', 'numeric', 'min:1'],
             'max_people' => ['required', 'integer', 'between:1,20'],
+            'initial_electricity' => $creating
+                ? ['required', 'integer', 'min:0']
+                : ['exclude'],
+            'initial_water' => $creating
+                ? ['required', 'integer', 'min:0']
+                : ['exclude'],
             // Hai trường vận hành này không bao giờ được phép chỉnh trực tiếp khi tạo phòng.
             'current_people' => ['prohibited'],
             'status' => $creating
@@ -44,6 +50,7 @@ class RoomRequest extends FormRequest
             'inventory.*.selected' => ['nullable', 'boolean'],
             'inventory.*.quantity' => ['nullable', 'integer', 'between:1,100'],
             'inventory.*.condition' => ['nullable', Rule::in(['normal', 'damaged'])],
+            'inventory.*.note' => ['nullable', 'string', 'max:500'],
         ];
     }
 
@@ -53,9 +60,14 @@ class RoomRequest extends FormRequest
             /** @var Room|null $room */
             $room = $this->route('room');
 
-            foreach (array_keys((array) $this->input('inventory', [])) as $amenityId) {
+            foreach ((array) $this->input('inventory', []) as $amenityId => $item) {
                 if (! ctype_digit((string) $amenityId) || ! Amenity::query()->active()->whereKey($amenityId)->exists()) {
                     $validator->errors()->add("inventory.{$amenityId}", 'Tài sản đã chọn không tồn tại.');
+                }
+                if (filter_var($item['selected'] ?? false, FILTER_VALIDATE_BOOL)
+                    && ($item['condition'] ?? 'normal') === 'damaged'
+                    && ! filled($item['note'] ?? null)) {
+                    $validator->errors()->add("inventory.{$amenityId}.note", 'Vui lòng mô tả tình trạng hư hỏng của tài sản.');
                 }
             }
 
@@ -96,6 +108,12 @@ class RoomRequest extends FormRequest
             'area.min' => 'Diện tích phải lớn hơn 0.',
             'max_people.required' => 'Vui lòng nhập sức chứa tối đa.',
             'max_people.between' => 'Sức chứa phải từ 1 đến 20 người.',
+            'initial_electricity.required' => 'Vui lòng nhập chỉ số điện ban đầu của phòng.',
+            'initial_electricity.integer' => 'Chỉ số điện ban đầu phải là số nguyên.',
+            'initial_electricity.min' => 'Chỉ số điện ban đầu không được nhỏ hơn 0.',
+            'initial_water.required' => 'Vui lòng nhập chỉ số nước ban đầu của phòng.',
+            'initial_water.integer' => 'Chỉ số nước ban đầu phải là số nguyên.',
+            'initial_water.min' => 'Chỉ số nước ban đầu không được nhỏ hơn 0.',
             'current_people.prohibited' => 'Số người hiện tại do quy trình check-in/checkout tự cập nhật, không được nhập tay.',
             'status.prohibited' => 'Phòng mới luôn ở trạng thái Trống, không được gán trạng thái bằng request.',
             'status.in' => 'Trạng thái phòng không hợp lệ.',
@@ -108,6 +126,7 @@ class RoomRequest extends FormRequest
             'images.*.max' => 'Mỗi ảnh tối đa 8 MB.',
             'inventory.*.quantity.between' => 'Số lượng tài sản phải từ 1 đến 100.',
             'inventory.*.condition.in' => 'Tình trạng tài sản không hợp lệ.',
+            'inventory.*.note.max' => 'Ghi chú tài sản không được vượt quá 500 ký tự.',
         ];
     }
 }

@@ -31,14 +31,27 @@
                     : null;
             @endphp
             <div class="rounded-xl border border-slate-200 bg-white p-3">
-                <div class="mb-2 flex items-center justify-between gap-2"><label class="text-sm font-semibold">{{ $identityImage['label'] }} *</label>@if($imageUrl)<a target="_blank" href="{{ $imageUrl }}" class="text-xs font-semibold text-indigo-700">Xem ảnh gốc</a>@endif</div>
+                <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <label class="text-sm font-semibold">{{ $identityImage['label'] }}@if(!$imageUrl) *@endif</label>
+                    <div class="flex items-center gap-2">
+                        @if($imageUrl)<span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Đã lưu</span><a target="_blank" href="{{ $imageUrl }}" class="text-xs font-semibold text-indigo-700">Xem ảnh</a>@endif
+                    </div>
+                </div>
                 <div class="mb-3 flex h-36 items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
                     <img id="{{ $previewId }}" @if($imageUrl) src="{{ $imageUrl }}" data-original-src="{{ $imageUrl }}" @endif alt="Xem trước {{ mb_strtolower($identityImage['label']) }}" class="{{ $imageUrl ? '' : 'hidden' }} h-full w-full object-contain">
                     <div data-identity-preview-empty class="{{ $imageUrl ? 'hidden' : '' }} px-4 text-center text-xs text-slate-400"><i class="bx bx-image-add mb-1 block text-3xl"></i>Ảnh được chọn sẽ hiện tại đây</div>
                 </div>
-                <input data-identity-preview-input data-preview-target="{{ $previewId }}" type="file" name="representative[identity_{{ $identityImage['side'] }}]" accept="image/jpeg,image/png,image/webp" @required(!$representativeMember?->identity_front_path || !$representativeMember?->identity_back_path) class="block w-full rounded-lg border border-slate-200 bg-white text-sm file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2.5">
+                @if($imageUrl)
+                    <details class="rounded-lg border border-slate-200">
+                        <summary class="cursor-pointer list-none px-3 py-2 text-center text-xs font-semibold text-indigo-700 hover:bg-indigo-50">Thay ảnh</summary>
+                        <div class="border-t border-slate-100 p-2">
+                            <input data-identity-preview-input data-preview-target="{{ $previewId }}" type="file" name="representative[identity_{{ $identityImage['side'] }}]" accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-sm file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2.5">
+                        </div>
+                    </details>
+                @else
+                    <input data-identity-preview-input data-preview-target="{{ $previewId }}" type="file" name="representative[identity_{{ $identityImage['side'] }}]" accept="image/jpeg,image/png,image/webp" required class="block w-full rounded-lg border border-slate-200 bg-white text-sm file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2.5">
+                @endif
             </div>
         @endforeach
-        <p class="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm font-semibold text-indigo-900 md:col-span-2">Người đại diện luôn là một người thuê trực tiếp và được tính vào sức chứa của phòng.</p>
     </div>
 </section>

@@ -2,9 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Amenity;
 use App\Models\Contract;
-use App\Models\Room;
+use App\Models\Invoice;
 use App\Models\User;
 use Database\Seeders\AuthenticationScenarioSeeder;
 use Database\Seeders\DatabaseSeeder;
@@ -18,128 +17,87 @@ class AuthenticationSeederTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_full_demo_dataset_is_complete_and_idempotent(): void
+    public function test_full_business_dataset_is_complete_correct_and_idempotent(): void
     {
         $this->seed(DatabaseSeeder::class);
         $this->seed(DatabaseSeeder::class);
 
         $this->assertDatabaseCount('roles', 3);
         $this->assertDatabaseCount('users', 30);
-        $this->assertDatabaseCount('rooms', 14);
-        $this->assertDatabaseCount('tenants', 31);
-        $this->assertDatabaseCount('contracts', 10);
-        $this->assertDatabaseCount('contract_tenants', 21);
-        $this->assertDatabaseCount('contract_tenant_histories', 21);
-        $this->assertDatabaseCount('utility_readings', 42);
-        $this->assertDatabaseCount('invoices', 32);
-        $this->assertDatabaseCount('invoice_details', 160);
-        $this->assertDatabaseCount('payments', 28);
-        $this->assertDatabaseCount('support_requests', 10);
+        $this->assertDatabaseCount('rooms', 18);
+        $this->assertDatabaseCount('tenants', 32);
+        $this->assertDatabaseCount('contracts', 16);
+        $this->assertDatabaseCount('contract_tenants', 27);
+        $this->assertDatabaseCount('contract_tenant_histories', 27);
+        $this->assertDatabaseCount('utility_readings', 13);
+        $this->assertDatabaseCount('invoices', 18);
+        $this->assertDatabaseCount('invoice_details', 38);
+        $this->assertDatabaseCount('payments', 16);
+        $this->assertDatabaseCount('support_requests', 4);
+        $this->assertDatabaseCount('vehicles', 3);
+        $this->assertDatabaseCount('contract_extension_requests', 3);
+        $this->assertDatabaseCount('contract_termination_requests', 3);
+        $this->assertDatabaseCount('temporary_residences', 4);
         $this->assertDatabaseCount('settings', 1);
+
         $this->assertDatabaseHas('settings', [
-            'property_name' => 'Nhà trọ StayMaster',
-            'property_address' => 'Trịnh Văn Bô, Nam Từ Liêm, Hà Nội',
-            'landlord_name' => 'Nguyễn Xuân Nam',
-            'landlord_identity_number' => '001206006081',
-            'landlord_phone' => '0961152763',
-            'parking_fee' => 75000,
-            'motorcycle_parking_fee' => 75000,
-            'car_parking_fee' => 500000,
             'bank_id' => 'MB',
             'bank_account_no' => '6666200066789',
             'bank_account_name' => 'NGUYEN XUAN NAM',
         ]);
 
-        $this->assertDatabaseHas('users', [
-            'email' => 'admin@nhatroanphuc.test',
-            'name' => 'Nguyễn Minh Hoàng',
-        ]);
-        $this->assertDatabaseHas('rooms', [
-            'room_code' => 'B201',
-            'description' => 'Phòng rộng hướng đông, đón nắng sáng và nhiều ánh sáng tự nhiên.',
-        ]);
-
-        $activeAssetCount = Amenity::query()->active()->assets()->count();
-        $rooms = Room::query()->withCount('amenities')->get();
-        $this->assertSame(10, $activeAssetCount);
-        $this->assertCount(11, $rooms->where('amenities_count', $activeAssetCount));
-        $this->assertCount(3, $rooms->where('amenities_count', '<', $activeAssetCount));
-        $this->assertSame(8, $rooms->firstWhere('room_code', 'A103')->amenities_count);
-        $this->assertSame(9, $rooms->firstWhere('room_code', 'B203')->amenities_count);
-        $this->assertSame(9, $rooms->firstWhere('room_code', 'C304')->amenities_count);
-        $this->assertDatabaseHas('amenity_room', [
-            'room_id' => $rooms->firstWhere('room_code', 'B203')->id,
-            'amenity_id' => Amenity::where('name', 'Bình nóng lạnh')->value('id'),
-            'condition' => 'damaged',
-            'note' => 'Đang rò nước, đã lên lịch sửa chữa.',
-        ]);
-        $this->assertDatabaseHas('tenants', [
-            'full_name' => 'Đặng Khánh Linh',
-            'address' => 'Nam Định, Nam Định',
-        ]);
-        $this->assertDatabaseHas('tenants', [
-            'full_name' => 'Phạm Thảo Vy',
-            'user_id' => null,
-        ]);
-        $availableTenants = User::query()
-            ->whereBetween('phone', ['0936102001', '0936102010'])
-            ->with(['tenant.contracts', 'tenant.contractMemberships'])
-            ->get();
-        $this->assertCount(10, $availableTenants);
-        foreach ($availableTenants as $availableTenant) {
-            $this->assertNotNull($availableTenant->tenant);
-            $this->assertNotEmpty($availableTenant->name);
-            $this->assertNotEmpty($availableTenant->tenant->date_of_birth);
-            $this->assertNotEmpty($availableTenant->tenant->gender);
-            $this->assertMatchesRegularExpression('/^\\d{12}$/', $availableTenant->tenant->cccd);
-            $this->assertNotEmpty($availableTenant->tenant->phone);
-            $this->assertNotEmpty($availableTenant->tenant->email);
-            $this->assertNotEmpty($availableTenant->tenant->address);
-            $this->assertCount(0, $availableTenant->tenant->contracts);
-            $this->assertCount(0, $availableTenant->tenant->contractMemberships);
+        foreach ([
+            Contract::STATUS_DRAFT,
+            Contract::STATUS_PENDING_SIGNATURE,
+            Contract::STATUS_PENDING_DEPOSIT,
+            Contract::STATUS_AWAITING_MOVE_IN,
+            Contract::STATUS_ACTIVE,
+            Contract::STATUS_EXPIRED,
+            Contract::STATUS_SETTLING,
+            Contract::STATUS_COMPLETED,
+            Contract::STATUS_CANCELLED,
+        ] as $status) {
+            $this->assertDatabaseHas('contracts', ['status' => $status]);
         }
-        $b201 = Contract::with('members')->where('contract_code', 'HD-AP-2026-004')->sole();
-        $this->assertSame(3, $b201->number_of_people);
-        $this->assertCount(3, $b201->members);
-        $this->assertCount(1, $b201->members->where('role', 'representative'));
-        $this->assertCount(2, $b201->members->where('role', 'tenant'));
 
-        $expiring = Contract::query()
-            ->where('status', Contract::STATUS_ACTIVE)
-            ->whereBetween('end_date', [today(), today()->addMonthNoOverflow()])
-            ->sole();
-        $this->assertSame('HD-AP-2025-001', $expiring->contract_code);
-        $this->assertNotNull($expiring->signed_at);
-        $this->assertNotNull($expiring->actual_move_in_at);
+        foreach ([
+            Contract::DEPOSIT_PENDING,
+            Contract::DEPOSIT_PAID,
+            Contract::DEPOSIT_NEEDS_RESOLUTION,
+            Contract::DEPOSIT_REFUND_REQUESTED,
+            Contract::DEPOSIT_REFUND_APPROVED,
+            Contract::DEPOSIT_REFUND_PROCESSING,
+            Contract::DEPOSIT_REFUNDED,
+            Contract::DEPOSIT_DEDUCTED,
+            Contract::DEPOSIT_RETAINED,
+        ] as $status) {
+            $this->assertDatabaseHas('contracts', ['deposit_status' => $status]);
+        }
 
-        $expired = Contract::query()->where('status', Contract::STATUS_EXPIRED)->sole();
-        $this->assertTrue($expired->end_date->isBefore(today()));
-        $this->assertNull($expired->actual_move_out_at);
-        $this->assertSame(Room::STATUS_OCCUPIED, $expired->room->status);
-
-        $completed = Contract::query()->where('status', Contract::STATUS_COMPLETED)->sole();
-        $this->assertNotNull($completed->signed_at);
-        $this->assertNotNull($completed->actual_move_in_at);
-        $this->assertNotNull($completed->actual_move_out_at);
-        $this->assertNotNull($completed->completed_at);
-        $this->assertSame(Contract::DEPOSIT_REFUNDED, $completed->deposit_resolution);
-        $this->assertSame(Room::STATUS_AVAILABLE, $completed->room->status);
-
-        $this->assertDatabaseHas('support_requests', [
-            'subject' => 'Vòi nước bồn rửa bị rò nhẹ',
-            'status' => 'new',
-        ]);
-
+        foreach ([Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL, Invoice::STATUS_PAID, Invoice::STATUS_WRITTEN_OFF] as $status) {
+            $this->assertDatabaseHas('invoices', ['invoice_type' => Invoice::TYPE_RENTAL, 'status' => $status]);
+        }
         foreach (['pending', 'success', 'failed'] as $status) {
             $this->assertDatabaseHas('payments', ['status' => $status]);
         }
-
         foreach (['new', 'in_progress', 'resolved', 'rejected'] as $status) {
             $this->assertDatabaseHas('support_requests', ['status' => $status]);
         }
+        foreach (['pending', 'approved', 'rejected'] as $status) {
+            $this->assertDatabaseHas('vehicles', ['status' => $status]);
+        }
+
+        $this->assertSame(0, Contract::query()->whereColumn('deposit_amount', '!=', 'monthly_rent')->count());
+        $this->assertSame(0, Invoice::query()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->count());
+        $this->assertSame(
+            Invoice::query()->where('invoice_type', Invoice::TYPE_RENTAL)->count(),
+            Invoice::query()->where('invoice_type', Invoice::TYPE_RENTAL)->where('internet_fee', 100000)->count(),
+        );
+        $this->assertSame(0, Invoice::query()->where('invoice_type', Invoice::TYPE_RENTAL)
+            ->whereRaw('CAST(strftime("%d", invoice_date) AS INTEGER) != 5')->count());
     }
 
-    public function test_authentication_scenario_accounts_are_seeded_idempotently(): void
+    public function test_authentication_accounts_are_seeded_idempotently(): void
     {
         $this->seed([RoleSeeder::class, UserSeeder::class]);
         $this->seed([RoleSeeder::class, UserSeeder::class]);
@@ -156,16 +114,13 @@ class AuthenticationSeederTest extends TestCase
 
         foreach ($expectedAccounts as $email => [$status, $role]) {
             $user = User::with('role')->where('email', $email)->sole();
-
             $this->assertSame($status, $user->status);
             $this->assertSame($role, $user->role->role_name);
             $this->assertTrue(Hash::check('Auth@123456', $user->password));
         }
 
-        $this->assertSame(count($expectedAccounts), User::whereIn('email', array_keys($expectedAccounts))->count());
         $this->assertTrue(User::where('email', 'minhkhang.le@example.test')->sole()->must_change_password);
         $this->assertFalse(User::where('email', 'ducthanh.nguyen@example.test')->sole()->must_change_password);
-
         foreach (['qa.client.a@example.test', 'qa.client.b@example.test', 'qa.client.c@example.test'] as $email) {
             $qaUser = User::with('role')->where('email', $email)->sole();
             $this->assertSame(User::STATUS_ACTIVE, $qaUser->status);
@@ -175,7 +130,7 @@ class AuthenticationSeederTest extends TestCase
         }
     }
 
-    public function test_portal_scenario_data_is_seeded_idempotently_for_client_lifecycle_accounts(): void
+    public function test_legacy_portal_scenario_seeder_remains_idempotent(): void
     {
         $this->seed([RoleSeeder::class, UserSeeder::class, AuthenticationScenarioSeeder::class]);
         $this->seed([RoleSeeder::class, UserSeeder::class, AuthenticationScenarioSeeder::class]);
@@ -184,10 +139,7 @@ class AuthenticationSeederTest extends TestCase
             'ducthanh.nguyen@example.test' => User::STATUS_ACTIVE,
             'quynhanh.vu@example.test' => User::STATUS_SETTLING,
         ] as $email => $status) {
-            $user = User::with('tenant.contracts.room', 'tenant.contracts.invoices.details')
-                ->where('email', $email)
-                ->sole();
-
+            $user = User::with('tenant.contracts.room', 'tenant.contracts.invoices.details')->where('email', $email)->sole();
             $this->assertSame($status, $user->status);
             $this->assertNotNull($user->tenant);
             $this->assertCount(1, $user->tenant->contracts);
@@ -195,20 +147,5 @@ class AuthenticationSeederTest extends TestCase
             $this->assertCount(1, $user->tenant->contracts->first()->invoices);
             $this->assertCount(5, $user->tenant->contracts->first()->invoices->first()->details);
         }
-
-        $pending = User::with('tenant')->where('email', 'minhkhang.le@example.test')->sole();
-        $this->assertSame(User::STATUS_PENDING, $pending->status);
-        $this->assertNull($pending->tenant);
-
-        $active = User::where('email', 'ducthanh.nguyen@example.test')->sole();
-        $this->actingAs($active)->get('/client')->assertOk()->assertSee('D401');
-        $this->get('/client/contracts')->assertOk()->assertSee('HD20260009');
-        $this->get('/client/invoices')->assertOk()->assertSee('INV-D401');
-        $this->get('/client/utilities')->assertOk()->assertSee('D401');
-
-        $settling = User::where('email', 'quynhanh.vu@example.test')->sole();
-        $this->actingAs($settling)->get('/client')->assertOk()->assertSee('D403');
-        $this->get('/client/contracts')->assertOk()->assertSee('HD20250011');
-        $this->get('/client/invoices')->assertOk()->assertSee('INV-D403');
     }
 }

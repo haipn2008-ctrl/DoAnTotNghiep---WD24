@@ -40,7 +40,25 @@ class NotificationController extends Controller
             $notification->update(['resolved_at' => now()]);
         }
 
-        if ($notification->tenant_id && $notification->tenant()->exists()) {
+        $referenceId = (int) ($notification->metadata['reference_id'] ?? 0);
+        $target = match ($notification->type) {
+            'extension_request' => route('admin.extension-requests.index'),
+            'termination_request' => route('admin.termination-requests.index'),
+            'deposit_refund_request' => route('admin.deposit-refunds.index'),
+            'payment_review' => route('admin.invoices.payments', ['status' => 'pending']),
+            'support_request' => route('admin.support.index'),
+            'member_review', 'move_in_confirmation' => $notification->contract_id
+                ? route('admin.contracts.show', $notification->contract_id)
+                : null,
+            default => null,
+        };
+
+        if ($target) {
+            return redirect()->to($target.($referenceId && in_array($notification->type, ['extension_request', 'termination_request', 'support_request'], true) ? "#request-{$referenceId}" : ''));
+        }
+
+        if (in_array($notification->type, ['vehicle_review', 'vehicle_removed'], true)
+            && $notification->tenant_id && $notification->tenant()->exists()) {
             return redirect()->route('admin.tenants.show', $notification->tenant_id);
         }
 

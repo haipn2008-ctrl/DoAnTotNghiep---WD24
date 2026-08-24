@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Contract;
+use App\Models\ContractTenant;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
@@ -87,6 +88,47 @@ class TenantManagementTest extends TestCase
             ->assertDontSee('>Tìm</button>', false);
 
         $this->get('/admin/tenants/export/download')->assertNotFound();
+    }
+
+    public function test_tenant_list_only_labels_the_representative(): void
+    {
+        $representative = $this->tenant($this->user($this->clientRole, 'representative@example.com'), [
+            'full_name' => 'Người đại diện kiểm thử',
+        ]);
+        [, $contract] = $this->contract($representative);
+        $member = Tenant::create([
+            'full_name' => 'Người thuê cùng phòng kiểm thử',
+            'date_of_birth' => '1997-02-02',
+            'gender' => 'female',
+            'cccd' => '079000009999',
+            'cccd_issue_date' => '2020-01-01',
+            'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
+            'phone' => '0900099999',
+            'email' => 'member-without-account@example.com',
+            'address' => 'Địa chỉ kiểm thử',
+        ]);
+        ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $member->id,
+            'role' => ContractTenant::ROLE_TENANT,
+            'full_name' => $member->full_name,
+            'date_of_birth' => $member->date_of_birth,
+            'identity_number' => $member->cccd,
+            'phone' => $member->phone,
+            'address' => $member->address,
+            'status' => ContractTenant::STATUS_CHECKED_IN,
+        ]);
+
+        $this->actingAs($this->admin)->get(route('admin.tenants.index'))
+            ->assertOk()
+            ->assertSee('Người đại diện kiểm thử')
+            ->assertSee('Người đại diện')
+            ->assertSee('Người thuê cùng phòng kiểm thử')
+            ->assertDontSee('Người thuê cùng phòng</span>', false)
+            ->assertDontSee('Chưa có tài khoản')
+            ->assertDontSee('Có tài khoản')
+            ->assertDontSee('Dữ liệu cũ thiếu tài khoản')
+            ->assertDontSee('Có tài khoản portal');
     }
 
     public function test_ajax_search_and_rental_status_filters_return_only_matching_rows(): void

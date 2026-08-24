@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Contract;
 use App\Models\ContractLifecycleAlert;
+use App\Models\Setting;
 use App\Policies\ContractPolicy;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
@@ -40,6 +41,9 @@ class AppServiceProvider extends ServiceProvider
                 'adminNotificationCount' => ContractLifecycleAlert::query()->unresolved()->count(),
                 'adminNotifications' => $notifications,
             ]);
+        });
+        View::composer('layouts.client.blocks.sidebar', function ($view): void {
+            $view->with('clientSupportPhone', Setting::currentOrCreate()->landlord_phone);
         });
     }
 }

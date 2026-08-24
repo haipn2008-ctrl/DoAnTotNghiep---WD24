@@ -6,6 +6,7 @@ use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Role;
 use App\Models\Room;
+use App\Models\Setting;
 use App\Models\SupportRequest;
 use App\Models\Tenant;
 use App\Models\User;
@@ -71,6 +72,34 @@ class TenantPortalManagementTest extends TestCase
         $this->actingAs($client)->get('/client/room')->assertRedirect('/client/invoices');
         $this->actingAs($client)->get('/client/utilities')->assertRedirect('/client/invoices');
         $this->actingAs($client)->get('/client/support')->assertRedirect('/client/invoices');
+    }
+
+    public function test_support_menu_links_to_requests_and_public_landlord_information(): void
+    {
+        [$client] = $this->createClientContext('LANDLORDINFO');
+        Setting::currentOrCreate()->update([
+            'property_name' => 'Nhà trọ An Tâm',
+            'property_address' => '12 Nguyễn Trãi',
+            'landlord_name' => 'Nguyễn Chủ Trọ',
+            'landlord_phone' => '0901 234 567',
+            'landlord_address' => 'Quận 1, TP.HCM',
+            'landlord_identity_number' => '001080000001',
+        ]);
+
+        $this->actingAs($client)->get('/client')
+            ->assertSuccessful()
+            ->assertSee('Gửi yêu cầu hỗ trợ')
+            ->assertSee('href="'.route('client.support.index').'"', false)
+            ->assertSee('Thông tin chủ trọ')
+            ->assertSee('href="'.route('client.landlord-information').'"', false);
+
+        $this->get(route('client.landlord-information'))
+            ->assertSuccessful()
+            ->assertSee('Nguyễn Chủ Trọ')
+            ->assertSee('0901 234 567')
+            ->assertSee('href="tel:0901234567"', false)
+            ->assertSee('Nhà trọ An Tâm')
+            ->assertDontSee('001080000001');
     }
 
     public function test_contract_history_and_private_file_are_visible_only_to_owner(): void

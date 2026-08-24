@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractTerminationRequest;
 use App\Services\ContractHistoryService;
+use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -155,7 +156,7 @@ class ContractTerminationRequestController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        ContractTerminationRequest::create([
+        $terminationRequest = ContractTerminationRequest::create([
             'contract_id' => $contract->id,
 
             'tenant_id' => $contract->tenant_id,
@@ -194,6 +195,8 @@ class ContractTerminationRequestController extends Controller
                 'requested_end_date' => $validated['requested_end_date'],
             ]
         );
+
+        app(AdminNotificationService::class)->terminationRequested($terminationRequest);
     });
 
         return redirect()

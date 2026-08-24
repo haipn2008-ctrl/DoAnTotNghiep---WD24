@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\SupportRequest;
+use App\Services\AdminNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,13 +55,15 @@ class SupportController extends Controller
                     ]);
                 }
 
-                SupportRequest::create(array_merge($data, [
+                $supportRequest = SupportRequest::create(array_merge($data, [
                     'attachment' => $attachment,
                     'user_id' => $request->user()->id,
                     'tenant_id' => $tenant->id,
                     'contract_id' => $activeContract->id,
                     'status' => SupportRequest::STATUS_NEW,
                 ]));
+
+                app(AdminNotificationService::class)->supportRequested($supportRequest);
             });
         } catch (\Throwable $exception) {
             if ($attachment) {

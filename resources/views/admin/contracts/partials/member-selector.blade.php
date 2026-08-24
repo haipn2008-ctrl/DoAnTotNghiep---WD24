@@ -1,16 +1,21 @@
 @php
     $defaultMembers = isset($contract)
-        ? $contract->members
+        ? $contract->currentMembers
             ->where('role', \App\Models\ContractTenant::ROLE_TENANT)
             ->whereIn('status', [\App\Models\ContractTenant::STATUS_PENDING, \App\Models\ContractTenant::STATUS_APPROVED])
             ->map(fn ($member) => [
                 'id' => $member->id,
                 'full_name' => $member->full_name,
                 'date_of_birth' => $member->date_of_birth?->toDateString(),
+                'gender' => $member->tenant?->gender,
                 'identity_number' => $member->identity_number,
+                'cccd_issue_date' => $member->tenant?->cccd_issue_date?->toDateString(),
+                'cccd_issue_place' => $member->tenant?->cccd_issue_place,
                 'identity_front_path' => $member->identity_front_path,
                 'identity_back_path' => $member->identity_back_path,
                 'phone' => $member->phone,
+                'email' => $member->tenant?->email,
+                'address' => $member->address,
             ])->values()->all()
         : [];
     $selectedMembers = old('members', $defaultMembers);
@@ -20,17 +25,11 @@
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div>
             <p class="text-sm font-semibold text-slate-800">Người thuê</p>
-            <p class="text-xs text-slate-500">Hệ thống tự tạo hoặc liên kết hồ sơ khách thuê theo CCCD. Thành viên không bắt buộc có tài khoản đăng nhập.</p>
         </div>
         <div class="flex items-center gap-2">
             <span data-member-count class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">0 người</span>
             <button type="button" data-add-member class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">+ Thêm người</button>
         </div>
-    </div>
-
-    <div class="border-b border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
-        <strong>Điều kiện:</strong>
-        Mọi người được thêm vào hợp đồng phải đủ 18 tuổi và có đầy đủ thông tin CCCD.
     </div>
 
     <div data-member-list class="space-y-3 p-4">

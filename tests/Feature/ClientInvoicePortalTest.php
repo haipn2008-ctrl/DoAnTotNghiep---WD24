@@ -48,6 +48,10 @@ class ClientInvoicePortalTest extends TestCase
             ->assertSuccessful()
             ->assertSee('Tiền điện')
             ->assertSee('20 kWh')
+            ->assertSee('Gửi biên lai cho ban quản lý')
+            ->assertSee('Quét mã VietQR')
+            ->assertDontSee('Mã thanh toán cố định của bạn')
+            ->assertDontSee('Khi chuyển tiền ghi rõ mã thanh toán')
             ->assertDontSee('Chỉ số cũ')
             ->assertDontSee('Chỉ số mới');
     }

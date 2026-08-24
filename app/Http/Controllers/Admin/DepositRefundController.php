@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Services\ContractHistoryService;
+use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -170,6 +171,12 @@ class DepositRefundController extends Controller
         });
 
         if ($type === 'no_refund') {
+            app(AdminNotificationService::class)->resolve('deposit_refund_request', $contract);
+        } else {
+            app(AdminNotificationService::class)->depositRefundAwaitingTransfer($contract->fresh());
+        }
+
+        if ($type === 'no_refund') {
             return back()->with('success', 'Đã xác nhận không hoàn cọc. Hợp đồng đã hoàn tất.');
         }
 
@@ -261,6 +268,8 @@ class DepositRefundController extends Controller
             );
         });
 
+        app(AdminNotificationService::class)->resolve('deposit_refund_request', $contract);
+
         return back()->with(
             'success',
             'Đã xác nhận chuyển tiền và hoàn tất hợp đồng.'
@@ -284,6 +293,7 @@ class DepositRefundController extends Controller
             'deposit_status' => Contract::DEPOSIT_REFUND_REJECTED,
             'deposit_admin_note' => $request->reason,
         ]);
+        app(AdminNotificationService::class)->resolve('deposit_refund_request', $contract);
 
         return back()->with('success', 'Đã từ chối yêu cầu hoàn cọc.');
     }

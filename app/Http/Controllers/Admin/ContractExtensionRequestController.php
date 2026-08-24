@@ -7,6 +7,7 @@ use App\Models\Contract;
 use App\Models\ContractExtensionRequest;
 use Illuminate\Http\Request;
 use App\Services\ContractHistoryService;
+use App\Services\AdminNotificationService;
 use Illuminate\Support\Facades\DB;
 
 class ContractExtensionRequestController extends Controller
@@ -125,6 +126,7 @@ class ContractExtensionRequestController extends Controller
                         ?->format('Y-m-d'),
                 ]
             );
+            app(AdminNotificationService::class)->resolve('extension_request', $extensionRequest);
         });
 
         return back()->with(
@@ -209,6 +211,7 @@ class ContractExtensionRequestController extends Controller
                         ?->format('Y-m-d'),
                 ]
             );
+            app(AdminNotificationService::class)->resolve('extension_request', $extensionRequest);
         });
 
 

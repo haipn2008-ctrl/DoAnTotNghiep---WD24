@@ -7,8 +7,7 @@
     <div class="space-y-6">
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-                <p class="text-sm font-medium text-slate-500">Quản lý hợp đồng</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Tạo hợp đồng thuê phòng</h2>
+                <h2 class="text-2xl font-bold text-slate-950">Tạo hợp đồng thuê phòng</h2>
             </div>
 
             <a href="{{ route('admin.contracts.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
@@ -33,7 +32,6 @@
 
             <div class="border-b border-slate-200 px-5 py-4">
                 <h3 class="font-semibold text-slate-950">Thông tin hợp đồng</h3>
-                <p class="text-sm text-slate-500">Bước này chỉ lưu bản nháp; chưa ký, chưa thu tiền phòng tháng đầu và chưa chiếm phòng.</p>
             </div>
 
             <div class="grid gap-5 p-5 md:grid-cols-2">
@@ -86,9 +84,8 @@
                 </div>
 
                 <div>
-                    <label for="contract_duration" class="mb-1.5 block text-sm font-semibold text-slate-700">Thời hạn *</label>
+                    <label for="contract_duration" class="mb-1.5 block text-sm font-semibold text-slate-700">Thời hạn (tối thiểu 12 tháng) *</label>
                     <input id="contract_duration" data-contract-duration type="number" min="12" max="120" name="contract_duration" value="{{ old('contract_duration', 12) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
-                    <p class="mt-1 text-xs text-slate-500">Tối thiểu 12 tháng.</p>
                     @error('contract_duration') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
@@ -99,7 +96,7 @@
                 </div>
 
                 <div class="md:col-span-2 border-t border-slate-200 pt-5">
-                    <h4 class="font-semibold text-slate-950">Ký, thu tiền tháng đầu và nhận phòng</h4>
+                    <h4 class="font-semibold text-slate-950">Ký, đóng cọc và nhận phòng</h4>
                 </div>
 
                 <div>
@@ -115,17 +112,8 @@
                     @error('reservation_expires_at') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
-                <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 md:col-span-2">
-                    <p class="text-sm font-semibold text-indigo-950">Khoản phải đóng sau khi ký: 1 tháng cọc + tiền phòng tháng đầu theo ngày</p>
-                    <p class="mt-1 text-sm text-indigo-800">Cọc bằng đủ một tháng. Tiền phòng tháng đầu = giá tháng / số ngày của tháng × số ngày từ ngày bắt đầu hợp đồng đến cuối tháng; nếu còn không quá 5 ngày thì miễn tiền phòng. Hai khoản được lập thành hai hóa đơn riêng.</p>
-                </div>
-
                 @include('admin.contracts.partials.service-fields', [
                     'selectedRoomId' => old('room_id'),
-                    'selectedServiceEnabled' => old('service_enabled'),
-                    'selectedParkingEnabled' => old('parking_enabled'),
-                    'selectedParkingVehicleType' => old('parking_vehicle_type', \App\Models\Contract::PARKING_MOTORCYCLE),
-                    'selectedParkingQuantity' => old('parking_quantity', 0),
                 ])
             </div>
 

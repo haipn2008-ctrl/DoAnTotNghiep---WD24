@@ -29,9 +29,6 @@
                     </span>
                     <h2 class="text-xl font-bold text-slate-900 sm:text-2xl">Yêu cầu hoàn cọc</h2>
                 </div>
-                <p class="mt-1 text-sm text-slate-500">
-                    Cung cấp thông tin tài khoản để Admin chuyển tiền cọc sau khi kiểm tra.
-                </p>
             </div>
         </div>
 
@@ -89,10 +86,6 @@
             </div>
             <div>
                 <h3 class="text-lg font-bold text-slate-900">Hoàn tiền cọc</h3>
-                <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                    Sau khi yêu cầu trả phòng được Admin duyệt và hợp đồng đã chấm dứt,
-                    bạn có thể gửi thông tin nhận tiền hoàn cọc.
-                </p>
             </div>
         </div>
     </div>
@@ -249,7 +242,7 @@
                     </span>
                     <div>
                         <h4 class="font-bold text-emerald-900">Hoàn cọc đã hoàn tất</h4>
-                        <p class="mt-1 text-sm leading-6 text-emerald-800">Admin đã chuyển tiền hoàn cọc và xác nhận hoàn tất hợp đồng.</p>
+                        <p class="mt-1 text-sm leading-6 text-emerald-800">Quản trị viên đã chuyển tiền và hoàn tất hợp đồng.</p>
                     </div>
                 </div>
 
@@ -292,7 +285,6 @@
                     </div>
                     <div>
                         <h4 class="font-bold text-slate-900">Lịch sử xử lý</h4>
-                        <p class="text-sm text-slate-500">Theo dõi các thao tác liên quan đến hợp đồng và tiền cọc.</p>
                     </div>
                 </div>
 
@@ -344,7 +336,7 @@
                     </div>
                     <div>
                         <h4 class="font-bold text-slate-900">Thông tin nhận tiền</h4>
-                        <p class="text-sm text-slate-500">Nhập chính xác thông tin để Admin chuyển khoản.</p>
+                        <p class="text-sm text-slate-500">Nhập chính xác thông tin nhận tiền.</p>
                     </div>
                 </div>
 
@@ -447,7 +439,7 @@
                     </svg>
                     <div>
                         <strong>Lưu ý:</strong>
-                        Số tiền hoàn chính thức sẽ được Admin xác định sau khi kiểm tra
+                        Số tiền hoàn chính thức do quản trị viên xác định sau khi kiểm tra
                         tiền cọc, công nợ và các khoản khấu trừ.
                     </div>
                 </div>

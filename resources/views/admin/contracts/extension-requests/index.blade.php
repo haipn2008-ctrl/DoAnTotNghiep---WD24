@@ -9,9 +9,7 @@
     {{-- HEADER --}}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Quản lý hợp đồng</p>
-            <h1 class="mt-1 text-2xl font-bold text-slate-900">Yêu cầu gia hạn hợp đồng</h1>
-            <p class="mt-1 text-sm text-slate-500">Xem và xử lý các yêu cầu gia hạn từ khách thuê.</p>
+            <h1 class="text-2xl font-bold text-slate-900">Yêu cầu gia hạn hợp đồng</h1>
         </div>
 
         <a href="{{ route('admin.contracts.index') }}"
@@ -82,7 +80,6 @@
         <div class="flex flex-col gap-2 border-b border-slate-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
                 <h2 class="text-base font-bold text-slate-900">Danh sách yêu cầu</h2>
-                <p class="mt-1 text-sm text-slate-500">Các yêu cầu gia hạn hợp đồng từ khách thuê</p>
             </div>
             <div class="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600">
                 {{ $extensionRequests->count() }} yêu cầu
@@ -106,7 +103,7 @@
 
                 <tbody class="divide-y divide-slate-100 bg-white">
                     @forelse($extensionRequests as $request)
-                        <tr class="transition hover:bg-slate-50/80">
+                        <tr id="request-{{ $request->id }}" class="scroll-mt-24 transition hover:bg-slate-50/80 target:bg-indigo-50">
                             <td class="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-500">{{ $loop->iteration }}</td>
 
                             <td class="whitespace-nowrap px-5 py-4">

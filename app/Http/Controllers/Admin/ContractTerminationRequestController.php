@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractTerminationRequest;
 use App\Services\ContractHistoryService;
+use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -115,6 +116,7 @@ class ContractTerminationRequestController extends Controller
                             ?->format('Y-m-d'),
                 ]
             );
+            app(AdminNotificationService::class)->resolve('termination_request', $terminationRequest);
         });
 
         return back()->with(
@@ -210,6 +212,7 @@ class ContractTerminationRequestController extends Controller
                         ContractTerminationRequest::STATUS_REJECTED,
                 ]
             );
+            app(AdminNotificationService::class)->resolve('termination_request', $terminationRequest);
         });
 
         return back()->with(

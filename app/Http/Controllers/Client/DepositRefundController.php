@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Services\ContractHistoryService;
+use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -55,10 +56,10 @@ class DepositRefundController extends Controller
         );
 
         if ($contract->deposit_resolution === Contract::DEPOSIT_NOT_REQUIRED) {
-            return back()->with('error', 'Khoản thu sau khi ký đã được cấn vào tiền phòng tháng đầu nên không phải tiền cọc hoàn lại.');
+            return back()->with('error', 'Hợp đồng này không có khoản tiền cọc phải hoàn.');
         }
 
-        if (!$contract->canRequestDepositRefund()) {
+        if (! $contract->canRequestDepositRefund()) {
             return back()->with(
                 'error',
                 'Hợp đồng này chưa đủ điều kiện yêu cầu hoàn cọc hoặc đã có yêu cầu đang xử lý.'
@@ -122,11 +123,13 @@ class DepositRefundController extends Controller
                     'bank_account_name' => $validated['bank_account_name'],
                 ]
             );
+
+            app(AdminNotificationService::class)->depositRefundRequested($contract->fresh());
         });
 
         return redirect()
-        ->route('client.deposit-refunds.index', ['contract' => $contract->id])
-        ->with('success', 'Đã gửi yêu cầu hoàn cọc. Vui lòng chờ Admin xử lý.');
+            ->route('client.deposit-refunds.index', ['contract' => $contract->id])
+            ->with('success', 'Đã gửi yêu cầu hoàn cọc. Vui lòng chờ Admin xử lý.');
     }
 
     /**

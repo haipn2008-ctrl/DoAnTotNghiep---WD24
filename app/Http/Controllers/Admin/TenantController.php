@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\AdminNotificationService;
+use App\Services\VehicleCapacityService;
 use App\Support\Csv;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -38,7 +39,7 @@ class TenantController extends Controller
             'user',
             'contracts.room',
             'memberContracts.room',
-            'vehicles',
+            'vehicles.tenant',
         ]);
 
         $this->applyFilters($query, $search, $status);
@@ -303,7 +304,7 @@ class TenantController extends Controller
             'user',
             'contracts.room',
             'memberContracts.room',
-            'vehicles',
+            'vehicles.tenant',
             'temporaryResidences.contract.room',
         ]);
 
@@ -373,19 +374,31 @@ class TenantController extends Controller
             );
     }
 
-    public function reviewVehicle(Request $request, Vehicle $vehicle, AdminNotificationService $notifications)
+    public function reviewVehicle(
+        Request $request,
+        Vehicle $vehicle,
+        AdminNotificationService $notifications,
+        VehicleCapacityService $capacity,
+    )
     {
         $data = $request->validate([
             'status' => ['required', Rule::in([Vehicle::STATUS_APPROVED, Vehicle::STATUS_REJECTED])],
             'review_note' => ['nullable', 'required_if:status,'.Vehicle::STATUS_REJECTED, 'string', 'max:500'],
         ]);
 
-        $vehicle->update([
-            'status' => $data['status'],
-            'review_note' => $data['review_note'] ?? null,
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-        ]);
+        DB::transaction(function () use ($vehicle, $data, $request, $capacity): void {
+            $vehicle = Vehicle::query()->with('tenant')->lockForUpdate()->findOrFail($vehicle->id);
+            if ($data['status'] === Vehicle::STATUS_APPROVED) {
+                $capacity->ensureCanApprove($vehicle);
+            }
+            $vehicle->update([
+                'status' => $data['status'],
+                'review_note' => $data['review_note'] ?? null,
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+            ]);
+        }, 3);
+        $vehicle->refresh();
         $notifications->vehicleReviewed($vehicle);
 
         return back()->with('success', $data['status'] === Vehicle::STATUS_APPROVED

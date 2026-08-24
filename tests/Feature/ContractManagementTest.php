@@ -5,15 +5,17 @@ namespace Tests\Feature;
 use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\ContractLifecycleAlert;
-use App\Models\ContractTenant;
 use App\Models\ContractStatusHistory;
+use App\Models\ContractTenant;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
+use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
+use App\Models\Vehicle;
 use App\Services\ContractLifecycleService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -104,11 +106,11 @@ class ContractManagementTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('admin.contracts.show', $contract))
             ->assertOk()
-            ->assertSee('Rà soát thông tin trước khi phát hành cho khách ký.')
+            ->assertDontSee('Rà soát thông tin trước khi phát hành cho khách ký.')
             ->assertSee('Thông tin hợp đồng')
             ->assertSee('Người đại diện và người thuê')
             ->assertSee('Tài chính dự kiến')
-            ->assertSee('Dịch vụ đăng ký')
+            ->assertSee('Dịch vụ chung bắt buộc')
             ->assertSee('Phát hành bản nháp')
             ->assertSee('href="'.route('admin.contracts.edit', $contract).'"', false)
             ->assertSee('action="'.route('admin.contracts.submit-for-signature', $contract).'"', false)
@@ -116,7 +118,7 @@ class ContractManagementTest extends TestCase
             ->assertDontSee('Backend kiểm tra lại toàn bộ điều kiện');
     }
 
-    public function test_contract_form_separates_included_amenities_paid_services_and_room_assets(): void
+    public function test_contract_form_hides_mandatory_service_and_vehicle_registration_fields(): void
     {
         $room = $this->room('SERVICE-FORM');
         $desk = Amenity::create([
@@ -130,21 +132,26 @@ class ContractManagementTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.contracts.create', ['room_id' => $room->id]))
             ->assertOk()
             ->assertDontSee('Tiện nghi mặc định đã bao gồm')
-            ->assertSee('Dịch vụ đăng ký tính phí')
-            ->assertSee('name="service_enabled"', false)
-            ->assertSee('name="parking_enabled"', false)
-            ->assertSee('name="parking_vehicle_type"', false)
-            ->assertSee('name="parking_quantity"', false)
-            ->assertSee('Xe máy')
-            ->assertDontSee('Ô tô')
+            ->assertDontSee('Dịch vụ đăng ký tính phí')
+            ->assertDontSee('name="service_enabled"', false)
+            ->assertDontSee('name="parking_enabled"', false)
+            ->assertDontSee('name="parking_vehicle_type"', false)
+            ->assertDontSee('name="parking_quantity"', false)
             ->assertSee('data-identity-preview-input', false)
             ->assertSee('representative-identity-front-preview')
             ->assertSee('representative-identity-back-preview')
-            ->assertSee('Mọi người được thêm vào hợp đồng phải đủ 18 tuổi và có đầy đủ thông tin CCCD.')
+            ->assertDontSee('Người đại diện luôn là một người thuê trực tiếp và được tính vào sức chứa của phòng.')
+            ->assertDontSee('Mọi người được thêm vào hợp đồng phải đủ 18 tuổi và có đầy đủ thông tin CCCD.')
+            ->assertDontSee('Trước khi nhận phòng: đóng cọc một tháng.')
             ->assertDontSee('Trẻ dưới 14 tuổi')
             ->assertDontSee('name="internet_enabled"', false)
+            ->assertDontSee('Internet: 100.000đ/phòng/tháng')
+            ->assertDontSee('Dịch vụ chung: 50.000đ/tháng')
+            ->assertSee('data-contract-services', false)
+            ->assertSee('data-room-inventory="'.$room->id.'"', false)
             ->assertSee('Tài sản bàn giao của phòng')
-            ->assertSee('Bàn làm việc × 2');
+            ->assertSee('Bàn làm việc × 2')
+            ->assertSee('Sử dụng bình thường');
     }
 
     public function test_person_under_eighteen_cannot_be_added_to_contract(): void
@@ -271,10 +278,20 @@ class ContractManagementTest extends TestCase
         $contract = $this->draft();
         $this->lifecycle->submitForSignature($contract, $this->admin, 'Gửi khách xác nhận');
 
+        $this->assertSame(
+            now()->addDays(Contract::SIGNATURE_DEADLINE_DAYS)->toDateTimeString(),
+            $contract->fresh()->signature_due_at->toDateTimeString()
+        );
+
         $this->actingAs($this->admin)->get(route('admin.contracts.show', $contract))
             ->assertOk()
             ->assertSee('Chi tiết hợp đồng')
-            ->assertSee('Bước tiếp theo')
+            ->assertSee('Xác nhận ký')
+            ->assertSee('Thời gian ký')
+            ->assertSee('id="edit-contract-dialog"', false)
+            ->assertSee('id="cancel-contract-dialog"', false)
+            ->assertSee('action="'.route('admin.contracts.return-to-draft', $contract).'"', false)
+            ->assertDontSee('Trả lại bản nháp')
             ->assertSee('In hợp đồng')
             ->assertSeeInOrder(['Bản nháp', 'Chờ ký'])
             ->assertSee('Tạo bản nháp')
@@ -282,6 +299,94 @@ class ContractManagementTest extends TestCase
             ->assertDontSee('create_draft')
             ->assertDontSee('submit_for_signature')
             ->assertDontSee('pending_signature');
+
+        $this->post(route('admin.contracts.return-to-draft', $contract), [
+            'reason' => 'Điều chỉnh thông tin người thuê.',
+            'edit_after_return' => 1,
+        ])->assertRedirect(route('admin.contracts.edit', $contract))->assertSessionHasNoErrors();
+
+        $contract->refresh();
+        $this->assertSame(Contract::STATUS_DRAFT, $contract->status);
+        $this->assertNull($contract->signature_due_at);
+        $this->assertSame(0, $contract->handoverItems()->count());
+    }
+
+    public function test_pending_deposit_detail_keeps_invoice_and_collection_actions_on_contract_page(): void
+    {
+        $contract = $this->draft(3000000, [], 'pending-deposit-layout');
+        $this->sign($contract);
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Thu tiền cọc')
+            ->assertSee('Phát hành hóa đơn cọc')
+            ->assertSee('action="'.route('admin.contracts.deposit-invoice.issue', $contract).'"', false)
+            ->assertDontSee('Bước tiếp theo')
+            ->assertDontSee('Ghi nhận thanh toán');
+
+        $this->post(route('admin.contracts.deposit-invoice.issue', $contract))->assertRedirect();
+        $invoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->sole();
+
+        $this->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Ghi nhận thanh toán')
+            ->assertSee('Xác nhận đã thu')
+            ->assertSee('action="'.route('admin.invoices.payments.store', $invoice).'"', false)
+            ->assertSee('name="return_to_contract" value="1"', false)
+            ->assertSee('<option value="cash"', false)
+            ->assertSee('<option value="bank_transfer"', false)
+            ->assertDontSee('<option value="qr"', false)
+            ->assertSee('id="cancel-contract-dialog"', false)
+            ->assertDontSee('Phát hành hóa đơn cọc');
+
+        $this->post(route('admin.invoices.payments.store', $invoice), [
+            'amount_paid' => 1000000,
+            'payment_date' => today()->toDateString(),
+            'payment_method' => Payment::METHOD_QR,
+            'return_to_contract' => 1,
+        ])->assertSessionHasErrors('payment_method');
+
+        $this->post(route('admin.invoices.payments.store', $invoice), [
+            'amount_paid' => 1000000,
+            'payment_date' => today()->toDateString(),
+            'payment_method' => Payment::METHOD_BANK_TRANSFER,
+            'return_to_contract' => 1,
+        ])->assertSessionHasErrors('transaction_code');
+
+        $this->post(route('admin.invoices.payments.store', $invoice), [
+            'amount_paid' => 1000000,
+            'payment_date' => today()->toDateString(),
+            'payment_method' => Payment::METHOD_CASH,
+            'return_to_contract' => 1,
+        ])->assertRedirect(route('admin.contracts.show', $contract))->assertSessionHasNoErrors();
+
+        $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
+        $this->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('1.000.000đ')
+            ->assertSee('2.000.000đ');
+    }
+
+    public function test_awaiting_move_in_detail_prioritizes_check_in_and_moves_secondary_actions_to_dialogs(): void
+    {
+        $contract = $this->awaiting([], 'awaiting-move-in-layout');
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Xác nhận nhận phòng')
+            ->assertSee('Khách đã xác nhận thông tin')
+            ->assertSee('name="actual_move_in_at"', false)
+            ->assertSee('name="handover_electricity"', false)
+            ->assertSee('name="handover_water"', false)
+            ->assertSee('Đã đối chiếu chỉ số và tài sản bàn giao')
+            ->assertSee('id="extend-move-in-dialog"', false)
+            ->assertSee('id="cancel-contract-dialog"', false)
+            ->assertSee('action="'.route('admin.contracts.check-in', $contract).'"', false)
+            ->assertSee('action="'.route('admin.contracts.extend-move-in-deadline', $contract).'"', false)
+            ->assertSee('action="'.route('admin.contracts.cancel', $contract).'"', false)
+            ->assertSee('Tài sản bàn giao')
+            ->assertSee('Người nhận phòng')
+            ->assertDontSee('Bước tiếp theo');
     }
 
     public function test_create_only_writes_draft_without_signing_occupying_reading_or_invoice(): void
@@ -317,10 +422,10 @@ class ContractManagementTest extends TestCase
         $this->assertNull($contract->move_in_terms_confirmed_by);
         $this->assertNull($contract->move_in_terms_confirmed_at);
         $this->assertNull($contract->signature_due_at);
-        $this->assertFalse($contract->internet_enabled);
+        $this->assertTrue($contract->internet_enabled);
         $this->assertTrue($contract->service_enabled);
-        $this->assertSame(Contract::PARKING_MOTORCYCLE, $contract->parking_vehicle_type);
-        $this->assertSame(1, $contract->parking_quantity);
+        $this->assertNull($contract->parking_vehicle_type);
+        $this->assertSame(0, $contract->parking_quantity);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
         $this->assertSame(0, $room->fresh()->current_people);
         $this->assertDatabaseCount('utility_readings', 0);
@@ -358,6 +463,8 @@ class ContractManagementTest extends TestCase
             'parking_quantity' => 1,
             'internet_enabled' => true, 'service_enabled' => false,
         ], $this->admin);
+        $this->assertTrue($contract->service_enabled);
+        $this->assertSame(0, $contract->parking_quantity);
 
         $this->lifecycle->submitForSignature($contract, $this->admin);
         $this->assertDatabaseHas('contract_handover_items', [
@@ -376,6 +483,7 @@ class ContractManagementTest extends TestCase
 
     public function test_client_can_view_and_confirm_own_services_and_handover_inventory_only(): void
     {
+        Setting::currentOrCreate(['internet_fee' => 100000]);
         $room = $this->room('CLIENT-HANDOVER');
         $tenant = $this->tenant('client-handover');
         $otherTenant = $this->tenant('client-handover-other');
@@ -393,14 +501,28 @@ class ContractManagementTest extends TestCase
             'parking_quantity' => 2,
             'internet_enabled' => true, 'service_enabled' => false,
         ], $this->admin);
+        $tenant->vehicles()->create([
+            'vehicle_type' => 'motorcycle',
+            'vehicle_name' => 'Honda Vision',
+            'license_plate' => '59A1-12345',
+            'status' => Vehicle::STATUS_APPROVED,
+        ]);
         $this->lifecycle->submitForSignature($contract, $this->admin);
 
         $this->actingAs($tenant->user)->get(route('client.contracts.show', $contract))
             ->assertOk()
+            ->assertSee('Xác nhận thông tin nhận phòng')
+            ->assertSee('Tôi đã kiểm tra thông tin dịch vụ và tài sản trong phòng.')
+            ->assertSee('Xác nhận thông tin')
+            ->assertSee('action="'.route('client.contracts.move-in-details.confirm', $contract).'"', false)
+            ->assertDontSee('Xác nhận biên bản nhận phòng')
             ->assertSee('Thông tin nhận phòng')
-            ->assertSee('Wi-Fi và máy lạnh')
-            ->assertSee('Đã bao gồm, không tính phí riêng')
-            ->assertSee('Xe máy × 2')
+            ->assertSee('Internet bắt buộc')
+            ->assertSee('100.000đ/phòng/tháng')
+            ->assertDontSee('Đã bao gồm, không tính phí riêng')
+            ->assertSee('Dịch vụ chung bắt buộc')
+            ->assertSee('59A1-12345')
+            ->assertSee('Quản lý phương tiện')
             ->assertSee('Bàn học bàn giao')
             ->assertSee('Có hư hỏng')
             ->assertSee('Xước nhẹ cạnh bàn');
@@ -425,7 +547,7 @@ class ContractManagementTest extends TestCase
         $contract = $this->draft(0, [], 'missing-client-confirmation');
         $this->lifecycle->submitForSignature($contract, $this->admin);
         $this->lifecycle->markAsSigned($contract, $this->admin, now());
-        $this->payFirstMonth($contract);
+        $this->payDeposit($contract);
 
         $this->actingAs($this->admin)->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())
             ->assertSessionHasErrors('move_in_details_confirmed');
@@ -444,11 +566,11 @@ class ContractManagementTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.contracts.create'))
             ->assertOk()
             ->assertSee('Người đại diện thuê')
-            ->assertSee('Thành viên không bắt buộc có tài khoản đăng nhập.')
+            ->assertDontSee('Thành viên không bắt buộc có tài khoản đăng nhập.')
             ->assertSee('Ngày bắt đầu thời hạn thuê')
             ->assertSee('Hạn cuối phải nhận phòng')
             ->assertSee('name="contract_duration"', false)
-            ->assertSee('Tối thiểu 12 tháng')
+            ->assertSee('tối thiểu 12 tháng')
             ->assertDontSee('Thông tin tài khoản được điền sẵn')
             ->assertDontSee('Không chọn nếu người đứng tên thuê phòng cho người khác')
             ->assertDontSee('name="signature_due_at"', false)
@@ -477,7 +599,44 @@ class ContractManagementTest extends TestCase
         ]);
         $memberTenant = Tenant::query()->where('cccd', '012345678901')->sole();
         $this->assertNull($memberTenant->user_id);
+        $this->assertSame('other', $memberTenant->gender);
+        $this->assertSame('2020-01-01', $memberTenant->cccd_issue_date?->toDateString());
+        $this->assertSame('Cục Cảnh sát QLHC về TTXH', $memberTenant->cccd_issue_place);
+        $this->assertSame('Địa chỉ thường trú của người thuê', $memberTenant->address);
         $this->assertSame($memberTenant->id, $contract->members()->where('full_name', 'Người thuê thành viên A')->value('tenant_id'));
+
+        $member = $contract->members()->current()->where('role', ContractTenant::ROLE_TENANT)->sole();
+        $representativeMember = $contract->members()->current()->where('role', ContractTenant::ROLE_REPRESENTATIVE)->sole();
+        $representativeFront = $representativeMember->identity_front_path;
+        $representativeBack = $representativeMember->identity_back_path;
+        $unchangedPayload = $this->payload($room, $representative, [
+            'members' => [[
+                'id' => $member->id,
+                'full_name' => $member->full_name,
+                'date_of_birth' => $member->date_of_birth->toDateString(),
+                'gender' => $memberTenant->gender,
+                'identity_number' => $member->identity_number,
+                'cccd_issue_date' => $memberTenant->cccd_issue_date->toDateString(),
+                'cccd_issue_place' => $memberTenant->cccd_issue_place,
+                'phone' => $member->phone,
+                'email' => $memberTenant->email,
+                'address' => $member->address,
+            ]],
+        ]);
+        unset($unchangedPayload['representative']['identity_front'], $unchangedPayload['representative']['identity_back']);
+
+        $this->put(route('admin.contracts.update', $contract), $unchangedPayload)
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, $contract->members()->count());
+        $this->assertSame(2, $contract->currentMembers()->count());
+        $this->assertSame($representativeFront, $representativeMember->fresh()->identity_front_path);
+        $this->assertSame($representativeBack, $representativeMember->fresh()->identity_back_path);
+
+        $this->get(route('admin.contracts.edit', $contract))
+            ->assertOk()
+            ->assertSee('Đã lưu')
+            ->assertSee('Thay ảnh');
 
         $this->put(route('admin.contracts.update', $contract), $this->payload($room, $representative, [
             'members' => [[
@@ -495,6 +654,11 @@ class ContractManagementTest extends TestCase
         ]);
         $this->assertDatabaseCount('contract_tenant_histories', 8);
         $this->assertSame(2, $contract->fresh()->number_of_people);
+
+        $this->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertDontSee('Người thuê thành viên A')
+            ->assertSee('Người thuê thành viên B');
     }
 
     public function test_contract_dates_are_derived_from_start_and_selected_duration(): void
@@ -621,7 +785,7 @@ class ContractManagementTest extends TestCase
             ->assertOk();
 
         $this->sign($contract);
-        $this->payFirstMonth($contract);
+        $this->payDeposit($contract);
         $this->lifecycle->checkIn($contract, $this->admin, $this->checkInPayload([
             'schedule_variance_reason' => 'Người thuê nhận phòng sớm theo thỏa thuận.',
         ]));
@@ -711,8 +875,12 @@ class ContractManagementTest extends TestCase
             'members' => [[
                 'full_name' => 'Người kiểm thử',
                 'date_of_birth' => '1990-01-01',
+                'gender' => 'other',
                 'identity_number' => '012345678901',
+                'cccd_issue_date' => '2020-01-01',
+                'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
                 'phone' => '0901234567',
+                'address' => 'Địa chỉ kiểm thử',
             ]],
         ]);
 
@@ -883,7 +1051,7 @@ class ContractManagementTest extends TestCase
         $this->assertSame($historyCount, ContractStatusHistory::count());
     }
 
-    public function test_signed_contract_requires_separate_deposit_and_first_month_rent_before_move_in(): void
+    public function test_signed_contract_requires_only_deposit_before_move_in(): void
     {
         $contract = $this->draft(0, [
             'start_date' => '2026-09-01', 'end_date' => '2027-09-01',
@@ -894,7 +1062,7 @@ class ContractManagementTest extends TestCase
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
         $this->assertSame('3000000.00', $contract->fresh()->deposit_amount);
         $this->assertDatabaseCount('invoices', 0);
-        $this->payFirstMonth($contract);
+        $this->payDeposit($contract);
         $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $contract->fresh()->status);
         $this->assertNull($contract->fresh()->deposit_resolution);
         $this->assertDatabaseHas('invoices', [
@@ -903,13 +1071,11 @@ class ContractManagementTest extends TestCase
             'room_fee' => 0,
             'total_amount' => 3000000,
         ]);
-        $this->assertDatabaseHas('invoices', [
+        $this->assertDatabaseMissing('invoices', [
             'contract_id' => $contract->id,
             'invoice_type' => Invoice::TYPE_FIRST_MONTH_RENT,
-            'room_fee' => 3000000,
-            'total_amount' => 3000000,
         ]);
-        $this->assertSame(6000000.0, (float) $contract->invoices()->sum('total_amount'));
+        $this->assertSame(3000000.0, (float) $contract->invoices()->sum('total_amount'));
         $this->assertSame(Room::STATUS_AVAILABLE, $contract->room->fresh()->status);
     }
 
@@ -920,25 +1086,17 @@ class ContractManagementTest extends TestCase
             'scheduled_move_in_date' => '2027-05-25', 'reservation_expires_at' => '2027-05-26 18:00:00',
         ], 'prorated-seven-days');
         $this->sign($sevenDays);
-        $this->lifecycle->issueDepositInvoice($sevenDays, $this->admin);
-        $sevenDayInvoice = $sevenDays->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->sole();
 
         $this->assertSame(7, $sevenDays->fresh()->first_month_rent_days);
-        $this->assertSame(677419.0, (float) $sevenDayInvoice->total_amount);
-        $this->assertDatabaseHas('invoice_details', [
-            'invoice_id' => $sevenDayInvoice->id, 'quantity' => 7, 'unit' => 'ngày', 'amount' => 677419,
-        ]);
+        $this->assertSame(677419.0, $sevenDays->fresh()->calculated_first_month_rent_amount);
 
         $sixDays = $this->draft(0, [
             'start_date' => '2027-05-26', 'end_date' => '2028-05-26',
             'scheduled_move_in_date' => '2027-05-26', 'reservation_expires_at' => '2027-05-27 18:00:00',
         ], 'prorated-six-days');
         $this->sign($sixDays);
-        $this->lifecycle->issueDepositInvoice($sixDays, $this->admin);
-        $sixDayInvoice = $sixDays->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->sole();
-
-        $this->assertSame(580645.0, (float) $sixDayInvoice->total_amount);
-        $this->assertNotSame(1500000.0, (float) $sixDayInvoice->total_amount);
+        $this->assertSame(580645.0, $sixDays->fresh()->calculated_first_month_rent_amount);
+        $this->assertDatabaseMissing('invoices', ['invoice_type' => Invoice::TYPE_FIRST_MONTH_RENT]);
     }
 
     public function test_first_month_rent_is_free_when_five_or_fewer_days_remain(): void
@@ -949,11 +1107,10 @@ class ContractManagementTest extends TestCase
         ], 'free-five-days');
         $this->sign($contract);
         $depositInvoice = $this->lifecycle->issueDepositInvoice($contract, $this->admin);
-        $firstMonthInvoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->sole();
 
         $this->assertSame(5, $contract->fresh()->first_month_rent_days);
-        $this->assertSame(0.0, (float) $firstMonthInvoice->total_amount);
-        $this->assertSame(Invoice::STATUS_PAID, $firstMonthInvoice->status);
+        $this->assertSame(0.0, $contract->fresh()->calculated_first_month_rent_amount);
+        $this->assertDatabaseMissing('invoices', ['invoice_type' => Invoice::TYPE_FIRST_MONTH_RENT]);
 
         Payment::query()->forceCreate([
             'invoice_id' => $depositInvoice->id, 'amount_paid' => $depositInvoice->total_amount,
@@ -1013,38 +1170,32 @@ class ContractManagementTest extends TestCase
         }
     }
 
-    public function test_initial_invoices_are_unique_and_both_must_be_fully_paid(): void
+    public function test_deposit_invoice_is_unique_and_must_be_fully_paid(): void
     {
         $contract = $this->draft(2000000);
         $this->sign($contract);
         $this->actingAs($this->admin)->post(route('admin.contracts.deposit-invoice.issue', $contract))->assertRedirect();
-        $invoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->sole();
         $depositInvoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->sole();
         $this->post(route('admin.contracts.deposit-invoice.issue', $contract));
-        $this->assertSame(1, $contract->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->count());
+        $this->assertSame(0, $contract->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->count());
         $this->assertSame(1, $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->count());
 
-        Payment::query()->forceCreate(['invoice_id' => $invoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_PENDING]);
+        Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_PENDING]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
-        Payment::query()->forceCreate(['invoice_id' => $invoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_FAILED]);
+        Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_FAILED]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
 
-        $halfFirstMonthRent = (float) $invoice->total_amount / 2;
-        $this->actingAs($this->admin)->post(route('admin.invoices.payments.store', $invoice), [
-            'amount_paid' => $halfFirstMonthRent, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
-        ])->assertSessionHasNoErrors();
-        $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
-        $this->post(route('admin.invoices.payments.store', $invoice), [
-            'amount_paid' => $halfFirstMonthRent, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
+        $this->actingAs($this->admin)->post(route('admin.invoices.payments.store', $depositInvoice), [
+            'amount_paid' => 1250000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
         ])->assertSessionHasNoErrors();
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
         $this->post(route('admin.invoices.payments.store', $depositInvoice), [
-            'amount_paid' => 3000000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
+            'amount_paid' => 1750000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
         ])->assertSessionHasNoErrors();
         $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $contract->fresh()->status);
-        $this->post(route('admin.invoices.payments.store', $invoice), [
+        $this->post(route('admin.invoices.payments.store', $depositInvoice), [
             'amount_paid' => 1, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
         ])->assertSessionHasErrors('amount_paid');
     }
@@ -1064,7 +1215,7 @@ class ContractManagementTest extends TestCase
             $this->assertSame(Contract::STATUS_PENDING_SIGNATURE, $second->fresh()->status);
             $third = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2027-09-02', 'scheduled_move_in_date' => '2027-09-02', 'reservation_expires_at' => '2027-10-02 18:00:00', 'end_date' => '2028-09-02'], 'reserve-third');
             $this->sign($third);
-            $this->payFirstMonth($third);
+            $this->payDeposit($third);
             $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $third->fresh()->status);
         }
     }
@@ -1112,6 +1263,44 @@ class ContractManagementTest extends TestCase
         $this->assertSame($historyCount, $contract->statusHistories()->count());
     }
 
+    public function test_room_baseline_is_shown_and_prefills_first_contract_handover(): void
+    {
+        $contract = $this->awaiting();
+        UtilityReading::query()->forceCreate([
+            'room_id' => $contract->room_id,
+            'contract_id' => null,
+            'month' => now()->month,
+            'year' => now()->year,
+            'record_date' => today(),
+            'reading_type' => 'baseline',
+            'lifecycle_event_key' => "room:{$contract->room_id}:baseline",
+            'electricity_old' => 321,
+            'electricity_new' => 321,
+            'water_old' => 45,
+            'water_new' => 45,
+            'status' => 'confirmed',
+        ]);
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('name="handover_electricity" value="321"', false)
+            ->assertSee('name="handover_water" value="45"', false)
+            ->assertSee('Điện 321 · Nước 45');
+
+        $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload([
+            'handover_electricity' => 321,
+            'handover_water' => 45,
+            'schedule_variance_reason' => 'Ngày nhận thực tế khác lịch.',
+        ]))->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('utility_readings', [
+            'contract_id' => $contract->id,
+            'reading_type' => 'handover',
+            'electricity_new' => 321,
+            'water_new' => 45,
+        ]);
+    }
+
     public function test_overdue_move_in_scheduler_is_idempotent_and_admin_can_extend_or_cancel(): void
     {
         $contract = $this->awaiting(['start_date' => '2026-08-10', 'scheduled_move_in_date' => '2026-08-10', 'reservation_expires_at' => '2026-08-10 18:00:00']);
@@ -1119,7 +1308,7 @@ class ContractManagementTest extends TestCase
         $this->artisan('contracts:process-lifecycle')->assertSuccessful();
         $this->assertSame(1, ContractLifecycleAlert::where('contract_id', $contract->id)->where('type', 'move_in_overdue')->count());
         $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $contract->fresh()->status);
-        $this->assertDatabaseCount('payments', 2);
+        $this->assertDatabaseCount('payments', 1);
 
         $this->actingAs($this->admin)->post(route('admin.contracts.extend-move-in-deadline', $contract), [
             'reservation_expires_at' => now()->addDays(3), 'reason' => 'Khách xin lùi lịch.',
@@ -1268,15 +1457,8 @@ class ContractManagementTest extends TestCase
         $contract = $this->draft(1000000, [], 'deposit-reversal');
         $this->sign($contract);
         $depositInvoice = $this->lifecycle->issueDepositInvoice($contract, $this->admin);
-        $firstMonthInvoice = $contract->invoices()
-            ->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)
-            ->sole();
         $depositPayment = Payment::query()->forceCreate([
             'invoice_id' => $depositInvoice->id, 'amount_paid' => $depositInvoice->total_amount, 'payment_date' => today(),
-            'payment_method' => Payment::METHOD_CASH, 'status' => Payment::STATUS_SUCCESS,
-        ]);
-        Payment::query()->forceCreate([
-            'invoice_id' => $firstMonthInvoice->id, 'amount_paid' => $firstMonthInvoice->total_amount, 'payment_date' => today(),
             'payment_method' => Payment::METHOD_CASH, 'status' => Payment::STATUS_SUCCESS,
         ]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
@@ -1302,7 +1484,7 @@ class ContractManagementTest extends TestCase
             'payment_method' => Payment::METHOD_CASH, 'status' => Payment::STATUS_SUCCESS,
         ]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
-        $this->lifecycle->cancel($contract, $this->admin, 'Khách hủy sau khi đã đóng một phần tiền tháng đầu.');
+        $this->lifecycle->cancel($contract, $this->admin, 'Khách hủy sau khi đã đóng một phần tiền cọc.');
 
         $this->assertSame(Contract::STATUS_CANCELLED, $contract->fresh()->status);
         $this->assertSame(Contract::DEPOSIT_NEEDS_RESOLUTION, $contract->fresh()->deposit_resolution);
@@ -1314,8 +1496,9 @@ class ContractManagementTest extends TestCase
 
     public function test_scheduler_deduplicates_signature_and_deposit_overdue_alerts(): void
     {
-        $signature = $this->draft(0, ['signature_due_at' => now()->subDay()], 'signature-overdue');
+        $signature = $this->draft(0, [], 'signature-overdue');
         $this->lifecycle->submitForSignature($signature, $this->admin);
+        $signature->forceFill(['signature_due_at' => now()->subDay()])->save();
         $deposit = $this->draft(1000000, ['deposit_due_at' => now()->subDay()], 'deposit-overdue');
         $this->sign($deposit);
 
@@ -1355,16 +1538,38 @@ class ContractManagementTest extends TestCase
 
     public function test_print_uses_signed_date_snapshot_and_labels_unsigned_document_as_draft(): void
     {
+        Setting::currentOrCreate()->update([
+            'electric_price' => 3500,
+            'water_price' => 15000,
+            'internet_fee' => 100000,
+            'service_fee' => 50000,
+        ]);
+        $this->actingAs($this->admin)->get(route('admin.contracts.template'))
+            ->assertOk()
+            ->assertSee('HỢP ĐỒNG THUÊ PHÒNG TRỌ')
+            ->assertSee('100.000đ/phòng/tháng')
+            ->assertSee('VI. Cam kết, hiệu lực và giải quyết tranh chấp');
+
         $contract = $this->draft();
         $contract->forceFill([
             'landlord_name_snapshot' => 'Chủ nhà snapshot',
             'property_address_snapshot' => 'Địa chỉ snapshot',
         ])->save();
         $this->actingAs($this->admin)->get(route('admin.contracts.print', $contract))
-            ->assertOk()->assertSee('BẢN DỰ THẢO / CHƯA KÝ')->assertSee('Chủ nhà snapshot')->assertSee('Địa chỉ snapshot');
+            ->assertOk()
+            ->assertSee('BẢN DỰ THẢO – CHƯA CÓ HIỆU LỰC')
+            ->assertSee('Chủ nhà snapshot')
+            ->assertSee('Địa chỉ snapshot')
+            ->assertSee('III. Danh sách người thuê')
+            ->assertSee('IV. Chỉ số điện nước và tài sản bàn giao')
+            ->assertSee('3.500đ/kWh')
+            ->assertSee('15.000đ/m³')
+            ->assertSee('100.000đ/phòng/tháng')
+            ->assertDontSee('CCCD mặt trước')
+            ->assertDontSee('CCCD mặt sau');
         $this->sign($contract);
         $this->get(route('admin.contracts.print', $contract))->assertOk()
-            ->assertDontSee('BẢN DỰ THẢO / CHƯA KÝ')->assertSee('11/08/2026');
+            ->assertDontSee('BẢN DỰ THẢO – CHƯA CÓ HIỆU LỰC')->assertSee('11/08/2026');
     }
 
     private function draft(float $deposit = 0, array $overrides = [], ?string $tenantKey = null): Contract
@@ -1395,15 +1600,15 @@ class ContractManagementTest extends TestCase
     {
         $contract = $this->draft(0, $overrides, $tenantKey);
         $contract = $this->sign($contract);
-        $this->payFirstMonth($contract);
+        $this->payDeposit($contract);
 
         return $contract->fresh();
     }
 
-    private function payFirstMonth(Contract $contract): void
+    private function payDeposit(Contract $contract): void
     {
         $this->lifecycle->issueDepositInvoice($contract, $this->admin);
-        $contract->invoices()->whereIn('invoice_type', [Invoice::TYPE_DEPOSIT, Invoice::TYPE_FIRST_MONTH_RENT])
+        $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)
             ->get()->each(function (Invoice $invoice): void {
                 if ((float) $invoice->total_amount <= 0) {
                     return;
@@ -1427,7 +1632,7 @@ class ContractManagementTest extends TestCase
         return $contract->fresh();
     }
 
-    public function test_new_contract_enforces_minimum_year_move_in_limit_and_free_motorcycle_capacity(): void
+    public function test_new_contract_enforces_minimum_year_move_in_limit_and_ignores_legacy_parking_fields(): void
     {
         $room = $this->room('NEW-RULES');
         $tenant = $this->tenant('new-rules');
@@ -1439,10 +1644,11 @@ class ContractManagementTest extends TestCase
             ->assertSessionHasErrors('scheduled_move_in_date');
         $this->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
             'parking_enabled' => 1, 'parking_vehicle_type' => Contract::PARKING_CAR, 'parking_quantity' => 1,
-        ]))->assertSessionHasErrors('parking_vehicle_type');
-        $this->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
-            'parking_enabled' => 1, 'parking_vehicle_type' => Contract::PARKING_MOTORCYCLE, 'parking_quantity' => 2,
-        ]))->assertSessionHasErrors('parking_quantity');
+        ]))->assertSessionHasNoErrors();
+        $contract = Contract::sole();
+        $this->assertTrue($contract->service_enabled);
+        $this->assertNull($contract->parking_vehicle_type);
+        $this->assertSame(0, $contract->parking_quantity);
     }
 
     public function test_offline_tenant_cannot_be_used_to_create_a_contract(): void
@@ -1488,7 +1694,12 @@ class ContractManagementTest extends TestCase
     {
         return [
             'date_of_birth' => $dateOfBirth,
+            'gender' => 'other',
+            'cccd_issue_date' => '2020-01-01',
+            'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
             'phone' => '09'.substr(str_pad((string) abs(crc32('phone-'.$prefix)), 8, '0'), 0, 8),
+            'email' => substr(hash('sha256', $prefix), 0, 16).'@member.example.test',
+            'address' => 'Địa chỉ thường trú của người thuê',
             'identity_front' => UploadedFile::fake()->image($prefix.'-front.jpg'),
             'identity_back' => UploadedFile::fake()->image($prefix.'-back.jpg'),
         ];

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ContractTenant;
 use App\Services\ContractTenantService;
+use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 
 class ContractTenantController extends Controller
@@ -14,6 +15,7 @@ class ContractTenantController extends Controller
     public function approve(Request $request, ContractTenant $member)
     {
         $this->members->approve($member, $request->user());
+        app(AdminNotificationService::class)->resolve('member_review', $member);
 
         return back()->with('success', 'Đã duyệt người thuê.');
     }
@@ -22,6 +24,7 @@ class ContractTenantController extends Controller
     {
         $data = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
         $this->members->reject($member, $request->user(), $data['reason']);
+        app(AdminNotificationService::class)->resolve('member_review', $member);
 
         return back()->with('success', 'Đã từ chối khai báo người thuê.');
     }
