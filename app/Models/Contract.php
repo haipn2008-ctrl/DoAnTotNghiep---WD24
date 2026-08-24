@@ -2,12 +2,31 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use LogicException;
 
 class Contract extends Model
 {
+    /**
+     * Chỉ người thuê đại diện mới được quản lý hợp đồng trên cổng khách thuê.
+     */
+    public function scopeManagedBy(Builder $query, User $user): Builder
+    {
+        $tenantId = $user->tenant?->id;
+
+        return $tenantId
+            ? $query->where('tenant_id', $tenantId)
+            : $query->whereRaw('1 = 0');
+    }
+
+    public function isManagedBy(User $user): bool
+    {
+        return $user->tenant !== null
+            && (int) $this->tenant_id === (int) $user->tenant->id;
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Parking
@@ -130,8 +149,6 @@ class Contract extends Model
 
         'representative_tenant_id',
 
-        'representative_is_occupant',
-
         'monthly_rent',
 
         'deposit_amount',
@@ -184,8 +201,6 @@ class Contract extends Model
 
         'parking_quantity',
 
-        'signed_at',
-
         'tenant_signature',
 
         'planned_move_in_date',
@@ -213,8 +228,6 @@ class Contract extends Model
         'contract_file',
 
         'contract_content',
-
-        'status',
 
         'note',
     ];
@@ -290,8 +303,6 @@ class Contract extends Model
 
         'number_of_people' => 'integer',
 
-        'representative_is_occupant' => 'boolean',
-
         'monthly_rent' => 'decimal:2',
 
         'deposit_amount' => 'decimal:2',
@@ -360,10 +371,10 @@ class Contract extends Model
         );
     }
 
-    // Danh sách người ở trong hợp đồng
-    public function occupants()
+    // Danh sách người thuê trong hợp đồng
+    public function members()
     {
-        return $this->hasMany(ContractOccupant::class);
+        return $this->hasMany(ContractTenant::class);
     }
 
     // Người xác nhận nhận phòng
@@ -375,13 +386,13 @@ class Contract extends Model
         );
     }
 
-    // Người đại diện đang ở
-    public function representativeOccupant()
+    // Thành viên thuê giữ vai trò đại diện
+    public function representativeMember()
     {
-        return $this->hasOne(ContractOccupant::class)
+        return $this->hasOne(ContractTenant::class)
             ->where(
                 'role',
-                ContractOccupant::ROLE_REPRESENTATIVE
+                ContractTenant::ROLE_REPRESENTATIVE
             )
             ->latestOfMany();
     }
@@ -745,11 +756,11 @@ class Contract extends Model
                 Invoice::TYPE_DEPOSIT
             )
             : $this->invoices()
-            ->where(
-                'invoice_type',
-                Invoice::TYPE_DEPOSIT
-            )
-            ->first();
+                ->where(
+                    'invoice_type',
+                    Invoice::TYPE_DEPOSIT
+                )
+                ->first();
 
         return $depositInvoice
             ? (float) $depositInvoice
@@ -782,11 +793,11 @@ class Contract extends Model
                 Invoice::TYPE_FIRST_MONTH_RENT
             )
             : $this->invoices()
-            ->where(
-                'invoice_type',
-                Invoice::TYPE_FIRST_MONTH_RENT
-            )
-            ->first();
+                ->where(
+                    'invoice_type',
+                    Invoice::TYPE_FIRST_MONTH_RENT
+                )
+                ->first();
 
         return $invoice
             ? (float) $invoice
@@ -830,11 +841,11 @@ class Contract extends Model
                 Invoice::TYPE_FIRST_MONTH_RENT
             )
             : $this->invoices()
-            ->where(
-                'invoice_type',
-                Invoice::TYPE_FIRST_MONTH_RENT
-            )
-            ->first();
+                ->where(
+                    'invoice_type',
+                    Invoice::TYPE_FIRST_MONTH_RENT
+                )
+                ->first();
 
         return $invoice
             ? (float) $invoice->total_amount
@@ -859,85 +870,60 @@ class Contract extends Model
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
-            self::STATUS_DRAFT =>
-            'Bản nháp',
+            self::STATUS_DRAFT => 'Bản nháp',
 
-            self::STATUS_PENDING_SIGNATURE =>
-            'Chờ ký',
+            self::STATUS_PENDING_SIGNATURE => 'Chờ ký',
 
-            self::STATUS_PENDING_DEPOSIT =>
-            'Chờ cọc và tiền phòng tháng đầu',
+            self::STATUS_PENDING_DEPOSIT => 'Chờ cọc và tiền phòng tháng đầu',
 
-            self::STATUS_AWAITING_MOVE_IN =>
-            'Chờ nhận phòng',
+            self::STATUS_AWAITING_MOVE_IN => 'Chờ nhận phòng',
 
-            self::STATUS_ACTIVE =>
-            'Đang ở',
+            self::STATUS_ACTIVE => 'Đang ở',
 
-            self::STATUS_EXPIRED =>
-            'Quá hạn hợp đồng',
+            self::STATUS_EXPIRED => 'Quá hạn hợp đồng',
 
-            self::STATUS_SETTLING =>
-            'Đang quyết toán',
+            self::STATUS_SETTLING => 'Đang quyết toán',
 
-            self::STATUS_COMPLETED =>
-            'Đã hoàn tất',
+            self::STATUS_COMPLETED => 'Đã hoàn tất',
 
-            self::STATUS_CANCELLED =>
-            'Đã hủy',
+            self::STATUS_CANCELLED => 'Đã hủy',
 
-            default =>
-            $this->status ?? 'Không xác định',
+            default => $this->status ?? 'Không xác định',
         };
     }
 
     public function getDepositStatusTextAttribute(): string
     {
         return match ($this->deposit_status) {
-            self::DEPOSIT_PENDING =>
-            'Chưa đóng cọc',
+            self::DEPOSIT_PENDING => 'Chưa đóng cọc',
 
-            self::DEPOSIT_PAID =>
-            'Đã đóng cọc',
+            self::DEPOSIT_PAID => 'Đã đóng cọc',
 
-            self::DEPOSIT_NEEDS_RESOLUTION =>
-            'Cần xử lý',
+            self::DEPOSIT_NEEDS_RESOLUTION => 'Cần xử lý',
 
-            self::DEPOSIT_REFUND_REQUESTED =>
-            'Chờ duyệt hoàn cọc',
+            self::DEPOSIT_REFUND_REQUESTED => 'Chờ duyệt hoàn cọc',
 
-            self::DEPOSIT_REFUND_APPROVED =>
-            'Đã duyệt hoàn cọc',
+            self::DEPOSIT_REFUND_APPROVED => 'Đã duyệt hoàn cọc',
 
-            self::DEPOSIT_REFUND_REJECTED =>
-            'Từ chối hoàn cọc',
+            self::DEPOSIT_REFUND_REJECTED => 'Từ chối hoàn cọc',
 
-            self::DEPOSIT_REFUND_PROCESSING =>
-            'Đang chuyển khoản',
+            self::DEPOSIT_REFUND_PROCESSING => 'Đang chuyển khoản',
 
-            self::DEPOSIT_RETURNED =>
-            'Đã hoàn cọc',
+            self::DEPOSIT_RETURNED => 'Đã hoàn cọc',
 
-            self::DEPOSIT_PARTIAL =>
-            'Đã hoàn một phần',
+            self::DEPOSIT_PARTIAL => 'Đã hoàn một phần',
 
-            self::DEPOSIT_FORFEITED =>
-            'Không hoàn cọc',
+            self::DEPOSIT_FORFEITED => 'Không hoàn cọc',
 
-            self::DEPOSIT_DEDUCTED =>
-            'Đã khấu trừ',
+            self::DEPOSIT_DEDUCTED => 'Đã khấu trừ',
 
-            self::DEPOSIT_RETAINED =>
-            'Đã giữ cọc',
+            self::DEPOSIT_RETAINED => 'Đã giữ cọc',
 
-            self::DEPOSIT_REFUNDED =>
-            'Đã hoàn tiền',
+            self::DEPOSIT_REFUNDED => 'Đã hoàn tiền',
 
-            self::DEPOSIT_NOT_REQUIRED =>
-            'Không yêu cầu cọc',
+            self::DEPOSIT_NOT_REQUIRED => 'Không yêu cầu cọc',
 
-            default =>
-            'Không xác định',
+            default => 'Không xác định',
         };
     }
 
@@ -976,9 +962,9 @@ class Contract extends Model
     {
         return $this->end_date
             && now()
-            ->startOfDay()
-            ->gt(
-                $this->end_date->startOfDay()
-            );
+                ->startOfDay()
+                ->gt(
+                    $this->end_date->startOfDay()
+                );
     }
 }

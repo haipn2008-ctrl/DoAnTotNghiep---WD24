@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\Amenity;
 use App\Models\Contract;
-use App\Models\ContractOccupant;
-use App\Models\ContractOccupantHistory;
+use App\Models\ContractTenant;
+use App\Models\ContractTenantHistory;
 use App\Models\ContractStatusHistory;
 use App\Models\Invoice;
 use App\Models\InvoiceDetail;
@@ -169,17 +169,19 @@ class DemoPropertySeeder extends Seeder
     {
         $start = now()->startOfMonth();
         $definitions = [
-            ['HD-AP-2025-001', 'A101', 'giahuy@example.test', -10, 14, Contract::STATUS_ACTIVE, 'paid', ['a101-1']],
+            // Kết thúc vào cuối tháng hiện tại: luôn nằm trong tháng cuối và được xếp "sắp hết hạn".
+            ['HD-AP-2025-001', 'A101', 'giahuy@example.test', -11, 0, Contract::STATUS_ACTIVE, 'paid', ['a101-1']],
             ['HD-AP-2025-002', 'A102', 'ngocmai@example.test', -8, 16, Contract::STATUS_ACTIVE, 'paid', ['a102-1']],
             ['HD-AP-2026-003', 'A104', 'ducanh@example.test', -6, 12, Contract::STATUS_ACTIVE, 'paid', ['a104-1']],
             ['HD-AP-2026-004', 'B201', 'khanhlinh@example.test', -5, 13, Contract::STATUS_ACTIVE, 'paid', ['b201-1', 'b201-2']],
             ['HD-AP-2026-005', 'B202', 'quangnam@example.test', -4, 12, Contract::STATUS_ACTIVE, 'paid', ['b202-1']],
             ['HD-AP-2026-006', 'B204', 'thanhthao@example.test', -3, 12, Contract::STATUS_ACTIVE, 'paid', ['b204-1']],
             ['HD-AP-2025-007', 'C301', 'tuankiet@example.test', -15, -2, Contract::STATUS_EXPIRED, 'returned', ['c301-1', 'c301-2']],
-            ['HD-AP-2025-008', 'C302', 'phuonguyen@example.test', -12, -4, Contract::STATUS_TERMINATED, 'returned', []],
+            ['HD-AP-2025-008', 'C302', 'phuonguyen@example.test', -12, -4, Contract::STATUS_COMPLETED, 'refunded', []],
         ];
 
         $contracts = [];
+        $adminId = User::where('email', 'admin@nhatroanphuc.test')->value('id');
         foreach ($definitions as [$code, $roomCode, $email, $startOffset, $endOffset, $status, $depositStatus, $memberKeys]) {
             $startDate = $start->copy()->addMonths($startOffset);
             $endDate = $start->copy()->addMonths($endOffset)->endOfMonth();
@@ -187,19 +189,25 @@ class DemoPropertySeeder extends Seeder
             $tenant = $tenants[$email];
             $people = count($memberKeys) + 1;
             $ended = in_array($status, [Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED], true);
+            $signedAt = $startDate->copy()->subDays(10)->setTime(9, 0);
+            $depositPaidAt = $startDate->copy()->subDays(7)->setTime(10, 0);
+            $moveInAt = $startDate->copy()->setTime(8, 0);
+            $moveOutAt = $ended ? $endDate->copy()->setTime(8, 0) : null;
+            $completedAt = $status === Contract::STATUS_COMPLETED
+                ? $endDate->copy()->setTime(17, 0)
+                : null;
             $contract = Contract::updateOrCreate(
                 ['contract_code' => $code],
                 [
                     'room_id' => $room->id,
                     'tenant_id' => $tenant->id,
                     'representative_tenant_id' => $tenant->id,
-                    'representative_is_occupant' => true,
                     'monthly_rent' => $room->price,
                     'deposit_amount' => $room->price * 2,
                     'deposit_status' => $depositStatus,
-                    'deposit_paid_at' => $startDate->copy()->subDays(7),
+                    'deposit_paid_at' => $depositPaidAt,
                     'number_of_people' => $people,
-                    'signed_at' => $startDate->copy()->subDays(10),
+                    'signed_at' => $signedAt,
                     'start_date' => $startDate,
                     'end_date' => $endDate,
                     'actual_end_date' => $ended ? $endDate : null,
@@ -214,45 +222,61 @@ class DemoPropertySeeder extends Seeder
             );
             $contract->forceFill([
                 'status' => $status,
-                'signed_at' => $startDate->copy()->subDays(10),
-                'signed_confirmed_by' => User::where('email', 'admin@nhatroanphuc.test')->value('id'),
+                'signed_at' => $signedAt,
+                'signed_confirmed_by' => $adminId,
+                'signature_due_at' => $startDate->copy()->subDays(8)->endOfDay(),
+                'deposit_due_at' => $startDate->copy()->subDays(5)->endOfDay(),
                 'scheduled_move_in_date' => $startDate,
                 'reservation_expires_at' => $startDate->copy()->addDays(2),
-                'actual_move_in_at' => in_array($status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_SETTLING], true) ? $startDate : null,
-                'actual_move_out_at' => $ended ? $endDate : null,
-                'deposit_status' => Contract::DEPOSIT_PAID,
+                'move_in_terms_confirmed_at' => $signedAt,
+                'move_in_terms_confirmed_by' => $adminId,
+                'move_in_inventory_snapshotted_at' => $signedAt,
+                'move_in_details_confirmed_at' => $startDate->copy()->subDay()->setTime(18, 0),
+                'move_in_details_confirmed_by' => $tenant->user_id,
+                'actual_move_in_at' => in_array($status, [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED, Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED], true) ? $moveInAt : null,
+                'checked_in_by' => $adminId,
+                'actual_move_out_at' => $moveOutAt,
+                'checked_out_by' => $ended ? $adminId : null,
+                'checkout_reason' => $ended ? 'Hợp đồng kết thúc và phòng đã được bàn giao lại đầy đủ.' : null,
+                'completed_at' => $completedAt,
+                'completed_by' => $status === Contract::STATUS_COMPLETED ? $adminId : null,
+                'deposit_status' => $status === Contract::STATUS_COMPLETED ? Contract::DEPOSIT_REFUNDED : Contract::DEPOSIT_PAID,
+                'deposit_resolution' => $status === Contract::STATUS_COMPLETED ? Contract::DEPOSIT_REFUNDED : null,
+                'deposit_resolved_at' => $completedAt,
+                'deposit_resolved_by' => $status === Contract::STATUS_COMPLETED ? $adminId : null,
+                'settlement_note' => $status === Contract::STATUS_COMPLETED ? 'Đã đối soát công nợ, hoàn cọc và hoàn tất hợp đồng.' : null,
                 'landlord_name_snapshot' => Setting::current()?->landlord_name,
                 'landlord_address_snapshot' => Setting::current()?->landlord_address,
                 'landlord_phone_snapshot' => Setting::current()?->landlord_phone,
                 'landlord_identity_snapshot' => Setting::current()?->landlord_identity_number,
                 'property_address_snapshot' => Setting::current()?->property_address,
             ])->save();
-            $occupantStatus = $ended
-                ? ContractOccupant::STATUS_MOVED_OUT
+            $memberStatus = $ended
+                ? ContractTenant::STATUS_MOVED_OUT
                 : (in_array($status, Contract::OPEN_OCCUPANCY_STATUSES, true)
-                    ? ContractOccupant::STATUS_CHECKED_IN
-                    : ContractOccupant::STATUS_APPROVED);
+                    ? ContractTenant::STATUS_CHECKED_IN
+                    : ContractTenant::STATUS_APPROVED);
             foreach ([$tenant, ...array_map(fn ($key) => $members[$key], $memberKeys)] as $index => $person) {
-                $occupant = ContractOccupant::updateOrCreate(
+                $member = ContractTenant::updateOrCreate(
                     ['contract_id' => $contract->id, 'tenant_id' => $person->id],
                     [
-                        'role' => $index === 0 ? ContractOccupant::ROLE_REPRESENTATIVE : ContractOccupant::ROLE_OCCUPANT,
+                        'role' => $index === 0 ? ContractTenant::ROLE_REPRESENTATIVE : ContractTenant::ROLE_TENANT,
                         'full_name' => $person->full_name,
                         'date_of_birth' => $person->date_of_birth,
                         'identity_number' => $person->cccd,
                         'phone' => $person->phone,
-                        'relationship' => $index === 0 ? 'Người đại diện hợp đồng' : 'Người ở',
+                        'relationship' => $index === 0 ? 'Người đại diện hợp đồng' : 'Người thuê',
                         'address' => $person->address,
-                        'status' => $occupantStatus,
-                        'reviewed_by' => User::where('email', 'admin@nhatroanphuc.test')->value('id'),
+                        'status' => $memberStatus,
+                        'reviewed_by' => $adminId,
                         'reviewed_at' => now(),
-                        'actual_move_in_at' => in_array($occupantStatus, [ContractOccupant::STATUS_CHECKED_IN, ContractOccupant::STATUS_MOVED_OUT], true) ? $startDate : null,
-                        'actual_move_out_at' => $occupantStatus === ContractOccupant::STATUS_MOVED_OUT ? $endDate : null,
+                        'actual_move_in_at' => in_array($memberStatus, [ContractTenant::STATUS_CHECKED_IN, ContractTenant::STATUS_MOVED_OUT], true) ? $startDate : null,
+                        'actual_move_out_at' => $memberStatus === ContractTenant::STATUS_MOVED_OUT ? $endDate : null,
                     ]
                 );
-                ContractOccupantHistory::firstOrCreate(
-                    ['contract_occupant_id' => $occupant->id, 'action' => 'demo_seed'],
-                    ['from_status' => null, 'to_status' => $occupantStatus, 'reason' => 'Dữ liệu minh họa cư trú.', 'performed_at' => now(), 'metadata' => ['seeded' => true]]
+                ContractTenantHistory::firstOrCreate(
+                    ['contract_tenant_id' => $member->id, 'action' => 'demo_seed'],
+                    ['from_status' => null, 'to_status' => $memberStatus, 'reason' => 'Dữ liệu minh họa cư trú.', 'performed_at' => now(), 'metadata' => ['seeded' => true]]
                 );
             }
             ContractStatusHistory::updateOrCreate(
@@ -261,7 +285,7 @@ class DemoPropertySeeder extends Seeder
                     'from_status' => null,
                     'to_status' => $status,
                     'reason' => 'Dữ liệu minh họa vòng đời hợp đồng.',
-                    'performed_by' => User::where('email', 'admin@nhatroanphuc.test')->value('id'),
+                    'performed_by' => $adminId,
                     'performed_at' => now(),
                     'metadata' => ['seeded' => true],
                 ]
@@ -349,6 +373,26 @@ class DemoPropertySeeder extends Seeder
 
                 $this->seedInvoiceDetails($invoice, $contract, $reading, $electricUsage, $waterUsage, $setting);
                 $this->seedPayment($invoice, $status, $admin, $contractIndex);
+            }
+
+            if ($contract->actual_move_out_at) {
+                UtilityReading::updateOrCreate(
+                    ['lifecycle_event_key' => "contract:{$contract->id}:checkout"],
+                    [
+                        'room_id' => $contract->room_id,
+                        'contract_id' => $contract->id,
+                        'month' => $contract->actual_move_out_at->month,
+                        'year' => $contract->actual_move_out_at->year,
+                        'record_date' => $contract->actual_move_out_at,
+                        'reading_type' => 'checkout',
+                        'electricity_old' => $electricity,
+                        'electricity_new' => $electricity,
+                        'water_old' => $water,
+                        'water_new' => $water,
+                        'status' => 'confirmed',
+                        'note' => 'Chỉ số chốt khi hoàn tất bàn giao trả phòng.',
+                    ]
+                );
             }
         }
     }

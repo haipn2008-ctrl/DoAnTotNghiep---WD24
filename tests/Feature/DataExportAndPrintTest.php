@@ -84,6 +84,34 @@ class DataExportAndPrintTest extends TestCase
             ->assertSessionHasErrors(['month', 'status']);
     }
 
+    public function test_list_pages_export_directly_and_sidebar_has_no_separate_export_items(): void
+    {
+        $admin = $this->admin();
+        [, , , , $invoice] = $this->context('LIST-EXPORT');
+        $filters = [
+            'month' => $invoice->month,
+            'year' => $invoice->year,
+            'status' => $invoice->status,
+            'keyword' => 'LIST-EXPORT',
+        ];
+
+        $this->actingAs($admin)
+            ->get(route('admin.invoices.index', $filters))
+            ->assertSuccessful()
+            ->assertSee(route('admin.invoices.export.download', $filters))
+            ->assertDontSee('Xuất hóa đơn')
+            ->assertDontSee('Xuất danh sách phòng')
+            ->assertDontSee('Xuất danh sách khách thuê');
+
+        $this->get(route('admin.rooms.index'))
+            ->assertSuccessful()
+            ->assertSee(route('admin.rooms.export'), false);
+
+        $this->get(route('admin.tenants.index'))
+            ->assertSuccessful()
+            ->assertSee(route('admin.tenants.export'), false);
+    }
+
     public function test_payment_export_filters_and_rejects_invalid_direct_requests(): void
     {
         $admin = $this->admin();

@@ -115,7 +115,7 @@ return [
         'name' => 'họ và tên',
         'new_end_date' => 'ngày kết thúc mới',
         'note' => 'ghi chú',
-        'number_of_people' => 'số người ở',
+        'number_of_people' => 'số người thuê',
         'password' => 'mật khẩu',
         'password_confirmation' => 'mật khẩu xác nhận',
         'payment_date' => 'ngày thanh toán',

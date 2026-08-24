@@ -24,8 +24,8 @@
                     <i class="bx bx-credit-card text-lg"></i>
                     Thanh toán
                 </a>
-                <a href="{{ route('admin.invoices.export', request()->query()) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-                    <i class="bx bx-export text-lg"></i>
+                <a href="{{ route('admin.invoices.export.download', request()->only(['month', 'year', 'status', 'keyword'])) }}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-100">
+                    <i class="bx bx-download text-lg"></i>
                     Xuất CSV
                 </a>
                 <a href="{{ route('admin.invoices.generate') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">

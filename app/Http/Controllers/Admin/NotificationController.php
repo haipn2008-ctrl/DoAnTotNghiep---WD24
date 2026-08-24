@@ -17,7 +17,7 @@ class NotificationController extends Controller
         $status = $filters['status'] ?? 'open';
 
         $notifications = ContractLifecycleAlert::query()
-            ->with(['contract.room', 'contract.tenant'])
+            ->with(['contract.room', 'contract.tenant', 'tenant', 'vehicle'])
             ->when($status === 'open', fn ($query) => $query->unresolved())
             ->when($status === 'resolved', fn ($query) => $query->resolved())
             ->latest('detected_at')
@@ -32,5 +32,22 @@ class NotificationController extends Controller
         ];
 
         return view('admin.notifications.index', compact('notifications', 'counts', 'status'));
+    }
+
+    public function open(ContractLifecycleAlert $notification)
+    {
+        if ($notification->type === 'vehicle_removed' && ! $notification->resolved_at) {
+            $notification->update(['resolved_at' => now()]);
+        }
+
+        if ($notification->tenant_id && $notification->tenant()->exists()) {
+            return redirect()->route('admin.tenants.show', $notification->tenant_id);
+        }
+
+        if ($notification->contract_id && $notification->contract()->exists()) {
+            return redirect()->route('admin.contracts.show', $notification->contract_id);
+        }
+
+        return redirect()->route('admin.notifications.index');
     }
 }

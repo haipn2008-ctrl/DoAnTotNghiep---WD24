@@ -1,14 +1,7 @@
 @php
     $isEdit = isset($tenant);
 
-    $action = $isEdit
-        ? route('admin.tenants.update', $tenant)
-        : route('admin.tenants.store');
-
-    $selectedUser = old(
-        'user_id',
-        $tenant->user_id ?? ''
-    );
+    $action = route('admin.tenants.update', $tenant);
 
     /*
     |--------------------------------------------------------------------------
@@ -85,8 +78,7 @@
         </h3>
 
         <p class="text-sm text-slate-500">
-            Khách offline không cần email, mật khẩu hoặc tài khoản đăng nhập;
-            admin sẽ quản lý hồ sơ và thanh toán thay.
+            Hồ sơ này được tạo khi khách kích hoạt tài khoản. Tài khoản liên kết không thể thay đổi tại đây.
         </p>
 
     </div>
@@ -95,38 +87,15 @@
 
         <div class="md:col-span-2">
 
-            <label for="user_id" class="mb-1.5 block text-sm font-semibold text-slate-700">
-                Hình thức sử dụng hệ thống
-            </label>
-
-            <select id="user_id" name="user_id"
-                class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-
-                <option value="">
-                    Khách offline — admin nhập và quản lý thay
-                </option>
-
-                @foreach ($users as $user)
-
-                    <option value="{{ $user->id }}" @selected((string) $selectedUser === (string) $user->id)>
-                        {{ $user->name }} ({{ $user->email }})
-                    </option>
-
-                @endforeach
-
-            </select>
-
-            <p class="mt-1.5 text-xs text-slate-500">
-                Chỉ chọn tài khoản nếu khách có thể tự đăng nhập portal.
-            </p>
-
-            @error('user_id')
-
-                <p class="mt-1 text-sm text-rose-600">
-                    {{ $message }}
-                </p>
-
-            @enderror
+            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Tài khoản portal</label>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+                @if ($tenant->user)
+                    <span class="font-semibold">{{ $tenant->user->email }}</span>
+                    <span class="ml-2 text-slate-500">({{ $tenant->user->status }})</span>
+                @else
+                    <span class="font-semibold text-amber-700">Dữ liệu cũ chưa có tài khoản liên kết</span>
+                @endif
+            </div>
 
         </div>
 
@@ -190,6 +159,7 @@
 
             <input id="date_of_birth" type="date" name="date_of_birth"
                 value="{{ old('date_of_birth', isset($tenant->date_of_birth) ? $tenant->date_of_birth->format('Y-m-d') : '') }}"
+                max="{{ now()->subYears(18)->toDateString() }}" required
                 class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
 
             @error('date_of_birth')
@@ -419,57 +389,6 @@
 
 
     {{-- ================================================================
-    XE
-    ================================================================= --}}
-
-    <div class="border-t border-slate-200 px-5 py-4">
-
-        <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-
-            <div>
-
-                <h3 class="font-semibold text-slate-950">
-                    3. Thông tin phương tiện
-                </h3>
-
-                <p class="mt-1 text-sm text-slate-500">
-                    Khách thuê có thể đăng ký một hoặc nhiều phương tiện.
-                </p>
-
-            </div>
-
-            <button type="button" id="add-vehicle"
-                class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
-
-                <i class="bx bx-plus text-lg"></i>
-
-                Thêm xe
-
-            </button>
-
-        </div>
-
-    </div>
-
-
-    <div class="space-y-4 p-5">
-
-        <div id="vehicles-container" class="space-y-4"></div>
-
-        <div id="no-vehicle-message"
-            class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-500">
-
-            Chưa đăng ký phương tiện.
-
-            Nếu khách thuê có xe, bấm
-            <strong>Thêm xe</strong>.
-
-        </div>
-
-    </div>
-
-
-    {{-- ================================================================
     NÚT
     ================================================================= --}}
 
@@ -611,6 +530,10 @@ TEMPLATE XE
         const template = document.getElementById('vehicle-template');
         const addButton = document.getElementById('add-vehicle');
         const emptyMessage = document.getElementById('no-vehicle-message');
+
+        if (!container || !template || !addButton || !emptyMessage) {
+            return;
+        }
 
         let vehicleIndex = 0;
 

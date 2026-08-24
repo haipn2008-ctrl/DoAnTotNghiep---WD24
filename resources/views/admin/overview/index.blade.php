@@ -64,7 +64,7 @@
                         <p class="mt-1 text-2xl font-bold {{ $expiringContracts->count() > 0 ? 'text-orange-700' : 'text-slate-400' }}">
                             {{ $expiringContracts->count() }}
                         </p>
-                        <p class="mt-0.5 text-xs text-slate-500">Hợp đồng trong 30 ngày tới</p>
+                        <p class="mt-0.5 text-xs text-slate-500">Hợp đồng trong 1 tháng tới</p>
                     </div>
                 </a>
 

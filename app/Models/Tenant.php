@@ -36,7 +36,7 @@ class Tenant extends Model
         static::created(function (Tenant $tenant) {
             if (! $tenant->payment_code) {
                 $tenant->updateQuietly([
-                    'payment_code' => 'KH' . str_pad(
+                    'payment_code' => 'KH'.str_pad(
                         (string) $tenant->id,
                         8,
                         '0',
@@ -72,13 +72,13 @@ class Tenant extends Model
     }
 
     /**
-     * Các hợp đồng mà khách thuê là thành viên/người ở cùng.
+     * Các hợp đồng mà khách thuê là một thành viên thuê.
      */
     public function memberContracts()
     {
         return $this->belongsToMany(
             Contract::class,
-            'contract_occupants'
+            'contract_tenants'
         )
             ->withPivot([
                 'role',
@@ -91,11 +91,11 @@ class Tenant extends Model
     }
 
     /**
-     * Thông tin phân bổ/người ở trong hợp đồng.
+     * Tư cách thành viên thuê trong hợp đồng.
      */
-    public function contractOccupancies()
+    public function contractMemberships()
     {
-        return $this->hasMany(ContractOccupant::class);
+        return $this->hasMany(ContractTenant::class);
     }
 
     /**
@@ -156,5 +156,38 @@ class Tenant extends Model
     public function isOffline(): bool
     {
         return ! $this->usesPortal();
+    }
+
+    public function scopeEligibleForContract($query)
+    {
+        return $query
+            ->whereNotNull('full_name')
+            ->whereNotNull('date_of_birth')
+            ->whereDate('date_of_birth', '<=', now()->subYears(18)->toDateString())
+            ->whereNotNull('gender')
+            ->whereNotNull('cccd')
+            ->whereNotNull('cccd_issue_date')
+            ->whereNotNull('cccd_issue_place')
+            ->whereNotNull('phone')
+            ->whereNotNull('email')
+            ->whereNotNull('address')
+            ->whereHas('user', fn ($userQuery) => $userQuery->where('status', User::STATUS_ACTIVE));
+    }
+
+    public function hasCompleteRentalProfile(): bool
+    {
+        $this->loadMissing('user');
+
+        return $this->user?->status === User::STATUS_ACTIVE
+            && filled($this->full_name)
+            && filled($this->date_of_birth)
+            && $this->date_of_birth->lte(now()->subYears(18))
+            && filled($this->gender)
+            && filled($this->cccd)
+            && filled($this->cccd_issue_date)
+            && filled($this->cccd_issue_place)
+            && filled($this->phone)
+            && filled($this->email)
+            && filled($this->address);
     }
 }

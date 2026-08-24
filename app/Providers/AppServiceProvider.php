@@ -30,7 +30,7 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.admin.blocks.header', function ($view): void {
             $notifications = ContractLifecycleAlert::query()
                 ->unresolved()
-                ->with(['contract.room', 'contract.tenant'])
+                ->with(['contract.room', 'contract.tenant', 'tenant', 'vehicle'])
                 ->latest('detected_at')
                 ->latest('id')
                 ->limit(8)

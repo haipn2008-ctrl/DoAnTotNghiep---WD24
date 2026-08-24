@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Amenity;
 use App\Models\Contract;
-use App\Models\ContractOccupant;
+use App\Models\ContractTenant;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\RoomImage;
@@ -293,7 +293,7 @@ class RoomManagementTest extends TestCase
         $this->assertDatabaseCount('room_images', 0);
     }
 
-    public function test_room_detail_lists_checked_in_occupants_without_requiring_tenant_accounts(): void
+    public function test_room_detail_lists_checked_in_members_without_requiring_tenant_accounts(): void
     {
         [$room, $contract] = $this->contract(Contract::STATUS_ACTIVE);
         $representative = $contract->tenant;
@@ -301,16 +301,25 @@ class RoomManagementTest extends TestCase
             'representative_tenant_id' => $representative->id,
             'number_of_people' => 2,
         ])->save();
-        ContractOccupant::create([
+        ContractTenant::create([
             'contract_id' => $contract->id, 'tenant_id' => $representative->id,
-            'role' => ContractOccupant::ROLE_REPRESENTATIVE, 'full_name' => $representative->full_name,
-            'phone' => $representative->phone, 'status' => ContractOccupant::STATUS_CHECKED_IN,
+            'role' => ContractTenant::ROLE_REPRESENTATIVE, 'full_name' => $representative->full_name,
+            'phone' => $representative->phone, 'status' => ContractTenant::STATUS_CHECKED_IN,
             'actual_move_in_at' => now()->subMonth(),
         ]);
-        ContractOccupant::create([
-            'contract_id' => $contract->id, 'role' => ContractOccupant::ROLE_OCCUPANT,
+        $member = Tenant::create([
+            'user_id' => null,
+            'full_name' => 'Nguyễn Thành Viên',
+            'date_of_birth' => '1990-01-01',
+            'cccd' => '012345678999',
+            'phone' => '0987654321',
+        ]);
+        $this->assertNull($member->user_id);
+        ContractTenant::create([
+            'contract_id' => $contract->id, 'tenant_id' => $member->id,
+            'role' => ContractTenant::ROLE_TENANT,
             'full_name' => 'Nguyễn Thành Viên', 'phone' => '0987654321',
-            'relationship' => 'Bạn', 'status' => ContractOccupant::STATUS_CHECKED_IN,
+            'relationship' => 'Bạn', 'status' => ContractTenant::STATUS_CHECKED_IN,
             'actual_move_in_at' => now()->subMonth(),
         ]);
         $room->forceFill(['current_people' => 2])->save();
@@ -321,7 +330,7 @@ class RoomManagementTest extends TestCase
             ->assertSee($representative->full_name)
             ->assertSee('Nguyễn Thành Viên')
             ->assertSee(route('admin.tenants.show', $representative), false)
-            ->assertSee('Không cần tài khoản')
+            ->assertSee(route('admin.tenants.show', $member), false)
             ->assertSee('2 người');
     }
 

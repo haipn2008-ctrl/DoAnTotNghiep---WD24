@@ -554,16 +554,25 @@ class ClientInvoicePortalTest extends TestCase
         $this->actingAs($client)
             ->put('/client/account', [
                 'name' => 'Tên mới',
+                'date_of_birth' => '1992-02-02',
+                'gender' => 'female',
+                'cccd' => '079000009876',
+                'cccd_issue_date' => '2021-03-04',
+                'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
                 'email' => 'new-account@example.com',
                 'phone' => '0912345678',
+                'address' => 'Địa chỉ mới',
             ])
-            ->assertRedirect();
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
 
         $client->refresh();
         $this->assertSame('Tên mới', $client->name);
         $this->assertSame('new-account@example.com', $client->email);
         $this->assertSame('new-account@example.com', $client->tenant->email);
         $this->assertSame('0912345678', $client->tenant->phone);
+        $this->assertSame('079000009876', $client->tenant->cccd);
+        $this->assertSame('Địa chỉ mới', $client->tenant->address);
 
         $this->actingAs($client)
             ->put('/client/account/password', [

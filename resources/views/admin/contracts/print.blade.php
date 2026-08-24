@@ -3,7 +3,7 @@
 <style>@page{size:A4;margin:18mm}body{font-family:"Times New Roman",serif;font-size:15px;line-height:1.55;color:#111}.page{max-width:180mm;margin:auto}.center{text-align:center}.meta,.inventory{border-collapse:collapse;width:100%}.meta td{padding:5px 0;vertical-align:top}.inventory th,.inventory td{border:1px solid #777;padding:6px;text-align:left;vertical-align:top}.label{width:190px;font-weight:bold}.section{margin-top:22px}.draft{border:3px solid #b91c1c;color:#b91c1c;text-align:center;font-size:22px;font-weight:bold;padding:8px;margin:18px 0}.signatures{display:grid;grid-template-columns:1fr 1fr;text-align:center;margin-top:50px;gap:50px}@media print{button{display:none}}</style></head>
 <body><div class="page">
 @php
-        $representative = $contract->representativeOccupant;
+        $representative = $contract->representativeMember;
         $signedDate=$contract->signed_at;
         $propertyAddress=$contract->property_address_snapshot;
         $landlordName=$contract->landlord_name_snapshot;

@@ -1,50 +1,50 @@
 @php
-    $defaultOccupants = isset($contract)
-        ? $contract->occupants
-            ->where('role', \App\Models\ContractOccupant::ROLE_OCCUPANT)
-            ->whereIn('status', [\App\Models\ContractOccupant::STATUS_PENDING, \App\Models\ContractOccupant::STATUS_APPROVED])
-            ->map(fn ($occupant) => [
-                'id' => $occupant->id,
-                'full_name' => $occupant->full_name,
-                'date_of_birth' => $occupant->date_of_birth?->toDateString(),
-                'identity_number' => $occupant->identity_number,
-                'identity_front_path' => $occupant->identity_front_path,
-                'identity_back_path' => $occupant->identity_back_path,
-                'phone' => $occupant->phone,
+    $defaultMembers = isset($contract)
+        ? $contract->members
+            ->where('role', \App\Models\ContractTenant::ROLE_TENANT)
+            ->whereIn('status', [\App\Models\ContractTenant::STATUS_PENDING, \App\Models\ContractTenant::STATUS_APPROVED])
+            ->map(fn ($member) => [
+                'id' => $member->id,
+                'full_name' => $member->full_name,
+                'date_of_birth' => $member->date_of_birth?->toDateString(),
+                'identity_number' => $member->identity_number,
+                'identity_front_path' => $member->identity_front_path,
+                'identity_back_path' => $member->identity_back_path,
+                'phone' => $member->phone,
             ])->values()->all()
         : [];
-    $selectedOccupants = old('occupants', $defaultOccupants);
+    $selectedMembers = old('members', $defaultMembers);
 @endphp
 
-<div data-contract-occupants class="md:col-span-2 rounded-lg border border-slate-200">
+<div data-contract-tenants class="md:col-span-2 rounded-lg border border-slate-200">
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div>
-            <p class="text-sm font-semibold text-slate-800">Người ở</p>
-            <p class="text-xs text-slate-500">Danh sách người thực tế cư trú. Không cần tạo tài khoản và không phụ thuộc người đứng tên hợp đồng.</p>
+            <p class="text-sm font-semibold text-slate-800">Người thuê</p>
+            <p class="text-xs text-slate-500">Hệ thống tự tạo hoặc liên kết hồ sơ khách thuê theo CCCD. Thành viên không bắt buộc có tài khoản đăng nhập.</p>
         </div>
         <div class="flex items-center gap-2">
-            <span data-occupant-count class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">0 người</span>
-            <button type="button" data-add-occupant class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">+ Thêm người</button>
+            <span data-member-count class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">0 người</span>
+            <button type="button" data-add-member class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">+ Thêm người</button>
         </div>
     </div>
 
-    <div class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <strong>Lưu ý khi khai báo trẻ em:</strong>
-        Người ở dưới 14 tuổi không bắt buộc nhập số căn cước, ảnh căn cước và số điện thoại.
+    <div class="border-b border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+        <strong>Điều kiện:</strong>
+        Mọi người được thêm vào hợp đồng phải đủ 18 tuổi và có đầy đủ thông tin CCCD.
     </div>
 
-    <div data-occupant-list class="space-y-3 p-4">
-        @foreach($selectedOccupants as $index => $occupant)
-            @include('admin.contracts.partials.occupant-row', ['index' => $index, 'occupant' => $occupant])
+    <div data-member-list class="space-y-3 p-4">
+        @foreach($selectedMembers as $index => $member)
+            @include('admin.contracts.partials.member-row', ['index' => $index, 'member' => $member])
         @endforeach
-        <p data-empty-occupants class="{{ count($selectedOccupants) ? 'hidden' : '' }} rounded-lg border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-500">Chưa khai báo người ở.</p>
-        <p data-occupant-limit class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800"></p>
+        <p data-empty-members class="{{ count($selectedMembers) ? 'hidden' : '' }} rounded-lg border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-500">Chưa khai báo người thuê.</p>
+        <p data-member-limit class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800"></p>
     </div>
 
-    <template data-occupant-template>
-        @include('admin.contracts.partials.occupant-row', ['index' => '__INDEX__', 'occupant' => []])
+    <template data-member-template>
+        @include('admin.contracts.partials.member-row', ['index' => '__INDEX__', 'member' => []])
     </template>
 </div>
 
-@error('occupants') <p class="md:col-span-2 text-sm text-rose-600">{{ $message }}</p> @enderror
-@error('occupants.*') <p class="md:col-span-2 text-sm text-rose-600">{{ $message }}</p> @enderror
+@error('members') <p class="md:col-span-2 text-sm text-rose-600">{{ $message }}</p> @enderror
+@error('members.*') <p class="md:col-span-2 text-sm text-rose-600">{{ $message }}</p> @enderror

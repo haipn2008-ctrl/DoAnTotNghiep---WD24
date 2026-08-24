@@ -2,21 +2,21 @@
 
 namespace App\Services;
 
-use App\Models\ContractOccupant;
-use App\Models\ContractOccupantHistory;
+use App\Models\ContractTenant;
+use App\Models\ContractTenantHistory;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 
 class ContractIdentityDocumentService
 {
     public function storePair(
-        ContractOccupant $occupant,
+        ContractTenant $member,
         UploadedFile $front,
         UploadedFile $back,
         User $actor,
         array &$storedPaths,
-    ): ContractOccupant {
-        $directory = "contract-identities/{$occupant->contract_id}/occupants/{$occupant->id}";
+    ): ContractTenant {
+        $directory = "contract-identities/{$member->contract_id}/members/{$member->id}";
         $frontPath = $front->store($directory, 'local');
         if ($frontPath) {
             $storedPaths[] = $frontPath;
@@ -29,15 +29,15 @@ class ContractIdentityDocumentService
             throw new \RuntimeException('Không thể lưu đủ hai mặt CCCD.');
         }
 
-        $oldPaths = array_values(array_filter([$occupant->identity_front_path, $occupant->identity_back_path]));
-        $occupant->forceFill([
+        $oldPaths = array_values(array_filter([$member->identity_front_path, $member->identity_back_path]));
+        $member->forceFill([
             'identity_front_path' => $frontPath,
             'identity_back_path' => $backPath,
         ])->save();
-        ContractOccupantHistory::query()->create([
-            'contract_occupant_id' => $occupant->id,
-            'from_status' => $occupant->status,
-            'to_status' => $occupant->status,
+        ContractTenantHistory::query()->create([
+            'contract_tenant_id' => $member->id,
+            'from_status' => $member->status,
+            'to_status' => $member->status,
             'action' => $oldPaths ? 'identity_documents_replaced' : 'identity_documents_uploaded',
             'reason' => null,
             'performed_by' => $actor->id,
@@ -45,6 +45,6 @@ class ContractIdentityDocumentService
             'metadata' => ['previous_paths' => $oldPaths, 'current_paths' => [$frontPath, $backPath]],
         ]);
 
-        return $occupant->fresh();
+        return $member->fresh();
     }
 }

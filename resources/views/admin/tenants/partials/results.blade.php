@@ -33,7 +33,7 @@
                                 <div>
                                     <p class="font-semibold text-slate-950">{{ $tenant->full_name }}</p>
                                     <p class="text-xs text-slate-500">{{ $tenant->email ?: 'Chưa có email' }}</p>
-                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $tenant->isOffline() ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700' }}">{{ $tenant->isOffline() ? 'Khách offline' : 'Có tài khoản portal' }}</span>
+                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $tenant->isOffline() ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700' }}">{{ $tenant->isOffline() ? 'Dữ liệu cũ thiếu tài khoản' : 'Có tài khoản portal' }}</span>
                                 </div>
                             </div>
                         </td>

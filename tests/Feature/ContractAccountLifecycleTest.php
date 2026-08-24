@@ -90,7 +90,6 @@ class ContractAccountLifecycleTest extends TestCase
             'scheduled_move_in_date' => '2026-09-01',
             'reservation_expires_at' => '2026-09-02 18:00:00',
             'move_in_terms_confirmed' => 1,
-            'representative_is_occupant' => 1,
             'representative' => [
                 'identity_front' => UploadedFile::fake()->image('cccd-front.jpg'),
                 'identity_back' => UploadedFile::fake()->image('cccd-back.jpg'),

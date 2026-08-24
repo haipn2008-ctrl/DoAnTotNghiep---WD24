@@ -8,7 +8,6 @@ use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class TenantManagementTest extends TestCase
@@ -36,13 +35,13 @@ class TenantManagementTest extends TestCase
         $tenant = $this->tenant($this->user($this->clientRole, 'target@example.com'));
 
         $this->get('/admin/tenants')->assertRedirect('/login');
-        $this->post('/admin/tenants', [])->assertRedirect('/login');
+        $this->post('/admin/tenants', [])->assertStatus(405);
         $this->put("/admin/tenants/{$tenant->id}", [])->assertRedirect('/login');
         $this->delete("/admin/tenants/{$tenant->id}")->assertRedirect('/login');
 
         $client = $this->user($this->clientRole, 'client@example.com');
         $this->actingAs($client)->get('/admin/tenants')->assertForbidden();
-        $this->post('/admin/tenants', [])->assertForbidden();
+        $this->post('/admin/tenants', [])->assertStatus(405);
         $this->put("/admin/tenants/{$tenant->id}", [])->assertForbidden();
         $this->delete("/admin/tenants/{$tenant->id}")->assertForbidden();
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id]);
@@ -125,140 +124,19 @@ class TenantManagementTest extends TestCase
             ->assertSessionHasErrors('status');
     }
 
-    public function test_create_form_lists_only_unlinked_eligible_client_accounts(): void
+    public function test_manual_tenant_creation_routes_are_disabled(): void
     {
-        $eligible = $this->user($this->clientRole, 'eligible@example.com', User::STATUS_PENDING);
-        $linked = $this->user($this->clientRole, 'linked@example.com');
-        $this->tenant($linked);
-        $inactive = $this->user($this->clientRole, 'inactive@example.com', User::STATUS_INACTIVE);
-        $auditorRole = Role::create(['role_name' => 'Auditor']);
-        $auditor = $this->user($auditorRole, 'auditor@example.com');
-
-        $this->actingAs($this->admin)->get('/admin/tenants/create')
-            ->assertOk()
-            ->assertSee('<option value="'.$eligible->id.'"', false)
-            ->assertDontSee('<option value="'.$linked->id.'"', false)
-            ->assertDontSee('<option value="'.$inactive->id.'"', false)
-            ->assertDontSee('<option value="'.$this->admin->id.'"', false)
-            ->assertDontSee('<option value="'.$auditor->id.'"', false)
-            ->assertSee('name="gender"', false);
-    }
-
-    public function test_admin_can_create_tenant_and_link_account(): void
-    {
-        $client = $this->user($this->clientRole, 'new-client@example.com', User::STATUS_PENDING);
-
-        $this->actingAs($this->admin)->post('/admin/tenants', $this->payload($client))
-            ->assertRedirect('/admin/tenants')
-            ->assertSessionHas('success');
-
-        $tenant = Tenant::where('user_id', $client->id)->sole();
-        $this->assertSame('Khách thuê mới', $tenant->full_name);
-        $this->assertSame('female', $tenant->gender);
-        $this->assertSame('079000000201', $tenant->cccd);
-        $this->assertSame('0900000201', $tenant->phone);
-        $this->assertSame($tenant->id, $client->fresh()->tenant->id);
-    }
-
-    public function test_admin_can_create_offline_tenant_without_login_or_email(): void
-    {
-        $this->actingAs($this->admin)->post('/admin/tenants', [
-            'user_id' => null,
-            'full_name' => 'Khách đóng tiền mặt',
-            'date_of_birth' => '1960-01-01',
-            'gender' => 'female',
-            'cccd' => '079000000777',
-            'phone' => '0900000777',
-            'email' => null,
-            'address' => 'Quản lý trực tiếp tại nhà trọ',
-        ])->assertRedirect('/admin/tenants')->assertSessionHasNoErrors();
-
-        $tenant = Tenant::where('cccd', '079000000777')->sole();
-        $this->assertNull($tenant->user_id);
-        $this->assertNull($tenant->email);
-        $this->assertTrue($tenant->isOffline());
-
-        $this->get('/admin/tenants/create')
-            ->assertOk()
-            ->assertSee('Khách offline — admin nhập và quản lý thay');
-    }
-
-    public function test_create_validation_rejects_invalid_identity_dates_contact_and_account_links(): void
-    {
-        $linkedClient = $this->user($this->clientRole, 'linked@example.com');
-        $this->tenant($linkedClient);
-        $existing = $this->tenant($this->user($this->clientRole, 'existing@example.com'), [
-            'cccd' => '079000000211',
-            'phone' => '0900000211',
-            'email' => 'existing-tenant@example.com',
-        ]);
         $before = Tenant::count();
 
-        $this->actingAs($this->admin)->from('/admin/tenants/create')->post('/admin/tenants', [
-            'user_id' => $linkedClient->id,
-            'full_name' => '',
-            'date_of_birth' => now()->addDay()->toDateString(),
-            'gender' => 'invalid',
-            'cccd' => $existing->cccd,
-            'phone' => $existing->phone,
-            'email' => $existing->email,
-            'address' => str_repeat('a', 501),
-        ])->assertRedirect('/admin/tenants/create')
-            ->assertSessionHasErrors([
-                'user_id', 'full_name', 'date_of_birth', 'gender', 'cccd',
-                'phone', 'email', 'address',
-            ]);
+        $this->actingAs($this->admin)->get('/admin/tenants/create')->assertNotFound();
+        $this->post('/admin/tenants', [
+            'full_name' => 'Khách tạo thủ công',
+            'cccd' => '079000000777',
+            'phone' => '0900000777',
+        ])->assertStatus(405);
 
+        $this->get('/admin/tenants')->assertOk()->assertDontSee('Thêm khách thuê');
         $this->assertSame($before, Tenant::count());
-    }
-
-    public function test_direct_request_cannot_link_admin_unsupported_inactive_or_same_client_twice(): void
-    {
-        $auditorRole = Role::create(['role_name' => 'Auditor']);
-        $auditor = $this->user($auditorRole, 'auditor@example.com');
-        $inactive = $this->user($this->clientRole, 'inactive@example.com', User::STATUS_INACTIVE);
-        $eligible = $this->user($this->clientRole, 'eligible@example.com');
-        $this->tenant($eligible);
-
-        $this->actingAs($this->admin);
-        foreach ([$this->admin, $auditor, $inactive, $eligible] as $index => $user) {
-            $this->from('/admin/tenants/create')->post('/admin/tenants', $this->payload($user, [
-                'cccd' => '0790000003'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
-                'phone' => '09000003'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
-                'email' => "candidate{$index}@example.com",
-            ]))->assertRedirect('/admin/tenants/create')->assertSessionHasErrors('user_id');
-        }
-
-        $this->assertSame(1, Tenant::count());
-    }
-
-    public function test_concurrent_account_link_conflict_returns_validation_instead_of_server_error(): void
-    {
-        $client = $this->user($this->clientRole, 'race@example.com');
-        $insertedByConcurrentRequest = false;
-        Tenant::creating(function (Tenant $tenant) use (&$insertedByConcurrentRequest, $client): void {
-            if ((int) $tenant->user_id !== (int) $client->id || $insertedByConcurrentRequest) {
-                return;
-            }
-
-            $insertedByConcurrentRequest = true;
-            DB::table('tenants')->insert([
-                'user_id' => $tenant->user_id,
-                'full_name' => 'Request đồng thời thắng',
-                'cccd' => '079000000991',
-                'phone' => '0900000991',
-                'email' => 'race-winner@example.com',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        });
-
-        $this->actingAs($this->admin)->from('/admin/tenants/create')->post('/admin/tenants', $this->payload($client))
-            ->assertRedirect('/admin/tenants/create')
-            ->assertSessionHasErrors('user_id');
-
-        $this->assertSame(1, Tenant::where('user_id', $client->id)->count());
-        $this->assertDatabaseHas('tenants', ['user_id' => $client->id, 'full_name' => 'Request đồng thời thắng']);
     }
 
     public function test_admin_can_view_and_update_tenant_while_preserving_contracts(): void
@@ -285,7 +163,7 @@ class TenantManagementTest extends TestCase
         $this->assertDatabaseHas('rooms', ['id' => $room->id]);
     }
 
-    public function test_edit_can_keep_current_account_or_relink_to_another_eligible_account(): void
+    public function test_edit_shows_linked_account_but_cannot_relink_it(): void
     {
         $current = $this->user($this->clientRole, 'current@example.com', User::STATUS_INACTIVE);
         $tenant = $this->tenant($current);
@@ -294,17 +172,19 @@ class TenantManagementTest extends TestCase
         $this->actingAs($this->admin)->get("/admin/tenants/{$tenant->id}/edit")
             ->assertOk()
             ->assertSee($current->email)
-            ->assertSee($replacement->email);
+            ->assertDontSee($replacement->email)
+            ->assertDontSee('name="user_id"', false);
 
-        $this->put("/admin/tenants/{$tenant->id}", $this->payload($replacement, [
+        $this->from("/admin/tenants/{$tenant->id}/edit")->put("/admin/tenants/{$tenant->id}", array_merge($this->payload($replacement, [
             'cccd' => $tenant->cccd,
             'phone' => $tenant->phone,
             'email' => $tenant->email,
-        ]))->assertRedirect('/admin/tenants');
+        ]), ['user_id' => $replacement->id]))->assertRedirect("/admin/tenants/{$tenant->id}/edit")
+            ->assertSessionHasErrors('user_id');
 
-        $this->assertSame($replacement->id, $tenant->fresh()->user_id);
-        $this->assertNull($current->fresh()->tenant);
-        $this->assertSame($tenant->id, $replacement->fresh()->tenant->id);
+        $this->assertSame($current->id, $tenant->fresh()->user_id);
+        $this->assertSame($tenant->id, $current->fresh()->tenant->id);
+        $this->assertNull($replacement->fresh()->tenant);
     }
 
     public function test_tenant_without_contract_can_be_deleted_but_linked_user_is_preserved(): void
@@ -352,7 +232,6 @@ class TenantManagementTest extends TestCase
     private function payload(User $user, array $overrides = []): array
     {
         return array_merge([
-            'user_id' => $user->id,
             'full_name' => 'Khách thuê mới',
             'date_of_birth' => '1998-01-01',
             'gender' => 'female',
@@ -389,8 +268,10 @@ class TenantManagementTest extends TestCase
             'gender' => 'other',
             'cccd' => '079'.str_pad((string) $sequence, 9, '0', STR_PAD_LEFT),
             'cccd_issue_date' => '2020-01-01',
+            'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
             'phone' => '090'.str_pad((string) $sequence, 7, '0', STR_PAD_LEFT),
             'email' => "tenant{$sequence}@example.com",
+            'address' => 'Địa chỉ kiểm thử',
         ], $overrides));
     }
 

@@ -1,6 +1,6 @@
 @php
-    $representative = $contract->occupants->firstWhere('role', \App\Models\ContractOccupant::ROLE_REPRESENTATIVE);
-    $residents = $contract->occupants->where('role', \App\Models\ContractOccupant::ROLE_OCCUPANT)->values();
+    $representative = $contract->members->firstWhere('role', \App\Models\ContractTenant::ROLE_REPRESENTATIVE);
+    $residents = $contract->members->where('role', \App\Models\ContractTenant::ROLE_TENANT)->values();
     $durationDays = $contract->start_date && $contract->end_date
         ? $contract->start_date->diffInDays($contract->end_date)
         : null;
@@ -82,7 +82,7 @@
             <div class="rounded-lg bg-slate-50 p-4">
                 <p class="text-sm font-medium text-slate-500">Số người dự kiến ở</p>
                 <p class="mt-2 text-lg font-semibold text-slate-950">{{ $contract->number_of_people }}/{{ $contract->room?->max_people ?? 0 }} người</p>
-                <p class="mt-1 text-xs text-slate-500">Đại diện {{ $contract->representative_is_occupant ? 'có' : 'không' }} trực tiếp ở</p>
+                <p class="mt-1 text-xs text-slate-500">Đã bao gồm người thuê đại diện</p>
             </div>
         </div>
 
@@ -101,44 +101,42 @@
     <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
             <div>
-                <h3 class="font-semibold text-slate-950">Người đại diện và người ở</h3>
+                <h3 class="font-semibold text-slate-950">Người đại diện và người thuê</h3>
                 <p class="text-sm text-slate-500">Thông tin định danh đã lưu trong bản nháp hợp đồng.</p>
             </div>
             <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">{{ $contract->number_of_people }} người dự kiến ở</span>
         </div>
 
         <div class="grid gap-4 p-5 lg:grid-cols-2">
-            @foreach($contract->occupants as $occupant)
-                <article class="rounded-lg border {{ $occupant->role === \App\Models\ContractOccupant::ROLE_REPRESENTATIVE ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-200' }} p-4">
+            @foreach($contract->members as $member)
+                <article class="rounded-lg border {{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-200' }} p-4">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <p class="font-semibold text-slate-950">{{ $occupant->full_name }}</p>
+                            <p class="font-semibold text-slate-950">{{ $member->full_name }}</p>
                             <p class="mt-1 text-xs text-slate-500">
-                                {{ $occupant->role === \App\Models\ContractOccupant::ROLE_REPRESENTATIVE ? 'Người đại diện thuê' : 'Người ở' }}
-                                @if($occupant->role === \App\Models\ContractOccupant::ROLE_REPRESENTATIVE)
-                                    · {{ $contract->representative_is_occupant ? 'có trực tiếp ở' : 'không trực tiếp ở' }}
-                                @endif
+                                {{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'Người đại diện thuê' : 'Người thuê' }}
+                                @if($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE) · người thuê trực tiếp @endif
                             </p>
                         </div>
-                        <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{{ $occupant->identity_number ?: 'Chưa có CCCD' }}</span>
+                        <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{{ $member->identity_number ?: 'Chưa có CCCD' }}</span>
                     </div>
 
                     <div class="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-                        <p><span class="text-slate-500">Ngày sinh:</span> <strong class="text-slate-800">{{ $occupant->date_of_birth?->format('d/m/Y') ?? 'Chưa cập nhật' }}</strong></p>
-                        <p><span class="text-slate-500">Điện thoại:</span> <strong class="text-slate-800">{{ $occupant->phone ?: 'Chưa cập nhật' }}</strong></p>
+                        <p><span class="text-slate-500">Ngày sinh:</span> <strong class="text-slate-800">{{ $member->date_of_birth?->format('d/m/Y') ?? 'Chưa cập nhật' }}</strong></p>
+                        <p><span class="text-slate-500">Điện thoại:</span> <strong class="text-slate-800">{{ $member->phone ?: 'Chưa cập nhật' }}</strong></p>
                     </div>
 
-                    @if($occupant->identity_front_path && $occupant->identity_back_path)
+                    @if($member->identity_front_path && $member->identity_back_path)
                         <div class="mt-4 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-                            <a target="_blank" href="{{ route('admin.contract-occupants.identity-document', [$occupant, 'front']) }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-slate-50"><i class="bx bx-id-card"></i> CCCD mặt trước</a>
-                            <a target="_blank" href="{{ route('admin.contract-occupants.identity-document', [$occupant, 'back']) }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-slate-50"><i class="bx bx-id-card"></i> CCCD mặt sau</a>
+                            <a target="_blank" href="{{ route('admin.contract-tenants.identity-document', [$member, 'front']) }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-slate-50"><i class="bx bx-id-card"></i> CCCD mặt trước</a>
+                            <a target="_blank" href="{{ route('admin.contract-tenants.identity-document', [$member, 'back']) }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-slate-50"><i class="bx bx-id-card"></i> CCCD mặt sau</a>
                         </div>
                     @endif
                 </article>
             @endforeach
 
-            @if($contract->occupants->isEmpty())
-                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500 lg:col-span-2">Chưa có hồ sơ người đại diện hoặc người ở.</div>
+            @if($contract->members->isEmpty())
+                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500 lg:col-span-2">Chưa có hồ sơ người đại diện hoặc người thuê.</div>
             @endif
         </div>
     </section>

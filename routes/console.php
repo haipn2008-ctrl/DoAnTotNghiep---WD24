@@ -155,7 +155,7 @@ Artisan::command('contracts:audit-lifecycle', function () {
                 $add('Đang ở/quá hạn nhưng thiếu thời điểm hoặc chỉ số bàn giao.');
             }
             if (! $contract->room || $contract->room->status !== 'occupied' || (int) $contract->room->current_people <= 0) {
-                $add('Hợp đồng đang có người ở nhưng trạng thái/số người của phòng mâu thuẫn.');
+                $add('Hợp đồng đang có người thuê nhưng trạng thái/số người của phòng mâu thuẫn.');
             }
         }
         if ($contract->status === Contract::STATUS_CANCELLED && blank($contract->cancel_reason)) {

@@ -25,14 +25,14 @@ class AuthenticationSeederTest extends TestCase
 
         $this->assertDatabaseCount('roles', 3);
         $this->assertDatabaseCount('users', 30);
-        $this->assertDatabaseCount('rooms', 15);
-        $this->assertDatabaseCount('tenants', 33);
-        $this->assertDatabaseCount('contracts', 11);
-        $this->assertDatabaseCount('contract_occupants', 23);
-        $this->assertDatabaseCount('contract_occupant_histories', 23);
-        $this->assertDatabaseCount('utility_readings', 40);
-        $this->assertDatabaseCount('invoices', 33);
-        $this->assertDatabaseCount('invoice_details', 165);
+        $this->assertDatabaseCount('rooms', 14);
+        $this->assertDatabaseCount('tenants', 31);
+        $this->assertDatabaseCount('contracts', 10);
+        $this->assertDatabaseCount('contract_tenants', 21);
+        $this->assertDatabaseCount('contract_tenant_histories', 21);
+        $this->assertDatabaseCount('utility_readings', 42);
+        $this->assertDatabaseCount('invoices', 32);
+        $this->assertDatabaseCount('invoice_details', 160);
         $this->assertDatabaseCount('payments', 28);
         $this->assertDatabaseCount('support_requests', 10);
         $this->assertDatabaseCount('settings', 1);
@@ -62,7 +62,7 @@ class AuthenticationSeederTest extends TestCase
         $activeAssetCount = Amenity::query()->active()->assets()->count();
         $rooms = Room::query()->withCount('amenities')->get();
         $this->assertSame(10, $activeAssetCount);
-        $this->assertCount(12, $rooms->where('amenities_count', $activeAssetCount));
+        $this->assertCount(11, $rooms->where('amenities_count', $activeAssetCount));
         $this->assertCount(3, $rooms->where('amenities_count', '<', $activeAssetCount));
         $this->assertSame(8, $rooms->firstWhere('room_code', 'A103')->amenities_count);
         $this->assertSame(9, $rooms->firstWhere('room_code', 'B203')->amenities_count);
@@ -83,7 +83,7 @@ class AuthenticationSeederTest extends TestCase
         ]);
         $availableTenants = User::query()
             ->whereBetween('phone', ['0936102001', '0936102010'])
-            ->with(['tenant.contracts', 'tenant.contractOccupancies'])
+            ->with(['tenant.contracts', 'tenant.contractMemberships'])
             ->get();
         $this->assertCount(10, $availableTenants);
         foreach ($availableTenants as $availableTenant) {
@@ -96,13 +96,35 @@ class AuthenticationSeederTest extends TestCase
             $this->assertNotEmpty($availableTenant->tenant->email);
             $this->assertNotEmpty($availableTenant->tenant->address);
             $this->assertCount(0, $availableTenant->tenant->contracts);
-            $this->assertCount(0, $availableTenant->tenant->contractOccupancies);
+            $this->assertCount(0, $availableTenant->tenant->contractMemberships);
         }
-        $b201 = Contract::with('occupants')->where('contract_code', 'HD-AP-2026-004')->sole();
+        $b201 = Contract::with('members')->where('contract_code', 'HD-AP-2026-004')->sole();
         $this->assertSame(3, $b201->number_of_people);
-        $this->assertCount(3, $b201->occupants);
-        $this->assertCount(1, $b201->occupants->where('role', 'representative'));
-        $this->assertCount(2, $b201->occupants->where('role', 'occupant'));
+        $this->assertCount(3, $b201->members);
+        $this->assertCount(1, $b201->members->where('role', 'representative'));
+        $this->assertCount(2, $b201->members->where('role', 'tenant'));
+
+        $expiring = Contract::query()
+            ->where('status', Contract::STATUS_ACTIVE)
+            ->whereBetween('end_date', [today(), today()->addMonthNoOverflow()])
+            ->sole();
+        $this->assertSame('HD-AP-2025-001', $expiring->contract_code);
+        $this->assertNotNull($expiring->signed_at);
+        $this->assertNotNull($expiring->actual_move_in_at);
+
+        $expired = Contract::query()->where('status', Contract::STATUS_EXPIRED)->sole();
+        $this->assertTrue($expired->end_date->isBefore(today()));
+        $this->assertNull($expired->actual_move_out_at);
+        $this->assertSame(Room::STATUS_OCCUPIED, $expired->room->status);
+
+        $completed = Contract::query()->where('status', Contract::STATUS_COMPLETED)->sole();
+        $this->assertNotNull($completed->signed_at);
+        $this->assertNotNull($completed->actual_move_in_at);
+        $this->assertNotNull($completed->actual_move_out_at);
+        $this->assertNotNull($completed->completed_at);
+        $this->assertSame(Contract::DEPOSIT_REFUNDED, $completed->deposit_resolution);
+        $this->assertSame(Room::STATUS_AVAILABLE, $completed->room->status);
+
         $this->assertDatabaseHas('support_requests', [
             'subject' => 'Vòi nước bồn rửa bị rò nhẹ',
             'status' => 'new',
@@ -160,7 +182,6 @@ class AuthenticationSeederTest extends TestCase
 
         foreach ([
             'ducthanh.nguyen@example.test' => User::STATUS_ACTIVE,
-            'minhkhang.le@example.test' => User::STATUS_PENDING,
             'quynhanh.vu@example.test' => User::STATUS_SETTLING,
         ] as $email => $status) {
             $user = User::with('tenant.contracts.room', 'tenant.contracts.invoices.details')
@@ -174,6 +195,10 @@ class AuthenticationSeederTest extends TestCase
             $this->assertCount(1, $user->tenant->contracts->first()->invoices);
             $this->assertCount(5, $user->tenant->contracts->first()->invoices->first()->details);
         }
+
+        $pending = User::with('tenant')->where('email', 'minhkhang.le@example.test')->sole();
+        $this->assertSame(User::STATUS_PENDING, $pending->status);
+        $this->assertNull($pending->tenant);
 
         $active = User::where('email', 'ducthanh.nguyen@example.test')->sole();
         $this->actingAs($active)->get('/client')->assertOk()->assertSee('D401');

@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Amenity;
 use App\Models\Contract;
-use App\Models\ContractOccupant;
+use App\Models\ContractTenant;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Room;
 use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Rules\AdultDateOfBirth;
 use App\Services\ContractIdentityDocumentService;
 use App\Services\ContractLifecycleService;
 use Carbon\Carbon;
@@ -48,11 +49,7 @@ class ContractController extends Controller
             'activeContract',
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
         ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
-        $tenants = Tenant::query()->with('user:id,email')
-            ->where(function ($query) {
-                $query->whereNull('user_id')
-                    ->orWhereHas('user', fn ($userQuery) => $userQuery->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]));
-            })
+        $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
             ->orderBy('full_name')->get();
         $setting = Setting::currentOrCreate();
 
@@ -92,7 +89,7 @@ class ContractController extends Controller
     {
         $contract->load([
             'room', 'tenant.user', 'invoices.payments',
-            'occupants.histories.performer', 'occupants.tenant',
+            'members.histories.performer', 'members.tenant',
             'statusHistories.performer', 'signedConfirmer', 'moveInTermsConfirmer', 'moveInDetailsConfirmer',
             'handoverItems', 'checkedInBy', 'checkedOutBy',
             'cancelledBy', 'completedBy', 'lifecycleAlerts' => fn ($query) => $query->whereNull('resolved_at')->latest('detected_at'),
@@ -121,16 +118,12 @@ class ContractController extends Controller
     {
         Gate::authorize('manageLifecycle', $contract);
         abort_unless($contract->status === Contract::STATUS_DRAFT, 409, 'Chỉ bản nháp mới được sửa.');
-        $contract->load('occupants');
+        $contract->load('members');
         $rooms = Room::query()->with([
             'activeContract',
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
         ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
-        $tenants = Tenant::query()->with('user:id,email')
-            ->where(function ($query) {
-                $query->whereNull('user_id')
-                    ->orWhereHas('user', fn ($userQuery) => $userQuery->whereIn('status', [User::STATUS_PENDING, User::STATUS_ACTIVE]));
-            })
+        $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
             ->orderBy('full_name')->get();
         $setting = Setting::currentOrCreate();
 
@@ -191,7 +184,6 @@ class ContractController extends Controller
             'signed_at' => ['required', 'date', 'before_or_equal:now'],
             'reason' => ['nullable', 'string', 'max:1000'],
             'signed_contract_file' => [
-                Rule::requiredIf($contract->tenant?->isOffline()),
                 'nullable',
                 'file',
                 'mimes:pdf,jpg,jpeg,png,webp',
@@ -249,7 +241,7 @@ class ContractController extends Controller
         ]);
         $this->lifecycle->checkIn($contract, $request->user(), $data);
 
-        return back()->with('success', 'Check-in thành công. Phòng đã chuyển sang có người ở.');
+        return back()->with('success', 'Check-in thành công. Phòng đã chuyển sang có người thuê.');
     }
 
     public function extendMoveInDeadline(Request $request, Contract $contract)
@@ -337,7 +329,7 @@ class ContractController extends Controller
 
     public function print($id)
     {
-        $contract = Contract::with(['room', 'tenant', 'representativeOccupant', 'handoverItems'])->findOrFail($id);
+        $contract = Contract::with(['room', 'tenant', 'representativeMember', 'handoverItems'])->findOrFail($id);
         $setting = Setting::currentOrCreate();
 
         return view('admin.contracts.print', compact('contract', 'setting'));
@@ -350,17 +342,17 @@ class ContractController extends Controller
         return Storage::disk('local')->response($contract->contract_file);
     }
 
-    public function identityDocument(ContractOccupant $occupant, string $side): StreamedResponse
+    public function identityDocument(ContractTenant $member, string $side): StreamedResponse
     {
         abort_unless(in_array($side, ['front', 'back'], true), 404);
-        $path = $side === 'front' ? $occupant->identity_front_path : $occupant->identity_back_path;
+        $path = $side === 'front' ? $member->identity_front_path : $member->identity_back_path;
         abort_unless($path && Storage::disk('local')->exists($path), 404);
 
         $label = $side === 'front' ? 'mat-truoc' : 'mat-sau';
 
         $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'jpg';
 
-        return Storage::disk('local')->response($path, "CCCD-{$label}-{$occupant->contract_id}.{$extension}");
+        return Storage::disk('local')->response($path, "CCCD-{$label}-{$member->contract_id}.{$extension}");
     }
 
     public function endList(Request $request)
@@ -398,7 +390,7 @@ class ContractController extends Controller
     {
         $this->mergeCalculatedContractDates($request);
         $representativeTenant = Tenant::query()->with('user')->find($request->input('tenant_id'));
-        $existingRepresentative = $contract?->representativeOccupant()->first();
+        $existingRepresentative = $contract?->representativeMember()->first();
         $hasExistingIdentityPair = $existingRepresentative?->identity_front_path
             && $existingRepresentative?->identity_back_path;
         $request->merge([
@@ -412,17 +404,16 @@ class ContractController extends Controller
             ], (array) $request->input('representative', [])),
         ]);
         $request->merge([
-            'occupants' => collect($request->input('occupants', []))
-                ->filter(fn ($occupant): bool => filled($occupant['full_name'] ?? null))
+            'members' => collect($request->input('members', []))
+                ->filter(fn ($member): bool => filled($member['full_name'] ?? null))
                 ->all(),
         ]);
 
         $data = $request->validate([
             'room_id' => ['required', 'exists:rooms,id'],
             'tenant_id' => ['required', 'exists:tenants,id'],
-            'representative_is_occupant' => ['nullable', 'boolean'],
             'representative.full_name' => ['required', 'string', 'max:255'],
-            'representative.date_of_birth' => ['nullable', 'date', 'before:today'],
+            'representative.date_of_birth' => ['nullable', 'date', new AdultDateOfBirth],
             'representative.gender' => ['nullable', Rule::in(['male', 'female', 'other'])],
             'representative.cccd' => [
                 'required', 'digits:12',
@@ -449,16 +440,16 @@ class ContractController extends Controller
             'reservation_expires_at' => ['required', 'date', 'after_or_equal:scheduled_move_in_date', 'before_or_equal:end_date'],
             'move_in_terms_confirmed' => ['exclude'],
             'deposit_amount' => ['exclude'],
-            'occupants' => ['nullable', 'array', 'max:100'],
-            'occupants.*.id' => ['nullable', 'integer', Rule::exists('contract_occupants', 'id')->where(
+            'members' => ['nullable', 'array', 'max:100'],
+            'members.*.id' => ['nullable', 'integer', Rule::exists('contract_tenants', 'id')->where(
                 fn ($query) => $contract ? $query->where('contract_id', $contract->id) : $query->whereRaw('1 = 0')
             )],
-            'occupants.*.full_name' => ['required', 'string', 'max:150'],
-            'occupants.*.date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
-            'occupants.*.identity_number' => ['nullable', 'digits:12', 'distinct'],
-            'occupants.*.identity_front' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'occupants.*.identity_back' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'occupants.*.phone' => ['nullable', 'string', 'max:30'],
+            'members.*.full_name' => ['required', 'string', 'max:150'],
+            'members.*.date_of_birth' => ['required', 'date', new AdultDateOfBirth],
+            'members.*.identity_number' => ['required', 'digits:12', 'distinct'],
+            'members.*.identity_front' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'members.*.identity_back' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'members.*.phone' => ['required', 'regex:/^[0-9]{10,15}$/', 'distinct'],
             'service_enabled' => ['nullable', 'boolean'],
             'parking_enabled' => ['nullable', 'boolean'],
             'parking_vehicle_type' => [
@@ -485,24 +476,27 @@ class ContractController extends Controller
             'reservation_expires_at.after_or_equal' => 'Hạn cuối nhận phòng không được trước ngày dự kiến nhận phòng.',
             'reservation_expires_at.before_or_equal' => 'Hạn cuối nhận phòng không được sau ngày kết thúc hợp đồng.',
             'move_in_terms_confirmed.accepted' => 'Admin phải xác nhận đã trao đổi và thống nhất lịch nhận phòng với khách.',
-            'occupants.max' => 'Danh sách người ở vượt quá giới hạn xử lý cho phép.',
-            'occupants.*.full_name.required' => 'Vui lòng nhập họ và tên người ở.',
-            'occupants.*.full_name.max' => 'Họ và tên người ở không được vượt quá 150 ký tự.',
-            'occupants.*.date_of_birth.date' => 'Ngày sinh người ở không đúng định dạng.',
-            'occupants.*.date_of_birth.before_or_equal' => 'Ngày sinh người ở không được ở tương lai.',
-            'occupants.*.identity_number.digits' => 'CCCD người ở phải gồm đúng 12 chữ số.',
-            'occupants.*.identity_number.distinct' => 'CCCD người ở bị trùng trong danh sách.',
-            'occupants.*.identity_front.required' => 'Vui lòng chọn ảnh mặt trước CCCD của người ở.',
-            'occupants.*.identity_front.file' => 'Ảnh mặt trước CCCD tải lên không hợp lệ.',
-            'occupants.*.identity_front.image' => 'Mặt trước CCCD phải là một tệp ảnh.',
-            'occupants.*.identity_front.mimes' => 'Ảnh mặt trước CCCD chỉ chấp nhận JPG, PNG hoặc WEBP.',
-            'occupants.*.identity_front.max' => 'Ảnh mặt trước CCCD không được lớn hơn 5 MB.',
-            'occupants.*.identity_back.required' => 'Vui lòng chọn ảnh mặt sau CCCD của người ở.',
-            'occupants.*.identity_back.file' => 'Ảnh mặt sau CCCD tải lên không hợp lệ.',
-            'occupants.*.identity_back.image' => 'Mặt sau CCCD phải là một tệp ảnh.',
-            'occupants.*.identity_back.mimes' => 'Ảnh mặt sau CCCD chỉ chấp nhận JPG, PNG hoặc WEBP.',
-            'occupants.*.identity_back.max' => 'Ảnh mặt sau CCCD không được lớn hơn 5 MB.',
-            'occupants.*.phone.max' => 'Số điện thoại người ở không được vượt quá 30 ký tự.',
+            'members.max' => 'Danh sách người thuê vượt quá giới hạn xử lý cho phép.',
+            'members.*.full_name.required' => 'Vui lòng nhập họ và tên người thuê.',
+            'members.*.full_name.max' => 'Họ và tên người thuê không được vượt quá 150 ký tự.',
+            'members.*.date_of_birth.date' => 'Ngày sinh người thuê không đúng định dạng.',
+            'members.*.date_of_birth.required' => 'Vui lòng nhập ngày sinh người thuê.',
+            'members.*.date_of_birth.before_or_equal' => 'Ngày sinh người thuê không được ở tương lai.',
+            'members.*.identity_number.digits' => 'CCCD người thuê phải gồm đúng 12 chữ số.',
+            'members.*.identity_number.distinct' => 'CCCD người thuê bị trùng trong danh sách.',
+            'members.*.identity_front.required' => 'Vui lòng chọn ảnh mặt trước CCCD của người thuê.',
+            'members.*.identity_front.file' => 'Ảnh mặt trước CCCD tải lên không hợp lệ.',
+            'members.*.identity_front.image' => 'Mặt trước CCCD phải là một tệp ảnh.',
+            'members.*.identity_front.mimes' => 'Ảnh mặt trước CCCD chỉ chấp nhận JPG, PNG hoặc WEBP.',
+            'members.*.identity_front.max' => 'Ảnh mặt trước CCCD không được lớn hơn 5 MB.',
+            'members.*.identity_back.required' => 'Vui lòng chọn ảnh mặt sau CCCD của người thuê.',
+            'members.*.identity_back.file' => 'Ảnh mặt sau CCCD tải lên không hợp lệ.',
+            'members.*.identity_back.image' => 'Mặt sau CCCD phải là một tệp ảnh.',
+            'members.*.identity_back.mimes' => 'Ảnh mặt sau CCCD chỉ chấp nhận JPG, PNG hoặc WEBP.',
+            'members.*.identity_back.max' => 'Ảnh mặt sau CCCD không được lớn hơn 5 MB.',
+            'members.*.phone.required' => 'Vui lòng nhập số điện thoại người thuê.',
+            'members.*.phone.regex' => 'Số điện thoại người thuê phải gồm từ 10 đến 15 chữ số.',
+            'members.*.phone.distinct' => 'Số điện thoại người thuê bị trùng trong danh sách.',
             'representative.cccd.required' => 'Vui lòng bổ sung CCCD của người đại diện trước khi tạo hợp đồng.',
             'representative.cccd.digits' => 'CCCD người đại diện phải gồm đúng 12 chữ số.',
             'representative.cccd.unique' => 'CCCD người đại diện đã thuộc hồ sơ khách thuê khác.',
@@ -550,39 +544,34 @@ class ContractController extends Controller
 
         // Giữ nguyên key trong lúc validation để input chữ và file CCCD cùng index.
         // Chỉ chuẩn hóa thành mảng liên tục sau khi Laravel đã ghép input với files.
-        $data['occupants'] = array_values($data['occupants'] ?? []);
-        foreach ($data['occupants'] as $index => $occupantData) {
-            $existing = filled($occupantData['id'] ?? null)
-                ? ContractOccupant::query()->where('contract_id', $contract?->id)->find($occupantData['id'])
+        $data['members'] = array_values($data['members'] ?? []);
+        foreach ($data['members'] as $index => $memberData) {
+            $existing = filled($memberData['id'] ?? null)
+                ? ContractTenant::query()->where('contract_id', $contract?->id)->find($memberData['id'])
                 : null;
             $hasStoredPair = $existing?->identity_front_path && $existing?->identity_back_path;
-            $isMinor = filled($occupantData['date_of_birth'] ?? null)
-                && Carbon::parse($occupantData['date_of_birth'])->age < 14;
-            $hasIdentityNumber = filled($occupantData['identity_number'] ?? null);
+            $hasIdentityNumber = filled($memberData['identity_number'] ?? null);
             $identityChanged = $existing
-                && (string) $existing->identity_number !== (string) ($occupantData['identity_number'] ?? '');
-            $hasFront = isset($occupantData['identity_front']);
-            $hasBack = isset($occupantData['identity_back']);
-            $requiresIdentityDocuments = ! $isMinor || $hasIdentityNumber || $hasFront || $hasBack;
+                && (string) $existing->identity_number !== (string) ($memberData['identity_number'] ?? '');
+            $hasFront = isset($memberData['identity_front']);
+            $hasBack = isset($memberData['identity_back']);
+            $requiresIdentityDocuments = true;
             $requiresNewPair = $requiresIdentityDocuments && (! $hasStoredPair || $identityChanged || $hasFront || $hasBack);
             $identityErrors = [];
-            if (! $isMinor && ! $hasIdentityNumber) {
-                $identityErrors["occupants.{$index}.identity_number"] = 'Vui lòng nhập CCCD của người ở từ đủ 14 tuổi.';
-            } elseif (($hasFront || $hasBack) && ! $hasIdentityNumber) {
-                $identityErrors["occupants.{$index}.identity_number"] = 'Vui lòng nhập số CCCD trước khi tải ảnh căn cước.';
+            if (($hasFront || $hasBack) && ! $hasIdentityNumber) {
+                $identityErrors["members.{$index}.identity_number"] = 'Vui lòng nhập số CCCD trước khi tải ảnh căn cước.';
             }
             if ($requiresNewPair && ! $hasFront) {
-                $identityErrors["occupants.{$index}.identity_front"] = 'Vui lòng chọn ảnh mặt trước CCCD của người ở.';
+                $identityErrors["members.{$index}.identity_front"] = 'Vui lòng chọn ảnh mặt trước CCCD của người thuê.';
             }
             if ($requiresNewPair && ! $hasBack) {
-                $identityErrors["occupants.{$index}.identity_back"] = 'Vui lòng chọn ảnh mặt sau CCCD của người ở.';
+                $identityErrors["members.{$index}.identity_back"] = 'Vui lòng chọn ảnh mặt sau CCCD của người thuê.';
             }
             if ($identityErrors) {
                 throw ValidationException::withMessages($identityErrors);
             }
         }
-        $data['representative_is_occupant'] = $request->boolean('representative_is_occupant');
-        $data['number_of_people'] = count($data['occupants']) + (int) $data['representative_is_occupant'];
+        $data['number_of_people'] = count($data['members']) + 1;
         if ((int) ($data['parking_quantity'] ?? 0) > $data['number_of_people']) {
             throw ValidationException::withMessages([
                 'parking_quantity' => 'Số xe máy không được vượt quá số người thực tế ở trong phòng.',
@@ -621,7 +610,7 @@ class ContractController extends Controller
     private function storeSubmittedIdentityDocuments(Contract $contract, array $data, User $actor, array &$storedPaths): void
     {
         if (isset($data['representative']['identity_front'], $data['representative']['identity_back'])) {
-            $representative = $contract->occupants()->where('role', ContractOccupant::ROLE_REPRESENTATIVE)
+            $representative = $contract->members()->where('role', ContractTenant::ROLE_REPRESENTATIVE)
                 ->lockForUpdate()->latest('id')->firstOrFail();
             $this->identityDocuments->storePair(
                 $representative,
@@ -632,17 +621,17 @@ class ContractController extends Controller
             );
         }
 
-        foreach ($data['occupants'] as $occupantData) {
-            if (! isset($occupantData['identity_front'], $occupantData['identity_back'])) {
+        foreach ($data['members'] as $memberData) {
+            if (! isset($memberData['identity_front'], $memberData['identity_back'])) {
                 continue;
             }
-            $occupant = $contract->occupants()->where('role', ContractOccupant::ROLE_OCCUPANT)
-                ->current()->where('identity_number', $occupantData['identity_number'])
+            $member = $contract->members()->where('role', ContractTenant::ROLE_TENANT)
+                ->current()->where('identity_number', $memberData['identity_number'])
                 ->lockForUpdate()->latest('id')->firstOrFail();
             $this->identityDocuments->storePair(
-                $occupant,
-                $occupantData['identity_front'],
-                $occupantData['identity_back'],
+                $member,
+                $memberData['identity_front'],
+                $memberData['identity_back'],
                 $actor,
                 $storedPaths,
             );

@@ -16,10 +16,6 @@
                     <i class="bx bx-download text-lg"></i>
                     Xuất danh sách
                 </a>
-                <a href="{{ route('admin.tenants.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-                    <i class="bx bx-plus text-lg"></i>
-                    Thêm khách thuê
-                </a>
             </div>
         </div>
 

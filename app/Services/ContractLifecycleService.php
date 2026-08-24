@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\Contract;
 use App\Models\ContractLifecycleAlert;
-use App\Models\ContractOccupant;
+use App\Models\ContractTenant;
 use App\Models\ContractStatusHistory;
 use App\Models\Invoice;
 use App\Models\Room;
@@ -20,7 +20,7 @@ use Illuminate\Validation\ValidationException;
 
 class ContractLifecycleService
 {
-    public function __construct(private readonly ContractOccupantService $occupantService) {}
+    public function __construct(private readonly ContractTenantService $memberService) {}
 
     public function createDraft(array $data, User $actor): Contract
     {
@@ -29,14 +29,13 @@ class ContractLifecycleService
             $room = Room::query()->lockForUpdate()->findOrFail($data['room_id']);
             $this->ensureRoomCanAcceptDraftSchedule($room, $data);
             $tenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($data['tenant_id']);
-            $representativeIsOccupant = (bool) ($data['representative_is_occupant'] ?? false);
-            $numberOfPeople = count($data['occupants'] ?? []) + (int) $representativeIsOccupant;
+            $numberOfPeople = count($data['members'] ?? []) + 1;
 
             if ($room->status === Room::STATUS_MAINTENANCE) {
                 $this->fail('room_id', 'Phòng đang bảo trì, chưa thể lập hợp đồng cho phòng này.');
             }
-            if ($tenant->user && ! in_array($tenant->user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)) {
-                $this->fail('tenant_id', 'Tài khoản khách thuê không ở trạng thái hợp lệ để lập hợp đồng.');
+            if (! $tenant->hasCompleteRentalProfile()) {
+                $this->fail('tenant_id', 'Khách thuê phải kích hoạt tài khoản và hoàn thiện hồ sơ trước khi lập hợp đồng.');
             }
             $this->updateRepresentativeProfile($tenant, $data['representative'] ?? []);
             if ($numberOfPeople > (int) $room->max_people) {
@@ -49,7 +48,6 @@ class ContractLifecycleService
                 'room_id' => $room->id,
                 'tenant_id' => $tenant->id,
                 'representative_tenant_id' => $tenant->id,
-                'representative_is_occupant' => $representativeIsOccupant,
                 'monthly_rent' => $room->price,
                 'deposit_amount' => $room->price,
                 'deposit_status' => Contract::DEPOSIT_PENDING,
@@ -78,7 +76,7 @@ class ContractLifecycleService
             $contract->forceFill([
                 'contract_code' => 'HD'.str_pad((string) $contract->id, 6, '0', STR_PAD_LEFT),
             ])->save();
-            $this->occupantService->syncAdminDraftOccupants($contract, $tenant, $representativeIsOccupant, $data['occupants'] ?? [], $actor);
+            $this->memberService->syncAdminDraftMembers($contract, $tenant, $data['members'] ?? [], $actor);
             $this->history($contract, null, Contract::STATUS_DRAFT, 'create_draft', null, $actor, [
                 'room_status_unchanged' => true,
                 'move_in_terms_confirmed' => (bool) ($data['move_in_terms_confirmed'] ?? false),
@@ -118,13 +116,12 @@ class ContractLifecycleService
             $room = Room::query()->lockForUpdate()->findOrFail($data['room_id']);
             $this->ensureRoomCanAcceptDraftSchedule($room, $data);
             $tenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($data['tenant_id']);
-            $representativeIsOccupant = (bool) ($data['representative_is_occupant'] ?? false);
-            $numberOfPeople = count($data['occupants'] ?? []) + (int) $representativeIsOccupant;
+            $numberOfPeople = count($data['members'] ?? []) + 1;
             if ($room->status === Room::STATUS_MAINTENANCE) {
                 $this->fail('room_id', 'Phòng đang bảo trì, không thể chọn cho hợp đồng.');
             }
-            if ($tenant->user && ! in_array($tenant->user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE], true)) {
-                $this->fail('tenant_id', 'Tài khoản khách thuê không hợp lệ.');
+            if (! $tenant->hasCompleteRentalProfile()) {
+                $this->fail('tenant_id', 'Khách thuê phải kích hoạt tài khoản và hoàn thiện hồ sơ trước khi cập nhật hợp đồng.');
             }
             $this->updateRepresentativeProfile($tenant, $data['representative'] ?? []);
             if ($numberOfPeople > (int) $room->max_people) {
@@ -134,7 +131,6 @@ class ContractLifecycleService
                 'room_id' => $room->id,
                 'tenant_id' => $tenant->id,
                 'representative_tenant_id' => $tenant->id,
-                'representative_is_occupant' => $representativeIsOccupant,
                 'monthly_rent' => $room->price,
                 'deposit_amount' => $room->price,
                 'number_of_people' => $numberOfPeople,
@@ -154,7 +150,7 @@ class ContractLifecycleService
                 'move_in_terms_confirmed_at' => ($data['move_in_terms_confirmed'] ?? false) ? now() : null,
                 'move_in_terms_confirmed_by' => ($data['move_in_terms_confirmed'] ?? false) ? $actor->id : null,
             ])->save();
-            $this->occupantService->syncAdminDraftOccupants($contract, $tenant, $representativeIsOccupant, $data['occupants'] ?? [], $actor);
+            $this->memberService->syncAdminDraftMembers($contract, $tenant, $data['members'] ?? [], $actor);
             $this->history($contract, $contract->status, $contract->status, 'update_draft', $data['edit_reason'] ?? null, $actor, [
                 'move_in_terms_confirmed' => (bool) ($data['move_in_terms_confirmed'] ?? false),
                 'move_in_window_ratio' => $data['move_in_window_ratio'] ?? null,
@@ -439,24 +435,6 @@ class ContractLifecycleService
             if (! ($data['handover_confirmed'] ?? false)) {
                 $this->fail('handover_confirmed', 'Phải xác nhận biên bản bàn giao trước khi nhận phòng.');
             }
-            if ($contract->move_in_inventory_snapshotted_at
-                && ! $contract->move_in_details_confirmed_at
-                && $contract->tenant()->whereNull('user_id')->exists()
-                && $actor->isAdmin()
-                && ($data['handover_confirmed'] ?? false)) {
-                $contract->forceFill([
-                    'move_in_details_confirmed_at' => now(),
-                    'move_in_details_confirmed_by' => $actor->id,
-                ])->save();
-                $this->history(
-                    $contract,
-                    $contract->status,
-                    $contract->status,
-                    'confirm_move_in_details_offline',
-                    'Admin xác nhận biên bản giấy cho khách không sử dụng portal.',
-                    $actor,
-                );
-            }
             if (! $contract->move_in_inventory_snapshotted_at || ! $contract->move_in_details_confirmed_at) {
                 $this->fail('move_in_details_confirmed', 'Khách thuê phải xem và xác nhận dịch vụ, tài sản bàn giao trước khi check-in.');
             }
@@ -464,12 +442,12 @@ class ContractLifecycleService
                 $this->fail('room_id', 'Phòng đang bảo trì, không thể nhận phòng.');
             }
             if ($room->status === Room::STATUS_OCCUPIED) {
-                $this->fail('room_id', 'Phòng đang có người ở, không thể nhận phòng.');
+                $this->fail('room_id', 'Phòng đang có người thuê, không thể nhận phòng.');
             }
-            $otherOccupant = Contract::query()->where('room_id', $room->id)->whereKeyNot($contract->id)
+            $otherMember = Contract::query()->where('room_id', $room->id)->whereKeyNot($contract->id)
                 ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)->lockForUpdate()->first();
-            if ($otherOccupant) {
-                $this->fail('room_id', 'Phòng còn khách cũ chưa trả. Hãy checkout hợp đồng '.$otherOccupant->contract_code.' trước.');
+            if ($otherMember) {
+                $this->fail('room_id', 'Phòng còn khách cũ chưa trả. Hãy checkout hợp đồng '.$otherMember->contract_code.' trước.');
             }
             $this->ensureNoReservationConflict($contract);
             if ((int) $contract->number_of_people > (int) $room->max_people) {
@@ -499,15 +477,15 @@ class ContractLifecycleService
                 'status' => 'confirmed',
                 'note' => 'Chỉ số bàn giao khi admin xác nhận nhận phòng.',
             ]);
-            $occupantCount = $this->occupantService->checkInApproved($contract, $actor, $moveInAt);
+            $memberCount = $this->memberService->checkInApproved($contract, $actor, $moveInAt);
             $contract->forceFill([
                 'actual_move_in_at' => $moveInAt,
                 'checked_in_by' => $actor->id,
-                'number_of_people' => $occupantCount,
+                'number_of_people' => $memberCount,
             ])->save();
             $room->forceFill([
                 'status' => Room::STATUS_OCCUPIED,
-                'current_people' => $occupantCount,
+                'current_people' => $memberCount,
             ])->save();
             $this->transition($contract, Contract::STATUS_ACTIVE, 'check_in', $data['schedule_variance_reason'] ?? null, $actor, [
                 'handover_confirmed' => true,
@@ -567,7 +545,7 @@ class ContractLifecycleService
                 'cancel_reason' => $reason,
                 'deposit_resolution' => $paid > 0 ? Contract::DEPOSIT_NEEDS_RESOLUTION : null,
             ])->save();
-            $this->occupantService->withdrawForCancellation($contract, $actor, $reason);
+            $this->memberService->withdrawForCancellation($contract, $actor, $reason);
             $this->transition($contract, Contract::STATUS_CANCELLED, 'cancel', $reason, $actor, [
                 'deposit_received' => $paid,
                 'deposit_requires_resolution' => $paid > 0,
@@ -655,7 +633,7 @@ class ContractLifecycleService
                 'checkout_reason' => $data['checkout_reason'],
                 'termination_note' => $data['checkout_reason'],
             ])->save();
-            $this->occupantService->moveOutAll($contract, $actor, $moveOutAt, $data['checkout_reason']);
+            $this->memberService->moveOutAll($contract, $actor, $moveOutAt, $data['checkout_reason']);
             $room->forceFill([
                 'status' => $room->status === Room::STATUS_MAINTENANCE ? Room::STATUS_MAINTENANCE : Room::STATUS_AVAILABLE,
                 'current_people' => 0,
@@ -941,21 +919,18 @@ class ContractLifecycleService
             $this->fail('room_id', 'Khoảng thuê bị trùng với hợp đồng '.$conflict->contract_code.'.');
         }
 
-        if ($contract->representative_is_occupant) {
-            $tenantConflict = Contract::query()->whereKeyNot($contract->id)
-                ->where('tenant_id', $contract->tenant_id)
-                ->where('representative_is_occupant', true)
-                ->whereIn('status', Contract::RESERVING_STATUSES)
-                ->whereDate('start_date', '<=', $contract->end_date)->whereDate('end_date', '>=', $contract->start_date)
-                ->lockForUpdate()->first();
-            if ($tenantConflict) {
-                $this->fail('tenant_id', 'Người đại diện có đăng ký cư trú trong hợp đồng trùng thời gian: '.$tenantConflict->contract_code.'.');
-            }
+        $tenantConflict = Contract::query()->whereKeyNot($contract->id)
+            ->where('tenant_id', $contract->tenant_id)
+            ->whereIn('status', Contract::RESERVING_STATUSES)
+            ->whereDate('start_date', '<=', $contract->end_date)->whereDate('end_date', '>=', $contract->start_date)
+            ->lockForUpdate()->first();
+        if ($tenantConflict) {
+            $this->fail('tenant_id', 'Người đại diện đã thuộc hợp đồng trùng thời gian: '.$tenantConflict->contract_code.'.');
         }
 
-        $identityNumbers = $contract->occupants()->current()->whereNotNull('identity_number')->pluck('identity_number');
+        $identityNumbers = $contract->members()->current()->whereNotNull('identity_number')->pluck('identity_number');
         if ($identityNumbers->isNotEmpty()) {
-            $occupantConflict = ContractOccupant::query()
+            $memberConflict = ContractTenant::query()
                 ->where('contract_id', '!=', $contract->id)
                 ->current()
                 ->whereIn('identity_number', $identityNumbers)
@@ -965,8 +940,8 @@ class ContractLifecycleService
                     ->whereDate('end_date', '>=', $contract->start_date))
                 ->lockForUpdate()
                 ->first();
-            if ($occupantConflict) {
-                $this->fail('occupants', 'Có người ở đã thuộc hợp đồng trùng thời gian: '.$occupantConflict->contract->contract_code.'.');
+            if ($memberConflict) {
+                $this->fail('members', 'Có người thuê đã thuộc hợp đồng trùng thời gian: '.$memberConflict->contract->contract_code.'.');
             }
         }
     }

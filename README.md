@@ -18,10 +18,21 @@ Tài khoản có sẵn:
 
 | Quyền | Email | Mật khẩu |
 | --- | --- | --- |
-| Quản trị | `admin@gmail.com` | `123456` |
-| Khách thuê | `user@gmail.com` | `123456` |
+| Quản trị | `admin@nhatroanphuc.test` | `Admin@123456` |
+| Khách thuê đại diện | `giahuy@example.test` | `Tenant@123456` |
 
 ## Gợi ý kịch bản test thủ công
+
+## Quy tắc người thuê trong hợp đồng
+
+- Mỗi người tham gia thuê phòng phải đủ 18 tuổi tại ngày khai báo.
+- Tất cả đều là người thuê và đều có hồ sơ trong `tenants` cùng tư cách thuê trong `contract_tenants`.
+- Mỗi hợp đồng có đúng một người thuê đại diện (`representative`); các thành viên còn lại có vai trò `tenant`.
+- Người đại diện là đầu mối làm việc và là tài khoản được phép quản lý hợp đồng trên cổng khách thuê.
+- Người thuê thành viên không bắt buộc có tài khoản. Việc thêm ba người thuê tạo ba hồ sơ người thuê nhưng không tự động tạo ba tài khoản.
+- Không xóa cứng thành viên khỏi lịch sử hợp đồng; hệ thống chuyển trạng thái để bảo toàn truy vết.
+
+Chi tiết mô hình và các điểm kiểm soát được ghi tại `docs/CONTRACT_TENANT_RULES.md`.
 
 ### Tài khoản quản trị
 
@@ -40,7 +51,7 @@ Tài khoản có sẵn:
 
 ### Tài khoản khách thuê
 
-1. Đăng nhập bằng tài khoản mẫu `user@gmail.com`.
+1. Đăng nhập bằng tài khoản mẫu `giahuy@example.test`.
 2. Kiểm tra phòng và hợp đồng đang gắn với đúng khách thuê.
 3. Kiểm tra hóa đơn gần nhất, hóa đơn chưa thanh toán và số tiền còn nợ.
 4. Thử tài khoản chưa có hồ sơ khách thuê để bảo đảm dashboard không lỗi.

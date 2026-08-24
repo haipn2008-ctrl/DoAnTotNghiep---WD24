@@ -144,25 +144,25 @@
                     <div>
                         <p class="mb-2 text-sm font-semibold text-slate-700">Thành viên trong phòng</p>
                         <div class="grid gap-2 sm:grid-cols-2">
-                            @foreach ($occupants as $occupant)
+                            @foreach ($members as $member)
                                 <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-3">
                                     <span class="min-w-0">
-                                        <span class="block truncate text-sm font-semibold text-slate-900">{{ $occupant->full_name }}</span>
-                                        <span class="block text-xs text-slate-500">{{ $occupant->phone ?: 'Chưa có số điện thoại' }}</span>
+                                        <span class="block truncate text-sm font-semibold text-slate-900">{{ $member->full_name }}</span>
+                                        <span class="block text-xs text-slate-500">{{ $member->phone ?: 'Chưa có số điện thoại' }}</span>
                                     </span>
-                                    @if ($occupant->role === \App\Models\ContractOccupant::ROLE_REPRESENTATIVE)
+                                    @if ($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)
                                         <span class="shrink-0 rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700">Đại diện</span>
-                                    @elseif ($occupant->tenant)
-                                        <a href="{{ route('admin.tenants.show', $occupant->tenant) }}" class="text-xs font-semibold text-indigo-700">Xem hồ sơ</a>
+                                    @elseif ($member->tenant)
+                                        <a href="{{ route('admin.tenants.show', $member->tenant) }}" class="text-xs font-semibold text-indigo-700">Xem hồ sơ</a>
                                     @else
                                         <span class="text-xs text-slate-400">Không cần tài khoản</span>
                                     @endif
                                 </div>
                             @endforeach
                         </div>
-                        @if ($unidentifiedOccupants > 0)
+                        @if ($unidentifiedMembers > 0)
                             <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                                Còn {{ $unidentifiedOccupants }} người chỉ có số lượng nhưng chưa có hồ sơ danh tính. Đây có thể là dữ liệu hợp đồng cũ; quản trị viên cần bổ sung khi hợp đồng còn là bản nháp hoặc trong lần cập nhật hồ sơ phù hợp.
+                                Còn {{ $unidentifiedMembers }} người chỉ có số lượng nhưng chưa có hồ sơ danh tính. Đây có thể là dữ liệu hợp đồng cũ; quản trị viên cần bổ sung khi hợp đồng còn là bản nháp hoặc trong lần cập nhật hồ sơ phù hợp.
                             </div>
                         @endif
                     </div>

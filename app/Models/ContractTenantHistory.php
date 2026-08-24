@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
 
-class ContractOccupantHistory extends Model
+class ContractTenantHistory extends Model
 {
     protected $guarded = [];
 
@@ -17,16 +17,16 @@ class ContractOccupantHistory extends Model
     protected static function booted(): void
     {
         static::updating(function (): never {
-            throw new LogicException('Lịch sử người ở là bất biến.');
+            throw new LogicException('Lịch sử người thuê là bất biến.');
         });
         static::deleting(function (): never {
-            throw new LogicException('Không được xóa lịch sử người ở.');
+            throw new LogicException('Không được xóa lịch sử người thuê.');
         });
     }
 
-    public function occupant()
+    public function contractTenant()
     {
-        return $this->belongsTo(ContractOccupant::class, 'contract_occupant_id');
+        return $this->belongsTo(ContractTenant::class, 'contract_tenant_id');
     }
 
     public function performer()

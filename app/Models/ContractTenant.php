@@ -5,21 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
 
-class ContractOccupant extends Model
+class ContractTenant extends Model
 {
     public const ROLE_REPRESENTATIVE = 'representative';
-    public const ROLE_OCCUPANT = 'occupant';
+
+    public const ROLE_TENANT = 'tenant';
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_CHECKED_IN = 'checked_in';
+
     public const STATUS_MOVED_OUT = 'moved_out';
+
     public const STATUS_WITHDRAWN = 'withdrawn';
-    public const STATUS_NON_RESIDENT = 'non_resident';
 
     protected $fillable = [
-        'contract_id', 'tenant_id', 'replaces_occupant_id', 'role', 'full_name',
+        'contract_id', 'tenant_id', 'replaces_contract_tenant_id', 'role', 'full_name',
         'date_of_birth', 'identity_number', 'identity_front_path', 'identity_back_path',
         'phone', 'relationship', 'address', 'status',
         'declared_by', 'reviewed_by', 'reviewed_at', 'review_note',
@@ -36,7 +41,7 @@ class ContractOccupant extends Model
     protected static function booted(): void
     {
         static::deleting(function (): never {
-            throw new LogicException('Không được xóa hồ sơ người ở. Hãy chuyển trạng thái để giữ lịch sử cư trú.');
+            throw new LogicException('Không được xóa hồ sơ người thuê. Hãy chuyển trạng thái để giữ lịch sử thuê.');
         });
     }
 
@@ -62,7 +67,7 @@ class ContractOccupant extends Model
 
     public function histories()
     {
-        return $this->hasMany(ContractOccupantHistory::class)->orderBy('performed_at')->orderBy('id');
+        return $this->hasMany(ContractTenantHistory::class)->orderBy('performed_at')->orderBy('id');
     }
 
     public function scopeCurrent($query)
@@ -84,7 +89,6 @@ class ContractOccupant extends Model
             self::STATUS_CHECKED_IN => 'Đang ở',
             self::STATUS_MOVED_OUT => 'Đã rời phòng',
             self::STATUS_WITHDRAWN => 'Đã rút khai báo',
-            self::STATUS_NON_RESIDENT => 'Người thuê không cư trú',
             default => $this->status,
         };
     }

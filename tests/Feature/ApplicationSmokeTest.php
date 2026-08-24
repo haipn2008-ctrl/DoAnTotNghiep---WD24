@@ -34,7 +34,6 @@ class ApplicationSmokeTest extends TestCase
             '/admin/rooms',
             '/admin/rooms/create',
             '/admin/tenants',
-            '/admin/tenants/create',
             '/admin/contracts',
             '/admin/contracts/create',
             '/admin/utilities',

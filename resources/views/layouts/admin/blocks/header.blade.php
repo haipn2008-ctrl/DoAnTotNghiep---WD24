@@ -33,12 +33,12 @@
 
                     <div class="max-h-96 overflow-y-auto">
                         @forelse(($adminNotifications ?? collect()) as $notification)
-                            <a href="{{ route('admin.contracts.show', $notification->contract) }}" class="flex gap-3 border-b border-slate-100 px-4 py-3 transition last:border-0 hover:bg-slate-50">
+                            <a href="{{ route('admin.notifications.open', $notification) }}" class="flex gap-3 border-b border-slate-100 px-4 py-3 transition last:border-0 hover:bg-slate-50">
                                 <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600"><i class="bx bx-error-circle text-xl"></i></span>
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate text-sm font-semibold text-slate-900">{{ $notification->title }}</span>
                                     <span class="mt-0.5 block line-clamp-2 text-xs leading-5 text-slate-500">{{ $notification->message }}</span>
-                                    <span class="mt-1 block text-[11px] text-slate-400">{{ $notification->contract?->contract_code }} · {{ $notification->detected_at?->diffForHumans() }}</span>
+                                    <span class="mt-1 block text-[11px] text-slate-400">{{ $notification->tenant?->full_name ?: $notification->contract?->contract_code }} · {{ $notification->detected_at?->diffForHumans() }}</span>
                                 </span>
                             </a>
                         @empty

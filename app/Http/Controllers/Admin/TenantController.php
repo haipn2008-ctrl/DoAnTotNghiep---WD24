@@ -8,6 +8,7 @@ use App\Models\Contract;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\AdminNotificationService;
 use App\Support\Csv;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -217,9 +218,10 @@ class TenantController extends Controller
 
     public function store(TenantRequest $request)
     {
+        $tenant = null;
+
         try {
-            DB::transaction(function () use ($request) {
-                $data = $request->validated();
+            $data = $request->validated();
 
                 /*
                 |--------------------------------------------------------------------------
@@ -227,9 +229,9 @@ class TenantController extends Controller
                 |--------------------------------------------------------------------------
                 */
 
-                $vehicles = $data['vehicles'] ?? [];
+            $vehicles = $data['vehicles'] ?? [];
 
-                unset($data['vehicles']);
+            unset($data['vehicles']);
 
                 /*
                 |--------------------------------------------------------------------------
@@ -237,7 +239,7 @@ class TenantController extends Controller
                 |--------------------------------------------------------------------------
                 */
 
-                $tenant = Tenant::create($data);
+            $tenant = Tenant::create($data);
 
                 /*
                 |--------------------------------------------------------------------------
@@ -245,6 +247,7 @@ class TenantController extends Controller
                 |--------------------------------------------------------------------------
                 */
 
+            DB::transaction(function () use ($tenant, $vehicles): void {
                 foreach ($vehicles as $vehicle) {
                     if (
                         empty($vehicle['license_plate'])
@@ -273,6 +276,10 @@ class TenantController extends Controller
                 }
             });
         } catch (QueryException $exception) {
+            if ($tenant?->exists) {
+                $tenant->delete();
+            }
+
             $this->throwConflictOrRethrow($exception);
         }
 
@@ -314,43 +321,17 @@ class TenantController extends Controller
 
     public function edit(Tenant $tenant)
     {
-        $users = User::where(function ($query) {
-            $query->whereHas(
-                'role',
-                fn($query) => $query->whereIn(
-                    'role_name',
-                    ['User', 'Client']
-                )
-            )
-                ->whereIn(
-                    'status',
-                    [
-                        User::STATUS_PENDING,
-                        User::STATUS_ACTIVE,
-                    ]
-                )
-                ->whereDoesntHave('tenant');
-        })
-            ->orWhere(
-                'id',
-                $tenant->user_id
-            )
-            ->get();
-
         /*
         |--------------------------------------------------------------------------
         | Load xe hiện tại
         |--------------------------------------------------------------------------
         */
 
-        $tenant->load('vehicles');
+        $tenant->load(['user', 'vehicles']);
 
         return view(
             'admin.tenants.edit',
-            compact(
-                'tenant',
-                'users'
-            )
+            compact('tenant')
         );
     }
 
@@ -371,10 +352,6 @@ class TenantController extends Controller
             ) {
                 $data = $request->validated();
 
-                $vehicles = $data['vehicles'] ?? [];
-
-                unset($data['vehicles']);
-
                 /*
                 |--------------------------------------------------------------------------
                 | Cập nhật thông tin Tenant
@@ -383,43 +360,6 @@ class TenantController extends Controller
 
                 $tenant->update($data);
 
-                /*
-                |--------------------------------------------------------------------------
-                | Xóa danh sách xe cũ
-                |--------------------------------------------------------------------------
-                |
-                | Sau đó tạo lại theo dữ liệu form.
-                |
-                */
-
-                $tenant->vehicles()->delete();
-
-                foreach ($vehicles as $vehicle) {
-                    if (
-                        empty($vehicle['license_plate'])
-                        && empty($vehicle['vehicle_type'])
-                        && empty($vehicle['vehicle_name'])
-                    ) {
-                        continue;
-                    }
-
-                    $tenant->vehicles()->create([
-                        'vehicle_type' =>
-                        $vehicle['vehicle_type'] ?? null,
-
-                        'vehicle_name' =>
-                        $vehicle['vehicle_name'] ?? null,
-
-                        'license_plate' =>
-                        $vehicle['license_plate'] ?? null,
-
-                        'color' =>
-                        $vehicle['color'] ?? null,
-
-                        'note' =>
-                        $vehicle['note'] ?? null,
-                    ]);
-                }
             });
         } catch (QueryException $exception) {
             $this->throwConflictOrRethrow($exception);
@@ -431,6 +371,26 @@ class TenantController extends Controller
                 'success',
                 'Cập nhật khách thuê thành công.'
             );
+    }
+
+    public function reviewVehicle(Request $request, Vehicle $vehicle, AdminNotificationService $notifications)
+    {
+        $data = $request->validate([
+            'status' => ['required', Rule::in([Vehicle::STATUS_APPROVED, Vehicle::STATUS_REJECTED])],
+            'review_note' => ['nullable', 'required_if:status,'.Vehicle::STATUS_REJECTED, 'string', 'max:500'],
+        ]);
+
+        $vehicle->update([
+            'status' => $data['status'],
+            'review_note' => $data['review_note'] ?? null,
+            'reviewed_by' => $request->user()->id,
+            'reviewed_at' => now(),
+        ]);
+        $notifications->vehicleReviewed($vehicle);
+
+        return back()->with('success', $data['status'] === Vehicle::STATUS_APPROVED
+            ? 'Đã duyệt phương tiện.'
+            : 'Đã từ chối phương tiện.');
     }
 
     /*

@@ -7,10 +7,10 @@
     $statuses = ['draft'=>'Bản nháp','pending_signature'=>'Chờ ký','pending_deposit'=>'Chờ cọc và tiền tháng đầu','awaiting_move_in'=>'Chờ nhận phòng','active'=>'Đang ở','expired'=>'Quá hạn vẫn ở','settling'=>'Đang quyết toán','completed'=>'Đã hoàn tất','cancelled'=>'Đã hủy'];
     $depositStatuses = ['pending'=>'Chưa thu đủ','paid'=>'Đã thu','refunded'=>'Đã hoàn','deducted'=>'Đã khấu trừ','retained'=>'Đã giữ lại','not_required'=>'Không yêu cầu'];
     $effectiveEnd = $contract->extend_end_date ?? $contract->end_date;
-    $plannedResidentCount = $contract->occupants->whereIn('status', [
-        \App\Models\ContractOccupant::STATUS_PENDING,
-        \App\Models\ContractOccupant::STATUS_APPROVED,
-        \App\Models\ContractOccupant::STATUS_CHECKED_IN,
+    $plannedResidentCount = $contract->members->whereIn('status', [
+        \App\Models\ContractTenant::STATUS_PENDING,
+        \App\Models\ContractTenant::STATUS_APPROVED,
+        \App\Models\ContractTenant::STATUS_CHECKED_IN,
     ])->count();
     $occupancyLimitReached = $plannedResidentCount >= (int) $contract->room->max_people;
     $conditionLabels = [
@@ -88,29 +88,29 @@
                     @csrf
                     <label class="flex items-start gap-3 text-sm font-medium text-slate-800"><input type="checkbox" name="confirmation" value="1" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"> <span>Tôi đã kiểm tra tiện nghi, dịch vụ tính phí, tên từng tài sản, số lượng, tình trạng và ghi chú; tôi đồng ý đây là thông tin dùng để bàn giao phòng.</span></label>
                     @error('confirmation')<p class="mt-2 text-sm text-rose-700">{{ $message }}</p>@enderror
-                    <button class="mt-4 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Xác nhận thông tin nhận phòng</button>
+                    <button class="mt-4 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Xác nhận biên bản nhận phòng</button>
                 </form>
             @endif
         </section>
 
         <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 p-5">
-                <h3 class="font-semibold text-slate-950">Người ở</h3>
+                <h3 class="font-semibold text-slate-950">Người thuê</h3>
                 <p class="mt-1 text-sm text-slate-500">Danh sách người thực tế cư trú, không phụ thuộc người đứng tên thuê. Khai báo mới chỉ có hiệu lực sau khi admin duyệt.</p>
             </div>
             <div class="space-y-3 p-5">
-                @forelse($contract->occupants->where('status', '!=', \App\Models\ContractOccupant::STATUS_NON_RESIDENT) as $occupant)
+                @forelse($contract->members as $member)
                     <div class="rounded-lg border border-slate-200 p-4">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <p class="font-semibold text-slate-950">{{ $occupant->full_name }}</p>
-                                <p class="mt-1 text-xs text-slate-500">{{ $occupant->role === \App\Models\ContractOccupant::ROLE_REPRESENTATIVE ? 'Người đại diện đồng thời là người ở' : 'Người ở' }}</p>
-                                @if($occupant->review_note)<p class="mt-2 text-sm text-rose-700">Phản hồi của admin: {{ $occupant->review_note }}</p>@endif
+                                <p class="font-semibold text-slate-950">{{ $member->full_name }}</p>
+                                <p class="mt-1 text-xs text-slate-500">{{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'Người đại diện đồng thời là người thuê' : 'Người thuê' }}</p>
+                                @if($member->review_note)<p class="mt-2 text-sm text-rose-700">Phản hồi của admin: {{ $member->review_note }}</p>@endif
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $occupant->status_label }}</span>
-                                @if($occupant->role !== \App\Models\ContractOccupant::ROLE_REPRESENTATIVE && $occupant->status === \App\Models\ContractOccupant::STATUS_PENDING)
-                                    <form method="POST" action="{{ route('client.contracts.occupants.withdraw', [$contract, $occupant]) }}">@csrf<button class="text-xs font-semibold text-rose-700">Rút khai báo</button></form>
+                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $member->status_label }}</span>
+                                @if($member->role !== \App\Models\ContractTenant::ROLE_REPRESENTATIVE && $member->status === \App\Models\ContractTenant::STATUS_PENDING)
+                                    <form method="POST" action="{{ route('client.contracts.members.withdraw', [$contract, $member]) }}">@csrf<button class="text-xs font-semibold text-rose-700">Rút khai báo</button></form>
                                 @endif
                             </div>
                         </div>
@@ -124,16 +124,15 @@
                 @if($occupancyLimitReached)
                     <div class="border-t border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-800">Phòng chỉ chứa tối đa {{ $contract->room->max_people }} người. Đã đạt giới hạn của phòng.</div>
                 @else
-                <form method="POST" action="{{ route('client.contracts.occupants.store', $contract) }}" enctype="multipart/form-data" data-minor-identity-form class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2">
+                <form method="POST" action="{{ route('client.contracts.members.store', $contract) }}" enctype="multipart/form-data" class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2">
                     @csrf
-                    <div class="sm:col-span-2"><h4 class="font-semibold text-slate-900">Khai báo thêm người ở</h4><p class="mt-1 text-xs text-slate-500">Thông tin này tách khỏi hồ sơ tài khoản của bạn và sẽ được lưu lịch sử.</p></div>
+                    <div class="sm:col-span-2"><h4 class="font-semibold text-slate-900">Khai báo thêm người thuê</h4><p class="mt-1 text-xs text-slate-500">Hệ thống sẽ tạo hoặc liên kết hồ sơ khách thuê theo CCCD; không tự động cấp tài khoản đăng nhập.</p></div>
                     <input name="full_name" value="{{ old('full_name') }}" required maxlength="150" placeholder="Họ và tên *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input data-minor-date-of-birth type="date" name="date_of_birth" value="{{ old('date_of_birth') }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input data-minor-identity-number name="identity_number" value="{{ old('identity_number') }}" required inputmode="numeric" minlength="12" maxlength="12" placeholder="CCCD *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input name="phone" value="{{ old('phone') }}" maxlength="30" placeholder="Số điện thoại (không bắt buộc)" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <p data-minor-identity-note class="hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:col-span-2">Người dưới 14 tuổi được phép để trống CCCD, hai ảnh và số điện thoại.</p>
-                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt trước CCCD <span data-minor-required-marker>*</span></label><input data-minor-identity-file data-required-when-adult="1" type="file" name="identity_front" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
-                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt sau CCCD <span data-minor-required-marker>*</span></label><input data-minor-identity-file data-required-when-adult="1" type="file" name="identity_back" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
+                    <input type="date" name="date_of_birth" value="{{ old('date_of_birth') }}" max="{{ now()->subYears(18)->toDateString() }}" required class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    <input name="identity_number" value="{{ old('identity_number') }}" required inputmode="numeric" minlength="12" maxlength="12" placeholder="CCCD *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    <input name="phone" value="{{ old('phone') }}" required minlength="10" maxlength="15" inputmode="tel" placeholder="Số điện thoại *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
+                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt trước CCCD *</label><input type="file" name="identity_front" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
+                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt sau CCCD *</label><input type="file" name="identity_back" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
                     <div class="sm:col-span-2"><button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white">Gửi admin duyệt</button></div>
                 </form>
                 @endif

@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\ContractLifecycleAlert;
-use App\Models\ContractOccupant;
+use App\Models\ContractTenant;
 use App\Models\ContractStatusHistory;
 use App\Models\Invoice;
 use App\Models\Payment;
@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\UtilityReading;
 use App\Services\ContractLifecycleService;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -105,7 +106,7 @@ class ContractManagementTest extends TestCase
             ->assertOk()
             ->assertSee('Rà soát thông tin trước khi phát hành cho khách ký.')
             ->assertSee('Thông tin hợp đồng')
-            ->assertSee('Người đại diện và người ở')
+            ->assertSee('Người đại diện và người thuê')
             ->assertSee('Tài chính dự kiến')
             ->assertSee('Dịch vụ đăng ký')
             ->assertSee('Phát hành bản nháp')
@@ -139,52 +140,115 @@ class ContractManagementTest extends TestCase
             ->assertSee('data-identity-preview-input', false)
             ->assertSee('representative-identity-front-preview')
             ->assertSee('representative-identity-back-preview')
-            ->assertSee('Lưu ý khi khai báo trẻ em:')
-            ->assertSee('Người ở dưới 14 tuổi không bắt buộc nhập số căn cước, ảnh căn cước và số điện thoại.')
-            ->assertSee('Trẻ dưới 14 tuổi có thể bỏ trống CCCD')
+            ->assertSee('Mọi người được thêm vào hợp đồng phải đủ 18 tuổi và có đầy đủ thông tin CCCD.')
+            ->assertDontSee('Trẻ dưới 14 tuổi')
             ->assertDontSee('name="internet_enabled"', false)
             ->assertSee('Tài sản bàn giao của phòng')
             ->assertSee('Bàn làm việc × 2');
     }
 
-    public function test_child_under_fourteen_can_be_added_without_identity_images_or_phone(): void
+    public function test_person_under_eighteen_cannot_be_added_to_contract(): void
     {
-        $room = $this->room('CHILD-OCCUPANT');
-        $tenant = $this->tenant('child-occupant');
+        $room = $this->room('UNDERAGE-TENANT');
+        $tenant = $this->tenant('child-member');
 
         $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
-            'occupants' => [[
-                'full_name' => 'Bé ở cùng',
-                'date_of_birth' => '2020-05-10',
-                'identity_number' => null,
+            'members' => [[
+                'full_name' => 'Người chưa đủ tuổi',
+                'date_of_birth' => now()->subYears(18)->addDay()->toDateString(),
+                'identity_number' => '012345678901',
                 'phone' => null,
+                ...$this->memberIdentityImages('under-eighteen', now()->subYears(18)->addDay()->toDateString()),
+            ]],
+        ]))->assertSessionHasErrors('members.0.date_of_birth');
+
+        $this->assertDatabaseCount('contracts', 0);
+    }
+
+    public function test_person_is_eligible_on_their_eighteenth_birthday(): void
+    {
+        $room = $this->room('BOUNDARY-TENANT');
+        $tenant = $this->tenant('teen-member');
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
+            'members' => [[
+                'full_name' => 'Người vừa đủ tuổi',
+                'date_of_birth' => now()->subYears(18)->toDateString(),
+                'identity_number' => '012345678902',
+                ...$this->memberIdentityImages('exactly-eighteen', now()->subYears(18)->toDateString()),
             ]],
         ]))->assertRedirect()->assertSessionHasNoErrors();
 
-        $child = Contract::sole()->occupants()->where('role', ContractOccupant::ROLE_OCCUPANT)->sole();
-        $this->assertNull($child->identity_number);
-        $this->assertNull($child->identity_front_path);
-        $this->assertNull($child->identity_back_path);
-        $this->assertNull($child->phone);
+        $this->assertDatabaseHas('contract_tenants', [
+            'full_name' => 'Người vừa đủ tuổi',
+        ]);
     }
 
-    public function test_occupant_from_fourteen_still_requires_identity_number_and_both_images(): void
+    public function test_representative_under_eighteen_is_not_eligible_for_a_contract(): void
     {
-        $room = $this->room('TEEN-OCCUPANT');
-        $tenant = $this->tenant('teen-occupant');
+        $room = $this->room('UNDERAGE-REPRESENTATIVE');
+        $tenant = $this->tenant('underage-representative');
+        $tenant->update(['date_of_birth' => now()->subYears(18)->addDay()->toDateString()]);
 
-        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
-            'occupants' => [[
-                'full_name' => 'Người ở đủ tuổi',
-                'date_of_birth' => '2010-01-01',
-            ]],
-        ]))->assertSessionHasErrors([
-            'occupants.0.identity_number',
-            'occupants.0.identity_front',
-            'occupants.0.identity_back',
-        ]);
+        $this->actingAs($this->admin)->get(route('admin.contracts.create'))
+            ->assertOk()
+            ->assertDontSee($tenant->cccd);
+
+        $this->post(route('admin.contracts.store'), $this->payload($room, $tenant))
+            ->assertSessionHasErrors('representative.date_of_birth');
 
         $this->assertDatabaseCount('contracts', 0);
+    }
+
+    public function test_existing_offline_tenant_is_reused_for_contract_member_by_cccd(): void
+    {
+        $room = $this->room('REUSE-MEMBER-TENANT');
+        $representative = $this->tenant('reuse-member-representative');
+        $member = Tenant::create([
+            'user_id' => null,
+            'full_name' => 'Hồ sơ thành viên có sẵn',
+            'date_of_birth' => '1992-03-04',
+            'cccd' => '012345678955',
+            'phone' => '0988123456',
+        ]);
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $representative, [
+            'members' => [[
+                ...$this->memberIdentityImages('reuse-existing-member', '1992-03-04'),
+                'full_name' => 'Tên thành viên cập nhật',
+                'date_of_birth' => '1992-03-04',
+                'identity_number' => $member->cccd,
+                'phone' => $member->phone,
+            ]],
+        ]))->assertSessionHasNoErrors();
+
+        $member = Contract::sole()->members()->where('role', ContractTenant::ROLE_TENANT)->sole();
+        $this->assertSame($member->id, $member->tenant_id);
+        $this->assertNull($member->fresh()->user_id);
+        $this->assertSame('Tên thành viên cập nhật', $member->fresh()->full_name);
+    }
+
+    public function test_contract_member_cannot_be_persisted_without_tenant_profile(): void
+    {
+        $contract = $this->draft(0, [], 'required-member-tenant');
+
+        try {
+            ContractTenant::query()->create([
+                'contract_id' => $contract->id,
+                'tenant_id' => null,
+                'role' => ContractTenant::ROLE_TENANT,
+                'full_name' => 'Bản ghi không có hồ sơ',
+                'date_of_birth' => '1990-01-01',
+                'identity_number' => '012345678977',
+                'phone' => '0988777666',
+                'status' => ContractTenant::STATUS_PENDING,
+            ]);
+            $this->fail('Cơ sở dữ liệu phải từ chối thành viên không có tenant_id.');
+        } catch (QueryException) {
+            $this->assertDatabaseMissing('contract_tenants', [
+                'identity_number' => '012345678977',
+            ]);
+        }
     }
 
     public function test_parking_data_is_ignored_when_parking_checkbox_is_not_selected(): void
@@ -265,8 +329,8 @@ class ContractManagementTest extends TestCase
             'id' => $tenant->id, 'full_name' => 'Người đại diện đã bổ sung',
             'phone' => '0911222333', 'cccd' => '079123456789', 'address' => '123 Đường kiểm thử',
         ]);
-        $this->assertDatabaseHas('contract_occupants', [
-            'contract_id' => $contract->id, 'role' => ContractOccupant::ROLE_REPRESENTATIVE,
+        $this->assertDatabaseHas('contract_tenants', [
+            'contract_id' => $contract->id, 'role' => ContractTenant::ROLE_REPRESENTATIVE,
             'full_name' => 'Người đại diện đã bổ sung', 'identity_number' => '079123456789',
             'address' => '123 Đường kiểm thử',
         ]);
@@ -291,7 +355,7 @@ class ContractManagementTest extends TestCase
             'room_id' => $room->id, 'tenant_id' => $tenant->id,
             'start_date' => '2026-08-11', 'end_date' => '2027-08-11',
             'scheduled_move_in_date' => '2026-08-11', 'reservation_expires_at' => '2026-08-12 18:00:00',
-            'representative_is_occupant' => true, 'parking_quantity' => 1,
+            'parking_quantity' => 1,
             'internet_enabled' => true, 'service_enabled' => false,
         ], $this->admin);
 
@@ -326,7 +390,7 @@ class ContractManagementTest extends TestCase
             'room_id' => $room->id, 'tenant_id' => $tenant->id,
             'start_date' => '2026-08-11', 'end_date' => '2027-08-11',
             'scheduled_move_in_date' => '2026-08-11', 'reservation_expires_at' => '2026-08-12 18:00:00',
-            'representative_is_occupant' => true, 'parking_quantity' => 2,
+            'parking_quantity' => 2,
             'internet_enabled' => true, 'service_enabled' => false,
         ], $this->admin);
         $this->lifecycle->submitForSignature($contract, $this->admin);
@@ -373,14 +437,14 @@ class ContractManagementTest extends TestCase
         $this->assertSame(Contract::STATUS_ACTIVE, $contract->fresh()->status);
     }
 
-    public function test_draft_records_representative_and_named_occupants_without_requiring_accounts(): void
+    public function test_draft_records_representative_and_named_members_without_requiring_accounts(): void
     {
         $room = $this->room('MEMBERS');
         $representative = $this->tenant('representative');
         $this->actingAs($this->admin)->get(route('admin.contracts.create'))
             ->assertOk()
             ->assertSee('Người đại diện thuê')
-            ->assertSee('Không cần tạo tài khoản')
+            ->assertSee('Thành viên không bắt buộc có tài khoản đăng nhập.')
             ->assertSee('Ngày bắt đầu thời hạn thuê')
             ->assertSee('Hạn cuối phải nhận phòng')
             ->assertSee('name="contract_duration"', false)
@@ -394,39 +458,42 @@ class ContractManagementTest extends TestCase
 
         $this->post(route('admin.contracts.store'), $this->payload($room, $representative, [
             'number_of_people' => 20,
-            'occupants' => [[
-                'full_name' => 'Người ở cùng A', 'identity_number' => '012345678901',
-                'phone' => '0901234567', ...$this->occupantIdentityImages('member-a'),
+            'members' => [[
+                'full_name' => 'Người thuê thành viên A', 'identity_number' => '012345678901',
+                'phone' => '0901234567', ...$this->memberIdentityImages('member-a'),
             ]],
         ]))->assertSessionHasNoErrors();
 
         $contract = Contract::sole();
         $this->assertSame($representative->id, $contract->representative_tenant_id);
         $this->assertSame(2, $contract->number_of_people);
-        $this->assertDatabaseHas('contract_occupants', [
+        $this->assertDatabaseHas('contract_tenants', [
             'contract_id' => $contract->id, 'tenant_id' => $representative->id,
-            'role' => ContractOccupant::ROLE_REPRESENTATIVE, 'status' => ContractOccupant::STATUS_APPROVED,
+            'role' => ContractTenant::ROLE_REPRESENTATIVE, 'status' => ContractTenant::STATUS_APPROVED,
         ]);
-        $this->assertDatabaseHas('contract_occupants', [
-            'contract_id' => $contract->id, 'tenant_id' => null, 'full_name' => 'Người ở cùng A',
-            'role' => ContractOccupant::ROLE_OCCUPANT, 'status' => ContractOccupant::STATUS_APPROVED,
+        $this->assertDatabaseHas('contract_tenants', [
+            'contract_id' => $contract->id, 'full_name' => 'Người thuê thành viên A',
+            'role' => ContractTenant::ROLE_TENANT, 'status' => ContractTenant::STATUS_APPROVED,
         ]);
+        $memberTenant = Tenant::query()->where('cccd', '012345678901')->sole();
+        $this->assertNull($memberTenant->user_id);
+        $this->assertSame($memberTenant->id, $contract->members()->where('full_name', 'Người thuê thành viên A')->value('tenant_id'));
 
         $this->put(route('admin.contracts.update', $contract), $this->payload($room, $representative, [
-            'occupants' => [[
-                'full_name' => 'Người ở cùng B', 'identity_number' => '012345678902',
-                'phone' => '0901234568', ...$this->occupantIdentityImages('member-b'),
+            'members' => [[
+                'full_name' => 'Người thuê thành viên B', 'identity_number' => '012345678902',
+                'phone' => '0901234568', ...$this->memberIdentityImages('member-b'),
             ]],
         ]))->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('contract_occupants', [
-            'contract_id' => $contract->id, 'full_name' => 'Người ở cùng A',
-            'status' => ContractOccupant::STATUS_WITHDRAWN,
+        $this->assertDatabaseHas('contract_tenants', [
+            'contract_id' => $contract->id, 'full_name' => 'Người thuê thành viên A',
+            'status' => ContractTenant::STATUS_WITHDRAWN,
         ]);
-        $this->assertDatabaseHas('contract_occupants', [
-            'contract_id' => $contract->id, 'full_name' => 'Người ở cùng B',
-            'role' => ContractOccupant::ROLE_OCCUPANT, 'status' => ContractOccupant::STATUS_APPROVED,
+        $this->assertDatabaseHas('contract_tenants', [
+            'contract_id' => $contract->id, 'full_name' => 'Người thuê thành viên B',
+            'role' => ContractTenant::ROLE_TENANT, 'status' => ContractTenant::STATUS_APPROVED,
         ]);
-        $this->assertDatabaseCount('contract_occupant_histories', 8);
+        $this->assertDatabaseCount('contract_tenant_histories', 8);
         $this->assertSame(2, $contract->fresh()->number_of_people);
     }
 
@@ -526,42 +593,39 @@ class ContractManagementTest extends TestCase
         $this->get(route('admin.contracts.edit', $contract))->assertOk()->assertSee('value="18"', false);
     }
 
-    public function test_lessee_does_not_occupy_a_slot_by_default_and_two_identity_sides_are_private(): void
+    public function test_representative_always_occupies_a_slot_and_two_identity_sides_are_private(): void
     {
         $room = $this->room('RENT-FOR-OTHER');
         $tenant = $this->tenant('non-resident-lessee');
         $payload = $this->payload($room, $tenant, [
             'deposit_amount' => 0,
-            'occupants' => [[
-                'full_name' => 'Người ở thực tế', 'identity_number' => '012345678955',
-                ...$this->occupantIdentityImages('actual-resident'),
+            'members' => [[
+                'full_name' => 'Người thuê thực tế', 'identity_number' => '012345678955',
+                ...$this->memberIdentityImages('actual-resident'),
             ]],
         ]);
-        unset($payload['representative_is_occupant']);
-
         $this->actingAs($this->admin)->post(route('admin.contracts.store'), $payload)
             ->assertSessionHasNoErrors();
 
         $contract = Contract::sole();
-        $representative = $contract->occupants()->where('role', ContractOccupant::ROLE_REPRESENTATIVE)->sole();
-        $resident = $contract->occupants()->where('role', ContractOccupant::ROLE_OCCUPANT)->sole();
-        $this->assertFalse($contract->representative_is_occupant);
-        $this->assertSame(1, $contract->number_of_people);
-        $this->assertSame(ContractOccupant::STATUS_NON_RESIDENT, $representative->status);
-        $this->assertSame(ContractOccupant::STATUS_APPROVED, $resident->status);
+        $representative = $contract->members()->where('role', ContractTenant::ROLE_REPRESENTATIVE)->sole();
+        $resident = $contract->members()->where('role', ContractTenant::ROLE_TENANT)->sole();
+        $this->assertSame(2, $contract->number_of_people);
+        $this->assertSame(ContractTenant::STATUS_APPROVED, $representative->status);
+        $this->assertSame(ContractTenant::STATUS_APPROVED, $resident->status);
         Storage::disk('local')->assertExists([$representative->identity_front_path, $representative->identity_back_path]);
 
-        $this->actingAs($tenant->user)->get(route('admin.contract-occupants.identity-document', [$representative, 'front']))
+        $this->actingAs($tenant->user)->get(route('admin.contract-tenants.identity-document', [$representative, 'front']))
             ->assertForbidden();
-        $this->actingAs($this->admin)->get(route('admin.contract-occupants.identity-document', [$representative, 'front']))
+        $this->actingAs($this->admin)->get(route('admin.contract-tenants.identity-document', [$representative, 'front']))
             ->assertOk();
 
         $this->sign($contract);
         $this->payFirstMonth($contract);
         $this->lifecycle->checkIn($contract, $this->admin, $this->checkInPayload([
-            'schedule_variance_reason' => 'Người ở nhận phòng sớm theo thỏa thuận.',
+            'schedule_variance_reason' => 'Người thuê nhận phòng sớm theo thỏa thuận.',
         ]));
-        $this->assertSame(1, $room->fresh()->current_people);
+        $this->assertSame(2, $room->fresh()->current_people);
     }
 
     public function test_contract_requires_both_identity_card_images_without_partial_write(): void
@@ -574,19 +638,19 @@ class ContractManagementTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.contracts.store'), $payload)
             ->assertSessionHasErrors('representative.identity_back');
         $this->assertDatabaseCount('contracts', 0);
-        $this->assertDatabaseCount('contract_occupants', 0);
+        $this->assertDatabaseCount('contract_tenants', 0);
     }
 
-    public function test_non_contiguous_occupant_index_keeps_text_and_identity_files_on_the_same_member(): void
+    public function test_non_contiguous_member_index_keeps_text_and_identity_files_on_the_same_member(): void
     {
         $room = $this->room('MEMBER-INDEX-GAP');
         $tenant = $this->tenant('member-index-gap');
         $payload = $this->payload($room, $tenant, [
-            'occupants' => [3 => [
-                'full_name' => 'Người ở sau khi thêm lại',
+            'members' => [3 => [
+                'full_name' => 'Người thuê sau khi thêm lại',
                 'identity_number' => '012345678966',
                 'phone' => '0901234569',
-                ...$this->occupantIdentityImages('member-index-gap'),
+                ...$this->memberIdentityImages('member-index-gap'),
             ]],
         ]);
 
@@ -594,14 +658,14 @@ class ContractManagementTest extends TestCase
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 
-        $occupant = Contract::sole()->occupants()
-            ->where('role', ContractOccupant::ROLE_OCCUPANT)
+        $member = Contract::sole()->members()
+            ->where('role', ContractTenant::ROLE_TENANT)
             ->sole();
-        $this->assertSame('Người ở sau khi thêm lại', $occupant->full_name);
-        $this->assertSame('012345678966', $occupant->identity_number);
+        $this->assertSame('Người thuê sau khi thêm lại', $member->full_name);
+        $this->assertSame('012345678966', $member->identity_number);
         Storage::disk('local')->assertExists([
-            $occupant->identity_front_path,
-            $occupant->identity_back_path,
+            $member->identity_front_path,
+            $member->identity_back_path,
         ]);
     }
 
@@ -609,37 +673,34 @@ class ContractManagementTest extends TestCase
     {
         $room = $this->room('CAPACITY-FOUR', ['max_people' => 4]);
         $tenant = $this->tenant('capacity-four');
-        $occupants = collect(range(1, 5))->map(fn (int $number): array => [
-            'full_name' => 'Người ở '.$number,
+        $members = collect(range(1, 4))->map(fn (int $number): array => [
+            'full_name' => 'Người thuê '.$number,
             'identity_number' => sprintf('012345678%03d', $number),
-            ...$this->occupantIdentityImages('capacity-'.$number),
+            ...$this->memberIdentityImages('capacity-'.$number),
         ])->all();
-        $payload = $this->payload($room, $tenant, ['occupants' => $occupants]);
-        unset($payload['representative_is_occupant']);
-
+        $payload = $this->payload($room, $tenant, ['members' => $members]);
         $this->actingAs($this->admin)->post(route('admin.contracts.store'), $payload)
             ->assertSessionHasErrors('number_of_people');
         $this->assertDatabaseCount('contracts', 0);
-        $this->assertDatabaseCount('contract_occupants', 0);
+        $this->assertDatabaseCount('contract_tenants', 0);
     }
 
-    public function test_representative_cannot_be_added_as_resident_when_room_is_already_full(): void
+    public function test_representative_is_always_counted_when_room_capacity_is_checked(): void
     {
         $room = $this->room('CAPACITY-REPRESENTATIVE', ['max_people' => 2]);
         $tenant = $this->tenant('capacity-representative');
-        $occupants = collect(range(1, 2))->map(fn (int $number): array => [
-            'full_name' => 'Người ở '.$number,
+        $members = collect(range(1, 2))->map(fn (int $number): array => [
+            'full_name' => 'Người thuê '.$number,
             'identity_number' => sprintf('012345679%03d', $number),
-            ...$this->occupantIdentityImages('capacity-representative-'.$number),
+            ...$this->memberIdentityImages('capacity-representative-'.$number),
         ])->all();
 
         $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant, [
-            'representative_is_occupant' => 1,
-            'occupants' => $occupants,
+            'members' => $members,
         ]))->assertSessionHasErrors('number_of_people');
 
         $this->assertDatabaseCount('contracts', 0);
-        $this->assertDatabaseCount('contract_occupants', 0);
+        $this->assertDatabaseCount('contract_tenants', 0);
     }
 
     public function test_ajax_draft_validation_returns_field_specific_vietnamese_errors_without_redirecting(): void
@@ -647,9 +708,11 @@ class ContractManagementTest extends TestCase
         $room = $this->room('AJAX-VALIDATION');
         $tenant = $this->tenant('ajax-validation');
         $payload = $this->payload($room, $tenant, [
-            'occupants' => [[
+            'members' => [[
                 'full_name' => 'Người kiểm thử',
+                'date_of_birth' => '1990-01-01',
                 'identity_number' => '012345678901',
+                'phone' => '0901234567',
             ]],
         ]);
 
@@ -658,11 +721,11 @@ class ContractManagementTest extends TestCase
             ->post(route('admin.contracts.store'), $payload);
         $response->assertUnprocessable()
             ->assertJsonValidationErrors([
-                'occupants.0.identity_front',
-                'occupants.0.identity_back',
+                'members.0.identity_front',
+                'members.0.identity_back',
             ]);
-        $this->assertSame('Vui lòng chọn ảnh mặt trước CCCD của người ở.', $response->json('errors')['occupants.0.identity_front'][0]);
-        $this->assertSame('Vui lòng chọn ảnh mặt sau CCCD của người ở.', $response->json('errors')['occupants.0.identity_back'][0]);
+        $this->assertSame('Vui lòng chọn ảnh mặt trước CCCD của người thuê.', $response->json('errors')['members.0.identity_front'][0]);
+        $this->assertSame('Vui lòng chọn ảnh mặt sau CCCD của người thuê.', $response->json('errors')['members.0.identity_back'][0]);
 
         $this->assertDatabaseCount('contracts', 0);
     }
@@ -682,73 +745,99 @@ class ContractManagementTest extends TestCase
         $this->assertDatabaseCount('contracts', 0);
     }
 
-    public function test_client_declares_occupant_and_admin_review_is_required_before_check_in(): void
+    public function test_client_declares_member_and_admin_review_is_required_before_check_in(): void
     {
         $contract = $this->awaiting();
         $client = $contract->tenant->user;
 
-        $this->actingAs($client)->post(route('client.contracts.occupants.store', $contract), [
+        $this->actingAs($client)->post(route('client.contracts.members.store', $contract), [
             'full_name' => 'Người chờ duyệt', 'identity_number' => '012345678911',
-            'phone' => '0901111111', ...$this->occupantIdentityImages('pending-resident'),
+            'phone' => '0901111111', ...$this->memberIdentityImages('pending-resident'),
         ])->assertSessionHasNoErrors();
 
-        $occupant = ContractOccupant::query()->where('full_name', 'Người chờ duyệt')->sole();
-        $this->assertNull($occupant->tenant_id);
-        $this->assertSame(ContractOccupant::STATUS_PENDING, $occupant->status);
+        $member = ContractTenant::query()->where('full_name', 'Người chờ duyệt')->sole();
+        $this->assertNotNull($member->tenant_id);
+        $this->assertNull($member->tenant->user_id);
+        $this->assertSame(ContractTenant::STATUS_PENDING, $member->status);
         $this->assertSame(Room::STATUS_AVAILABLE, $contract->room->fresh()->status);
         $this->assertSame(0, $contract->room->fresh()->current_people);
 
         $this->actingAs($this->admin)->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())
-            ->assertSessionHasErrors('occupants');
-        $this->post(route('admin.contract-occupants.approve', $occupant))->assertSessionHasNoErrors();
+            ->assertSessionHasErrors('members');
+        $this->post(route('admin.contract-tenants.approve', $member))->assertSessionHasNoErrors();
         $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())->assertSessionHasNoErrors();
 
-        $this->assertSame(ContractOccupant::STATUS_CHECKED_IN, $occupant->fresh()->status);
+        $this->assertSame(ContractTenant::STATUS_CHECKED_IN, $member->fresh()->status);
         $this->assertSame(2, $contract->room->fresh()->current_people);
     }
 
-    public function test_client_can_declare_child_without_identity_documents_or_phone(): void
+    public function test_member_account_cannot_manage_the_representatives_contract(): void
+    {
+        $contract = $this->draft(0, [], 'primary-representative');
+        $memberTenant = $this->tenant('contract-member-with-account');
+        $member = ContractTenant::query()->create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $memberTenant->id,
+            'role' => ContractTenant::ROLE_TENANT,
+            'full_name' => $memberTenant->full_name,
+            'date_of_birth' => $memberTenant->date_of_birth,
+            'identity_number' => $memberTenant->cccd,
+            'phone' => $memberTenant->phone,
+            'status' => ContractTenant::STATUS_APPROVED,
+        ]);
+
+        $this->actingAs($memberTenant->user)
+            ->get(route('client.contracts.index'))
+            ->assertOk()
+            ->assertDontSee($contract->contract_code);
+        $this->get(route('client.contracts.show', $contract))->assertNotFound();
+        $this->post(route('client.contracts.members.withdraw', [$contract, $member]))->assertNotFound();
+
+        $this->actingAs($contract->tenant->user)
+            ->get(route('client.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee($contract->contract_code);
+    }
+
+    public function test_client_cannot_declare_person_under_eighteen(): void
     {
         $contract = $this->awaiting();
 
-        $this->actingAs($contract->tenant->user)->post(route('client.contracts.occupants.store', $contract), [
+        $this->actingAs($contract->tenant->user)->post(route('client.contracts.members.store', $contract), [
             'full_name' => 'Bé do khách khai báo',
             'date_of_birth' => '2021-08-01',
-        ])->assertRedirect()->assertSessionHasNoErrors();
+        ])->assertRedirect()->assertSessionHasErrors([
+            'date_of_birth', 'identity_number', 'identity_front', 'identity_back',
+        ]);
 
-        $child = ContractOccupant::query()->where('full_name', 'Bé do khách khai báo')->sole();
-        $this->assertSame(ContractOccupant::STATUS_PENDING, $child->status);
-        $this->assertNull($child->identity_number);
-        $this->assertNull($child->identity_front_path);
-        $this->assertNull($child->identity_back_path);
-        $this->assertNull($child->phone);
+        $this->assertDatabaseMissing('contract_tenants', ['full_name' => 'Bé do khách khai báo']);
     }
 
-    public function test_approved_occupant_can_join_and_leave_active_room_without_losing_history(): void
+    public function test_approved_member_can_join_and_leave_active_room_without_losing_history(): void
     {
         $contract = $this->active();
         $client = $contract->tenant->user;
         $this->assertSame(1, $contract->room->fresh()->current_people);
 
-        $this->actingAs($client)->post(route('client.contracts.occupants.store', $contract), [
+        $this->actingAs($client)->post(route('client.contracts.members.store', $contract), [
             'full_name' => 'Người vào sau', 'identity_number' => '012345678912',
-            ...$this->occupantIdentityImages('late-resident'),
+            ...$this->memberIdentityImages('late-resident'),
         ])->assertSessionHasNoErrors();
-        $occupant = ContractOccupant::query()->where('full_name', 'Người vào sau')->sole();
+        $member = ContractTenant::query()->where('full_name', 'Người vào sau')->sole();
         $this->assertSame(1, $contract->room->fresh()->current_people);
 
-        $this->actingAs($this->admin)->post(route('admin.contract-occupants.approve', $occupant))
+        $this->actingAs($this->admin)->post(route('admin.contract-tenants.approve', $member))
             ->assertSessionHasNoErrors();
-        $this->assertSame(ContractOccupant::STATUS_CHECKED_IN, $occupant->fresh()->status);
+        $this->assertSame(ContractTenant::STATUS_CHECKED_IN, $member->fresh()->status);
         $this->assertSame(2, $contract->room->fresh()->current_people);
 
-        $this->post(route('admin.contract-occupants.move-out', $occupant), [
+        $this->post(route('admin.contract-tenants.move-out', $member), [
             'actual_move_out_at' => now()->format('Y-m-d H:i:s'), 'reason' => 'Chuyển nơi ở.',
         ])->assertSessionHasNoErrors();
-        $this->assertSame(ContractOccupant::STATUS_MOVED_OUT, $occupant->fresh()->status);
+        $this->assertSame(ContractTenant::STATUS_MOVED_OUT, $member->fresh()->status);
         $this->assertSame(1, $contract->room->fresh()->current_people);
-        $this->assertDatabaseHas('contract_occupant_histories', [
-            'contract_occupant_id' => $occupant->id, 'action' => 'occupant_move_out',
+        $this->assertDatabaseHas('contract_tenant_histories', [
+            'contract_tenant_id' => $member->id, 'action' => 'tenant_move_out',
         ]);
     }
 
@@ -1287,7 +1376,7 @@ class ContractManagementTest extends TestCase
             'end_date' => '2027-08-11', 'scheduled_move_in_date' => '2026-08-11',
             'reservation_expires_at' => '2026-08-12 18:00:00', 'signature_due_at' => '2026-08-11 18:00:00',
             'deposit_due_at' => '2026-08-12 12:00:00', 'deposit_amount' => $deposit,
-            'representative_is_occupant' => true, 'number_of_people' => 1, 'parking_quantity' => 0,
+            'number_of_people' => 1, 'parking_quantity' => 0,
         ], $overrides);
 
         return $this->lifecycle->createDraft($data, $this->admin);
@@ -1338,7 +1427,6 @@ class ContractManagementTest extends TestCase
         return $contract->fresh();
     }
 
-
     public function test_new_contract_enforces_minimum_year_move_in_limit_and_free_motorcycle_capacity(): void
     {
         $room = $this->room('NEW-RULES');
@@ -1357,33 +1445,16 @@ class ContractManagementTest extends TestCase
         ]))->assertSessionHasErrors('parking_quantity');
     }
 
-    public function test_offline_tenant_uses_paper_contract_and_admin_confirms_move_in(): void
+    public function test_offline_tenant_cannot_be_used_to_create_a_contract(): void
     {
         $tenant = Tenant::create(['user_id' => null, 'full_name' => 'Khách offline', 'cccd' => '079000009999', 'phone' => '0900009999']);
         $room = $this->room('OFFLINE');
-        $contract = $this->lifecycle->createDraft([
-            'room_id' => $room->id, 'tenant_id' => $tenant->id, 'representative_is_occupant' => true,
-            'monthly_rent' => $room->price, 'deposit_amount' => 0, 'number_of_people' => 1,
-            'parking_quantity' => 1, 'parking_vehicle_type' => Contract::PARKING_MOTORCYCLE,
-            'start_date' => '2026-08-11', 'end_date' => '2027-08-11', 'contract_duration' => '12',
-            'scheduled_move_in_date' => '2026-08-11', 'reservation_expires_at' => '2026-09-11', 'occupants' => [],
-        ], $this->admin);
-        $this->lifecycle->submitForSignature($contract, $this->admin);
 
-        $this->actingAs($this->admin)->post(route('admin.contracts.mark-signed', $contract), [
-            'signed_at' => now()->toDateTimeString(),
-            'signed_contract_file' => UploadedFile::fake()->create('hop-dong-da-ky.pdf', 100, 'application/pdf'),
-        ])->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $tenant))
+            ->assertSessionHasErrors('tenant_id');
 
-        $contract->refresh();
-        $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->status);
-        Storage::disk('local')->assertExists($contract->contract_file);
-        $this->payFirstMonth($contract);
-        $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())->assertSessionHasNoErrors();
-        $contract->refresh();
-        $this->assertSame(Contract::STATUS_ACTIVE, $contract->status);
-        $this->assertSame($this->admin->id, $contract->move_in_details_confirmed_by);
-        $this->assertDatabaseHas('contract_status_histories', ['contract_id' => $contract->id, 'action' => 'confirm_move_in_details_offline']);
+        $this->assertFalse(Tenant::query()->eligibleForContract()->whereKey($tenant)->exists());
+        $this->assertDatabaseCount('contracts', 0);
     }
 
     private function checkInPayload(array $overrides = []): array
@@ -1400,7 +1471,7 @@ class ContractManagementTest extends TestCase
             'room_id' => $room->id, 'tenant_id' => $tenant->id, 'start_date' => '2026-09-01',
             'contract_duration' => '12', 'end_date' => '2027-09-01', 'scheduled_move_in_date' => '2026-09-01',
             'reservation_expires_at' => '2026-09-11', 'move_in_terms_confirmed' => 1, 'deposit_amount' => 1000000,
-            'representative_is_occupant' => 1, 'number_of_people' => 1, 'parking_quantity' => 0,
+            'number_of_people' => 1, 'parking_quantity' => 0,
             'representative' => [
                 'identity_front' => UploadedFile::fake()->image('cccd-front.jpg'),
                 'identity_back' => UploadedFile::fake()->image('cccd-back.jpg'),
@@ -1413,9 +1484,11 @@ class ContractManagementTest extends TestCase
         return array_merge($payload, $overrides);
     }
 
-    private function occupantIdentityImages(string $prefix): array
+    private function memberIdentityImages(string $prefix, string $dateOfBirth = '1990-01-01'): array
     {
         return [
+            'date_of_birth' => $dateOfBirth,
+            'phone' => '09'.substr(str_pad((string) abs(crc32('phone-'.$prefix)), 8, '0'), 0, 8),
             'identity_front' => UploadedFile::fake()->image($prefix.'-front.jpg'),
             'identity_back' => UploadedFile::fake()->image($prefix.'-back.jpg'),
         ];
@@ -1435,9 +1508,14 @@ class ContractManagementTest extends TestCase
 
         return Tenant::create([
             'user_id' => $user->id, 'full_name' => 'Tenant '.$key,
+            'date_of_birth' => '1995-05-20',
+            'gender' => 'other',
             'cccd' => substr(str_pad((string) abs(crc32($key)), 12, '0'), 0, 12),
+            'cccd_issue_date' => '2021-06-01',
+            'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
             'phone' => '09'.substr(str_pad((string) abs(crc32('p'.$key)), 8, '0'), 0, 8),
             'email' => $key.'@tenant.test',
+            'address' => 'Địa chỉ kiểm thử',
         ]);
     }
 

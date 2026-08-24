@@ -108,27 +108,27 @@ class RoomController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.rooms.index')->with('success', 'Thêm phòng thành công. Phòng mặc định Trống và chưa có người ở.');
+        return redirect()->route('admin.rooms.index')->with('success', 'Thêm phòng thành công. Phòng mặc định Trống và chưa có người thuê.');
     }
 
     public function show(Room $room)
     {
         $room->load(['amenities', 'images.uploader', 'images.contract', 'contracts']);
         $occupancyContract = Contract::query()
-            ->with(['representative.user', 'tenant.user', 'occupants.tenant'])
+            ->with(['representative.user', 'tenant.user', 'members.tenant'])
             ->where('room_id', $room->id)
             ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->latest('actual_move_in_at')
             ->latest('id')
             ->first();
-        $occupants = $occupancyContract?->occupants
-            ->where('status', \App\Models\ContractOccupant::STATUS_CHECKED_IN)
+        $members = $occupancyContract?->members
+            ->where('status', \App\Models\ContractTenant::STATUS_CHECKED_IN)
             ->values() ?? collect();
-        $unidentifiedOccupants = $occupancyContract
-            ? max(0, (int) $room->current_people - $occupants->count())
+        $unidentifiedMembers = $occupancyContract
+            ? max(0, (int) $room->current_people - $members->count())
             : 0;
 
-        return view('admin.rooms.show', compact('room', 'occupancyContract', 'occupants', 'unidentifiedOccupants'));
+        return view('admin.rooms.show', compact('room', 'occupancyContract', 'members', 'unidentifiedMembers'));
     }
 
     public function edit(Room $room)

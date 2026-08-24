@@ -33,7 +33,7 @@ class Room extends Model
 
         'max_people',
 
-        // Tạm thời giữ, sau sẽ thay bằng Occupants
+        // Tạm thời giữ, sau sẽ thay bằng Members
         'current_people',
 
         'thumbnail',

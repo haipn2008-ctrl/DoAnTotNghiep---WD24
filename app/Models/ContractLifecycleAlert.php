@@ -19,6 +19,16 @@ class ContractLifecycleAlert extends Model
         return $this->belongsTo(Contract::class);
     }
 
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function vehicle()
+    {
+        return $this->belongsTo(Vehicle::class);
+    }
+
     public function scopeUnresolved($query)
     {
         return $query->whereNull('resolved_at');
@@ -38,6 +48,8 @@ class ContractLifecycleAlert extends Model
             'contract_expired' => 'Hợp đồng hết hạn',
             'deposit_exception' => 'Ngoại lệ tiền cọc',
             'cancelled_deposit_resolution' => 'Cọc hợp đồng đã hủy',
+            'vehicle_review' => 'Phương tiện chờ duyệt',
+            'vehicle_removed' => 'Phương tiện đã gỡ',
             default => 'Cần xử lý',
         };
     }

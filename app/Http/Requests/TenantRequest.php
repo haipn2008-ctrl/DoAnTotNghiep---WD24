@@ -2,10 +2,9 @@
 
 namespace App\Http\Requests;
 
-use App\Models\User;
+use App\Rules\AdultDateOfBirth;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Validator;
 use Override;
 
 class TenantRequest extends FormRequest
@@ -27,10 +26,7 @@ class TenantRequest extends FormRequest
             */
 
             'user_id' => [
-                'nullable',
-                'exists:users,id',
-                Rule::unique('tenants', 'user_id')
-                    ->ignore($tenantId),
+                'prohibited',
             ],
 
             /*
@@ -46,9 +42,9 @@ class TenantRequest extends FormRequest
             ],
 
             'date_of_birth' => [
-                'nullable',
+                'required',
                 'date',
-                'before:today',
+                new AdultDateOfBirth,
             ],
 
             'gender' => [
@@ -110,82 +106,23 @@ class TenantRequest extends FormRequest
                 'max:255',
             ],
 
-            /*
-            |--------------------------------------------------------------------------
-            | Xe
-            |--------------------------------------------------------------------------
-            */
-
-            'vehicles' => [
-                'nullable',
-                'array',
-            ],
-
-            'vehicles.*.vehicle_type' => [
-                'nullable',
-                'string',
-                'max:100',
-            ],
-
-            'vehicles.*.vehicle_name' => [
-                'nullable',
-                'string',
-                'max:255',
-            ],
-
-            'vehicles.*.license_plate' => [
-                'nullable',
-                'string',
-                'max:50',
-                'distinct',
-                'unique:vehicles,license_plate',
-            ],
-
-            'vehicles.*.color' => [
-                'nullable',
-                'string',
-                'max:100',
-            ],
-
-            'vehicles.*.note' => [
-                'nullable',
-                'string',
-                'max:500',
-            ],
         ];
     }
 
-    public function withValidator(Validator $validator): void
+    #[Override]
+    public function messages(): array
     {
-        $validator->after(function (Validator $validator): void {
-            $vehicles = $this->input('vehicles', []);
-
-            if (! is_array($vehicles)) {
-                return;
-            }
-
-            foreach ($vehicles as $index => $vehicle) {
-                if (! is_array($vehicle)) {
-                    continue;
-                }
-
-                $hasAnyValue =
-                    filled($vehicle['vehicle_type'] ?? null)
-                    || filled($vehicle['vehicle_name'] ?? null)
-                    || filled($vehicle['license_plate'] ?? null)
-                    || filled($vehicle['color'] ?? null)
-                    || filled($vehicle['note'] ?? null);
-
-                if (
-                    $hasAnyValue
-                    && blank($vehicle['license_plate'] ?? null)
-                ) {
-                    $validator->errors()->add(
-                        "vehicles.$index.license_plate",
-                        'Vui lòng nhập biển số xe.'
-                    );
-                }
-            }
-        });
+        return [
+            'user_id.prohibited' => 'Không thể thay đổi tài khoản liên kết từ hồ sơ khách thuê.',
+            'full_name.required' => 'Vui lòng nhập họ và tên.',
+            'cccd.required' => 'Vui lòng nhập CCCD.',
+            'cccd.digits' => 'CCCD phải gồm 12 chữ số.',
+            'cccd.unique' => 'CCCD đã tồn tại.',
+            'phone.required' => 'Vui lòng nhập số điện thoại.',
+            'phone.regex' => 'Số điện thoại phải gồm từ 10 đến 15 chữ số.',
+            'phone.unique' => 'Số điện thoại đã tồn tại.',
+            'email.email' => 'Email không đúng định dạng.',
+            'email.unique' => 'Email đã tồn tại.',
+        ];
     }
 }

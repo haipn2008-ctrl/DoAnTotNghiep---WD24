@@ -138,8 +138,14 @@ class TenantPortalManagementTest extends TestCase
 
         $this->actingAs($client)->put('/client/account', [
             'name' => 'Tên hiển thị mới',
+            'date_of_birth' => '1998-05-20',
+            'gender' => 'female',
+            'cccd' => '079098001234',
+            'cccd_issue_date' => '2020-06-15',
+            'cccd_issue_place' => 'Cuc Canh sat quan ly hanh chinh ve trat tu xa hoi',
             'email' => 'profile-new@example.test',
             'phone' => '0912345678',
+            'address' => '123 Nguyen Hue, Quan 1, TP.HCM',
         ])->assertSessionHasNoErrors();
 
         $client->refresh();
@@ -148,6 +154,8 @@ class TenantPortalManagementTest extends TestCase
         $this->assertSame('profile-new@example.test', $client->email);
         $this->assertSame('profile-new@example.test', $tenant->email);
         $this->assertSame('0912345678', $tenant->phone);
+        $this->assertSame('079098001234', $tenant->cccd);
+        $this->assertSame('female', $tenant->gender);
     }
 
     public function test_password_change_rejects_wrong_weak_same_and_unconfirmed_passwords_then_accepts_strong_one(): void

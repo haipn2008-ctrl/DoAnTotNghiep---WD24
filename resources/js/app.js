@@ -34,43 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.querySelectorAll('[data-minor-identity-form]').forEach((form) => {
-        const dateOfBirth = form.querySelector('[data-minor-date-of-birth]');
-        const identityNumber = form.querySelector('[data-minor-identity-number]');
-        const identityFiles = form.querySelectorAll('[data-minor-identity-file]');
-        const requiredMarkers = form.querySelectorAll('[data-minor-required-marker]');
-        const minorNote = form.querySelector('[data-minor-identity-note]');
-        const isUnderFourteen = () => {
-            if (!dateOfBirth?.value) return false;
-            const birthDate = new Date(`${dateOfBirth.value}T00:00:00`);
-            if (Number.isNaN(birthDate.getTime())) return false;
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const birthdayHasPassed = today.getMonth() > birthDate.getMonth()
-                || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
-            if (!birthdayHasPassed) age--;
-            return age >= 0 && age < 14;
-        };
-        const refresh = () => {
-            const minor = isUnderFourteen();
-            const hasIdentityNumber = Boolean(identityNumber?.value.trim());
-            if (identityNumber) {
-                identityNumber.required = !minor;
-                identityNumber.placeholder = minor ? 'CCCD (không bắt buộc)' : 'CCCD *';
-            }
-            identityFiles.forEach((input) => {
-                input.required = input.dataset.requiredWhenAdult === '1' && (!minor || hasIdentityNumber);
-            });
-            requiredMarkers.forEach((marker) => {
-                marker.textContent = minor ? '(không bắt buộc)' : '*';
-            });
-            minorNote?.classList.toggle('hidden', !minor);
-        };
-        dateOfBirth?.addEventListener('change', refresh);
-        identityNumber?.addEventListener('input', refresh);
-        refresh();
-    });
-
     const identityPreviewUrls = new WeakMap();
     document.addEventListener('change', (event) => {
         const input = event.target.closest?.('[data-identity-preview-input]');
@@ -416,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const quantity = Math.max(0, Number(parkingQuantity.value || 0));
             parkingEstimate.textContent = quantity > 0
-                ? `Miễn phí · ${quantity} xe máy/${quantity} người ở tối thiểu`
+                ? `Miễn phí · ${quantity} xe máy/${quantity} người thuê tối thiểu`
                 : 'Gửi xe máy miễn phí.';
         };
 
@@ -428,35 +391,25 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshParkingEstimate();
     });
 
-    document.querySelectorAll('[data-contract-occupants]').forEach((container) => {
-        const list = container.querySelector('[data-occupant-list]');
-        const template = container.querySelector('[data-occupant-template]');
-        const addButton = container.querySelector('[data-add-occupant]');
-        const countLabel = container.querySelector('[data-occupant-count]');
-        const emptyState = container.querySelector('[data-empty-occupants]');
-        const limitState = container.querySelector('[data-occupant-limit]');
-        const representativeResident = container.closest('form')?.querySelector('[data-representative-resident]');
+    document.querySelectorAll('[data-contract-tenants]').forEach((container) => {
+        const list = container.querySelector('[data-member-list]');
+        const template = container.querySelector('[data-member-template]');
+        const addButton = container.querySelector('[data-add-member]');
+        const countLabel = container.querySelector('[data-member-count]');
+        const emptyState = container.querySelector('[data-empty-members]');
+        const limitState = container.querySelector('[data-member-limit]');
         const roomSelector = container.closest('form')?.querySelector('[name="room_id"]');
-        let nextIndex = container.querySelectorAll('[data-occupant-row]').length;
+        let nextIndex = container.querySelectorAll('[data-member-row]').length;
         let lastValidRoomValue = roomSelector?.value || '';
         let roomCapacityError = '';
 
         const refresh = () => {
-            const count = list?.querySelectorAll('[data-occupant-row]').length || 0;
+            const count = list?.querySelectorAll('[data-member-row]').length || 0;
             const maximum = Number(roomSelector?.selectedOptions[0]?.dataset.maxPeople || 0);
-            if (representativeResident?.checked && maximum > 0 && count + 1 > maximum) {
-                representativeResident.checked = false;
-            }
-            if (representativeResident) {
-                representativeResident.disabled = !maximum || (!representativeResident.checked && count >= maximum);
-                representativeResident.closest('label')?.classList.toggle('opacity-50', representativeResident.disabled);
-                representativeResident.closest('label')?.classList.toggle('cursor-not-allowed', representativeResident.disabled);
-            }
-            const representativeCount = representativeResident?.checked ? 1 : 0;
-            const total = count + representativeCount;
+            const total = count + 1;
             roomSelector?.querySelectorAll('option[data-max-people]').forEach((option) => {
                 const optionMaximum = Number(option.dataset.maxPeople || 0);
-                option.disabled = option.value !== roomSelector.value && optionMaximum > 0 && count > optionMaximum;
+                option.disabled = option.value !== roomSelector.value && optionMaximum > 0 && total > optionMaximum;
             });
             if (countLabel) {
                 countLabel.textContent = maximum ? `${total}/${maximum} người` : `${total} người`;
@@ -477,54 +430,17 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const bindRow = (row) => {
-            const dateOfBirth = row.querySelector('[data-occupant-date-of-birth]');
-            const identityNumber = row.querySelector('[data-occupant-identity-number]');
-            const identityFiles = row.querySelectorAll('[data-occupant-identity-file]');
-            const identityMarkers = row.querySelectorAll('[data-identity-required-marker]');
-            const minorNote = row.querySelector('[data-minor-identity-note]');
-            const isUnderFourteen = () => {
-                if (!dateOfBirth?.value) return false;
-                const birthDate = new Date(`${dateOfBirth.value}T00:00:00`);
-                if (Number.isNaN(birthDate.getTime())) return false;
-                const today = new Date();
-                let age = today.getFullYear() - birthDate.getFullYear();
-                const birthdayHasPassed = today.getMonth() > birthDate.getMonth()
-                    || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
-                if (!birthdayHasPassed) age--;
-                return age >= 0 && age < 14;
-            };
-            const refreshIdentityRequirements = () => {
-                const minor = isUnderFourteen();
-                const hasIdentityNumber = Boolean(identityNumber?.value.trim());
-                if (identityNumber) {
-                    identityNumber.required = !minor;
-                    identityNumber.placeholder = minor
-                        ? 'Có thể để trống với trẻ dưới 14 tuổi'
-                        : 'Nhập đúng 12 chữ số';
-                }
-                identityFiles.forEach((input) => {
-                    input.required = input.dataset.identityRequiredWhenAdult === '1' && (!minor || hasIdentityNumber);
-                });
-                identityMarkers.forEach((marker) => {
-                    marker.textContent = minor ? '(không bắt buộc)' : '*';
-                });
-                minorNote?.classList.toggle('hidden', !minor);
-            };
-
-            dateOfBirth?.addEventListener('change', refreshIdentityRequirements);
-            identityNumber?.addEventListener('input', refreshIdentityRequirements);
-            row.querySelector('[data-remove-occupant]')?.addEventListener('click', () => {
+            row.querySelector('[data-remove-member]')?.addEventListener('click', () => {
                 row.remove();
                 roomCapacityError = '';
                 refresh();
             });
-            refreshIdentityRequirements();
         };
 
-        list?.querySelectorAll('[data-occupant-row]').forEach(bindRow);
+        list?.querySelectorAll('[data-member-row]').forEach(bindRow);
         addButton?.addEventListener('click', () => {
             const maximum = Number(roomSelector?.selectedOptions[0]?.dataset.maxPeople || 0);
-            const current = (list?.querySelectorAll('[data-occupant-row]').length || 0) + (representativeResident?.checked ? 1 : 0);
+            const current = (list?.querySelectorAll('[data-member-row]').length || 0) + 1;
             if (!list || !template || !maximum || current >= maximum) {
                 refresh();
                 return;
@@ -533,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
             wrapper.innerHTML = template.innerHTML.replaceAll('__INDEX__', String(nextIndex++));
             const row = wrapper.firstElementChild;
             if (row) {
-                const firstRow = list.querySelector('[data-occupant-row]');
+                const firstRow = list.querySelector('[data-member-row]');
                 list.insertBefore(row, firstRow || emptyState || list.firstChild);
                 bindRow(row);
                 row.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true });
@@ -541,17 +457,13 @@ document.addEventListener('DOMContentLoaded', () => {
             roomCapacityError = '';
             refresh();
         });
-        representativeResident?.addEventListener('change', () => {
-            roomCapacityError = '';
-            refresh();
-        });
         roomSelector?.addEventListener('change', () => {
-            const residentCount = list?.querySelectorAll('[data-occupant-row]').length || 0;
+            const residentCount = (list?.querySelectorAll('[data-member-row]').length || 0) + 1;
             const selectedMaximum = Number(roomSelector.selectedOptions[0]?.dataset.maxPeople || 0);
             if (selectedMaximum > 0 && residentCount > selectedMaximum) {
                 const rejectedMaximum = selectedMaximum;
                 roomSelector.value = lastValidRoomValue;
-                roomCapacityError = `Không thể đổi phòng: đã khai báo ${residentCount} người ở nhưng phòng vừa chọn chỉ chứa tối đa ${rejectedMaximum} người.`;
+                roomCapacityError = `Không thể đổi phòng: đã khai báo ${residentCount} người thuê nhưng phòng vừa chọn chỉ chứa tối đa ${rejectedMaximum} người.`;
                 refresh();
                 return;
             }
@@ -591,10 +503,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (field.type === 'checkbox' || field.type === 'radio') return field.checked ? field.value : '';
             return field.value;
         };
-        const reindexOccupantRows = () => {
-            form.querySelectorAll('[data-occupant-row]').forEach((row, index) => {
-                row.querySelectorAll('[name^="occupants["]').forEach((field) => {
-                    field.name = field.name.replace(/^occupants\[[^\]]+\]/, `occupants[${index}]`);
+        const reindexMemberRows = () => {
+            form.querySelectorAll('[data-member-row]').forEach((row, index) => {
+                row.querySelectorAll('[name^="members["]').forEach((field) => {
+                    field.name = field.name.replace(/^members\[[^\]]+\]/, `members[${index}]`);
                 });
             });
         };
@@ -652,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
             clearErrors();
-            reindexOccupantRows();
+            reindexMemberRows();
             const submitButtons = Array.from(form.querySelectorAll('[type="submit"]'));
             submitButtons.forEach((button) => {
                 button.disabled = true;

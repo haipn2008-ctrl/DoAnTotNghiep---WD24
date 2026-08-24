@@ -19,7 +19,7 @@
             <div class="rounded-lg border border-slate-200 p-3 sm:col-span-2">
                 <label class="flex items-start gap-3 text-sm">
                     <input type="checkbox" name="parking_enabled" value="1" data-parking-enabled @checked($selectedParkingEnabled) class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                    <span><strong class="block text-slate-900">Đăng ký xe máy miễn phí</strong><span class="mt-1 block text-xs text-slate-500">Mỗi người ở được đăng ký tối đa một xe máy. Không tiếp nhận ô tô.</span></span>
+                    <span><strong class="block text-slate-900">Đăng ký xe máy miễn phí</strong><span class="mt-1 block text-xs text-slate-500">Mỗi người thuê được đăng ký tối đa một xe máy. Không tiếp nhận ô tô.</span></span>
                 </label>
                 <div data-parking-fields class="mt-4 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2 {{ $selectedParkingEnabled ? '' : 'hidden' }}">
                     <div>

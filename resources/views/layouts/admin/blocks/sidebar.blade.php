@@ -18,7 +18,6 @@
             'items' => [
                 ['label' => 'Danh sách phòng', 'route' => 'admin.rooms.index', 'active' => request()->routeIs('admin.rooms.index')],
                 ['label' => 'Thêm phòng mới', 'route' => 'admin.rooms.create', 'active' => request()->routeIs('admin.rooms.create')],
-                ['label' => 'Xuất danh sách phòng', 'route' => 'admin.rooms.export', 'active' => request()->routeIs('admin.rooms.export')],
             ],
         ],
         [
@@ -27,8 +26,6 @@
             'active' => request()->routeIs('admin.tenants*'),
             'items' => [
                 ['label' => 'Danh sách khách thuê', 'route' => 'admin.tenants.index', 'active' => request()->routeIs('admin.tenants.index')],
-                ['label' => 'Thêm khách thuê', 'route' => 'admin.tenants.create', 'active' => request()->routeIs('admin.tenants.create')],
-                ['label' => 'Xuất danh sách khách thuê', 'route' => 'admin.tenants.export', 'active' => request()->routeIs('admin.tenants.export')],
 
             ],
         ],
@@ -79,7 +76,6 @@
                 ['label' => 'Sinh hóa đơn', 'route' => 'admin.invoices.generate', 'active' => request()->routeIs('admin.invoices.generate')],
                 ['label' => 'Danh sách hóa đơn', 'route' => 'admin.invoices.index', 'active' => request()->routeIs('admin.invoices.index')],
                 ['label' => 'Thanh toán', 'route' => 'admin.invoices.payments', 'active' => request()->routeIs('admin.invoices.payments')],
-                ['label' => 'Xuất hóa đơn', 'route' => 'admin.invoices.export', 'active' => request()->routeIs('admin.invoices.export*')],
             ],
         ],
         [

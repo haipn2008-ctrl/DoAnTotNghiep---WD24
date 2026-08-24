@@ -293,12 +293,9 @@
                                 </th>
 
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Màu
+                                    Ảnh xe
                                 </th>
-
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Ghi chú
-                                </th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Trạng thái / Duyệt</th>
                             </tr>
 
                         </thead>
@@ -310,7 +307,7 @@
                                 <tr class="hover:bg-slate-50">
 
                                     <td class="px-5 py-4 text-sm text-slate-700">
-                                        {{ $vehicle->vehicle_type ?: '---' }}
+                                        {{ ['motorcycle' => 'Xe máy', 'electric_motorcycle' => 'Xe máy điện', 'bicycle' => 'Xe đạp'][$vehicle->vehicle_type] ?? $vehicle->vehicle_type ?? '---' }}
                                     </td>
 
                                     <td class="px-5 py-4 text-sm font-medium text-slate-950">
@@ -318,15 +315,32 @@
                                     </td>
 
                                     <td class="px-5 py-4 text-sm font-semibold text-slate-950">
-                                        {{ $vehicle->license_plate ?: '---' }}
-                                    </td>
-
-                                    <td class="px-5 py-4 text-sm text-slate-700">
-                                        {{ $vehicle->color ?: '---' }}
+                                        {{ $vehicle->license_plate ?: ($vehicle->vehicle_type === 'bicycle' ? 'Không áp dụng' : '---') }}
                                     </td>
 
                                     <td class="px-5 py-4 text-sm text-slate-500">
-                                        {{ $vehicle->note ?: '---' }}
+                                        @if($vehicle->vehicle_image)
+                                            <a href="{{ asset('storage/'.$vehicle->vehicle_image) }}" target="_blank" rel="noopener">
+                                                <img src="{{ asset('storage/'.$vehicle->vehicle_image) }}" alt="Ảnh phương tiện" class="h-16 w-24 rounded-lg object-cover ring-1 ring-slate-200">
+                                            </a>
+                                        @else
+                                            ---
+                                        @endif
+                                    </td>
+
+                                    <td class="px-5 py-4 text-sm">
+                                        @php
+                                            $vehicleLabels = ['pending' => 'Chờ duyệt', 'approved' => 'Đã duyệt', 'rejected' => 'Từ chối'];
+                                            $vehicleClasses = ['pending' => 'bg-amber-50 text-amber-700', 'approved' => 'bg-emerald-50 text-emerald-700', 'rejected' => 'bg-rose-50 text-rose-700'];
+                                        @endphp
+                                        <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $vehicleClasses[$vehicle->status] ?? 'bg-slate-100 text-slate-600' }}">{{ $vehicleLabels[$vehicle->status] ?? $vehicle->status }}</span>
+                                        @if($vehicle->status !== \App\Models\Vehicle::STATUS_APPROVED)
+                                            <form method="POST" action="{{ route('admin.vehicles.review', $vehicle) }}" class="mt-3 flex min-w-64 gap-2">@csrf @method('PUT')
+                                                <input name="review_note" value="{{ $vehicle->review_note }}" maxlength="500" placeholder="Lý do nếu từ chối" class="h-9 min-w-0 flex-1 rounded border border-slate-200 px-2 text-xs">
+                                                <button name="status" value="approved" class="rounded bg-emerald-600 px-2.5 text-xs font-semibold text-white">Duyệt</button>
+                                                <button name="status" value="rejected" class="rounded bg-rose-600 px-2.5 text-xs font-semibold text-white">Từ chối</button>
+                                            </form>
+                                        @endif
                                     </td>
 
                                 </tr>

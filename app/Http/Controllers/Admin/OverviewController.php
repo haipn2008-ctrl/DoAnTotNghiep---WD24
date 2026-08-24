@@ -57,9 +57,9 @@ class OverviewController extends Controller
 
         // --- Cảnh báo vận hành ---
 
-        // Hợp đồng sắp hết hạn trong 30 ngày
+        // Hợp đồng đang ở tháng cuối (từ hôm nay đến đúng một tháng tới).
         $expiringContracts = Contract::whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
-            ->whereBetween('end_date', [today(), today()->addDays(30)])
+            ->whereBetween('end_date', [today(), today()->addMonthNoOverflow()])
             ->with('room:id,room_code')
             ->orderBy('end_date')
             ->get(['id', 'contract_code', 'end_date', 'room_id']);

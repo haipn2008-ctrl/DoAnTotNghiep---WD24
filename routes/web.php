@@ -5,7 +5,7 @@
 // =====================================================
 
 use App\Http\Controllers\Admin\ContractController;
-use App\Http\Controllers\Admin\ContractOccupantController;
+use App\Http\Controllers\Admin\ContractTenantController;
 use App\Http\Controllers\Admin\ContractExtensionRequestController as AdminContractExtensionRequestController;
 use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminContractTerminationRequestController;
 use App\Http\Controllers\Admin\DepositRefundController as AdminDepositRefundController;
@@ -34,7 +34,7 @@ use App\Http\Controllers\Auth\LoginController;
 
 use App\Http\Controllers\Client\AccountController as ClientAccountController;
 use App\Http\Controllers\Client\ContractController as ClientContractController;
-use App\Http\Controllers\Client\ContractOccupantController as ClientContractOccupantController;
+use App\Http\Controllers\Client\ContractTenantController as ClientContractTenantController;
 use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
 use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
@@ -44,6 +44,7 @@ use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\RoomController as ClientRoomController;
 use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
+use App\Http\Controllers\Client\VehicleController as ClientVehicleController;
 
 // =====================================================
 // MODELS
@@ -124,10 +125,17 @@ Route::middleware('auth')->group(function () {
         'show'
     ])->name('account.activation.show');
 
-    Route::post('/activate-account', [
+    Route::get('/activate-account/{step}', [
         AccountActivationController::class,
-        'activate'
-    ])->name('account.activation.activate');
+        'show'
+    ])->whereIn('step', ['personal', 'identity', 'contact', 'password'])
+        ->name('account.activation.step.show');
+
+    Route::post('/activate-account/{step}', [
+        AccountActivationController::class,
+        'store'
+    ])->whereIn('step', ['personal', 'identity', 'contact', 'password'])
+        ->name('account.activation.step.store');
 
 
     // =================================================
@@ -169,13 +177,8 @@ Route::middleware('auth')->group(function () {
 
                 Route::get(
                     'rooms/export',
-                    [RoomController::class, 'exportForm']
-                )->name('rooms.export');
-
-                Route::get(
-                    'rooms/export/download',
                     [RoomController::class, 'export']
-                )->name('rooms.export.download');
+                )->name('rooms.export');
 
                 Route::post(
                     'rooms/{room}/evidence',
@@ -194,18 +197,16 @@ Route::middleware('auth')->group(function () {
 
                 Route::get(
                     'tenants/export',
-                    [TenantController::class, 'exportForm']
-                )->name('tenants.export');
-
-                Route::get(
-                    'tenants/export/download',
                     [TenantController::class, 'export']
-                )->name('tenants.export.download');
+                )->name('tenants.export');
 
                 Route::resource(
                     'tenants',
                     TenantController::class
-                );
+                )->only(['index', 'show', 'edit', 'update', 'destroy']);
+
+                Route::put('vehicles/{vehicle}/review', [TenantController::class, 'reviewVehicle'])
+                    ->name('vehicles.review');
 
 
                 // =================================================
@@ -292,12 +293,6 @@ Route::middleware('auth')->group(function () {
                     [ContractController::class, 'issueDepositInvoice']
                 )->name('contracts.deposit-invoice.issue');
 
-                Route::post(
-                    'contracts/{contract}/deposit-invoice/create',
-                    [InvoiceController::class, 'createDepositInvoice']
-                )->name('contracts.deposit-invoice');
-
-
                 // =================================================
                 // HỢP ĐỒNG - KÝ
                 // =================================================
@@ -316,37 +311,6 @@ Route::middleware('auth')->group(function () {
                     'contracts/{contract}/mark-signed',
                     [ContractController::class, 'markAsSigned']
                 )->name('contracts.mark-signed');
-
-                Route::post(
-                    'contracts/{contract}/send-signature',
-                    [ContractController::class, 'sendSignature']
-                )->name('contracts.send-signature');
-
-                Route::post(
-                    'contracts/{contract}/recall-signature',
-                    [ContractController::class, 'recallSignature']
-                )->name('contracts.recall-signature');
-
-                Route::post(
-                    'contracts/{contract}/confirm-signature',
-                    [ContractController::class, 'confirmSignature']
-                )->name('contracts.confirm-signature');
-
-                Route::post(
-                    'contracts/{contract}/confirm-deposit',
-                    [ContractController::class, 'confirmDeposit']
-                )->name('contracts.confirm-deposit');
-
-                Route::post(
-                    'contracts/{contract}/activate',
-                    [ContractController::class, 'activate']
-                )->name('contracts.activate');
-
-                Route::get(
-                    'contracts/{contract}/modal',
-                    [ContractController::class, 'modal']
-                )->name('contracts.modal');
-
 
                 // =================================================
                 // HỢP ĐỒNG - CHECK IN / CHECK OUT
@@ -383,26 +347,26 @@ Route::middleware('auth')->group(function () {
                 // =================================================
 
                 Route::post(
-                    'contract-occupants/{occupant}/approve',
-                    [ContractOccupantController::class, 'approve']
-                )->name('contract-occupants.approve');
+                    'contract-tenants/{member}/approve',
+                    [ContractTenantController::class, 'approve']
+                )->name('contract-tenants.approve');
 
                 Route::post(
-                    'contract-occupants/{occupant}/reject',
-                    [ContractOccupantController::class, 'reject']
-                )->name('contract-occupants.reject');
+                    'contract-tenants/{member}/reject',
+                    [ContractTenantController::class, 'reject']
+                )->name('contract-tenants.reject');
 
                 Route::post(
-                    'contract-occupants/{occupant}/move-out',
-                    [ContractOccupantController::class, 'moveOut']
-                )->name('contract-occupants.move-out');
+                    'contract-tenants/{member}/move-out',
+                    [ContractTenantController::class, 'moveOut']
+                )->name('contract-tenants.move-out');
 
                 Route::get(
-                    'contract-occupants/{occupant}/identity/{side}',
+                    'contract-tenants/{member}/identity/{side}',
                     [ContractController::class, 'identityDocument']
                 )
                     ->whereIn('side', ['front', 'back'])
-                    ->name('contract-occupants.identity-document');
+                    ->name('contract-tenants.identity-document');
 
 
                 // =================================================
@@ -674,6 +638,8 @@ Route::middleware('auth')->group(function () {
                     'notifications',
                     [NotificationController::class, 'index']
                 )->name('notifications.index');
+                Route::get('notifications/{notification}', [NotificationController::class, 'open'])
+                    ->name('notifications.open');
 
 
                 // =================================================
@@ -817,7 +783,7 @@ Route::middleware('auth')->group(function () {
                             'end_date',
                             [
                                 today(),
-                                today()->addDays(30)
+                                today()->addMonthNoOverflow()
                             ]
                         )
                         ->with('room:id,room_code')
@@ -983,30 +949,10 @@ Route::middleware('auth')->group(function () {
                     [ClientContractController::class, 'file']
                 )->name('contracts.file');
 
-                Route::get(
-                    '/contracts/{contract}/print',
-                    [ClientContractController::class, 'print']
-                )->name('contracts.print');
-
-                Route::get(
-                    '/contracts/{contract}/download',
-                    [ClientContractController::class, 'download']
-                )->name('contracts.download');
-
                 Route::post(
-                    '/contracts/{contract}/sign',
-                    [ClientContractController::class, 'sign']
-                )->name('contracts.sign');
-
-                Route::post(
-                    '/contracts/{contract}/schedule-move-in',
-                    [ClientContractController::class, 'scheduleMoveIn']
-                )->name('contracts.schedule-move-in');
-
-                Route::post(
-                    '/contracts/{contract}/confirm-move-in',
-                    [ClientContractController::class, 'confirmMoveIn']
-                )->name('contracts.confirm-move-in');
+                    '/contracts/{contract}/move-in-details/confirm',
+                    [ClientContractController::class, 'confirmMoveInDetails']
+                )->name('contracts.move-in-details.confirm');
 
 
                 // =============================================
@@ -1014,14 +960,14 @@ Route::middleware('auth')->group(function () {
                 // =============================================
 
                 Route::post(
-                    '/contracts/{contract}/occupants',
-                    [ClientContractOccupantController::class, 'store']
-                )->name('contracts.occupants.store');
+                    '/contracts/{contract}/members',
+                    [ClientContractTenantController::class, 'store']
+                )->name('contracts.members.store');
 
                 Route::post(
-                    '/contracts/{contract}/occupants/{occupant}/withdraw',
-                    [ClientContractOccupantController::class, 'withdraw']
-                )->name('contracts.occupants.withdraw');
+                    '/contracts/{contract}/members/{member}/withdraw',
+                    [ClientContractTenantController::class, 'withdraw']
+                )->name('contracts.members.withdraw');
 
 
                 // =============================================
@@ -1123,6 +1069,11 @@ Route::middleware('auth')->group(function () {
                     '/account/password',
                     [ClientAccountController::class, 'updatePassword']
                 )->name('account.password.update');
+
+                Route::get('/vehicles', [ClientVehicleController::class, 'index'])->name('vehicles.index');
+                Route::post('/vehicles', [ClientVehicleController::class, 'store'])->name('vehicles.store');
+                Route::put('/vehicles/{vehicle}', [ClientVehicleController::class, 'update'])->name('vehicles.update');
+                Route::delete('/vehicles/{vehicle}', [ClientVehicleController::class, 'destroy'])->name('vehicles.destroy');
 
 
                 // =============================================

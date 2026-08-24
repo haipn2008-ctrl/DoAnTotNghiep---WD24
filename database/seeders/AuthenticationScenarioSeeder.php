@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\Amenity;
 use App\Models\Contract;
-use App\Models\ContractOccupant;
-use App\Models\ContractOccupantHistory;
+use App\Models\ContractTenant;
+use App\Models\ContractTenantHistory;
 use App\Models\Invoice;
 use App\Models\InvoiceDetail;
 use App\Models\Payment;
@@ -38,20 +38,6 @@ class AuthenticationScenarioSeeder extends Seeder
             );
 
             $this->seedClientScenario(
-                'minhkhang.le@example.test',
-                'D402',
-                'AUTH-PENDING',
-                'HD20260010',
-                ['1997-03-26', 'male', '001097334455', '2020-09-21', 'Cục Cảnh sát QLHC về TTXH', 'Số 62 phố Tố Hữu, Nam Từ Liêm, Hà Nội'],
-                ['Phạm Thu Huyền', '2000-12-14', 'female', '001300445566', '0923456789', 'thuhuyen.pham@example.test', 'Số 11 phố Mỗ Lao, Hà Đông, Hà Nội'],
-                Contract::STATUS_ACTIVE,
-                Room::STATUS_OCCUPIED,
-                now()->startOfMonth(),
-                now()->addYear()->endOfMonth(),
-                Invoice::STATUS_PAID,
-            );
-
-            $this->seedClientScenario(
                 'quynhanh.vu@example.test',
                 'D403',
                 'AUTH-SETTLING',
@@ -73,16 +59,14 @@ class AuthenticationScenarioSeeder extends Seeder
     {
         $admin = User::where('email', 'auth.admin@example.test')->sole();
         $active = User::where('email', 'ducthanh.nguyen@example.test')->sole();
-        $pending = User::where('email', 'minhkhang.le@example.test')->sole();
         $settling = User::where('email', 'quynhanh.vu@example.test')->sole();
 
         $activeInvoice = Invoice::whereHas('contract.tenant', fn ($query) => $query->where('user_id', $active->id))->sole();
-        $pendingInvoice = Invoice::whereHas('contract.tenant', fn ($query) => $query->where('user_id', $pending->id))->sole();
         $settlingInvoice = Invoice::whereHas('contract.tenant', fn ($query) => $query->where('user_id', $settling->id))->sole();
 
         $payments = [
             [$activeInvoice, 500000, Payment::STATUS_PENDING, Payment::METHOD_BANK_TRANSFER, 'SEED-PENDING', $active],
-            [$pendingInvoice, $pendingInvoice->total_amount, Payment::STATUS_SUCCESS, Payment::METHOD_CASH, 'SEED-SUCCESS', $pending],
+            [$activeInvoice, $activeInvoice->total_amount, Payment::STATUS_SUCCESS, Payment::METHOD_CASH, 'SEED-SUCCESS', $active],
             [$settlingInvoice, 1000000, Payment::STATUS_SUCCESS, Payment::METHOD_QR, 'SEED-PARTIAL', $settling],
             [$settlingInvoice, 200000, Payment::STATUS_FAILED, Payment::METHOD_BANK_TRANSFER, 'SEED-FAILED', $settling],
         ];
@@ -159,6 +143,7 @@ class AuthenticationScenarioSeeder extends Seeder
     ): void {
         $checkedOut = in_array($contractStatus, [Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED], true);
         $user = User::where('email', $email)->sole();
+        $adminId = User::where('email', 'auth.admin@example.test')->value('id');
         [$birthDate, $gender, $cccd, $issueDate, $issuePlace, $address] = $tenantProfile;
         [$memberName, $memberBirthDate, $memberGender, $memberCccd, $memberPhone, $memberEmail, $memberAddress] = $memberProfile;
 
@@ -166,7 +151,7 @@ class AuthenticationScenarioSeeder extends Seeder
         $existingContract = $existingTenant?->contracts()->latest('id')->first();
         $room = Room::query()->where('room_code', $code)->first()
             ?? Room::query()->where('room_code', $legacyCode)->first()
-            ?? new Room();
+            ?? new Room;
         $room->fill([
             'room_code' => $code,
             'floor' => 4,
@@ -188,7 +173,7 @@ class AuthenticationScenarioSeeder extends Seeder
             ])->all()
         );
 
-        $tenant = $existingTenant ?? new Tenant();
+        $tenant = $existingTenant ?? new Tenant;
         $tenant->fill([
             'user_id' => $user->id,
             'full_name' => $user->name,
@@ -204,7 +189,7 @@ class AuthenticationScenarioSeeder extends Seeder
 
         $member = Tenant::query()->where('cccd', $memberCccd)->first()
             ?? Tenant::query()->where('email', strtolower($legacyCode).'.member@example.test')->first()
-            ?? new Tenant();
+            ?? new Tenant;
         $member->fill([
             'user_id' => null,
             'full_name' => $memberName,
@@ -220,14 +205,13 @@ class AuthenticationScenarioSeeder extends Seeder
 
         $contract = $existingContract
             ?? Contract::query()->where('contract_code', $contractCode)->first()
-            ?? new Contract();
+            ?? new Contract;
         $contract->fill(
             [
                 'contract_code' => $contractCode,
                 'room_id' => $room->id,
                 'tenant_id' => $tenant->id,
                 'representative_tenant_id' => $tenant->id,
-                'representative_is_occupant' => true,
                 'monthly_rent' => 3500000,
                 'deposit_amount' => 7000000,
                 'deposit_status' => Contract::DEPOSIT_PAID,
@@ -243,34 +227,63 @@ class AuthenticationScenarioSeeder extends Seeder
         $contract->forceFill([
             'status' => $contractStatus,
             'signed_at' => $startDate->copy()->subDays(7),
+            'signed_confirmed_by' => $adminId,
+            'signature_due_at' => $startDate->copy()->subDays(6)->endOfDay(),
+            'deposit_due_at' => $startDate->copy()->subDays(4)->endOfDay(),
             'scheduled_move_in_date' => $startDate,
             'reservation_expires_at' => $startDate->copy()->addDays(2),
+            'move_in_terms_confirmed_at' => $startDate->copy()->subDays(7),
+            'move_in_terms_confirmed_by' => $adminId,
+            'move_in_inventory_snapshotted_at' => $startDate->copy()->subDays(7),
+            'move_in_details_confirmed_at' => $startDate->copy()->subDay(),
+            'move_in_details_confirmed_by' => $user->id,
             'actual_move_in_at' => (in_array($contractStatus, Contract::OPEN_OCCUPANCY_STATUSES, true) || $checkedOut) ? $startDate : null,
+            'checked_in_by' => $adminId,
             'actual_move_out_at' => $checkedOut ? $endDate : null,
+            'checked_out_by' => $checkedOut ? $adminId : null,
+            'checkout_reason' => $checkedOut ? 'Khách đã trả phòng và đang chờ hoàn tất quyết toán.' : null,
         ])->save();
-        $occupantStatus = in_array($contractStatus, Contract::OPEN_OCCUPANCY_STATUSES, true)
-            ? ContractOccupant::STATUS_CHECKED_IN
-            : ContractOccupant::STATUS_MOVED_OUT;
+
+        UtilityReading::updateOrCreate(
+            ['lifecycle_event_key' => "contract:{$contract->id}:handover"],
+            [
+                'room_id' => $room->id,
+                'contract_id' => $contract->id,
+                'month' => $startDate->month,
+                'year' => $startDate->year,
+                'record_date' => $startDate,
+                'reading_type' => 'handover',
+                'electricity_old' => 1000,
+                'electricity_new' => 1000,
+                'water_old' => 100,
+                'water_new' => 100,
+                'status' => 'confirmed',
+                'note' => "Chỉ số bàn giao kiểm thử {$code}",
+            ]
+        );
+        $memberStatus = in_array($contractStatus, Contract::OPEN_OCCUPANCY_STATUSES, true)
+            ? ContractTenant::STATUS_CHECKED_IN
+            : ContractTenant::STATUS_MOVED_OUT;
         foreach ([$tenant, $member] as $index => $person) {
-            $occupant = ContractOccupant::updateOrCreate(
+            $member = ContractTenant::updateOrCreate(
                 ['contract_id' => $contract->id, 'tenant_id' => $person->id],
                 [
-                    'role' => $index === 0 ? ContractOccupant::ROLE_REPRESENTATIVE : ContractOccupant::ROLE_OCCUPANT,
+                    'role' => $index === 0 ? ContractTenant::ROLE_REPRESENTATIVE : ContractTenant::ROLE_TENANT,
                     'full_name' => $person->full_name,
                     'date_of_birth' => $person->date_of_birth,
                     'identity_number' => $person->cccd,
                     'phone' => $person->phone,
-                    'relationship' => $index === 0 ? 'Người đại diện hợp đồng' : 'Người ở',
+                    'relationship' => $index === 0 ? 'Người đại diện hợp đồng' : 'Người thuê',
                     'address' => $person->address,
-                    'status' => $occupantStatus,
+                    'status' => $memberStatus,
                     'reviewed_at' => now(),
                     'actual_move_in_at' => $startDate,
-                    'actual_move_out_at' => $occupantStatus === ContractOccupant::STATUS_MOVED_OUT ? $endDate : null,
+                    'actual_move_out_at' => $memberStatus === ContractTenant::STATUS_MOVED_OUT ? $endDate : null,
                 ]
             );
-            ContractOccupantHistory::firstOrCreate(
-                ['contract_occupant_id' => $occupant->id, 'action' => 'authentication_scenario_seed'],
-                ['from_status' => null, 'to_status' => $occupantStatus, 'reason' => 'Dữ liệu kiểm thử xác thực.', 'performed_at' => now(), 'metadata' => ['seeded' => true]]
+            ContractTenantHistory::firstOrCreate(
+                ['contract_tenant_id' => $member->id, 'action' => 'authentication_scenario_seed'],
+                ['from_status' => null, 'to_status' => $memberStatus, 'reason' => 'Dữ liệu kiểm thử xác thực.', 'performed_at' => now(), 'metadata' => ['seeded' => true]]
             );
         }
 
