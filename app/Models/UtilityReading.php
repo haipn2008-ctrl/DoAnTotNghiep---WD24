@@ -7,6 +7,12 @@ use Illuminate\Support\Facades\Storage;
 
 class UtilityReading extends Model
 {
+    public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_CONFIRMED = 'confirmed';
+
+    public const STATUS_LOCKED = 'locked';
+
     protected $fillable = [
         'room_id', 'contract_id', 'month', 'year', 'reading_type',
         'record_date',
@@ -47,7 +53,29 @@ class UtilityReading extends Model
 
     public function invoice()
     {
-        return $this->hasOne(Invoice::class);
+        return $this->hasOne(Invoice::class)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->latest('revision');
+    }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === self::STATUS_DRAFT;
+    }
+
+    public function isConfirmed(): bool
+    {
+        return $this->status === self::STATUS_CONFIRMED;
+    }
+
+    public function isLocked(): bool
+    {
+        return $this->status === self::STATUS_LOCKED;
     }
 
     // Hàm phụ trợ tính số lượng tiêu thụ

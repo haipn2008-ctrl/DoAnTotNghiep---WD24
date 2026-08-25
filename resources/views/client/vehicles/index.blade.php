@@ -73,8 +73,8 @@
                     @endif
 
                     @if($vehicle->vehicle_image)
-                        <a href="{{ asset('storage/'.$vehicle->vehicle_image) }}" target="_blank" rel="noopener" class="mt-4 inline-block">
-                            <img src="{{ asset('storage/'.$vehicle->vehicle_image) }}" alt="Ảnh {{ $vehicle->vehicle_name ?: 'phương tiện' }}" class="h-36 w-52 rounded-lg object-cover ring-1 ring-slate-200">
+                        <a href="{{ route('client.vehicles.image', $vehicle) }}" target="_blank" rel="noopener" class="mt-4 inline-block">
+                            <img src="{{ route('client.vehicles.image', $vehicle) }}" alt="Ảnh {{ $vehicle->vehicle_name ?: 'phương tiện' }}" class="h-36 w-52 rounded-lg object-cover ring-1 ring-slate-200">
                         </a>
                     @endif
 

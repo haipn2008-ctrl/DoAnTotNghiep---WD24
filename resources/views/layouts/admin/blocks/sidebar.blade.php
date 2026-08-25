@@ -3,10 +3,11 @@
         [
             'label' => 'Tổng quan',
             'icon' => 'bx bx-home-alt',
-            'active' => request()->routeIs('admin.overview*') || request()->routeIs('admin.home'),
+            'active' => request()->routeIs('admin.overview*') || request()->routeIs('admin.reconciliation*') || request()->routeIs('admin.home'),
             'items' => [
                 ['label' => 'Dashboard', 'route' => 'admin.home', 'active' => request()->routeIs('admin.home')],
                 ['label' => 'Phân tích doanh thu', 'route' => 'admin.overview.revenue-chart', 'active' => request()->routeIs('admin.overview.revenue-chart')],
+                ['label' => 'Đối soát thu tiền', 'route' => 'admin.reconciliation.index', 'active' => request()->routeIs('admin.reconciliation*')],
                 ['label' => 'Thống kê phòng', 'route' => 'admin.overview.room-stats', 'active' => request()->routeIs('admin.overview.room-stats')],
                 ['label' => 'Tỷ lệ lấp đầy', 'route' => 'admin.overview.fill-rate', 'active' => request()->routeIs('admin.overview.fill-rate')],
             ],
@@ -71,11 +72,12 @@
         [
             'label' => 'Hóa đơn',
             'icon' => 'bx bx-receipt',
-            'active' => request()->routeIs('admin.invoices*'),
+            'active' => request()->routeIs('admin.invoices*') || request()->routeIs('admin.debts*'),
             'items' => [
                 ['label' => 'Sinh hóa đơn', 'route' => 'admin.invoices.generate', 'active' => request()->routeIs('admin.invoices.generate')],
                 ['label' => 'Danh sách hóa đơn', 'route' => 'admin.invoices.index', 'active' => request()->routeIs('admin.invoices.index')],
                 ['label' => 'Thanh toán', 'route' => 'admin.invoices.payments', 'active' => request()->routeIs('admin.invoices.payments')],
+                ['label' => 'Công nợ', 'route' => 'admin.debts.index', 'active' => request()->routeIs('admin.debts*')],
             ],
         ],
         [

@@ -54,34 +54,40 @@ class UtilityController extends Controller
 
     private function readingsForContracts(Collection $contracts): Builder
     {
-        return UtilityReading::query()->where(function ($query) use ($contracts) {
-            if ($contracts->isEmpty()) {
-                $query->whereRaw('1 = 0');
+        return UtilityReading::query()
+            ->whereIn('status', [UtilityReading::STATUS_CONFIRMED, UtilityReading::STATUS_LOCKED])
+            ->where(function (Builder $query) {
+                $query->whereNull('reading_type')
+                    ->orWhere('reading_type', '!=', 'baseline');
+            })
+            ->where(function ($query) use ($contracts) {
+                if ($contracts->isEmpty()) {
+                    $query->whereRaw('1 = 0');
 
-                return;
-            }
+                    return;
+                }
 
-            $query->whereIn('contract_id', $contracts->pluck('id'));
+                $query->whereIn('contract_id', $contracts->pluck('id'));
 
-            // Tương thích dữ liệu cũ chưa gắn contract_id. Chỉ dùng phòng và thời gian
-            // cho các bản ghi legacy, không để lịch sử người thuê trước lọt vào hợp đồng mới.
-            foreach ($contracts as $contract) {
-                $start = $contract->start_date;
-                $end = $contract->actual_end_date ?? $contract->extend_end_date ?? $contract->end_date;
+                // Tương thích dữ liệu cũ chưa gắn contract_id. Chỉ dùng phòng và thời gian
+                // cho các bản ghi legacy, không để lịch sử người thuê trước lọt vào hợp đồng mới.
+                foreach ($contracts as $contract) {
+                    $start = $contract->start_date;
+                    $end = $contract->actual_end_date ?? $contract->extend_end_date ?? $contract->end_date;
 
-                $query->orWhere(function ($query) use ($contract, $start, $end) {
-                    $query->whereNull('contract_id')
-                        ->where('room_id', $contract->room_id)
-                        ->where(function ($query) use ($start) {
-                            $query->where('year', '>', $start->year)
-                                ->orWhere(fn ($query) => $query->where('year', $start->year)->where('month', '>=', $start->month));
-                        })
-                        ->where(function ($query) use ($end) {
-                            $query->where('year', '<', $end->year)
-                                ->orWhere(fn ($query) => $query->where('year', $end->year)->where('month', '<=', $end->month));
-                        });
-                });
-            }
-        });
+                    $query->orWhere(function ($query) use ($contract, $start, $end) {
+                        $query->whereNull('contract_id')
+                            ->where('room_id', $contract->room_id)
+                            ->where(function ($query) use ($start) {
+                                $query->where('year', '>', $start->year)
+                                    ->orWhere(fn ($query) => $query->where('year', $start->year)->where('month', '>=', $start->month));
+                            })
+                            ->where(function ($query) use ($end) {
+                                $query->where('year', '<', $end->year)
+                                    ->orWhere(fn ($query) => $query->where('year', $end->year)->where('month', '<=', $end->month));
+                            });
+                    });
+                }
+            });
     }
 }

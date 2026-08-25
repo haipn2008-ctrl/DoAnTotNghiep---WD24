@@ -1192,7 +1192,7 @@ KÝ XÁC NHẬN
 
             @endif
 
-        @else
+        @elseif ($temporaryResidence->status !== 'cancelled')
 
             <p class="text-muted small mb-3">
                 Vui lòng ký xác nhận hồ sơ đăng ký tạm trú trước khi xuất phiếu PDF.
@@ -1210,6 +1210,10 @@ KÝ XÁC NHẬN
 
             </button>
 
+        @else
+            <div class="alert alert-secondary border-0 mb-0">
+                Hồ sơ đã hủy và được khóa để bảo toàn lịch sử.
+            </div>
         @endif
 
     </div>

@@ -1180,7 +1180,7 @@ class ContractManagementTest extends TestCase
         $this->assertSame(0, $contract->invoices()->where('invoice_type', Invoice::TYPE_FIRST_MONTH_RENT)->count());
         $this->assertSame(1, $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->count());
 
-        Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_PENDING]);
+        $pendingPayment = Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_PENDING]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
         Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_FAILED]);
@@ -1191,6 +1191,12 @@ class ContractManagementTest extends TestCase
             'amount_paid' => 1250000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
         ])->assertSessionHasNoErrors();
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
+        $this->post(route('admin.invoices.payments.store', $depositInvoice), [
+            'amount_paid' => 1750000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
+        ])->assertSessionHasErrors('amount_paid');
+        $this->post(route('admin.invoices.payments.reject', $pendingPayment), [
+            'review_note' => 'Khoản chờ được thay thế bằng giao dịch do admin ghi nhận.',
+        ])->assertSessionHasNoErrors();
         $this->post(route('admin.invoices.payments.store', $depositInvoice), [
             'amount_paid' => 1750000, 'payment_date' => today()->toDateString(), 'payment_method' => Payment::METHOD_CASH,
         ])->assertSessionHasNoErrors();

@@ -14,8 +14,10 @@ use App\Support\Csv;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TenantController extends Controller
 {
@@ -404,6 +406,21 @@ class TenantController extends Controller
         return back()->with('success', $data['status'] === Vehicle::STATUS_APPROVED
             ? 'Đã duyệt phương tiện.'
             : 'Đã từ chối phương tiện.');
+    }
+
+    public function vehicleImage(Vehicle $vehicle): StreamedResponse
+    {
+        abort_unless(
+            filled($vehicle->vehicle_image)
+            && str_starts_with($vehicle->vehicle_image, 'vehicles/')
+            && Storage::disk('local')->exists($vehicle->vehicle_image),
+            404
+        );
+
+        return Storage::disk('local')->response($vehicle->vehicle_image, null, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     /*

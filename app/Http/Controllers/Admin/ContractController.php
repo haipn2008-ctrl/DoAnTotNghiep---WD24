@@ -102,7 +102,9 @@ class ContractController extends Controller
         $suggestedHandoverReading = $latestReading ?? $contract->room?->utilityReadings()
             ->latest('record_date')->latest('id')->first();
         $setting = Setting::currentOrCreate();
-        $totalInvoiced = (float) $contract->invoices->where('status', '!=', Invoice::STATUS_WRITTEN_OFF)->sum('total_amount');
+        $totalInvoiced = (float) $contract->invoices
+            ->whereNotIn('status', [Invoice::STATUS_WRITTEN_OFF, Invoice::STATUS_CANCELLED])
+            ->sum(fn (Invoice $invoice): float => $invoice->payable_amount);
         $totalPaid = (float) $contract->invoices->flatMap->payments->where('status', Payment::STATUS_SUCCESS)->sum('amount_paid');
         $totalOutstanding = max(0, $totalInvoiced - $totalPaid);
         $depositPaid = $contract->deposit_paid_amount;

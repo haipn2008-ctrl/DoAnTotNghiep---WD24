@@ -28,6 +28,7 @@ class DashboardController extends Controller
                 fn ($query) => $query->whereRaw('1 = 0')
             );
         $recentInvoice = (clone $invoiceQuery)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
             ->latest('year')->latest('month')->latest('id')->first();
         $openInvoices = (clone $invoiceQuery)
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])

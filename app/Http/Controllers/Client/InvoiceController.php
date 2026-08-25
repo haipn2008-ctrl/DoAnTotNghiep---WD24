@@ -14,21 +14,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class InvoiceController extends Controller
 {
     public function index(Request $request): View
     {
         $filters = $request->validate([
-            'status' => 'nullable|in:unpaid,partial,paid',
+            'status' => 'nullable|in:unpaid,partial,paid,cancelled',
             'year' => 'nullable|integer|between:2000,2100',
         ]);
 
         $query = $this->invoiceQuery($request)
             ->with(['room', 'contract'])
             ->withSum(
-                ['payments as paid_amount' => fn ($query) =>
-                    $query->where('status', Payment::STATUS_SUCCESS)
+                ['payments as paid_amount' => fn ($query) => $query->where('status', Payment::STATUS_SUCCESS),
                 ],
                 'amount_paid'
             );
@@ -76,11 +76,11 @@ class InvoiceController extends Controller
     public function storePayment(Request $request, int $invoice): RedirectResponse
     {
         $invoice = $this->findOwnedInvoice($request, $invoice);
-        $reservedAmount = (float) $invoice->payments
-            ->whereIn('status', [Payment::STATUS_SUCCESS, Payment::STATUS_PENDING])
-            ->sum('amount_paid');
-        $availableAmount = max(0, (float) $invoice->total_amount - $reservedAmount);
-
+        if (! $invoice->canPay()) {
+            throw ValidationException::withMessages([
+                'amount_paid' => 'Hóa đơn không còn nhận thanh toán.',
+            ]);
+        }
         $paidAmount = (float) $invoice->payments
             ->where('status', Payment::STATUS_SUCCESS)
             ->sum('amount_paid');
@@ -91,7 +91,7 @@ class InvoiceController extends Controller
 
         $availableAmount = max(
             0,
-            (float) $invoice->total_amount - $paidAmount - $pendingAmount
+            $invoice->payable_amount - $paidAmount - $pendingAmount
         );
 
         if ($availableAmount <= 0) {
@@ -105,14 +105,14 @@ class InvoiceController extends Controller
                 'required',
                 'integer',
                 'min:1',
-                'max:' . (int) floor($availableAmount),
+                'max:'.(int) floor($availableAmount),
             ],
             'proof_image' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'note' => 'nullable|string|max:1000',
         ]);
 
         $proofPath = $request->file('proof_image')
-            ->store('payment-proofs', 'public');
+            ->store('payment-proofs', 'local');
 
         try {
             DB::transaction(function () use (
@@ -129,8 +129,8 @@ class InvoiceController extends Controller
                 $tenantId = $request->user()->tenant?->id;
 
                 if (
-                    !$tenantId ||
-                    !$lockedInvoice->contract ||
+                    ! $tenantId ||
+                    ! $lockedInvoice->contract ||
                     $lockedInvoice->contract->tenant_id !== $tenantId
                 ) {
                     abort(403, 'Bạn không có quyền thanh toán hóa đơn này.');
@@ -146,13 +146,18 @@ class InvoiceController extends Controller
 
                 $availableAmount = max(
                     0,
-                    (float) $lockedInvoice->total_amount - $reservedAmount
+                    $lockedInvoice->payable_amount - $reservedAmount
                 );
+
+                if (! $lockedInvoice->canPay()) {
+                    throw ValidationException::withMessages([
+                        'amount_paid' => 'Hóa đơn không còn nhận thanh toán.',
+                    ]);
+                }
 
                 if ((float) $data['amount_paid'] > $availableAmount) {
                     throw ValidationException::withMessages([
-                        'amount_paid' =>
-                            'Số tiền xác nhận vượt quá số tiền còn có thể thanh toán.',
+                        'amount_paid' => 'Số tiền xác nhận vượt quá số tiền còn có thể thanh toán.',
                     ]);
                 }
 
@@ -171,7 +176,7 @@ class InvoiceController extends Controller
                 app(AdminNotificationService::class)->paymentSubmitted($payment);
             });
         } catch (\Throwable $exception) {
-            Storage::disk('public')->delete($proofPath);
+            Storage::disk('local')->delete($proofPath);
             throw $exception;
         }
 
@@ -183,6 +188,21 @@ class InvoiceController extends Controller
             );
     }
 
+    public function paymentProof(Request $request, Payment $payment): BinaryFileResponse
+    {
+        $tenantId = $request->user()->tenant?->id;
+
+        abort_unless(
+            $tenantId
+            && $payment->invoice()
+                ->whereHas('contract', fn ($query) => $query->where('tenant_id', $tenantId))
+                ->exists(),
+            404
+        );
+
+        return $this->privateProofResponse($payment);
+    }
+
     private function findOwnedInvoice(Request $request, int $invoice): Invoice
     {
         return $this->invoiceQuery($request)
@@ -190,8 +210,8 @@ class InvoiceController extends Controller
                 'room',
                 'contract.tenant',
                 'details',
-                'payments' => fn ($query) =>
-                    $query->latest('payment_date')->latest('id'),
+                'adjustments.creator',
+                'payments' => fn ($query) => $query->latest('payment_date')->latest('id'),
             ])
             ->findOrFail($invoice);
     }
@@ -204,7 +224,7 @@ class InvoiceController extends Controller
 
         $remainingAmount = max(
             0,
-            (float) $invoice->total_amount - $paidAmount
+            $invoice->payable_amount - $paidAmount
         );
 
         $pendingAmount = (float) $invoice->payments
@@ -217,7 +237,7 @@ class InvoiceController extends Controller
         );
 
         $bankSetting = Setting::currentOrCreate();
-        $paymentContent = 'TT ' . $invoice->invoice_code;
+        $paymentContent = 'TT '.$invoice->invoice_code;
 
         return compact(
             'invoice',
@@ -243,5 +263,24 @@ class InvoiceController extends Controller
                 ),
                 fn ($query) => $query->whereRaw('1 = 0')
             );
+    }
+
+    private function privateProofResponse(Payment $payment): BinaryFileResponse
+    {
+        abort_unless(
+            filled($payment->proof_image)
+            && str_starts_with($payment->proof_image, 'payment-proofs/')
+            && Storage::disk('local')->exists($payment->proof_image),
+            404
+        );
+
+        $response = response()->file(Storage::disk('local')->path($payment->proof_image), [
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+        $response->setPrivate();
+        $response->setMaxAge(0);
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 }

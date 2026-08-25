@@ -18,12 +18,16 @@ class TemporaryResidence extends Model
         'note',
         'signature',
         'signed_at',
+        'cancelled_at',
+        'cancelled_by',
+        'cancellation_reason',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
         'signed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     public function tenant()
@@ -34,5 +38,10 @@ class TemporaryResidence extends Model
     public function contract()
     {
         return $this->belongsTo(Contract::class);
+    }
+
+    public function cancelledBy()
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }

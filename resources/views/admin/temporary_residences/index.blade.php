@@ -773,6 +773,7 @@
                                                 </a>
 
 
+                                                @if (!$temporaryResidence->signature && !$temporaryResidence->signed_at && $temporaryResidence->status !== 'cancelled')
                                                 {{-- SỬA --}}
 
                                                 <a href="{{ route(
@@ -787,7 +788,7 @@
                                                 </a>
 
 
-                                                {{-- XÓA --}}
+                                                {{-- HỦY HỒ SƠ --}}
 
                                                 <form action="{{ route(
                                                     'admin.temporary_residences.destroy',
@@ -795,21 +796,28 @@
                                                 ) }}"
                                                     method="POST"
                                                     class="d-inline"
-                                                    onsubmit="return confirm('Bạn có chắc chắn muốn xóa đăng ký tạm trú này không?');">
+                                                    onsubmit="const reason = prompt('Nhập lý do hủy hồ sơ tạm trú (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do hủy phải có ít nhất 10 ký tự.'); return false; } this.elements.cancellation_reason.value = reason.trim(); return confirm('Xác nhận hủy hồ sơ này? Dữ liệu sẽ được giữ lại để truy vết.');">
 
                                                     @csrf
 
                                                     @method('DELETE')
 
+                                                    <input type="hidden" name="cancellation_reason">
+
                                                     <button type="submit"
                                                         class="btn btn-soft-danger"
-                                                        title="Xóa">
+                                                        title="Hủy hồ sơ">
 
-                                                        <i class="mdi mdi-delete-outline"></i>
+                                                        <i class="mdi mdi-cancel"></i>
 
                                                     </button>
 
                                                 </form>
+                                                @elseif ($temporaryResidence->signature || $temporaryResidence->signed_at)
+                                                    <span class="badge bg-success-subtle text-success">Đã khóa sau khi ký</span>
+                                                @else
+                                                    <span class="badge bg-secondary-subtle text-secondary">Đã hủy</span>
+                                                @endif
 
                                             </div>
 

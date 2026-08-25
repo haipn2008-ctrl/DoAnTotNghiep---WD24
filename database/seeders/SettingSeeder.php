@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\FeeSchedule;
 use App\Models\Setting;
 use Illuminate\Database\Seeder;
 
@@ -31,6 +32,11 @@ class SettingSeeder extends Seeder
             'bank_account_name' => 'NGUYEN XUAN NAM',
         ];
 
-        Setting::currentOrCreate($defaults);
+        $setting = Setting::currentOrCreate($defaults);
+
+        FeeSchedule::query()->firstOrCreate(
+            ['effective_from' => '2000-01-01'],
+            $setting->only(['electric_price', 'water_price', 'internet_fee', 'service_fee'])
+        );
     }
 }

@@ -28,6 +28,8 @@ class Invoice extends Model
 
     const STATUS_WRITTEN_OFF = 'written_off';
 
+    const STATUS_CANCELLED = 'cancelled';
+
     /*
     |--------------------------------------------------------------------------
     | Fillable
@@ -35,12 +37,16 @@ class Invoice extends Model
     */
 
     protected $fillable = [
-        
+
         'contract_id',
+
+        'fee_schedule_id',
 
         'invoice_code',
 
         'invoice_type',
+
+        'revision',
 
         'room_id',
 
@@ -65,9 +71,17 @@ class Invoice extends Model
         'service_fee',
 
         'total_amount',
-        
+
+        'adjustment_amount',
+
         'status',
-         
+
+        'cancelled_at',
+
+        'cancelled_by',
+
+        'cancellation_reason',
+
         'invoice_type',
     ];
 
@@ -95,6 +109,12 @@ class Invoice extends Model
 
         'total_amount' => 'decimal:2',
 
+        'adjustment_amount' => 'decimal:2',
+
+        'revision' => 'integer',
+
+        'cancelled_at' => 'datetime',
+
     ];
 
     /*
@@ -118,6 +138,11 @@ class Invoice extends Model
         return $this->belongsTo(UtilityReading::class);
     }
 
+    public function feeSchedule()
+    {
+        return $this->belongsTo(FeeSchedule::class);
+    }
+
     public function details()
     {
         return $this->hasMany(InvoiceDetail::class)
@@ -127,6 +152,26 @@ class Invoice extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function adjustments()
+    {
+        return $this->hasMany(InvoiceAdjustment::class)->orderBy('id');
+    }
+
+    public function reminders()
+    {
+        return $this->hasMany(InvoiceReminder::class)->latest('reminded_at')->latest('id');
+    }
+
+    public function latestReminder()
+    {
+        return $this->hasOne(InvoiceReminder::class)->latestOfMany('reminded_at');
+    }
+
+    public function canceller()
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     /*
@@ -176,8 +221,62 @@ class Invoice extends Model
     {
         return max(
             0,
-            $this->total_amount - $this->paid_amount
+            $this->payable_amount - $this->paid_amount
         );
+    }
+
+    public function getPayableAmountAttribute(): float
+    {
+        return max(0, (float) $this->total_amount + (float) $this->adjustment_amount);
+    }
+
+    public function getOverpaidAmountAttribute(): float
+    {
+        return max(0, (float) $this->paid_amount - $this->payable_amount);
+    }
+
+    public function getDaysOverdueAttribute(): int
+    {
+        if (! $this->canPay() || ! $this->due_date || ! today()->gt($this->due_date)) {
+            return 0;
+        }
+
+        return (int) $this->due_date->diffInDays(today());
+    }
+
+    public function getDebtBucketAttribute(): string
+    {
+        if (! $this->canPay()) {
+            return 'settled';
+        }
+
+        if ($this->due_date->isFuture()) {
+            return 'upcoming';
+        }
+
+        if ($this->due_date->isToday()) {
+            return 'due_today';
+        }
+
+        return match (true) {
+            $this->days_overdue <= 3 => 'overdue_1_3',
+            $this->days_overdue <= 7 => 'overdue_4_7',
+            $this->days_overdue <= 14 => 'overdue_8_14',
+            default => 'overdue_15_plus',
+        };
+    }
+
+    public function getDebtBucketLabelAttribute(): string
+    {
+        return match ($this->debt_bucket) {
+            'upcoming' => 'Chưa đến hạn',
+            'due_today' => 'Đến hạn hôm nay',
+            'overdue_1_3' => 'Quá hạn 1–3 ngày',
+            'overdue_4_7' => 'Quá hạn 4–7 ngày',
+            'overdue_8_14' => 'Quá hạn 8–14 ngày',
+            'overdue_15_plus' => 'Quá hạn từ 15 ngày',
+            default => 'Đã xử lý',
+        };
     }
 
     public function getStatusLabelAttribute()
@@ -189,6 +288,8 @@ class Invoice extends Model
             self::STATUS_PARTIAL => 'Thanh toán một phần',
 
             self::STATUS_WRITTEN_OFF => 'Đã xóa nợ có phê duyệt',
+
+            self::STATUS_CANCELLED => 'Đã hủy',
 
             default => 'Chưa thanh toán',
         };
@@ -215,6 +316,11 @@ class Invoice extends Model
         return $this->status === self::STATUS_UNPAID;
     }
 
+    public function isCancelled(): bool
+    {
+        return $this->status === self::STATUS_CANCELLED;
+    }
+
     public function isFirstMonthRent(): bool
     {
         return $this->invoice_type === self::TYPE_FIRST_MONTH_RENT;
@@ -230,15 +336,12 @@ class Invoice extends Model
      */
     public function canPay(): bool
     {
-        return ! in_array($this->status, [self::STATUS_PAID, self::STATUS_WRITTEN_OFF], true);
+        return ! in_array($this->status, [self::STATUS_PAID, self::STATUS_WRITTEN_OFF, self::STATUS_CANCELLED], true);
     }
 
     public function isOverdue()
     {
-        return
-            now()->gt($this->due_date)
-            &&
-            ! $this->isPaid();
+        return $this->days_overdue > 0;
     }
 
     /*
@@ -272,11 +375,16 @@ class Invoice extends Model
 
     public function refreshStatus()
     {
+        if (in_array($this->status, [self::STATUS_CANCELLED, self::STATUS_WRITTEN_OFF], true)) {
+            return $this;
+        }
+
         $paid = $this->payments()
             ->success()
             ->sum('amount_paid');
+        $payable = $this->payable_amount;
 
-        if ($paid >= $this->total_amount && $this->total_amount > 0) {
+        if ($payable <= 0 || $paid >= $payable) {
 
             $this->status = self::STATUS_PAID;
         } elseif ($paid > 0) {

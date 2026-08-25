@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\FeeSchedule;
 use App\Models\Room;
 use App\Models\Setting;
 use App\Models\UtilityReading;
@@ -93,7 +94,9 @@ class UtilityController extends Controller
                 'water_image' => $currentReading?->water_image,
                 'last_period' => $previousReading ? "{$previousReading->month}/{$previousReading->year}" : null,
                 'saved' => (bool) $currentReading,
-                'locked' => (bool) $currentReading?->invoice,
+                'status' => $currentReading?->status,
+                'locked' => $currentReading?->isLocked() || (bool) $currentReading?->invoice,
+                'editable' => ! $currentReading || $currentReading->isDraft(),
             ];
         }
 
@@ -109,6 +112,7 @@ class UtilityController extends Controller
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|between:2000,2100',
             'record_date' => 'nullable|date',
+            'intent' => 'nullable|in:draft,confirm',
             'readings' => 'required|array',
             'readings.*.selected' => 'nullable|boolean',
             'readings.*.room_id' => 'required|distinct|exists:rooms,id',
@@ -120,6 +124,9 @@ class UtilityController extends Controller
 
         $selectedReadings = collect($data['readings'])
             ->filter(fn ($reading) => (bool) ($reading['selected'] ?? false));
+        $targetStatus = ($data['intent'] ?? 'confirm') === 'draft'
+            ? UtilityReading::STATUS_DRAFT
+            : UtilityReading::STATUS_CONFIRMED;
 
         if ($selectedReadings->isEmpty()) {
             throw ValidationException::withMessages([
@@ -138,7 +145,7 @@ class UtilityController extends Controller
         $replacedImages = [];
 
         try {
-            DB::transaction(function () use ($request, $data, $selectedReadings, $periodStart, $periodEnd, &$newImages, &$replacedImages) {
+            DB::transaction(function () use ($request, $data, $selectedReadings, $periodStart, $periodEnd, $targetStatus, &$newImages, &$replacedImages) {
                 foreach ($selectedReadings as $index => $readingData) {
                     $roomId = (int) $readingData['room_id'];
 
@@ -181,9 +188,15 @@ class UtilityController extends Controller
                             'reading_type' => 'periodic',
                         ]);
 
-                    if ($reading->exists && $reading->invoice()->exists()) {
+                    if ($reading->exists && ($reading->isLocked() || $reading->invoice()->exists())) {
                         throw ValidationException::withMessages([
                             "readings.{$index}.room_id" => 'Không thể sửa chỉ số vì phòng này đã phát hành hóa đơn.',
+                        ]);
+                    }
+
+                    if ($reading->exists && $reading->isConfirmed()) {
+                        throw ValidationException::withMessages([
+                            "readings.{$index}.room_id" => 'Chỉ số đã được xác nhận. Hãy chuyển về bản nháp trước khi sửa.',
                         ]);
                     }
 
@@ -201,6 +214,12 @@ class UtilityController extends Controller
                     if (! $reading->exists && ! $previousReading) {
                         throw ValidationException::withMessages([
                             "readings.{$index}.room_id" => 'Hợp đồng chưa có chỉ số bàn giao. Không thể mặc định chỉ số đầu bằng 0.',
+                        ]);
+                    }
+
+                    if ($targetStatus === UtilityReading::STATUS_CONFIRMED && $previousReading?->isDraft()) {
+                        throw ValidationException::withMessages([
+                            "readings.{$index}.room_id" => 'Phải xác nhận chỉ số của kỳ trước trước khi xác nhận kỳ này.',
                         ]);
                     }
 
@@ -233,7 +252,7 @@ class UtilityController extends Controller
                         'water_new' => $readingData['water_new'],
                         'record_date' => $data['record_date'],
                         'reading_type' => 'periodic',
-                        'status' => 'confirmed',
+                        'status' => $targetStatus,
                     ];
 
                     foreach (['electricity', 'water'] as $type) {
@@ -258,11 +277,74 @@ class UtilityController extends Controller
         Storage::disk('local')->delete($replacedImages);
 
         $savedCount = $selectedReadings->count();
-        $message = "Đã lưu chỉ số cho {$savedCount} phòng. Bạn có thể tiếp tục nhập các phòng còn lại bất cứ lúc nào.";
+        $message = $targetStatus === UtilityReading::STATUS_DRAFT
+            ? "Đã lưu nháp chỉ số cho {$savedCount} phòng."
+            : "Đã xác nhận chỉ số cho {$savedCount} phòng.";
 
         return redirect()
             ->route('admin.utilities.index', ['month' => $data['month'], 'year' => $data['year']])
             ->with('success', $message);
+    }
+
+    public function confirm(UtilityReading $reading)
+    {
+        DB::transaction(function () use ($reading): void {
+            $reading = UtilityReading::query()->lockForUpdate()->findOrFail($reading->id);
+            $this->ensurePeriodicReadingCanChangeStatus($reading);
+
+            if ($reading->isLocked()) {
+                throw ValidationException::withMessages(['reading' => 'Chỉ số đã bị khóa bởi hóa đơn.']);
+            }
+
+            if ($reading->isConfirmed()) {
+                return;
+            }
+
+            $hasEarlierDraft = UtilityReading::query()
+                ->where('contract_id', $reading->contract_id)
+                ->where('reading_type', 'periodic')
+                ->where('status', UtilityReading::STATUS_DRAFT)
+                ->where(function ($query) use ($reading): void {
+                    $query->whereDate('record_date', '<', $reading->record_date)
+                        ->orWhere(fn ($sameDate) => $sameDate
+                            ->whereDate('record_date', $reading->record_date)
+                            ->where('id', '<', $reading->id));
+                })
+                ->exists();
+
+            if ($hasEarlierDraft) {
+                throw ValidationException::withMessages([
+                    'reading' => 'Phải xác nhận các kỳ trước của hợp đồng trước.',
+                ]);
+            }
+
+            $reading->update(['status' => UtilityReading::STATUS_CONFIRMED]);
+        });
+
+        return back()->with('success', 'Đã xác nhận chỉ số điện nước.');
+    }
+
+    public function reopen(UtilityReading $reading)
+    {
+        DB::transaction(function () use ($reading): void {
+            $reading = UtilityReading::query()->lockForUpdate()->findOrFail($reading->id);
+            $this->ensurePeriodicReadingCanChangeStatus($reading);
+
+            if ($reading->isLocked() || $reading->invoice()->exists()) {
+                throw ValidationException::withMessages(['reading' => 'Không thể mở lại chỉ số đã dùng để phát hành hóa đơn.']);
+            }
+
+            $reading->update(['status' => UtilityReading::STATUS_DRAFT]);
+        });
+
+        return back()->with('success', 'Đã chuyển chỉ số về bản nháp để chỉnh sửa.');
+    }
+
+    private function ensurePeriodicReadingCanChangeStatus(UtilityReading $reading): void
+    {
+        if ($reading->reading_type !== 'periodic') {
+            throw ValidationException::withMessages(['reading' => 'Chỉ số bàn giao hoặc trả phòng không dùng quy trình chốt số hằng tháng.']);
+        }
     }
 
     // Màn hình 2: KIỂM TRA CHỈ SỐ
@@ -304,23 +386,28 @@ class UtilityController extends Controller
             ->get();
 
         // 3. Tính toán các con số thống kê
-        $roomsRead = $readings->pluck('room_id')->unique()->count(); // Số phòng đã nhập chỉ số
+        $billableReadings = $readings->whereIn('status', [
+            UtilityReading::STATUS_CONFIRMED,
+            UtilityReading::STATUS_LOCKED,
+        ]);
+        $roomsRead = $billableReadings->pluck('room_id')->unique()->count();
 
         // Tính tổng điện/nước tiêu thụ (Số mới - Số cũ)
-        $totalElectricity = $readings->sum(function ($reading) {
+        $totalElectricity = $billableReadings->sum(function ($reading) {
             return $reading->electricity_new - $reading->electricity_old;
         });
 
-        $totalWater = $readings->sum(function ($reading) {
+        $totalWater = $billableReadings->sum(function ($reading) {
             return $reading->water_new - $reading->water_old;
         });
 
-        $setting = Setting::firstOrCreate([], [
+        $currentSetting = Setting::currentOrCreate([
             'electric_price' => 0,
             'water_price' => 0,
             'internet_fee' => 0,
             'service_fee' => 0,
         ]);
+        $setting = FeeSchedule::forPeriod($billingPeriodStart) ?? $currentSetting;
 
         $totalElectricityFee = $totalElectricity * $setting->electric_price;
         $totalWaterFee = $totalWater * $setting->water_price;

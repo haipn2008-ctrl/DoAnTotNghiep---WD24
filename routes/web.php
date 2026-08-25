@@ -5,48 +5,48 @@
 // =====================================================
 
 use App\Http\Controllers\Admin\ContractController;
-use App\Http\Controllers\Admin\ContractTenantController;
 use App\Http\Controllers\Admin\ContractExtensionRequestController as AdminContractExtensionRequestController;
+use App\Http\Controllers\Admin\ContractTenantController;
 use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminContractTerminationRequestController;
+use App\Http\Controllers\Admin\DebtController;
 use App\Http\Controllers\Admin\DepositRefundController as AdminDepositRefundController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\OverviewController;
+use App\Http\Controllers\Admin\ReconciliationController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\RoomEvidenceController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SupportController as AdminSupportController;
-use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\TemporaryResidenceController;
+use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
-
 // =====================================================
 // AUTH CONTROLLERS
 // =====================================================
 
 use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\LoginController;
-
 // =====================================================
 // CLIENT CONTROLLERS
 // =====================================================
 
 use App\Http\Controllers\Client\AccountController as ClientAccountController;
 use App\Http\Controllers\Client\ContractController as ClientContractController;
-use App\Http\Controllers\Client\ContractTenantController as ClientContractTenantController;
 use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
+use App\Http\Controllers\Client\ContractTenantController as ClientContractTenantController;
 use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\DepositRefundController as ClientDepositRefundController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\LandlordInformationController as ClientLandlordInformationController;
+use App\Http\Controllers\Client\NotificationController as ClientNotificationController;
 use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\RoomController as ClientRoomController;
 use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Http\Controllers\Client\VehicleController as ClientVehicleController;
-
 // =====================================================
 // MODELS
 // =====================================================
@@ -60,19 +60,16 @@ use App\Models\Role;
 use App\Models\Room;
 use App\Models\SupportRequest;
 use App\Models\Tenant;
-
 // =====================================================
 // SERVICES
 // =====================================================
 
 use App\Services\ContractLifecycleService;
-
 // =====================================================
 // ROUTE
 // =====================================================
 
 use Illuminate\Support\Facades\Route;
-
 
 // =====================================================
 // TRANG CHỦ
@@ -82,7 +79,6 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
-
 // =====================================================
 // AUTH - KHÁCH CHƯA ĐĂNG NHẬP
 // =====================================================
@@ -91,15 +87,14 @@ Route::middleware('guest')->group(function () {
 
     Route::get('/login', [
         LoginController::class,
-        'showLoginForm'
+        'showLoginForm',
     ])->name('login');
 
     Route::post('/login', [
         LoginController::class,
-        'login'
+        'login',
     ]);
 });
-
 
 // =====================================================
 // ĐĂNG XUẤT
@@ -107,9 +102,8 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [
     LoginController::class,
-    'logout'
+    'logout',
 ])->name('logout');
-
 
 // =====================================================
 // ROUTE BẮT BUỘC ĐĂNG NHẬP
@@ -123,21 +117,20 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/activate-account', [
         AccountActivationController::class,
-        'show'
+        'show',
     ])->name('account.activation.show');
 
     Route::get('/activate-account/{step}', [
         AccountActivationController::class,
-        'show'
+        'show',
     ])->whereIn('step', ['personal', 'identity', 'contact', 'password'])
         ->name('account.activation.step.show');
 
     Route::post('/activate-account/{step}', [
         AccountActivationController::class,
-        'store'
+        'store',
     ])->whereIn('step', ['personal', 'identity', 'contact', 'password'])
         ->name('account.activation.step.store');
-
 
     // =================================================
     // TÀI KHOẢN ĐÃ ACTIVE
@@ -151,9 +144,8 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/dashboard', [
             LoginController::class,
-            'dashboard'
+            'dashboard',
         ])->name('dashboard');
-
 
         // =================================================
         // ADMIN
@@ -170,7 +162,6 @@ Route::middleware('auth')->group(function () {
 
                 Route::resource('users', UserController::class)
                     ->except(['show']);
-
 
                 // =================================================
                 // PHÒNG
@@ -191,7 +182,6 @@ Route::middleware('auth')->group(function () {
                     RoomController::class
                 );
 
-
                 // =================================================
                 // KHÁCH THUÊ
                 // =================================================
@@ -209,6 +199,8 @@ Route::middleware('auth')->group(function () {
                 Route::put('vehicles/{vehicle}/review', [TenantController::class, 'reviewVehicle'])
                     ->name('vehicles.review');
 
+                Route::get('vehicles/{vehicle}/image', [TenantController::class, 'vehicleImage'])
+                    ->name('vehicles.image');
 
                 // =================================================
                 // HỢP ĐỒNG - TEMPLATE
@@ -219,7 +211,6 @@ Route::middleware('auth')->group(function () {
 
                 Route::get('contracts/template/print', [ContractController::class, 'templatePrint'])
                     ->name('contracts.template.print');
-
 
                 // =================================================
                 // HỢP ĐỒNG - KẾT THÚC
@@ -245,7 +236,6 @@ Route::middleware('auth')->group(function () {
                     [ContractController::class, 'end']
                 )->name('contracts.terminate');
 
-
                 // =================================================
                 // HỢP ĐỒNG - GIA HẠN
                 // =================================================
@@ -265,7 +255,6 @@ Route::middleware('auth')->group(function () {
                     [ContractController::class, 'extend']
                 )->name('contracts.extend');
 
-
                 // =================================================
                 // HỢP ĐỒNG - IN / FILE
                 // =================================================
@@ -279,7 +268,6 @@ Route::middleware('auth')->group(function () {
                     'contracts/{contract}/file',
                     [ContractController::class, 'file']
                 )->name('contracts.file');
-
 
                 // =================================================
                 // HỢP ĐỒNG - TIỀN CỌC
@@ -338,7 +326,6 @@ Route::middleware('auth')->group(function () {
                     [ContractController::class, 'completeSettlement']
                 )->name('contracts.complete-settlement');
 
-
                 // =================================================
                 // NGƯỜI THAM GIA HỢP ĐỒNG
                 // =================================================
@@ -365,7 +352,6 @@ Route::middleware('auth')->group(function () {
                     ->whereIn('side', ['front', 'back'])
                     ->name('contract-tenants.identity-document');
 
-
                 // =================================================
                 // RESOURCE HỢP ĐỒNG
                 // Phải đặt SAU các route custom
@@ -375,7 +361,6 @@ Route::middleware('auth')->group(function () {
                     'contracts',
                     ContractController::class
                 )->except(['destroy']);
-
 
                 // =================================================
                 // HOÀN CỌC
@@ -411,7 +396,6 @@ Route::middleware('auth')->group(function () {
                     [AdminDepositRefundController::class, 'proof']
                 )->name('deposit-refunds.proof');
 
-
                 // =================================================
                 // YÊU CẦU GIA HẠN HỢP ĐỒNG
                 // =================================================
@@ -430,7 +414,6 @@ Route::middleware('auth')->group(function () {
                     'extension-requests/{extensionRequest}/reject',
                     [AdminContractExtensionRequestController::class, 'reject']
                 )->name('extension-requests.reject');
-
 
                 // =================================================
                 // YÊU CẦU TRẢ PHÒNG
@@ -451,7 +434,6 @@ Route::middleware('auth')->group(function () {
                     [AdminContractTerminationRequestController::class, 'reject']
                 )->name('termination-requests.reject');
 
-
                 // =================================================
                 // ĐIỆN NƯỚC
                 // =================================================
@@ -466,6 +448,16 @@ Route::middleware('auth')->group(function () {
                     [UtilityController::class, 'store']
                 )->name('utilities.store');
 
+                Route::post(
+                    'utilities/{reading}/confirm',
+                    [UtilityController::class, 'confirm']
+                )->name('utilities.confirm');
+
+                Route::post(
+                    'utilities/{reading}/reopen',
+                    [UtilityController::class, 'reopen']
+                )->name('utilities.reopen');
+
                 Route::get(
                     'utilities',
                     [UtilityController::class, 'index']
@@ -476,10 +468,18 @@ Route::middleware('auth')->group(function () {
                     [UtilityController::class, 'image']
                 )->name('utilities.image');
 
-
                 // =================================================
                 // HÓA ĐƠN
                 // =================================================
+
+                Route::get('debts', [DebtController::class, 'index'])
+                    ->name('debts.index');
+
+                Route::get('debts/{invoice}', [DebtController::class, 'show'])
+                    ->name('debts.show');
+
+                Route::post('debts/{invoice}/reminders', [DebtController::class, 'storeReminder'])
+                    ->name('debts.reminders.store');
 
                 Route::get(
                     'invoices/generate',
@@ -532,6 +532,16 @@ Route::middleware('auth')->group(function () {
                 )->name('invoices.payments.store');
 
                 Route::post(
+                    'invoices/{invoice}/cancel',
+                    [InvoiceController::class, 'cancel']
+                )->name('invoices.cancel');
+
+                Route::post(
+                    'invoices/{invoice}/adjustments',
+                    [InvoiceController::class, 'storeAdjustment']
+                )->name('invoices.adjustments.store');
+
+                Route::post(
                     'invoices/payments/{payment}/approve',
                     [InvoiceController::class, 'approvePayment']
                 )->name('invoices.payments.approve');
@@ -542,6 +552,11 @@ Route::middleware('auth')->group(function () {
                 )->name('invoices.payments.reject');
 
                 Route::get(
+                    'invoices/payments/{payment}/proof',
+                    [InvoiceController::class, 'paymentProof']
+                )->name('invoices.payments.proof');
+
+                Route::get(
                     'invoices/{invoice}/print',
                     [InvoiceController::class, 'print']
                 )->name('invoices.print');
@@ -550,7 +565,6 @@ Route::middleware('auth')->group(function () {
                     'invoices',
                     InvoiceController::class
                 )->except(['create', 'store']);
-
 
                 // =================================================
                 // QUẢN LÝ TẠM TRÚ
@@ -571,7 +585,6 @@ Route::middleware('auth')->group(function () {
                     [TemporaryResidenceController::class, 'pdf']
                 )->name('temporary_residences.pdf');
 
-
                 // =================================================
                 // TỔNG QUAN
                 // =================================================
@@ -580,6 +593,11 @@ Route::middleware('auth')->group(function () {
                     'overview',
                     [OverviewController::class, 'index']
                 )->name('overview');
+
+                Route::get(
+                    'reconciliation',
+                    [ReconciliationController::class, 'index']
+                )->name('reconciliation.index');
 
                 Route::get(
                     'overview/revenue-chart',
@@ -600,7 +618,6 @@ Route::middleware('auth')->group(function () {
                     'overview/fill-rate',
                     [OverviewController::class, 'fillRate']
                 )->name('overview.fill-rate');
-
 
                 // =================================================
                 // CÀI ĐẶT
@@ -626,7 +643,6 @@ Route::middleware('auth')->group(function () {
                     )
                     ->name('settings.update');
 
-
                 // =================================================
                 // THÔNG BÁO
                 // =================================================
@@ -637,7 +653,6 @@ Route::middleware('auth')->group(function () {
                 )->name('notifications.index');
                 Route::get('notifications/{notification}', [NotificationController::class, 'open'])
                     ->name('notifications.open');
-
 
                 // =================================================
                 // HỖ TRỢ
@@ -658,7 +673,6 @@ Route::middleware('auth')->group(function () {
                     [AdminSupportController::class, 'update']
                 )->name('support.update');
 
-
                 // =================================================
                 // VAI TRÒ
                 // =================================================
@@ -675,7 +689,6 @@ Route::middleware('auth')->group(function () {
                         );
                     }
                 )->name('roles');
-
 
                 // =================================================
                 // ADMIN HOME
@@ -695,122 +708,109 @@ Route::middleware('auth')->group(function () {
 
                     $stats = [
 
-                        'total_rooms' =>
-                            Room::count(),
+                        'total_rooms' => Room::count(),
 
-                        'available_rooms' =>
-                            Room::where(
-                                'status',
-                                'available'
-                            )->count(),
+                        'available_rooms' => Room::where(
+                            'status',
+                            'available'
+                        )->count(),
 
-                        'occupied_rooms' =>
-                            Room::where(
-                                'status',
-                                'occupied'
-                            )->count(),
+                        'occupied_rooms' => Room::where(
+                            'status',
+                            'occupied'
+                        )->count(),
 
-                        'maintenance_rooms' =>
-                            Room::where(
-                                'status',
-                                'maintenance'
-                            )->count(),
+                        'maintenance_rooms' => Room::where(
+                            'status',
+                            'maintenance'
+                        )->count(),
 
-                        'total_tenants' =>
-                            Tenant::count(),
+                        'total_tenants' => Tenant::count(),
 
-                        'active_contracts' =>
-                            Contract::where(
-                                'status',
-                                'active'
-                            )->count(),
+                        'active_contracts' => Contract::where(
+                            'status',
+                            'active'
+                        )->count(),
 
-                        'unpaid_invoices' =>
-                            Invoice::whereIn(
-                                'status',
-                                [
-                                    'unpaid',
-                                    'partial'
-                                ]
-                            )->count(),
+                        'unpaid_invoices' => Invoice::whereIn(
+                            'status',
+                            [
+                                'unpaid',
+                                'partial',
+                            ]
+                        )->count(),
 
-                        'monthly_revenue' =>
-                            Payment::success()
-                                ->whereMonth(
-                                    'payment_date',
-                                    $currentMonth
-                                )
-                                ->whereYear(
-                                    'payment_date',
-                                    $currentYear
-                                )
-                                ->sum('amount_paid'),
+                        'monthly_revenue' => Payment::success()
+                            ->whereMonth(
+                                'payment_date',
+                                $currentMonth
+                            )
+                            ->whereYear(
+                                'payment_date',
+                                $currentYear
+                            )
+                            ->sum('amount_paid'),
                     ];
-
 
                     $recentInvoices =
                         Invoice::with([
                             'room',
-                            'contract.tenant'
+                            'contract.tenant',
                         ])
-                        ->latest()
-                        ->take(5)
-                        ->get();
-
+                            ->latest()
+                            ->take(5)
+                            ->get();
 
                     $recentContracts =
                         Contract::with([
                             'room',
-                            'tenant'
+                            'tenant',
                         ])
-                        ->latest()
-                        ->take(5)
-                        ->get();
-
+                            ->latest()
+                            ->take(5)
+                            ->get();
 
                     $expiringContracts =
                         Contract::whereIn(
                             'status',
                             [
                                 Contract::STATUS_ACTIVE,
-                                Contract::STATUS_EXPIRED
+                                Contract::STATUS_EXPIRED,
                             ]
                         )
-                        ->whereBetween(
-                            'end_date',
-                            [
-                                today(),
-                                today()->addMonthNoOverflow()
-                            ]
-                        )
-                        ->with('room:id,room_code')
-                        ->orderBy('end_date')
-                        ->get([
-                            'id',
-                            'contract_code',
-                            'end_date',
-                            'room_id'
-                        ]);
-
+                            ->whereBetween(
+                                'end_date',
+                                [
+                                    today(),
+                                    today()->addMonthNoOverflow(),
+                                ]
+                            )
+                            ->with('room:id,room_code')
+                            ->orderBy('end_date')
+                            ->get([
+                                'id',
+                                'contract_code',
+                                'end_date',
+                                'room_id',
+                            ]);
 
                     $overdueInvoices =
                         Invoice::whereIn(
                             'status',
                             [
                                 'unpaid',
-                                'partial'
+                                'partial',
                             ]
                         )
-                        ->where(
-                            'due_date',
-                            '<',
-                            today()
-                        )
-                        ->selectRaw(
-                            'COUNT(*) as count, SUM(total_amount) as total_amount'
-                        )
-                        ->first();
-
+                            ->where(
+                                'due_date',
+                                '<',
+                                today()
+                            )
+                            ->selectRaw(
+                                'COUNT(*) as count, SUM(total_amount) as total_amount'
+                            )
+                            ->first();
 
                     $pendingSupportCount =
                         SupportRequest::where(
@@ -818,20 +818,17 @@ Route::middleware('auth')->group(function () {
                             'new'
                         )->count();
 
-
                     $pendingExtensionCount =
                         ContractExtensionRequest::where(
                             'status',
                             'pending'
                         )->count();
 
-
                     $pendingTerminationCount =
                         ContractTerminationRequest::where(
                             'status',
                             'pending'
                         )->count();
-
 
                     return view(
                         'layouts.admin.home',
@@ -851,7 +848,6 @@ Route::middleware('auth')->group(function () {
 
             });
 
-
         // =================================================
         // CLIENT PORTAL
         // =================================================
@@ -870,7 +866,6 @@ Route::middleware('auth')->group(function () {
                     [ClientDashboardController::class, 'index']
                 )->name('home');
 
-
                 // =============================================
                 // HÓA ĐƠN
                 // =============================================
@@ -879,6 +874,13 @@ Route::middleware('auth')->group(function () {
                     '/invoices',
                     [ClientInvoiceController::class, 'index']
                 )->name('invoices.index');
+
+                Route::get('/notifications', [ClientNotificationController::class, 'index'])
+                    ->name('notifications.index');
+                Route::get('/notifications/{notification}', [ClientNotificationController::class, 'open'])
+                    ->name('notifications.open');
+                Route::post('/notifications/read-all', [ClientNotificationController::class, 'markAllAsRead'])
+                    ->name('notifications.read-all');
 
                 Route::get(
                     '/invoices/{invoice}',
@@ -895,6 +897,10 @@ Route::middleware('auth')->group(function () {
                     [ClientInvoiceController::class, 'storePayment']
                 )->name('invoices.payments.store');
 
+                Route::get(
+                    '/payments/{payment}/proof',
+                    [ClientInvoiceController::class, 'paymentProof']
+                )->name('invoices.payments.proof');
 
                 // =============================================
                 // ĐIỆN NƯỚC
@@ -914,7 +920,6 @@ Route::middleware('auth')->group(function () {
                     ->middleware('rental.active')
                     ->name('utilities.image');
 
-
                 // =============================================
                 // PHÒNG
                 // =============================================
@@ -925,7 +930,6 @@ Route::middleware('auth')->group(function () {
                 )
                     ->middleware('rental.active')
                     ->name('room.show');
-
 
                 // =============================================
                 // HỢP ĐỒNG
@@ -951,7 +955,6 @@ Route::middleware('auth')->group(function () {
                     [ClientContractController::class, 'confirmMoveInDetails']
                 )->name('contracts.move-in-details.confirm');
 
-
                 // =============================================
                 // NGƯỜI THAM GIA HỢP ĐỒNG
                 // =============================================
@@ -965,7 +968,6 @@ Route::middleware('auth')->group(function () {
                     '/contracts/{contract}/members/{member}/withdraw',
                     [ClientContractTenantController::class, 'withdraw']
                 )->name('contracts.members.withdraw');
-
 
                 // =============================================
                 // HOÀN CỌC
@@ -991,7 +993,6 @@ Route::middleware('auth')->group(function () {
                     [ClientDepositRefundController::class, 'proof']
                 )->name('deposit-refunds.proof');
 
-
                 // =============================================
                 // YÊU CẦU GIA HẠN
                 // =============================================
@@ -1006,7 +1007,6 @@ Route::middleware('auth')->group(function () {
                     [ClientContractExtensionRequestController::class, 'store']
                 )->name('extension-requests.store');
 
-
                 // =============================================
                 // YÊU CẦU TRẢ PHÒNG
                 // =============================================
@@ -1020,7 +1020,6 @@ Route::middleware('auth')->group(function () {
                     '/termination-requests',
                     [ClientContractTerminationRequestController::class, 'store']
                 )->name('termination-requests.store');
-
 
                 // =============================================
                 // HỖ TRỢ
@@ -1052,7 +1051,6 @@ Route::middleware('auth')->group(function () {
                     ClientLandlordInformationController::class
                 )->name('landlord-information');
 
-
                 // =============================================
                 // TÀI KHOẢN
                 // =============================================
@@ -1072,11 +1070,11 @@ Route::middleware('auth')->group(function () {
                     [ClientAccountController::class, 'updatePassword']
                 )->name('account.password.update');
 
-                Route::get('/vehicles', [ClientVehicleController::class, 'index'])->name('vehicles.index');
-                Route::post('/vehicles', [ClientVehicleController::class, 'store'])->name('vehicles.store');
-                Route::put('/vehicles/{vehicle}', [ClientVehicleController::class, 'update'])->name('vehicles.update');
-                Route::delete('/vehicles/{vehicle}', [ClientVehicleController::class, 'destroy'])->name('vehicles.destroy');
-
+                Route::get('/vehicles', [ClientVehicleController::class, 'index'])->middleware('rental.active')->name('vehicles.index');
+                Route::post('/vehicles', [ClientVehicleController::class, 'store'])->middleware('rental.active')->name('vehicles.store');
+                Route::get('/vehicles/{vehicle}/image', [ClientVehicleController::class, 'image'])->middleware('rental.active')->name('vehicles.image');
+                Route::put('/vehicles/{vehicle}', [ClientVehicleController::class, 'update'])->middleware('rental.active')->name('vehicles.update');
+                Route::delete('/vehicles/{vehicle}', [ClientVehicleController::class, 'destroy'])->middleware('rental.active')->name('vehicles.destroy');
 
                 // =============================================
                 // LỊCH SỬ YÊU CẦU

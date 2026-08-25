@@ -45,5 +45,9 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.client.blocks.sidebar', function ($view): void {
             $view->with('clientSupportPhone', Setting::currentOrCreate()->landlord_phone);
         });
+        View::composer('layouts.client.blocks.header', function ($view): void {
+            $user = request()->user();
+            $view->with('clientUnreadNotificationCount', $user?->unreadNotifications()->count() ?? 0);
+        });
     }
 }

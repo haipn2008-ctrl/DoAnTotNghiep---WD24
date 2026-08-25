@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Contract;
+use App\Models\FeeSchedule;
 use App\Models\Invoice;
 use App\Models\Setting;
 use App\Models\UtilityReading;
@@ -12,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class InvoiceGenerator
 {
-    public function preview(Contract $contract, int $month, int $year): array
+    public function preview(Contract $contract, int $month, int $year, ?FeeSchedule $lockedFeeSchedule = null): array
     {
         $contract->loadMissing(['room', 'tenant']);
 
@@ -21,25 +22,11 @@ class InvoiceGenerator
         $billingPeriod = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $servicePeriod = $billingPeriod->copy()->subMonthNoOverflow();
 
-        $reading = UtilityReading::where('room_id', $contract->room_id)
-            ->where(fn ($query) => $query->where('contract_id', $contract->id)
-                ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contract->start_date)))
-            ->where('month', $servicePeriod->month)
-            ->where('year', $servicePeriod->year)
-            ->where('reading_type', 'periodic')
-            ->where('status', 'confirmed')
-            ->first();
-
-        if (! $reading) {
-            throw ValidationException::withMessages([
-                'utility_reading' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$servicePeriod->month}/{$servicePeriod->year}.",
-            ]);
-        }
-
         $existingInvoice = Invoice::where('contract_id', $contract->id)
             ->where('invoice_type', Invoice::TYPE_RENTAL)
             ->where('month', $month)
             ->where('year', $year)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
             ->exists();
 
         if ($existingInvoice) {
@@ -48,16 +35,35 @@ class InvoiceGenerator
             ]);
         }
 
-        $setting = Setting::currentOrCreate();
+        $reading = UtilityReading::where('room_id', $contract->room_id)
+            ->where(fn ($query) => $query->where('contract_id', $contract->id)
+                ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contract->start_date)))
+            ->where('month', $servicePeriod->month)
+            ->where('year', $servicePeriod->year)
+            ->where('reading_type', 'periodic')
+            ->where('status', UtilityReading::STATUS_CONFIRMED)
+            ->first();
 
-        // Ngày 05 thu toàn bộ tiền phòng, điện, nước và dịch vụ của tháng trước.
+        if (! $reading) {
+            throw ValidationException::withMessages([
+                'utility_reading' => "Phòng {$contract->room->room_code} chưa chốt điện nước tháng {$servicePeriod->month}/{$servicePeriod->year}.",
+            ]);
+        }
+
+        $setting = Setting::currentOrCreate();
+        $feeSchedule = $lockedFeeSchedule ?? FeeSchedule::forPeriod($servicePeriod);
+        $rates = $feeSchedule ?? $setting;
+
+        // Thu tiền phòng, điện, nước và dịch vụ của tháng trước theo lịch đã cấu hình.
         $invoiceDateCarbon = $billingPeriod->copy();
-        $invoiceDay = 5;
+        $invoiceDay = (int) $setting->invoice_day;
         $invoiceDay = max(1, min($invoiceDay, $invoiceDateCarbon->daysInMonth));
         $invoiceDateCarbon->day($invoiceDay);
 
         $invoiceDate = $invoiceDateCarbon->toDateString();
-        $dueDate = $invoiceDate;
+        $dueDate = $invoiceDateCarbon->copy()
+            ->addDays((int) $setting->payment_due_days)
+            ->toDateString();
 
         $electricityUsage = $reading->electricity_new - $reading->electricity_old;
         $waterUsage = $reading->water_new - $reading->water_old;
@@ -93,8 +99,8 @@ class InvoiceGenerator
                 'name' => "Tiền điện tháng {$servicePeriod->month}/{$servicePeriod->year}",
                 'quantity' => $electricityUsage,
                 'unit' => 'kWh',
-                'unit_price' => (float) $setting->electric_price,
-                'amount' => $electricityUsage * (float) $setting->electric_price,
+                'unit_price' => (float) $rates->electric_price,
+                'amount' => $electricityUsage * (float) $rates->electric_price,
                 'old_index' => $reading->electricity_old,
                 'new_index' => $reading->electricity_new,
                 'note' => null,
@@ -105,8 +111,8 @@ class InvoiceGenerator
                 'name' => "Tiền nước tháng {$servicePeriod->month}/{$servicePeriod->year}",
                 'quantity' => $waterUsage,
                 'unit' => 'm³',
-                'unit_price' => (float) $setting->water_price,
-                'amount' => $waterUsage * (float) $setting->water_price,
+                'unit_price' => (float) $rates->water_price,
+                'amount' => $waterUsage * (float) $rates->water_price,
                 'old_index' => $reading->water_old,
                 'new_index' => $reading->water_new,
                 'note' => 'Tính theo chỉ số đồng hồ thực tế',
@@ -131,8 +137,8 @@ class InvoiceGenerator
 
         $serviceLines = [
             // Internet là phí cố định theo phòng, thu một lần mỗi tháng và không phụ thuộc số người.
-            ['internet', "Phí internet tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($setting->internet_fee ?? 0), 1, 4],
-            ['service', "Phí dịch vụ tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($setting->service_fee ?? 0), 1, 5],
+            ['internet', "Phí internet tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->internet_fee ?? 0), 1, 4],
+            ['service', "Phí dịch vụ tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->service_fee ?? 0), 1, 5],
         ];
 
         foreach ($serviceLines as [$type, $name, $unitPrice, $quantity, $sortOrder]) {
@@ -165,6 +171,7 @@ class InvoiceGenerator
             'room' => $contract->room,
             'tenant' => $contract->tenant,
             'reading' => $reading,
+            'fee_schedule' => $feeSchedule,
             'month' => $month,
             'year' => $year,
             'utility_month' => $servicePeriod->month,
@@ -187,12 +194,27 @@ class InvoiceGenerator
         return DB::transaction(function () use ($contract, $month, $year) {
             $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
             $contract->room()->lockForUpdate()->firstOrFail();
-            $preview = $this->preview($contract, $month, $year);
-            UtilityReading::query()->lockForUpdate()->findOrFail($preview['reading']->id);
+            $servicePeriod = Carbon::createFromDate($year, $month, 1)->subMonthNoOverflow();
+            $feeSchedule = FeeSchedule::forPeriod($servicePeriod, true);
+            $preview = $this->preview($contract, $month, $year, $feeSchedule);
+            $lockedReading = UtilityReading::query()->lockForUpdate()->findOrFail($preview['reading']->id);
+            if (! $lockedReading->isConfirmed()) {
+                throw ValidationException::withMessages([
+                    'utility_reading' => 'Chỉ số điện nước không còn ở trạng thái đã xác nhận.',
+                ]);
+            }
+            $revision = ((int) Invoice::query()
+                ->where('contract_id', $contract->id)
+                ->where('invoice_type', Invoice::TYPE_RENTAL)
+                ->where('month', $month)
+                ->where('year', $year)
+                ->max('revision')) + 1;
 
             $invoice = Invoice::create([
                 'contract_id' => $preview['contract']->id,
+                'fee_schedule_id' => $preview['fee_schedule']?->id,
                 'invoice_type' => Invoice::TYPE_RENTAL,
+                'revision' => $revision,
                 'room_id' => $preview['room']->id,
                 'invoice_code' => null,
                 'utility_reading_id' => $preview['reading']->id,
@@ -216,6 +238,8 @@ class InvoiceGenerator
             foreach ($preview['lines'] as $line) {
                 $invoice->details()->create($line);
             }
+
+            $lockedReading->update(['status' => UtilityReading::STATUS_LOCKED]);
 
             app(TenantAccountLifecycle::class)->sync(
                 $preview['tenant']->loadMissing('user')

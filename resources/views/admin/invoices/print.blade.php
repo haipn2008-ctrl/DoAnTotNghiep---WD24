@@ -33,11 +33,17 @@
                             <td class="border border-slate-200 px-4 py-3 text-right font-semibold">{{ number_format($detail->amount, 0, ',', '.') }}đ</td>
                         </tr>
                     @endforeach
+                    @foreach($invoice->adjustments as $adjustment)
+                        <tr>
+                            <td colspan="3" class="border border-slate-200 px-4 py-3"><strong>{{ $adjustment->direction === \App\Models\InvoiceAdjustment::DIRECTION_CREDIT ? 'Điều chỉnh giảm' : 'Điều chỉnh tăng' }}</strong><p class="mt-1 text-xs text-slate-500">{{ $adjustment->reason }}</p></td>
+                            <td class="border border-slate-200 px-4 py-3 text-right font-semibold">{{ $adjustment->direction === \App\Models\InvoiceAdjustment::DIRECTION_CREDIT ? '-' : '+' }}{{ number_format($adjustment->amount, 0, ',', '.') }}đ</td>
+                        </tr>
+                    @endforeach
                 </tbody>
                 <tfoot>
                     <tr>
                         <th colspan="3" class="border border-slate-200 px-4 py-4 text-right">Tổng cộng</th>
-                        <th class="border border-slate-200 px-4 py-4 text-right text-lg text-emerald-700">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</th>
+                        <th class="border border-slate-200 px-4 py-4 text-right text-lg text-emerald-700">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</th>
                     </tr>
                     <tr>
                         <th colspan="3" class="border border-slate-200 px-4 py-3 text-right">Đã thanh toán</th>

@@ -322,8 +322,8 @@
 
                                     <td class="px-5 py-4 text-sm text-slate-500">
                                         @if($vehicle->vehicle_image)
-                                            <a href="{{ asset('storage/'.$vehicle->vehicle_image) }}" target="_blank" rel="noopener">
-                                                <img src="{{ asset('storage/'.$vehicle->vehicle_image) }}" alt="Ảnh phương tiện" class="h-16 w-24 rounded-lg object-cover ring-1 ring-slate-200">
+                                            <a href="{{ route('admin.vehicles.image', $vehicle) }}" target="_blank" rel="noopener">
+                                                <img src="{{ route('admin.vehicles.image', $vehicle) }}" alt="Ảnh phương tiện" class="h-16 w-24 rounded-lg object-cover ring-1 ring-slate-200">
                                             </a>
                                         @else
                                             ---

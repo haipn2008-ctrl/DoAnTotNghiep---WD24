@@ -9,6 +9,7 @@ use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
+use App\Services\InvoiceGenerator;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -263,6 +264,56 @@ class UtilityReadingEntryTest extends TestCase
         ]);
     }
 
+    public function test_reading_moves_from_draft_to_confirmed_to_locked_and_unlocks_when_empty_invoice_is_deleted(): void
+    {
+        $room = $this->createOccupiedRoom('P-LIFECYCLE');
+        $contract = $this->createActiveContract($room, 'HD-LIFECYCLE');
+        $this->createHandover($room, $contract);
+
+        $this->actingAs($this->admin)->post('/admin/utilities/store', [
+            'month' => 8,
+            'year' => 2026,
+            'intent' => 'draft',
+            'readings' => [[
+                'selected' => 1,
+                'room_id' => $room->id,
+                'electricity_new' => 150,
+                'water_new' => 30,
+            ]],
+        ])->assertRedirect('/admin/utilities?month=8&year=2026');
+
+        $reading = UtilityReading::query()->where('room_id', $room->id)->where('reading_type', 'periodic')->firstOrFail();
+        $this->assertTrue($reading->isDraft());
+        $this->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=9&year=2026")
+            ->assertUnprocessable();
+
+        $this->post(route('admin.utilities.confirm', $reading))->assertSessionHasNoErrors();
+        $this->assertTrue($reading->fresh()->isConfirmed());
+
+        $this->post('/admin/utilities/store', [
+            'month' => 8,
+            'year' => 2026,
+            'readings' => [[
+                'selected' => 1,
+                'room_id' => $room->id,
+                'electricity_new' => 151,
+                'water_new' => 31,
+            ]],
+        ])->assertSessionHasErrors('readings.0.room_id');
+
+        $invoice = app(InvoiceGenerator::class)->issue($contract, 9, 2026);
+        $this->assertTrue($reading->fresh()->isLocked());
+        $this->post(route('admin.utilities.reopen', $reading))->assertSessionHasErrors('reading');
+
+        $this->post(route('admin.invoices.cancel', $invoice), [
+            'cancellation_reason' => 'Hóa đơn được lập thử để kiểm tra quy trình.',
+        ])->assertSessionHas('success');
+        $this->assertTrue($reading->fresh()->isConfirmed());
+
+        $this->post(route('admin.utilities.reopen', $reading))->assertSessionHasNoErrors();
+        $this->assertTrue($reading->fresh()->isDraft());
+    }
+
     public function test_reading_linked_to_an_invoice_cannot_be_changed(): void
     {
         $room = $this->createOccupiedRoom('P301');
@@ -364,7 +415,7 @@ class UtilityReadingEntryTest extends TestCase
         UtilityReading::create(['room_id' => $first->id, 'month' => 8, 'year' => 2026,
             'record_date' => '2026-08-31', 'electricity_old' => 0, 'electricity_new' => 10,
             'electricity_image' => 'utility-readings/electricity/old.jpg', 'water_old' => 0,
-            'water_new' => 10, 'status' => 'confirmed']);
+            'water_new' => 10, 'status' => 'draft']);
         UtilityReading::create(['room_id' => $second->id, 'month' => 7, 'year' => 2026,
             'record_date' => '2026-07-31', 'electricity_old' => 0, 'electricity_new' => 10,
             'water_old' => 0, 'water_new' => 10, 'status' => 'confirmed']);

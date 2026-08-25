@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Contract;
+use App\Models\ContractLifecycleAlert;
 use App\Models\ContractTenant;
 use App\Models\Role;
-use App\Models\ContractLifecycleAlert;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
@@ -30,11 +30,13 @@ class VehicleManagementTest extends TestCase
         parent::setUp();
         $this->withoutVite();
         Storage::fake('public');
+        Storage::fake('local');
         $adminRole = Role::create(['role_name' => 'Admin']);
         $clientRole = Role::create(['role_name' => 'User']);
         $this->admin = User::create(['name' => 'Admin', 'email' => 'admin@example.test', 'phone' => '0900000001', 'role_id' => $adminRole->id, 'password' => 'password', 'status' => User::STATUS_ACTIVE]);
         $this->client = User::create(['name' => 'Client', 'email' => 'client@example.test', 'phone' => '0900000002', 'role_id' => $clientRole->id, 'password' => 'password', 'status' => User::STATUS_ACTIVE]);
         $this->tenant = Tenant::create(['user_id' => $this->client->id, 'full_name' => 'Client', 'date_of_birth' => '1995-01-01', 'gender' => 'other', 'cccd' => '079000000001', 'cccd_issue_date' => '2020-01-01', 'cccd_issue_place' => 'Hà Nội', 'phone' => $this->client->phone, 'email' => $this->client->email, 'address' => 'Hà Nội']);
+        $this->activeContractWithResidents(1);
     }
 
     public function test_client_registers_vehicle_and_admin_approves_it(): void
@@ -110,9 +112,12 @@ class VehicleManagementTest extends TestCase
         $other = User::create(['name' => 'Other', 'email' => 'other@example.test', 'phone' => '0900000003', 'role_id' => $this->client->role_id, 'password' => 'password', 'status' => User::STATUS_ACTIVE]);
         $otherTenant = Tenant::create(['user_id' => $other->id, 'full_name' => 'Other', 'cccd' => '079000000002', 'phone' => $other->phone, 'email' => $other->email]);
         $vehicle = $otherTenant->vehicles()->create($this->payload(['license_plate' => '30B-99999']));
+        $vehicle->update(['vehicle_image' => 'vehicles/other.jpg']);
+        Storage::disk('local')->put('vehicles/other.jpg', 'private-image');
 
         $this->actingAs($this->client)->put(route('client.vehicles.update', $vehicle), $this->payload())->assertNotFound();
         $this->delete(route('client.vehicles.destroy', $vehicle))->assertNotFound();
+        $this->get(route('client.vehicles.image', $vehicle))->assertNotFound();
         $this->assertDatabaseHas('vehicles', ['id' => $vehicle->id]);
     }
 
@@ -161,7 +166,10 @@ class VehicleManagementTest extends TestCase
 
         $vehicle = $this->tenant->vehicles()->sole();
         $oldImage = $vehicle->vehicle_image;
-        Storage::disk('public')->assertExists($oldImage);
+        Storage::disk('local')->assertExists($oldImage);
+        Storage::disk('public')->assertMissing($oldImage);
+        $this->get(route('client.vehicles.image', $vehicle))->assertOk();
+        $this->actingAs($this->admin)->get(route('admin.vehicles.image', $vehicle))->assertOk();
 
         $this->actingAs($this->admin)->put(route('admin.vehicles.review', $vehicle), [
             'status' => Vehicle::STATUS_APPROVED,
@@ -172,8 +180,8 @@ class VehicleManagementTest extends TestCase
         ]))->assertRedirect()->assertSessionHasNoErrors();
 
         $vehicle->refresh();
-        Storage::disk('public')->assertMissing($oldImage);
-        Storage::disk('public')->assertExists($vehicle->vehicle_image);
+        Storage::disk('local')->assertMissing($oldImage);
+        Storage::disk('local')->assertExists($vehicle->vehicle_image);
 
         $this->actingAs($this->admin)->put(route('admin.vehicles.review', $vehicle), [
             'status' => Vehicle::STATUS_APPROVED,
@@ -181,7 +189,7 @@ class VehicleManagementTest extends TestCase
 
         $currentImage = $vehicle->vehicle_image;
         $this->actingAs($this->client)->delete(route('client.vehicles.destroy', $vehicle))->assertRedirect();
-        Storage::disk('public')->assertMissing($currentImage);
+        Storage::disk('local')->assertMissing($currentImage);
 
         $removedAlert = ContractLifecycleAlert::query()->where('type', 'vehicle_removed')->sole();
         $this->assertSame($this->tenant->id, $removedAlert->tenant_id);
@@ -283,6 +291,38 @@ class VehicleManagementTest extends TestCase
 
         $this->assertSame(Vehicle::STATUS_APPROVED, $first->fresh()->status);
         $this->assertSame(Vehicle::STATUS_PENDING, $second->fresh()->status);
+    }
+
+    public function test_settling_client_cannot_manage_or_register_vehicles(): void
+    {
+        $contract = $this->tenant->contracts()->latest('id')->firstOrFail();
+        $contract->forceFill(['status' => Contract::STATUS_SETTLING])->save();
+        $this->client->update(['status' => User::STATUS_SETTLING]);
+
+        $this->actingAs($this->client)->get(route('client.vehicles.index'))
+            ->assertRedirect(route('client.invoices.index'));
+        $this->post(route('client.vehicles.store'), $this->payload())
+            ->assertRedirect(route('client.invoices.index'));
+        $this->assertDatabaseCount('vehicles', 0);
+    }
+
+    public function test_existing_public_vehicle_images_are_moved_to_private_storage(): void
+    {
+        $path = 'vehicles/legacy.jpg';
+        Storage::disk('public')->put($path, 'legacy-private-image');
+        $vehicle = $this->tenant->vehicles()->create($this->payload() + [
+            'vehicle_image' => $path,
+            'status' => Vehicle::STATUS_APPROVED,
+        ]);
+        Storage::disk('public')->put('vehicles/orphan.jpg', 'orphan-private-image');
+
+        $migration = require database_path('migrations/2026_08_25_000020_move_vehicle_images_to_private_storage.php');
+        $migration->up();
+
+        Storage::disk('public')->assertMissing($path);
+        Storage::disk('local')->assertExists($vehicle->fresh()->vehicle_image);
+        $this->assertSame('legacy-private-image', Storage::disk('local')->get($vehicle->fresh()->vehicle_image));
+        $this->assertCount(1, Storage::disk('local')->files('vehicles/orphaned'));
     }
 
     private function activeContractWithResidents(int $residentCount): array

@@ -8,6 +8,7 @@
         'unpaid' => ['text' => 'Chưa thanh toán', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
         'partial' => ['text' => 'Thanh toán một phần', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200', 'dot' => 'bg-sky-500'],
         'paid' => ['text' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
+        'cancelled' => ['text' => 'Đã hủy', 'class' => 'bg-slate-100 text-slate-700 ring-slate-300', 'dot' => 'bg-slate-500'],
     ];
 @endphp
 
@@ -130,7 +131,7 @@
                                     <p class="font-medium text-slate-900">{{ $invoice->contract->tenant->full_name ?? 'Không có' }}</p>
                                     <p class="mt-1 text-xs text-slate-500">{{ $invoice->contract->contract_code ?? '' }}</p>
                                 </td>
-                                <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</td>
+                                <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</td>
                                 <td class="px-5 py-4 text-right text-slate-600">{{ number_format($paidAmount, 0, ',', '.') }}đ</td>
                                 <td class="px-5 py-4">
                                     <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $statusData['class'] }}">

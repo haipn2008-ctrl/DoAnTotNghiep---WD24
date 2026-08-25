@@ -32,6 +32,10 @@
                             <div class="flex items-center justify-between gap-3 py-2.5"><dt class="text-slate-500">{{ $label }}</dt><dd class="font-semibold text-slate-900">{{ number_format($value, 0, ',', '.') }}đ</dd></div>
                         @endforeach
                     </dl>
+                    <div class="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-600">
+                        <p>Phát hành vào ngày <strong class="text-slate-900">{{ $setting->invoice_day }}</strong> hằng tháng</p>
+                        <p class="mt-1">Hạn thanh toán sau <strong class="text-slate-900">{{ $setting->payment_due_days }} ngày</strong></p>
+                    </div>
                 @elseif ($type === 'property-payment')
                     <p class="text-sm font-medium text-slate-500">Thông tin đang sử dụng</p>
                     <p class="mt-4 text-xl font-bold text-slate-950">{{ $setting->property_name ?: 'Chưa cấu hình nhà trọ' }}</p>

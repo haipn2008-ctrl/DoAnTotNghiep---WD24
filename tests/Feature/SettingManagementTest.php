@@ -66,14 +66,29 @@ class SettingManagementTest extends TestCase
             'water_price' => 22000,
             'internet_fee' => 120000,
             'service_fee' => 65000,
+            'invoice_day' => 5,
+            'payment_due_days' => 10,
+            'fee_effective_from' => '2026-08',
         ];
 
         $this->actingAs($this->admin)->put('/admin/settings/fees', $payload)
             ->assertRedirect('/admin/settings/fees')
             ->assertSessionHasNoErrors();
         foreach ($payload as $field => $value) {
-            $this->assertSame(number_format($value, 2, '.', ''), $setting->fresh()->{$field});
+            if ($field === 'fee_effective_from') {
+                continue;
+            }
+            if (in_array($field, ['invoice_day', 'payment_due_days'], true)) {
+                $this->assertSame($value, $setting->fresh()->{$field});
+            } else {
+                $this->assertSame(number_format($value, 2, '.', ''), $setting->fresh()->{$field});
+            }
         }
+        $this->assertDatabaseHas('fee_schedules', [
+            'effective_from' => '2026-08-01',
+            'electric_price' => 4100,
+            'water_price' => 22000,
+        ]);
 
         $this->put('/admin/settings/fees', array_merge($payload, [
             'electric_price' => 5000,
@@ -81,6 +96,31 @@ class SettingManagementTest extends TestCase
         ]))->assertSessionHasErrors('water_price');
         $this->assertSame('4100.00', $setting->fresh()->electric_price);
         $this->assertSame('22000.00', $setting->fresh()->water_price);
+    }
+
+    public function test_billing_schedule_requires_valid_issue_day_and_payment_window(): void
+    {
+        $setting = $this->createSetting();
+        $validFees = [
+            'electric_price' => 3500,
+            'water_price' => 15000,
+            'internet_fee' => 100000,
+            'service_fee' => 50000,
+            'fee_effective_from' => '2026-08',
+        ];
+
+        $this->actingAs($this->admin)->put('/admin/settings/fees', array_merge($validFees, [
+            'invoice_day' => 0,
+            'payment_due_days' => 10,
+        ]))->assertSessionHasErrors('invoice_day');
+
+        $this->put('/admin/settings/fees', array_merge($validFees, [
+            'invoice_day' => 5,
+            'payment_due_days' => 91,
+        ]))->assertSessionHasErrors('payment_due_days');
+
+        $this->assertSame(5, $setting->fresh()->invoice_day);
+        $this->assertSame(10, $setting->fresh()->payment_due_days);
     }
 
     public function test_property_and_payment_form_updates_both_sections_together(): void

@@ -7,6 +7,8 @@ use App\Models\Contract;
 use App\Models\Tenant;
 use App\Models\TemporaryResidence;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class TemporaryResidenceController extends Controller
 {
@@ -322,6 +324,8 @@ class TemporaryResidenceController extends Controller
     public function edit(
         TemporaryResidence $temporaryResidence
     ) {
+        $this->ensureMutable($temporaryResidence);
+
         /*
         |--------------------------------------------------------------------------
         | Lưu ý:
@@ -371,6 +375,8 @@ class TemporaryResidenceController extends Controller
         Request $request,
         TemporaryResidence $temporaryResidence
     ) {
+        $this->ensureMutable($temporaryResidence);
+
         $validated = $request->validate([
             'tenant_id' => [
                 'required',
@@ -380,17 +386,6 @@ class TemporaryResidenceController extends Controller
             'contract_id' => [
                 'required',
                 'exists:contracts,id',
-            ],
-
-            'start_date' => [
-                'required',
-                'date',
-            ],
-
-            'end_date' => [
-                'nullable',
-                'date',
-                'after_or_equal:start_date',
             ],
 
             'status' => [
@@ -516,7 +511,24 @@ class TemporaryResidenceController extends Controller
         | Cập nhật
         |--------------------------------------------------------------------------
         */
-        $temporaryResidence->update($validated);
+        if (!$contract->start_date) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'contract_id' => 'Hợp đồng chưa có ngày bắt đầu nên không thể cập nhật tạm trú.',
+                ]);
+        }
+
+        $validated['start_date'] = $contract->start_date;
+        $validated['end_date'] = $contract->end_date;
+
+        DB::transaction(function () use ($temporaryResidence, $validated): void {
+            $lockedResidence = TemporaryResidence::query()
+                ->lockForUpdate()
+                ->findOrFail($temporaryResidence->id);
+            $this->ensureMutable($lockedResidence);
+            $lockedResidence->update($validated);
+        });
 
         return redirect()
             ->route('admin.temporary_residences.index')
@@ -530,34 +542,83 @@ class TemporaryResidenceController extends Controller
      * Xóa đăng ký tạm trú.
      */
     public function destroy(
+        Request $request,
         TemporaryResidence $temporaryResidence
     ) {
-        $temporaryResidence->delete();
+        $this->ensureMutable($temporaryResidence);
+
+        $validated = $request->validate([
+            'cancellation_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($temporaryResidence, $validated, $request): void {
+            $lockedResidence = TemporaryResidence::query()
+                ->lockForUpdate()
+                ->findOrFail($temporaryResidence->id);
+
+            $this->ensureMutable($lockedResidence);
+
+            if ($lockedResidence->status === 'cancelled') {
+                throw ValidationException::withMessages([
+                    'temporary_residence' => 'Hồ sơ tạm trú đã được hủy trước đó.',
+                ]);
+            }
+
+            $lockedResidence->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancelled_by' => $request->user()->id,
+                'cancellation_reason' => $validated['cancellation_reason'],
+            ]);
+        });
 
         return redirect()
             ->route('admin.temporary_residences.index')
             ->with(
                 'success',
-                'Đăng ký tạm trú đã được xóa thành công.'
+                'Hồ sơ tạm trú đã được hủy và lưu lại để truy vết.'
             );
     }
     public function sign(
         Request $request,
         TemporaryResidence $temporaryResidence
     ) {
+        $this->ensureMutable($temporaryResidence);
+
         $validated = $request->validate([
             'signature' => [
+                'bail',
                 'required',
                 'string',
+                'max:1500000',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (!preg_match('/^data:image\/png;base64,([A-Za-z0-9+\/=\r\n]+)$/', $value, $matches)) {
+                        $fail('Chữ ký phải là ảnh PNG hợp lệ.');
+
+                        return;
+                    }
+
+                    $decoded = base64_decode($matches[1], true);
+                    $imageInfo = $decoded === false ? false : @getimagesizefromstring($decoded);
+                    if ($decoded === false || $imageInfo === false || ($imageInfo[2] ?? null) !== IMAGETYPE_PNG) {
+                        $fail('Chữ ký phải là ảnh PNG hợp lệ.');
+                    }
+                },
             ],
         ], [
             'signature.required' => 'Vui lòng ký tên trước khi lưu.',
         ]);
 
-        $temporaryResidence->update([
-            'signature' => $validated['signature'],
-            'signed_at' => now(),
-        ]);
+        DB::transaction(function () use ($temporaryResidence, $validated): void {
+            $lockedResidence = TemporaryResidence::query()
+                ->lockForUpdate()
+                ->findOrFail($temporaryResidence->id);
+            $this->ensureMutable($lockedResidence);
+            $lockedResidence->update([
+                'signature' => $validated['signature'],
+                'signed_at' => now(),
+            ]);
+        });
 
         return back()->with(
             'success',
@@ -576,5 +637,20 @@ class TemporaryResidenceController extends Controller
             'admin.temporary_residences.pdf',
             compact('temporaryResidence')
         );
+    }
+
+    private function ensureMutable(TemporaryResidence $temporaryResidence): void
+    {
+        if ($temporaryResidence->status === 'cancelled') {
+            throw ValidationException::withMessages([
+                'temporary_residence' => 'Hồ sơ tạm trú đã hủy không thể thay đổi.',
+            ]);
+        }
+
+        if ($temporaryResidence->signature || $temporaryResidence->signed_at) {
+            throw ValidationException::withMessages([
+                'temporary_residence' => 'Hồ sơ tạm trú đã ký không thể sửa, ký đè hoặc xóa.',
+            ]);
+        }
     }
 }

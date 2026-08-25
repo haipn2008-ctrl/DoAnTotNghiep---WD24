@@ -39,11 +39,12 @@
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Khách thuê</p><p class="mt-1 font-bold text-slate-950">{{ $payment->invoice->contract->tenant->full_name ?? '-' }}</p><p class="mt-1 text-xs text-slate-500">{{ $payment->submitter?->email ?? 'Admin ghi nhận' }}</p></div>
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Số tiền</p><p class="mt-1 text-xl font-bold text-emerald-700">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</p><span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span></div>
                         </div>
-                        @if($payment->proof_image)<a href="{{ asset('storage/'.$payment->proof_image) }}" target="_blank" class="shrink-0"><img src="{{ asset('storage/'.$payment->proof_image) }}" alt="Biên lai" class="h-28 w-28 rounded-lg object-cover ring-1 ring-slate-200"><span class="mt-1 block text-center text-xs font-semibold text-indigo-700">Xem ảnh lớn</span></a>@endif
+                        @if($payment->proof_image)<a href="{{ route('admin.invoices.payments.proof', $payment) }}" target="_blank" class="shrink-0"><img src="{{ route('admin.invoices.payments.proof', $payment) }}" alt="Biên lai" class="h-28 w-28 rounded-lg object-cover ring-1 ring-slate-200"><span class="mt-1 block text-center text-xs font-semibold text-indigo-700">Xem ảnh lớn</span></a>@endif
                     </div>
 
                     @if($payment->note)<p class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Khách ghi chú: {{ $payment->note }}</p>@endif
                     @if($payment->review_note)<p class="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">Lý do từ chối: {{ $payment->review_note }}</p>@endif
+                    @if($payment->reviewed_at)<p class="mt-3 text-xs text-slate-500">Xử lý bởi {{ $payment->confirmer?->name ?? 'Quản trị viên' }} lúc {{ $payment->reviewed_at->format('H:i d/m/Y') }}.</p>@endif
 
                     @if($payment->status === 'pending')
                         <div class="mt-4 grid gap-3 border-t border-slate-200 pt-4 lg:grid-cols-[auto_1fr]">

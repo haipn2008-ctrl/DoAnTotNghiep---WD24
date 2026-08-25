@@ -70,7 +70,8 @@
                     <select id="statusFilter" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
                         <option value="all">Tất cả phòng</option>
                         <option value="pending">Chưa nhập</option>
-                        <option value="saved">Đã lưu</option>
+                        <option value="draft">Bản nháp</option>
+                        <option value="confirmed">Đã xác nhận</option>
                         <option value="locked">Đã xuất hóa đơn</option>
                     </select>
                 </div>
@@ -98,13 +99,13 @@
                             @php
                                 $electricityNew = old("readings.$index.electricity_new", $item['electricity_new']);
                                 $waterNew = old("readings.$index.water_new", $item['water_new']);
-                                $state = $item['locked'] ? 'locked' : ($item['saved'] ? 'saved' : 'pending');
+                                $state = $item['locked'] ? 'locked' : ($item['status'] ?? 'pending');
                             @endphp
                             <tr class="utility-row {{ $item['locked'] ? 'bg-slate-50' : 'hover:bg-indigo-50/30' }}" data-room="{{ strtolower($item['room_name']) }}" data-state="{{ $state }}">
                                 <td class="sticky left-0 z-[5] bg-inherit px-4 py-4">
                                     <div class="flex items-start gap-3">
                                         <input type="hidden" name="readings[{{ $index }}][room_id]" value="{{ $item['room_id'] }}">
-                                        <input class="row-selector mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600" type="checkbox" name="readings[{{ $index }}][selected]" value="1" @checked(old("readings.$index.selected")) @disabled($item['locked']) aria-label="Chọn phòng {{ $item['room_name'] }} để lưu">
+                                        <input class="row-selector mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600" type="checkbox" name="readings[{{ $index }}][selected]" value="1" @checked(old("readings.$index.selected")) @disabled(!$item['editable']) aria-label="Chọn phòng {{ $item['room_name'] }} để lưu">
                                         <div>
                                             <p class="font-bold text-slate-950">{{ $item['room_name'] }}</p>
                                             <p class="mt-0.5 text-xs text-slate-500">Thuê từ {{ $item['start_date'] }}</p>
@@ -116,17 +117,20 @@
                                 </td>
                                 <td class="px-3 py-4 font-semibold text-slate-600"><span class="elec-old">{{ $item['electricity_old'] }}</span></td>
                                 <td class="px-3 py-4">
-                                    <input type="number" inputmode="numeric" min="{{ $item['electricity_old'] }}" name="readings[{{ $index }}][electricity_new]" value="{{ $electricityNew }}" class="meter-input elec-new h-11 w-32 rounded-lg border border-slate-200 px-3 text-lg font-bold text-indigo-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" placeholder="Nhập số" @readonly($item['locked'])>
+                                    <input type="number" inputmode="numeric" min="{{ $item['electricity_old'] }}" name="readings[{{ $index }}][electricity_new]" value="{{ $electricityNew }}" class="meter-input elec-new h-11 w-32 rounded-lg border border-slate-200 px-3 text-lg font-bold text-indigo-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" placeholder="Nhập số" @readonly(!$item['editable'])>
                                 </td>
                                 <td class="px-3 py-4"><span class="elec-usage rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">—</span></td>
                                 <td class="px-3 py-4 font-semibold text-slate-600"><span class="water-old">{{ $item['water_old'] }}</span></td>
                                 <td class="px-3 py-4">
-                                    <input type="number" inputmode="numeric" min="{{ $item['water_old'] }}" name="readings[{{ $index }}][water_new]" value="{{ $waterNew }}" class="meter-input water-new h-11 w-32 rounded-lg border border-slate-200 px-3 text-lg font-bold text-sky-700 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100" placeholder="Nhập số" @readonly($item['locked'])>
+                                    <input type="number" inputmode="numeric" min="{{ $item['water_old'] }}" name="readings[{{ $index }}][water_new]" value="{{ $waterNew }}" class="meter-input water-new h-11 w-32 rounded-lg border border-slate-200 px-3 text-lg font-bold text-sky-700 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100" placeholder="Nhập số" @readonly(!$item['editable'])>
                                 </td>
                                 <td class="px-3 py-4"><span class="water-usage rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">—</span></td>
                                 <td class="px-3 py-4">
                                     @if ($item['locked'])
                                         <span class="inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Đã xuất hóa đơn</span>
+                                    @elseif ($item['status'] === \App\Models\UtilityReading::STATUS_CONFIRMED)
+                                        <span class="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">Đã xác nhận</span>
+                                        <p class="mt-2 text-xs text-slate-500">Muốn sửa, hãy mở lại tại bảng kiểm tra.</p>
                                     @else
                                         <div class="flex items-center gap-2">
                                             <button type="button" class="zero-usage rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Không phát sinh</button>
@@ -142,7 +146,7 @@
                                                 </div>
                                             </details>
                                         </div>
-                                        <p class="mt-2 text-xs {{ $item['saved'] ? 'text-emerald-600' : 'text-amber-600' }}">{{ $item['saved'] ? 'Đã lưu — có thể sửa' : 'Chưa nhập' }}</p>
+                                        <p class="mt-2 text-xs {{ $item['saved'] ? 'text-amber-600' : 'text-slate-500' }}">{{ $item['saved'] ? 'Bản nháp — có thể sửa' : 'Chưa nhập' }}</p>
                                     @endif
                                 </td>
                             </tr>
@@ -156,9 +160,14 @@
             @if (count($readings) > 0)
                 <div class="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-sm text-slate-500"><strong id="selectedCount" class="text-slate-900">0</strong> phòng sẽ được lưu. Phòng chưa chọn sẽ được giữ nguyên.</p>
-                    <button id="saveButton" type="submit" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>
-                        <i class="bx bx-save text-lg"></i>Lưu các phòng đã nhập
-                    </button>
+                    <div class="flex flex-col gap-2 sm:flex-row">
+                        <button id="draftButton" type="submit" name="intent" value="draft" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400" disabled>
+                            <i class="bx bx-save text-lg"></i>Lưu nháp
+                        </button>
+                        <button id="confirmButton" type="submit" name="intent" value="confirm" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>
+                            <i class="bx bx-check-circle text-lg"></i>Lưu và xác nhận
+                        </button>
+                    </div>
                 </div>
             @endif
         </form>
@@ -173,7 +182,8 @@
             const search = document.getElementById('roomSearch');
             const filter = document.getElementById('statusFilter');
             const selectedCount = document.getElementById('selectedCount');
-            const saveButton = document.getElementById('saveButton');
+            const draftButton = document.getElementById('draftButton');
+            const confirmButton = document.getElementById('confirmButton');
 
             const updateRow = (row, autoSelect = false) => {
                 const selector = row.querySelector('.row-selector');
@@ -209,7 +219,8 @@
             const refreshSelection = () => {
                 const checked = document.querySelectorAll('.row-selector:checked').length;
                 selectedCount.textContent = checked;
-                saveButton.disabled = checked === 0;
+                draftButton.disabled = checked === 0;
+                confirmButton.disabled = checked === 0;
             };
 
             const applyFilter = () => {
@@ -232,7 +243,7 @@
                         next.focus();
                         next.scrollIntoView({ block: 'center', behavior: 'smooth' });
                     } else {
-                        saveButton.focus();
+                        confirmButton.focus();
                     }
                 });
             });

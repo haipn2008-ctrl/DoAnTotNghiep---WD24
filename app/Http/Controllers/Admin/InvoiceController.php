@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\InvoiceAdjustment;
 use App\Models\Payment;
-use App\Services\ContractLifecycleService;
+use App\Models\UtilityReading;
 use App\Services\AdminNotificationService;
+use App\Services\ContractLifecycleService;
 use App\Services\InvoiceGenerator;
 use App\Services\TenantAccountLifecycle;
 use App\Support\Csv;
@@ -16,8 +18,10 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class InvoiceController extends Controller
 {
@@ -29,7 +33,7 @@ class InvoiceController extends Controller
         $filters = $request->validate([
             'month' => ['nullable', 'integer', 'between:1,12'],
             'year' => ['nullable', 'integer', 'between:2000,2100'],
-            'status' => ['nullable', 'in:unpaid,partial,paid'],
+            'status' => ['nullable', 'in:unpaid,partial,paid,cancelled'],
             'keyword' => ['nullable', 'string', 'max:100'],
         ]);
         $month = isset($filters['month']) ? (int) $filters['month'] : null;
@@ -62,6 +66,7 @@ class InvoiceController extends Controller
             Invoice::STATUS_UNPAID,
             Invoice::STATUS_PARTIAL,
             Invoice::STATUS_PAID,
+            Invoice::STATUS_CANCELLED,
         ])) {
             $query->where('status', $status);
         }
@@ -97,7 +102,8 @@ class InvoiceController extends Controller
             'count' => (clone $summaryQuery)->count(),
 
             'total_amount' => (clone $summaryQuery)
-                ->sum('total_amount'),
+                ->where('status', '!=', Invoice::STATUS_CANCELLED)
+                ->sum(DB::raw('total_amount + adjustment_amount')),
 
             'unpaid' => (clone $summaryQuery)
                 ->where('status', Invoice::STATUS_UNPAID)
@@ -109,6 +115,10 @@ class InvoiceController extends Controller
 
             'paid' => (clone $summaryQuery)
                 ->where('status', Invoice::STATUS_PAID)
+                ->count(),
+
+            'cancelled' => (clone $summaryQuery)
+                ->where('status', Invoice::STATUS_CANCELLED)
                 ->count(),
 
         ];
@@ -137,6 +147,8 @@ class InvoiceController extends Controller
             'utilityReading',
             'details',
             'payments',
+            'adjustments.creator',
+            'canceller',
         ]);
 
         $paidAmount = $invoice->payments()
@@ -145,15 +157,21 @@ class InvoiceController extends Controller
 
         $remainingAmount = max(
             0,
-            $invoice->total_amount - $paidAmount
+            $invoice->payable_amount - $paidAmount
         );
+        $pendingAmount = (float) $invoice->payments()
+            ->pending()
+            ->sum('amount_paid');
+        $availableAmount = max(0, $remainingAmount - $pendingAmount);
 
         return view(
             'admin.invoices.show',
             compact(
                 'invoice',
                 'paidAmount',
-                'remainingAmount'
+                'remainingAmount',
+                'pendingAmount',
+                'availableAmount'
             )
         );
     }
@@ -212,6 +230,7 @@ class InvoiceController extends Controller
         $issuedContractIds = Invoice::where('month', $month)
             ->where('year', $year)
             ->where('invoice_type', Invoice::TYPE_RENTAL)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
             ->pluck('contract_id')
             ->toArray();
 
@@ -292,6 +311,7 @@ class InvoiceController extends Controller
             Invoice::STATUS_UNPAID,
             Invoice::STATUS_PARTIAL,
             Invoice::STATUS_PAID,
+            Invoice::STATUS_CANCELLED,
         ])) {
             $query->where('status', $status);
         }
@@ -449,39 +469,126 @@ class InvoiceController extends Controller
             );
     }
 
-    /**
-     * Xóa hóa đơn
-     */
-    public function destroy(Invoice $invoice)
+    public function cancel(Request $request, Invoice $invoice)
     {
-        $deleted = DB::transaction(function () use ($invoice) {
+        $data = $request->validate([
+            'cancellation_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($invoice, $data): void {
             $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
 
             if ($lockedInvoice->payments()->exists()) {
-                return false;
+                throw ValidationException::withMessages([
+                    'cancellation_reason' => 'Không thể hủy hóa đơn đã phát sinh thanh toán hoặc xác nhận thanh toán.',
+                ]);
             }
 
-            $lockedInvoice->details()->delete();
-            $lockedInvoice->delete();
+            if ($lockedInvoice->adjustments()->exists()) {
+                throw ValidationException::withMessages([
+                    'cancellation_reason' => 'Không thể hủy hóa đơn đã có phiếu điều chỉnh.',
+                ]);
+            }
 
-            return true;
+            if ($lockedInvoice->status !== Invoice::STATUS_UNPAID) {
+                throw ValidationException::withMessages([
+                    'cancellation_reason' => 'Chỉ hóa đơn chưa thanh toán mới có thể hủy.',
+                ]);
+            }
+
+            $reading = $lockedInvoice->utilityReading()
+                ->lockForUpdate()
+                ->first();
+            $lockedInvoice->update([
+                'status' => Invoice::STATUS_CANCELLED,
+                'cancelled_at' => now(),
+                'cancelled_by' => auth()->id(),
+                'cancellation_reason' => $data['cancellation_reason'],
+            ]);
+
+            if ($reading && ! $reading->invoice()->exists()) {
+                $reading->update(['status' => UtilityReading::STATUS_CONFIRMED]);
+            }
         });
 
-        if (! $deleted) {
+        return redirect()
+            ->route('admin.invoices.show', $invoice)
+            ->with('success', 'Đã hủy hóa đơn. Dữ liệu gốc được giữ lại để truy vết.');
+    }
 
-            return redirect()
-                ->route('admin.invoices.index')
-                ->with(
-                    'error',
-                    'Không thể xóa hóa đơn đã phát sinh thanh toán.'
-                );
-        }
+    public function storeAdjustment(Request $request, Invoice $invoice)
+    {
+        $data = $request->validate([
+            'direction' => ['required', Rule::in([
+                InvoiceAdjustment::DIRECTION_DEBIT,
+                InvoiceAdjustment::DIRECTION_CREDIT,
+            ])],
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:1', 'max:999999999.99'],
+            'reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($invoice, $data): void {
+            $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
+
+            if ($lockedInvoice->invoice_type !== Invoice::TYPE_RENTAL) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Hiện chỉ hỗ trợ điều chỉnh hóa đơn tiền phòng và tiện ích hằng tháng.',
+                ]);
+            }
+
+            if (in_array($lockedInvoice->status, [Invoice::STATUS_CANCELLED, Invoice::STATUS_WRITTEN_OFF], true)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Không thể điều chỉnh hóa đơn đã hủy hoặc đã xóa nợ.',
+                ]);
+            }
+
+            if ($lockedInvoice->payments()->pending()->exists()) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Hãy xử lý xác nhận thanh toán đang chờ trước khi điều chỉnh hóa đơn.',
+                ]);
+            }
+
+            if (
+                $data['direction'] === InvoiceAdjustment::DIRECTION_CREDIT
+                && (float) $data['amount'] > $lockedInvoice->payable_amount
+            ) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Khoản giảm không được lớn hơn tổng tiền hiện tại của hóa đơn.',
+                ]);
+            }
+
+            $adjustment = $lockedInvoice->adjustments()->create([
+                'direction' => $data['direction'],
+                'amount' => $data['amount'],
+                'reason' => $data['reason'],
+                'created_by' => auth()->id(),
+            ]);
+            $adjustment->update([
+                'adjustment_code' => sprintf('ADJ-%06d', $adjustment->id),
+            ]);
+
+            $adjustmentAmount = $lockedInvoice->adjustments()->get()
+                ->sum(fn (InvoiceAdjustment $item): float => $item->signed_amount);
+            $lockedInvoice->update(['adjustment_amount' => $adjustmentAmount]);
+            $lockedInvoice->refreshStatus();
+            $this->syncTenantAccountAfterPayment($lockedInvoice);
+        });
 
         return redirect()
-            ->route('admin.invoices.index')
+            ->route('admin.invoices.show', $invoice)
+            ->with('success', 'Đã tạo phiếu điều chỉnh và cập nhật số tiền phải thu.');
+    }
+
+    /**
+     * Hóa đơn đã phát hành là dữ liệu bất biến và không còn hỗ trợ xóa cứng.
+     */
+    public function destroy(Invoice $invoice)
+    {
+        return redirect()
+            ->route('admin.invoices.show', $invoice)
             ->with(
-                'success',
-                'Đã xóa hóa đơn thành công.'
+                'error',
+                'Không thể xóa hóa đơn đã phát hành. Hãy hủy hóa đơn hoặc tạo phiếu điều chỉnh.'
             );
     }
 
@@ -521,6 +628,7 @@ class InvoiceController extends Controller
             Invoice::STATUS_UNPAID,
             Invoice::STATUS_PARTIAL,
             Invoice::STATUS_PAID,
+            Invoice::STATUS_CANCELLED,
         ])) {
             $query->where('status', $status);
         }
@@ -568,14 +676,14 @@ class InvoiceController extends Controller
 
             foreach ($invoices as $invoice) {
                 $paidAmount = $invoice->paid_amount ?? $invoice->payments()->success()->sum('amount_paid');
-                $remainingAmount = max(0, $invoice->total_amount - $paidAmount);
+                $remainingAmount = max(0, $invoice->payable_amount - $paidAmount);
 
                 Csv::writeRow($file, [
                     $invoice->invoice_code,
                     sprintf('%02d', $invoice->month).'/'.$invoice->year,
                     $invoice->room->room_code ?? '-',
                     $invoice->contract->tenant->full_name ?? '-',
-                    number_format($invoice->total_amount, 0, ',', '.'),
+                    number_format($invoice->payable_amount, 0, ',', '.'),
                     number_format($paidAmount, 0, ',', '.'),
                     number_format($remainingAmount, 0, ',', '.'),
                     $invoice->status_label,
@@ -839,11 +947,19 @@ class InvoiceController extends Controller
 
         DB::transaction(function () use ($data, $invoice) {
             $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
-            $remainingAmount = $lockedInvoice->remaining_amount;
-
-            if ($remainingAmount <= 0 || (float) $data['amount_paid'] > $remainingAmount) {
+            if (! $lockedInvoice->canPay()) {
                 throw ValidationException::withMessages([
-                    'amount_paid' => 'Số tiền thanh toán vượt quá số tiền còn phải trả của hóa đơn.',
+                    'amount_paid' => 'Hóa đơn không còn nhận thanh toán.',
+                ]);
+            }
+            $reservedAmount = (float) $lockedInvoice->payments()
+                ->whereIn('status', [Payment::STATUS_SUCCESS, Payment::STATUS_PENDING])
+                ->sum('amount_paid');
+            $availableAmount = max(0, $lockedInvoice->payable_amount - $reservedAmount);
+
+            if ($availableAmount <= 0 || (float) $data['amount_paid'] > $availableAmount) {
+                throw ValidationException::withMessages([
+                    'amount_paid' => 'Số tiền thanh toán vượt quá số dư chưa được thanh toán hoặc giữ chỗ.',
                 ]);
             }
 
@@ -854,7 +970,9 @@ class InvoiceController extends Controller
                 'payment_method' => $data['payment_method'],
                 'transaction_code' => $data['transaction_code'] ?? null,
                 'status' => Payment::STATUS_SUCCESS,
+                'submitted_by' => auth()->id(),
                 'confirmed_by' => auth()->id(),
+                'reviewed_at' => now(),
                 'note' => $data['note'] ?? null,
             ]);
 
@@ -895,6 +1013,12 @@ class InvoiceController extends Controller
 
             $invoice = Invoice::lockForUpdate()->findOrFail($payment->invoice_id);
             $remainingAmount = $invoice->remaining_amount;
+
+            if (! $invoice->canPay()) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Hóa đơn không còn nhận thanh toán.',
+                ]);
+            }
 
             if ((float) $payment->amount_paid > $remainingAmount) {
                 throw ValidationException::withMessages([
@@ -952,6 +1076,25 @@ class InvoiceController extends Controller
         return back()->with('success', 'Đã từ chối xác nhận thanh toán.');
     }
 
+    public function paymentProof(Payment $payment): BinaryFileResponse
+    {
+        abort_unless(
+            filled($payment->proof_image)
+            && str_starts_with($payment->proof_image, 'payment-proofs/')
+            && Storage::disk('local')->exists($payment->proof_image),
+            404
+        );
+
+        $response = response()->file(Storage::disk('local')->path($payment->proof_image), [
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+        $response->setPrivate();
+        $response->setMaxAge(0);
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
+    }
+
     private function syncTenantAccountAfterPayment(Invoice $invoice): void
     {
         $tenant = $invoice->contract()->with('tenant.user')->first()?->tenant;
@@ -966,7 +1109,12 @@ class InvoiceController extends Controller
         return $request->validate([
             'month' => ['nullable', 'integer', 'between:1,12'],
             'year' => ['nullable', 'integer', 'between:2000,2100'],
-            'status' => ['nullable', Rule::in([Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL, Invoice::STATUS_PAID])],
+            'status' => ['nullable', Rule::in([
+                Invoice::STATUS_UNPAID,
+                Invoice::STATUS_PARTIAL,
+                Invoice::STATUS_PAID,
+                Invoice::STATUS_CANCELLED,
+            ])],
             'keyword' => ['nullable', 'string', 'max:100'],
         ]);
     }
@@ -994,6 +1142,8 @@ class InvoiceController extends Controller
             'utilityReading',
 
             'details',
+
+            'adjustments',
 
             'payments',
 

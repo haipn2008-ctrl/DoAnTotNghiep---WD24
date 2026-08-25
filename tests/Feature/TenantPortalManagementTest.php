@@ -143,6 +143,50 @@ class TenantPortalManagementTest extends TestCase
         $this->actingAs($client)->get('/client/utilities?year=1999')->assertSessionHasErrors('year');
     }
 
+    public function test_room_baseline_is_not_exposed_as_a_tenant_period_reading(): void
+    {
+        [$client, , $contract, $room] = $this->createClientContext('BASELINEHIDDEN');
+        $contract->update(['start_date' => '2026-08-25', 'end_date' => '2027-08-24']);
+
+        $baseline = UtilityReading::create([
+            'room_id' => $room->id,
+            'month' => 8,
+            'year' => 2026,
+            'reading_type' => 'baseline',
+            'record_date' => '2026-08-25',
+            'electricity_old' => 100,
+            'electricity_new' => 100,
+            'water_old' => 10,
+            'water_new' => 10,
+            'status' => UtilityReading::STATUS_CONFIRMED,
+        ]);
+        $handover = UtilityReading::create([
+            'room_id' => $room->id,
+            'contract_id' => $contract->id,
+            'month' => 8,
+            'year' => 2026,
+            'reading_type' => 'handover',
+            'record_date' => '2026-08-25',
+            'electricity_old' => 100,
+            'electricity_new' => 100,
+            'water_old' => 10,
+            'water_new' => 10,
+            'status' => UtilityReading::STATUS_CONFIRMED,
+        ]);
+
+        $this->actingAs($client)->get('/client/utilities')
+            ->assertSuccessful()
+            ->assertViewHas('readings', function ($readings) use ($handover) {
+                return $readings->getCollection()->pluck('id')->all() === [$handover->id];
+            })
+            ->assertSeeText('Chỉ số bàn giao')
+            ->assertDontSeeText('Kỳ tháng 8/2026');
+
+        $this->actingAs($client)
+            ->get('/client/utilities/'.$baseline->id.'/electricity-image')
+            ->assertNotFound();
+    }
+
     public function test_profile_update_rejects_duplicate_tenant_contact_and_changes_nothing(): void
     {
         [$client, $tenant] = $this->createClientContext('PROFILE');

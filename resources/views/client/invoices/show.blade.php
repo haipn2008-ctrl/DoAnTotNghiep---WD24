@@ -8,6 +8,7 @@
         'unpaid' => ['label' => 'Chưa thanh toán', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
         'partial' => ['label' => 'Thanh toán một phần', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
         'paid' => ['label' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'cancelled' => ['label' => 'Đã hủy', 'class' => 'bg-slate-100 text-slate-700 ring-slate-300'],
     ];
     $status = $statuses[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
     $methodLabels = ['cash' => 'Tiền mặt', 'bank_transfer' => 'Chuyển khoản', 'qr' => 'QR'];
@@ -29,7 +30,7 @@
         </div>
 
         <div class="grid gap-4 sm:grid-cols-3">
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Tổng hóa đơn</p><p class="mt-2 text-2xl font-bold text-slate-950">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</p></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Tổng sau điều chỉnh</p><p class="mt-2 text-2xl font-bold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</p></div>
             <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Đã thanh toán</p><p class="mt-2 text-2xl font-bold text-emerald-700">{{ number_format($paidAmount, 0, ',', '.') }}đ</p></div>
             <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Còn phải trả</p><p class="mt-2 text-2xl font-bold {{ $remainingAmount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format($remainingAmount, 0, ',', '.') }}đ</p></div>
         </div>
@@ -46,13 +47,16 @@
                         @foreach ($invoice->details as $detail)
                             <tr><td class="px-5 py-4"><p class="font-semibold text-slate-950">{{ $detail->name }}</p>@if($detail->note)<p class="mt-1 text-xs text-slate-500">{{ $detail->note }}</p>@endif</td><td class="px-5 py-4 text-center text-slate-700">{{ number_format($detail->quantity, 0, ',', '.') }} {{ $detail->unit }}</td><td class="px-5 py-4 text-right text-slate-600">{{ number_format($detail->unit_price, 0, ',', '.') }}đ</td><td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($detail->amount, 0, ',', '.') }}đ</td></tr>
                         @endforeach
+                        @foreach($invoice->adjustments as $adjustment)
+                            <tr class="bg-slate-50"><td class="px-5 py-4"><p class="font-semibold">{{ $adjustment->direction === \App\Models\InvoiceAdjustment::DIRECTION_CREDIT ? 'Điều chỉnh giảm' : 'Điều chỉnh tăng' }} · {{ $adjustment->adjustment_code }}</p><p class="mt-1 text-xs text-slate-500">{{ $adjustment->reason }}</p></td><td class="px-5 py-4 text-center text-slate-500">Phiếu điều chỉnh</td><td class="px-5 py-4 text-right">—</td><td class="px-5 py-4 text-right font-semibold">{{ $adjustment->direction === \App\Models\InvoiceAdjustment::DIRECTION_CREDIT ? '-' : '+' }}{{ number_format($adjustment->amount, 0, ',', '.') }}đ</td></tr>
+                        @endforeach
                     </tbody>
-                    <tfoot class="bg-slate-50"><tr><th colspan="3" class="px-5 py-4 text-right">Tổng cộng</th><th class="px-5 py-4 text-right text-lg text-emerald-700">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</th></tr></tfoot>
+                    <tfoot class="bg-slate-50"><tr><th colspan="3" class="px-5 py-4 text-right">Tổng sau điều chỉnh</th><th class="px-5 py-4 text-right text-lg text-emerald-700">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</th></tr></tfoot>
                 </table>
             </div>
         </section>
 
-        @if ($remainingAmount > 0)
+        @if ($remainingAmount > 0 && $invoice->canPay())
             <section class="grid gap-5 rounded-lg border border-indigo-200 bg-white p-5 shadow-sm lg:grid-cols-[320px_1fr]">
                 <div>
                     <p class="text-sm font-semibold text-indigo-700">Xác nhận đã chuyển khoản</p>
@@ -90,7 +94,7 @@
             <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Lịch sử thanh toán</h3></div>
             <div class="divide-y divide-slate-100">
                 @forelse ($invoice->payments as $payment)
-                    <div class="flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center"><div><p class="font-semibold text-slate-950">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ · {{ $methodLabels[$payment->payment_method] ?? 'Không xác định' }}</p><p class="mt-1 text-xs text-slate-500">{{ $payment->payment_date?->format('d/m/Y') }}{{ $payment->transaction_code ? ' · Mã '.$payment->transaction_code : '' }}</p>@if($payment->review_note)<p class="mt-2 text-xs text-rose-600">Phản hồi: {{ $payment->review_note }}</p>@endif</div><div class="flex items-center gap-3">@if($payment->proof_image)<a href="{{ asset('storage/'.$payment->proof_image) }}" target="_blank" class="text-xs font-semibold text-indigo-700">Xem biên lai</a>@endif<span class="text-sm font-semibold text-slate-600">{{ $paymentStatuses[$payment->status] ?? 'Không xác định' }}</span></div></div>
+                    <div class="flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center"><div><p class="font-semibold text-slate-950">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ · {{ $methodLabels[$payment->payment_method] ?? 'Không xác định' }}</p><p class="mt-1 text-xs text-slate-500">{{ $payment->payment_date?->format('d/m/Y') }}{{ $payment->transaction_code ? ' · Mã '.$payment->transaction_code : '' }}</p>@if($payment->review_note)<p class="mt-2 text-xs text-rose-600">Phản hồi: {{ $payment->review_note }}</p>@endif</div><div class="flex items-center gap-3">@if($payment->proof_image)<a href="{{ route('client.invoices.payments.proof', $payment) }}" target="_blank" class="text-xs font-semibold text-indigo-700">Xem biên lai</a>@endif<span class="text-sm font-semibold text-slate-600">{{ $paymentStatuses[$payment->status] ?? 'Không xác định' }}</span></div></div>
                 @empty
                     <div class="px-5 py-8 text-center text-sm text-slate-500">Chưa có giao dịch thanh toán.</div>
                 @endforelse

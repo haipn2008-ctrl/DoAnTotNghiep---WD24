@@ -4,6 +4,17 @@
 Vite. Hệ thống hỗ trợ quản lý phòng, khách thuê, hợp đồng, chỉ số điện nước,
 hóa đơn, công nợ, thanh toán, dashboard và xuất CSV.
 
+## Trạng thái phát triển
+
+- Giai đoạn 1 — tiếp nhận và bàn giao phòng: **đã hoàn thành**.
+- Giai đoạn 2 — quản lý khách trong thời gian thuê: **đã hoàn thành**.
+- Giai đoạn 3 — gia hạn, trả phòng và quyết toán: **đang hoàn thiện**.
+
+Ranh giới nghiệp vụ và các chức năng đã chốt được ghi tại
+[`docs/PROJECT_PHASE_STATUS.md`](docs/PROJECT_PHASE_STATUS.md). Không đánh dấu
+giai đoạn 3 hoàn thành cho đến khi toàn bộ kịch bản trả phòng, gia hạn và quyết
+toán được kiểm thử lại từ đầu đến cuối.
+
 ## Yêu cầu môi trường
 
 - PHP 8.3 trở lên.

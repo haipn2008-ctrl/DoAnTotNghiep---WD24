@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 class VehicleController extends Controller
@@ -27,6 +28,7 @@ class VehicleController extends Controller
     {
         $tenant = $request->user()->tenant()->firstOrFail();
         $contract = $this->capacity->currentContract($tenant);
+        abort_unless($contract, 409, 'Không tìm thấy hợp đồng đang ở để quản lý phương tiện.');
         $owners = $contract && $contract->isManagedBy($request->user())
             ? $contract->members()->with('tenant.vehicles.reviewer')
                 ->where('status', ContractTenant::STATUS_CHECKED_IN)
@@ -43,7 +45,7 @@ class VehicleController extends Controller
         $tenant = $request->user()->tenant()->firstOrFail();
         $owner = $this->vehicleOwner($request, $tenant);
         $data = $this->validatedVehicle($request);
-        $imagePath = $request->file('vehicle_image')?->store('vehicles', 'public');
+        $imagePath = $request->file('vehicle_image')?->store('vehicles', 'local');
 
         try {
             $vehicle = DB::transaction(function () use ($owner, $data, $imagePath, $request): Vehicle {
@@ -58,7 +60,7 @@ class VehicleController extends Controller
             $this->notifications->vehicleSubmitted($vehicle);
         } catch (Throwable $exception) {
             if ($imagePath) {
-                Storage::disk('public')->delete($imagePath);
+                Storage::disk('local')->delete($imagePath);
             }
             throw $exception;
         }
@@ -72,7 +74,7 @@ class VehicleController extends Controller
         abort_if($vehicle->status === Vehicle::STATUS_PENDING, 409, 'Yêu cầu đang chờ duyệt. Hãy hủy yêu cầu nếu cần đăng ký lại.');
         $data = $this->validatedVehicle($request, $vehicle);
         $oldImagePath = $vehicle->vehicle_image;
-        $newImagePath = $request->file('vehicle_image')?->store('vehicles', 'public');
+        $newImagePath = $request->file('vehicle_image')?->store('vehicles', 'local');
 
         try {
             DB::transaction(function () use ($vehicle, $data, $newImagePath, $oldImagePath, $request): void {
@@ -90,13 +92,13 @@ class VehicleController extends Controller
             $this->notifications->vehicleSubmitted($vehicle, true);
         } catch (Throwable $exception) {
             if ($newImagePath) {
-                Storage::disk('public')->delete($newImagePath);
+                Storage::disk('local')->delete($newImagePath);
             }
             throw $exception;
         }
 
         if ($newImagePath && $oldImagePath) {
-            Storage::disk('public')->delete($oldImagePath);
+            Storage::disk('local')->delete($oldImagePath);
         }
 
         return back()->with('success', 'Đã cập nhật và gửi lại phương tiện để duyệt.');
@@ -116,7 +118,7 @@ class VehicleController extends Controller
 
         $vehicle->delete();
         if ($imagePath) {
-            Storage::disk('public')->delete($imagePath);
+            Storage::disk('local')->delete($imagePath);
         }
 
         return back()->with('success', $wasApproved
@@ -124,10 +126,27 @@ class VehicleController extends Controller
             : 'Đã hủy yêu cầu. Bạn có thể đăng ký lại phương tiện từ đầu.');
     }
 
+    public function image(Request $request, Vehicle $vehicle): StreamedResponse
+    {
+        $vehicle = $this->managedVehicle($request, $vehicle);
+        abort_unless(
+            filled($vehicle->vehicle_image)
+            && str_starts_with($vehicle->vehicle_image, 'vehicles/')
+            && Storage::disk('local')->exists($vehicle->vehicle_image),
+            404
+        );
+
+        return Storage::disk('local')->response($vehicle->vehicle_image, null, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     private function managedVehicle(Request $request, Vehicle $vehicle): Vehicle
     {
         $tenant = $request->user()->tenant;
         $contract = $tenant ? $this->capacity->currentContract($tenant) : null;
+        abort_unless($contract, 409, 'Không tìm thấy hợp đồng đang ở để quản lý phương tiện.');
         $ownerIds = $contract && $contract->isManagedBy($request->user())
             ? $contract->members()->where('status', ContractTenant::STATUS_CHECKED_IN)->pluck('tenant_id')
             : collect([$tenant?->id]);
@@ -139,6 +158,11 @@ class VehicleController extends Controller
     private function vehicleOwner(Request $request, Tenant $tenant): Tenant
     {
         $contract = $this->capacity->currentContract($tenant);
+        if (! $contract) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'vehicle' => 'Chỉ người đang ở trong một hợp đồng hoạt động mới được đăng ký phương tiện.',
+            ]);
+        }
         $allowedOwnerIds = $contract && $contract->isManagedBy($request->user())
             ? $contract->members()->where('status', ContractTenant::STATUS_CHECKED_IN)->whereNotNull('tenant_id')->pluck('tenant_id')
             : collect([$tenant->id]);

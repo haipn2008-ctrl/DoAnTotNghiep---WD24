@@ -73,7 +73,7 @@ class ClientInvoicePortalTest extends TestCase
 
     public function test_client_payment_confirmation_stays_pending_until_admin_approves_it(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         [$client, $contract, $room] = $this->createClientContext('PAY');
         $invoice = $this->createInvoice($contract, $room, 'INV-PAY');
 
@@ -91,7 +91,7 @@ class ClientInvoicePortalTest extends TestCase
         $this->assertSame(Payment::STATUS_PENDING, $payment->status);
         $this->assertSame($client->id, $payment->submitted_by);
         $this->assertSame(Invoice::STATUS_UNPAID, $invoice->fresh()->status);
-        Storage::disk('public')->assertExists($payment->proof_image);
+        Storage::disk('local')->assertExists($payment->proof_image);
 
         $adminRole = Role::create(['role_name' => 'Admin']);
         $admin = User::create([
@@ -108,12 +108,13 @@ class ClientInvoicePortalTest extends TestCase
 
         $this->assertSame(Payment::STATUS_SUCCESS, $payment->fresh()->status);
         $this->assertSame($admin->id, $payment->fresh()->confirmed_by);
+        $this->assertNotNull($payment->fresh()->reviewed_at);
         $this->assertSame(Invoice::STATUS_PAID, $invoice->fresh()->status);
     }
 
     public function test_client_cannot_submit_payment_for_another_tenants_invoice(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         [$client] = $this->createClientContext('PAYOWNER');
         [, $otherContract, $otherRoom] = $this->createClientContext('PAYOTHER');
         $otherInvoice = $this->createInvoice($otherContract, $otherRoom, 'INV-PAY-PRIVATE');
@@ -129,6 +130,35 @@ class ClientInvoicePortalTest extends TestCase
             ->assertNotFound();
 
         $this->assertDatabaseCount('payments', 0);
+    }
+
+    public function test_payment_proof_is_private_and_only_available_to_owner_or_admin(): void
+    {
+        Storage::fake('local');
+        [$client, $contract, $room] = $this->createClientContext('PROOFOWNER');
+        [$otherClient] = $this->createClientContext('PROOFOTHER');
+        $invoice = $this->createInvoice($contract, $room, 'INV-PROOF');
+
+        $this->actingAs($client)->post('/client/invoices/'.$invoice->id.'/payments', [
+            'amount_paid' => 100000,
+            'proof_image' => UploadedFile::fake()->image('private-proof.jpg'),
+        ])->assertSessionHasNoErrors();
+
+        $payment = Payment::firstOrFail();
+        $clientProofUrl = route('client.invoices.payments.proof', $payment);
+        $adminProofUrl = route('admin.invoices.payments.proof', $payment);
+
+        $this->post('/logout');
+        $this->get($clientProofUrl)->assertRedirect('/login');
+        $this->actingAs($otherClient)->get($clientProofUrl)->assertNotFound();
+        $ownerResponse = $this->actingAs($client)->get($clientProofUrl)
+            ->assertSuccessful();
+        $this->assertStringContainsString('private', $ownerResponse->headers->get('cache-control'));
+        $this->assertStringContainsString('no-store', $ownerResponse->headers->get('cache-control'));
+
+        $admin = $this->createAdmin('proof-admin@example.test');
+        $this->actingAs($client)->get($adminProofUrl)->assertForbidden();
+        $this->actingAs($admin)->get($adminProofUrl)->assertSuccessful();
     }
 
     public function test_admin_can_reject_client_payment_without_reducing_invoice_balance(): void
@@ -168,7 +198,7 @@ class ClientInvoicePortalTest extends TestCase
 
     public function test_client_cannot_reserve_more_than_the_available_invoice_balance(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         [$client, $contract, $room] = $this->createClientContext('RESERVE');
         $invoice = $this->createInvoice($contract, $room, 'INV-RESERVE');
 
@@ -194,12 +224,12 @@ class ClientInvoicePortalTest extends TestCase
             ->assertSessionHasErrors('amount_paid');
 
         $this->assertDatabaseCount('payments', 2);
-        Storage::disk('public')->assertMissing('payment-proofs/reserve-3.jpg');
+        Storage::disk('local')->assertMissing('payment-proofs/reserve-3.jpg');
     }
 
     public function test_client_payment_rejects_huge_fractional_and_non_positive_amounts_before_storing_proof(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         [$client, $contract, $room] = $this->createClientContext('AMOUNT-VALIDATION');
         $invoice = $this->createInvoice($contract, $room, 'INV-AMOUNT-VALIDATION');
 
@@ -211,12 +241,12 @@ class ClientInvoicePortalTest extends TestCase
         }
 
         $this->assertDatabaseCount('payments', 0);
-        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertSame([], Storage::disk('local')->allFiles());
     }
 
     public function test_client_payment_uses_server_date_and_qr_method_instead_of_untrusted_fields(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         [$client, $contract, $room] = $this->createClientContext('DUPLICATE');
         $invoice = $this->createInvoice($contract, $room, 'INV-DUPLICATE');
         Payment::create([
@@ -271,8 +301,153 @@ class ClientInvoicePortalTest extends TestCase
 
         $this->assertSame(1, Payment::count());
         $this->assertSame(Invoice::STATUS_PARTIAL, $invoice->fresh()->status);
-        $this->assertSame($admin->id, Payment::firstOrFail()->confirmed_by);
+        $recordedPayment = Payment::firstOrFail();
+        $this->assertSame($admin->id, $recordedPayment->submitted_by);
+        $this->assertSame($admin->id, $recordedPayment->confirmed_by);
+        $this->assertNotNull($recordedPayment->reviewed_at);
         $this->assertSame($client->tenant->id, $invoice->contract->tenant_id);
+    }
+
+    public function test_admin_direct_payment_respects_amount_reserved_by_pending_submissions(): void
+    {
+        [$client, $contract, $room] = $this->createClientContext('ADMINRESERVE');
+        $invoice = $this->createInvoice($contract, $room, 'INV-ADMINRESERVE');
+        Payment::create([
+            'invoice_id' => $invoice->id,
+            'amount_paid' => 100000,
+            'payment_date' => today(),
+            'payment_method' => Payment::METHOD_QR,
+            'status' => Payment::STATUS_PENDING,
+            'submitted_by' => $client->id,
+        ]);
+        $admin = $this->createAdmin('admin-reserve@example.test');
+
+        $payload = [
+            'amount_paid' => 3070000,
+            'payment_date' => today()->toDateString(),
+            'payment_method' => Payment::METHOD_CASH,
+        ];
+
+        $this->actingAs($admin)
+            ->post('/admin/invoices/'.$invoice->id.'/payments', $payload)
+            ->assertSessionHasErrors('amount_paid');
+
+        $payload['amount_paid'] = 2970000;
+        $this->actingAs($admin)
+            ->post('/admin/invoices/'.$invoice->id.'/payments', $payload)
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, Payment::count());
+        $this->assertSame(Invoice::STATUS_PARTIAL, $invoice->fresh()->status);
+    }
+
+    public function test_invoice_detail_exposes_pending_review_and_allows_more_partial_collections_after_rejection(): void
+    {
+        [$client, $contract, $room] = $this->createClientContext('DETAILREVIEW');
+        $invoice = $this->createInvoice($contract, $room, 'INV-DETAIL-REVIEW');
+        Payment::create([
+            'invoice_id' => $invoice->id,
+            'amount_paid' => 2570000,
+            'payment_date' => today(),
+            'payment_method' => Payment::METHOD_CASH,
+            'status' => Payment::STATUS_SUCCESS,
+        ]);
+        $pending = Payment::create([
+            'invoice_id' => $invoice->id,
+            'amount_paid' => 500000,
+            'payment_date' => today(),
+            'payment_method' => Payment::METHOD_BANK_TRANSFER,
+            'transaction_code' => 'DETAIL-PENDING-001',
+            'status' => Payment::STATUS_PENDING,
+            'submitted_by' => $client->id,
+        ]);
+        $invoice->refreshStatus();
+        $admin = $this->createAdmin('detail-review-admin@example.test');
+
+        $this->actingAs($admin)->get(route('admin.invoices.show', $invoice))
+            ->assertSuccessful()
+            ->assertSee('Chờ xác nhận')
+            ->assertSee('Duyệt thanh toán')
+            ->assertSee('Từ chối')
+            ->assertSee('Số tiền còn lại đang được giữ cho giao dịch chờ xác nhận.')
+            ->assertDontSee('name="amount_paid"', false);
+
+        $this->post(route('admin.invoices.payments.reject', $pending), [
+            'review_note' => 'Không tìm thấy giao dịch trong tài khoản ngân hàng.',
+        ])->assertSessionHasNoErrors();
+
+        $this->get(route('admin.invoices.show', $invoice))
+            ->assertSuccessful()
+            ->assertSee('Ghi nhận thanh toán')
+            ->assertSee('name="amount_paid"', false);
+
+        $this->post(route('admin.invoices.payments.store', $invoice), [
+            'amount_paid' => 200000,
+            'payment_date' => today()->toDateString(),
+            'payment_method' => Payment::METHOD_CASH,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(Invoice::STATUS_PARTIAL, $invoice->fresh()->status);
+        $this->actingAs($admin)->get(route('admin.invoices.show', $invoice))
+            ->assertSee('Ghi nhận thanh toán')
+            ->assertSee('300.000đ');
+    }
+
+    public function test_existing_public_payment_proofs_are_moved_to_private_storage(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        [, $contract, $room] = $this->createClientContext('LEGACYPROOF');
+        $invoice = $this->createInvoice($contract, $room, 'INV-LEGACYPROOF');
+        $path = 'payment-proofs/legacy-proof.jpg';
+        Storage::disk('public')->put($path, 'legacy-proof');
+        Payment::create([
+            'invoice_id' => $invoice->id,
+            'amount_paid' => 100000,
+            'payment_date' => today(),
+            'payment_method' => Payment::METHOD_QR,
+            'status' => Payment::STATUS_PENDING,
+            'proof_image' => $path,
+        ]);
+
+        $migration = require database_path('migrations/2026_08_24_000016_move_payment_proofs_to_private_storage.php');
+        $migration->up();
+
+        Storage::disk('local')->assertExists($path);
+        Storage::disk('public')->assertMissing($path);
+    }
+
+    public function test_orphaned_public_payment_proofs_are_preserved_in_private_storage(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $path = 'payment-proofs/orphaned-proof.jpg';
+        Storage::disk('public')->put($path, 'orphaned-proof');
+
+        $migration = require database_path('migrations/2026_08_24_000017_move_orphaned_payment_proofs_to_private_storage.php');
+        $migration->up();
+
+        Storage::disk('local')->assertExists($path);
+        Storage::disk('public')->assertMissing($path);
+        $this->assertSame('orphaned-proof', Storage::disk('local')->get($path));
+    }
+
+    public function test_orphaned_proof_name_collision_preserves_both_private_files(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $path = 'payment-proofs/collision.jpg';
+        Storage::disk('public')->put($path, 'public-version');
+        Storage::disk('local')->put($path, 'private-version');
+
+        $migration = require database_path('migrations/2026_08_24_000017_move_orphaned_payment_proofs_to_private_storage.php');
+        $migration->up();
+
+        Storage::disk('public')->assertMissing($path);
+        $this->assertSame('private-version', Storage::disk('local')->get($path));
+        $orphanedPaths = Storage::disk('local')->files('payment-proofs/orphaned');
+        $this->assertCount(1, $orphanedPaths);
+        $this->assertSame('public-version', Storage::disk('local')->get($orphanedPaths[0]));
     }
 
     public function test_processed_payment_cannot_be_approved_or_rejected_again(): void

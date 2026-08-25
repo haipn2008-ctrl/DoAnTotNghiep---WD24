@@ -8,6 +8,7 @@
         'unpaid' => ['label' => 'Chưa thanh toán', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
         'partial' => ['label' => 'Thanh toán một phần', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
         'paid' => ['label' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'cancelled' => ['label' => 'Đã hủy', 'class' => 'bg-slate-100 text-slate-700 ring-slate-300'],
     ];
 @endphp
 
@@ -64,7 +65,7 @@
                         @forelse ($invoices as $invoice)
                             @php
                                 $status = $statuses[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
-                                $remaining = max(0, (float) $invoice->total_amount - (float) ($invoice->paid_amount ?? 0));
+                                $remaining = max(0, $invoice->payable_amount - (float) ($invoice->paid_amount ?? 0));
                             @endphp
                             <tr class="hover:bg-slate-50">
                                 <td class="px-5 py-4">
@@ -77,7 +78,7 @@
                                 </td>
                                 <td class="px-5 py-4 text-slate-600">{{ $invoice->room->room_code ?? '-' }}</td>
                                 <td class="px-5 py-4 text-slate-600">{{ $invoice->due_date?->format('d/m/Y') }}</td>
-                                <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</td>
+                                <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</td>
                                 <td class="px-5 py-4 text-right font-bold {{ $remaining > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format($remaining, 0, ',', '.') }}đ</td>
                                 <td class="px-5 py-4"><span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span></td>
                                 <td class="px-5 py-4 text-right"><a href="{{ route('client.invoices.show', $invoice) }}" class="font-semibold text-indigo-700">Xem chi tiết</a></td>
@@ -93,7 +94,7 @@
                 @forelse ($invoices as $invoice)
                     @php
                         $status = $statuses[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
-                        $remaining = max(0, (float) $invoice->total_amount - (float) ($invoice->paid_amount ?? 0));
+                        $remaining = max(0, $invoice->payable_amount - (float) ($invoice->paid_amount ?? 0));
                     @endphp
                     <a href="{{ route('client.invoices.show', $invoice) }}" class="block space-y-3 p-4 hover:bg-slate-50">
                         <div class="flex items-start justify-between gap-3">

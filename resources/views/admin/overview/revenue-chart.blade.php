@@ -7,7 +7,7 @@
     <div class="space-y-6">
         <div>
             <p class="text-sm font-medium text-slate-500">Tháng {{ $reportMonth }}/{{ $reportYear }}</p>
-            <h2 class="mt-1 text-2xl font-bold text-slate-950">Phân tích tài chính</h2>
+            <h2 class="mt-1 text-2xl font-bold text-slate-950">Phân tích doanh thu</h2>
         </div>
 
         {{-- KPI Cards --}}
@@ -77,13 +77,7 @@
                     <span class="font-bold text-red-600">{{ number_format($remaining, 0, ',', '.') }}đ</span>
                 </div>
             </div>
-            <div class="border-t border-slate-200 bg-white px-5 py-3">
-                <div class="grid grid-cols-2 gap-4 text-xs text-slate-500">
-                    <span>Chi phí cố định (internet + dịch vụ): <strong class="text-slate-700">{{ number_format($fixedCosts, 0, ',', '.') }}đ</strong></span>
-                    <span>Lợi nhuận tạm tính: <strong class="{{ $estimatedProfit >= 0 ? 'text-emerald-700' : 'text-red-600' }}">{{ number_format($estimatedProfit, 0, ',', '.') }}đ</strong> <span class="text-orange-400">*</span></span>
-                </div>
-                <p class="mt-1 text-xs text-orange-400">* Chưa tính điện nước và chi phí vận hành khác</p>
-            </div>
+            <div class="border-t border-slate-200 bg-white px-5 py-3 text-xs text-slate-500">Báo cáo này phản ánh khoản phải thu và đã thu, không phải lợi nhuận. Lợi nhuận chỉ được tính khi có dữ liệu chi thực tế.</div>
         </section>
 
         {{-- Chart lịch sử 6 tháng --}}
@@ -165,4 +159,3 @@
     }).render();
 </script>
 @endpush
-

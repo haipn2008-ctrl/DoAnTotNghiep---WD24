@@ -65,7 +65,7 @@
             <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <p class="text-sm font-medium text-slate-500">Hóa đơn gần nhất</p>
                 <p class="mt-3 text-2xl font-bold text-slate-950">
-                    {{ $recentInvoice ? number_format($recentInvoice->total_amount, 0, ',', '.') . 'đ' : '--' }}
+                    {{ $recentInvoice ? number_format($recentInvoice->payable_amount, 0, ',', '.') . 'đ' : '--' }}
                 </p>
                 <p class="mt-1 text-xs text-slate-500">
                     {{ $recentInvoice ? 'Kỳ ' . $recentInvoice->month . '/' . $recentInvoice->year : 'Chưa có hóa đơn.' }}
@@ -99,7 +99,7 @@
                                     <p class="mt-1 text-sm text-slate-500">Phòng {{ $invoice->room->room_code ?? 'Không có' }} · Hạn {{ \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') }}</p>
                                 </div>
                                 <div class="flex items-center gap-3">
-                                    <span class="font-bold text-slate-950">{{ number_format($invoice->total_amount, 0, ',', '.') }}đ</span>
+                                    <span class="font-bold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</span>
                                     <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span>
                                 </div>
                             </a>

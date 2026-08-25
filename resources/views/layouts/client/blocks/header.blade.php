@@ -10,7 +10,15 @@
             </div>
         </div>
 
-        <div class="relative">
+        <div class="flex items-center gap-2">
+            <a href="{{ route('client.notifications.index') }}" aria-label="Mở thông báo" class="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                <i class="bx bx-bell text-xl"></i>
+                @if(($clientUnreadNotificationCount ?? 0) > 0)
+                    <span class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{{ $clientUnreadNotificationCount > 99 ? '99+' : $clientUnreadNotificationCount }}</span>
+                @endif
+            </a>
+
+            <div class="relative">
             <button id="clientUserMenuButton" type="button" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:bg-slate-50">
                 <span class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
                     {{ mb_substr(Auth::user()->name ?? 'K', 0, 1) }}
@@ -29,6 +37,7 @@
                         Đăng xuất
                     </button>
                 </form>
+            </div>
             </div>
         </div>
     </div>

@@ -3,17 +3,21 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\FeeSchedule;
 use App\Models\Setting;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class SettingController extends Controller
 {
     private static array $types = [
         'fees' => [
             'field' => null,
-            'label' => 'Phí dịch vụ',
+            'label' => 'Phí dịch vụ và lịch thu tiền',
             'unit' => '',
-            'description' => 'Quản lý tập trung đơn giá điện, nước, Internet và dịch vụ chung.',
+            'description' => 'Quản lý tập trung đơn giá điện, nước, Internet, dịch vụ và lịch phát hành hóa đơn.',
         ],
         'property-payment' => [
             'field' => null,
@@ -68,8 +72,11 @@ class SettingController extends Controller
         $setting = $this->setting();
         $typeData = self::$types[$type];
         $currentValue = $typeData['field'] ? $setting->{$typeData['field']} : null;
+        $feeSchedules = $type === 'fees'
+            ? FeeSchedule::query()->latest('effective_from')->get()
+            : collect();
 
-        return view('admin.settings.edit', compact('setting', 'type', 'typeData', 'currentValue'));
+        return view('admin.settings.edit', compact('setting', 'type', 'typeData', 'currentValue', 'feeSchedules'));
     }
 
     public function update(Request $request, string $type)
@@ -83,7 +90,7 @@ class SettingController extends Controller
 
         if ($type === 'fees') {
             $data = $request->validate($this->feeRules());
-            $setting->update($data);
+            $this->storeFeeSchedule($setting, $data);
         } elseif ($type === 'property-payment') {
             $data = $request->validate(array_merge($this->propertyRules(), $this->bankRules()));
             $setting->update($data);
@@ -97,7 +104,7 @@ class SettingController extends Controller
             $data = $request->validate([
                 $typeData['field'] => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
             ]);
-            $setting->update([$typeData['field'] => $data[$typeData['field']]]);
+            $this->storeLegacyFeeChange($setting, $typeData['field'], $data[$typeData['field']]);
         }
 
         return redirect()
@@ -124,7 +131,71 @@ class SettingController extends Controller
             'water_price' => $priceRule,
             'internet_fee' => $priceRule,
             'service_fee' => $priceRule,
+            'invoice_day' => ['required', 'integer', 'between:1,31'],
+            'payment_due_days' => ['required', 'integer', 'between:1,90'],
+            'fee_effective_from' => ['required', 'date_format:Y-m'],
         ];
+    }
+
+    private function storeFeeSchedule(Setting $setting, array $data): void
+    {
+        $effectiveFrom = Carbon::createFromFormat('!Y-m', $data['fee_effective_from'])->startOfMonth();
+        $priceFields = ['electric_price', 'water_price', 'internet_fee', 'service_fee'];
+
+        DB::transaction(function () use ($setting, $data, $effectiveFrom, $priceFields): void {
+            $effectiveDate = $effectiveFrom->toDateString();
+            $schedule = FeeSchedule::query()
+                ->where('effective_from', $effectiveDate)
+                ->lockForUpdate()
+                ->first();
+
+            if ($schedule?->invoices()->exists()) {
+                throw ValidationException::withMessages([
+                    'fee_effective_from' => 'Bảng giá của tháng này đã được dùng để phát hành hóa đơn và không thể sửa.',
+                ]);
+            }
+
+            FeeSchedule::query()->updateOrCreate(
+                ['effective_from' => $effectiveDate],
+                collect($data)->only($priceFields)->all()
+            );
+
+            $settingPayload = collect($data)->only(['invoice_day', 'payment_due_days'])->all();
+            $currentSchedule = FeeSchedule::forPeriod(now(), true);
+            if ($currentSchedule) {
+                $settingPayload = array_merge($settingPayload, $currentSchedule->only($priceFields));
+            }
+
+            $setting->update($settingPayload);
+        });
+    }
+
+    private function storeLegacyFeeChange(Setting $setting, string $field, mixed $value): void
+    {
+        $priceFields = ['electric_price', 'water_price', 'internet_fee', 'service_fee'];
+        $effectiveFrom = now()->startOfMonth();
+
+        DB::transaction(function () use ($setting, $field, $value, $priceFields, $effectiveFrom): void {
+            $effectiveDate = $effectiveFrom->toDateString();
+            $schedule = FeeSchedule::query()
+                ->where('effective_from', $effectiveDate)
+                ->lockForUpdate()
+                ->first();
+
+            if ($schedule?->invoices()->exists()) {
+                throw ValidationException::withMessages([
+                    $field => 'Bảng giá tháng hiện tại đã được dùng để phát hành hóa đơn và không thể sửa.',
+                ]);
+            }
+
+            $prices = $setting->only($priceFields);
+            $prices[$field] = $value;
+            FeeSchedule::query()->updateOrCreate(
+                ['effective_from' => $effectiveDate],
+                $prices
+            );
+            $setting->update([$field => $value]);
+        });
     }
 
     private function propertyRules(): array

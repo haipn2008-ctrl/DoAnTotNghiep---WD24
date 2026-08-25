@@ -1,1 +1,0 @@
-trong dự án DoAnTotNghiep---WD24 bên phía admin phần chi tiết phòng, cần có phần lịch sử thuê phòng, nếu không có ai thuê thì sẽ "phòng không có lịch sử thuê"     

@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Contract;
+use App\Models\FeeSchedule;
 use App\Models\Invoice;
+use App\Models\InvoiceReminder;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
@@ -12,6 +14,8 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
 use App\Services\InvoiceGenerator;
+use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -33,7 +37,7 @@ class InvoiceManagementTest extends TestCase
         Setting::create(['electric_price' => 3500, 'water_price' => 20000,
             'internet_fee' => 100000, 'service_fee' => 50000, 'parking_fee' => 75000,
             'motorcycle_parking_fee' => 80000, 'car_parking_fee' => 500000,
-            'invoice_day' => 31, 'payment_due_days' => 10]);
+            'invoice_day' => 5, 'payment_due_days' => 10]);
     }
 
     public function test_only_admin_can_access_invoice_pages_preview_issue_and_direct_delete(): void
@@ -41,10 +45,14 @@ class InvoiceManagementTest extends TestCase
         [$contract, , , $reading] = $this->fixture('AUTH');
         $invoice = $this->issue($contract);
         $this->get('/admin/invoices')->assertRedirect('/login');
+        $this->post(route('admin.invoices.cancel', $invoice), ['cancellation_reason' => 'Không có quyền thao tác.'])->assertRedirect('/login');
         $client = $this->user($this->clientRole, 'invoice-client@example.test');
         $this->actingAs($client)->get('/admin/invoices')->assertForbidden();
         $this->get("/admin/invoices/contracts/{$contract->id}/preview?month=7&year=2026")->assertForbidden();
         $this->post("/admin/invoices/contracts/{$contract->id}/issue", ['month' => 7, 'year' => 2026])->assertForbidden();
+        $this->post(route('admin.invoices.adjustments.store', $invoice), [
+            'direction' => 'debit', 'amount' => 1, 'reason' => 'Không có quyền thao tác.',
+        ])->assertForbidden();
         $this->delete("/admin/invoices/{$invoice->id}")->assertForbidden();
         $this->assertDatabaseHas('invoices', ['id' => $invoice->id, 'utility_reading_id' => $reading->id]);
     }
@@ -71,7 +79,7 @@ class InvoiceManagementTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=7&year=2026")
             ->assertOk()->assertJsonPath('invoice_date', '2026-07-05')
-            ->assertJsonPath('due_date', '2026-07-05')
+            ->assertJsonPath('due_date', '2026-07-15')
             ->assertJsonPath('total_amount', 3320000);
         $this->assertSame(['room', 'electricity', 'water', 'internet', 'service'],
             collect($response->json('lines'))->pluck('type')->all());
@@ -86,7 +94,7 @@ class InvoiceManagementTest extends TestCase
         $preview = app(InvoiceGenerator::class)->preview($contract, 6, 2026);
 
         $this->assertSame('2026-06-05', $preview['invoice_date']);
-        $this->assertSame('2026-06-05', $preview['due_date']);
+        $this->assertSame('2026-06-15', $preview['due_date']);
         $this->assertSame(5, $preview['utility_month']);
         $this->assertSame(2026, $preview['utility_year']);
         $this->assertSame([
@@ -106,7 +114,7 @@ class InvoiceManagementTest extends TestCase
         $preview = app(InvoiceGenerator::class)->preview($contract->fresh(), 6, 2026);
 
         $this->assertSame('2026-06-05', $preview['invoice_date']);
-        $this->assertSame('2026-06-05', $preview['due_date']);
+        $this->assertSame('2026-06-15', $preview['due_date']);
         $this->assertSame(677419.0, $preview['room_fee']);
         $this->assertSame(997419.0, $preview['total_amount']);
         $this->assertSame('Tiền phòng tháng 5/2026', $preview['lines'][0]['name']);
@@ -144,6 +152,86 @@ class InvoiceManagementTest extends TestCase
         $this->assertSame(2000000.0, $preview['room_fee']);
         $this->assertSame(2320000.0, $preview['total_amount']);
         $this->assertSame(-1000000.0, collect($preview['lines'])->firstWhere('type', 'first_month_credit')['amount']);
+    }
+
+    public function test_configured_invoice_schedule_handles_short_months_and_year_rollover(): void
+    {
+        Setting::current()->update(['invoice_day' => 31, 'payment_due_days' => 10]);
+        [$contract, , , $reading] = $this->fixture('CONFIGURED-DATES');
+
+        $reading->update([
+            'month' => 11,
+            'year' => 2026,
+            'record_date' => '2026-11-30',
+        ]);
+
+        $december = app(InvoiceGenerator::class)->preview($contract, 12, 2026);
+        $this->assertSame('2026-12-31', $december['invoice_date']);
+        $this->assertSame('2027-01-10', $december['due_date']);
+
+        $reading->update([
+            'month' => 1,
+            'year' => 2026,
+            'record_date' => '2026-01-31',
+        ]);
+
+        $february = app(InvoiceGenerator::class)->preview($contract, 2, 2026);
+        $this->assertSame('2026-02-28', $february['invoice_date']);
+        $this->assertSame('2026-03-10', $february['due_date']);
+    }
+
+    public function test_invoice_uses_fee_schedule_of_service_month_and_locks_it_after_issue(): void
+    {
+        $oldRates = FeeSchedule::create([
+            'effective_from' => '2026-01-01',
+            'electric_price' => 3000,
+            'water_price' => 15000,
+            'internet_fee' => 80000,
+            'service_fee' => 40000,
+        ]);
+        FeeSchedule::create([
+            'effective_from' => '2026-07-01',
+            'electric_price' => 5000,
+            'water_price' => 25000,
+            'internet_fee' => 120000,
+            'service_fee' => 60000,
+        ]);
+        [$contract, $room] = $this->fixture('HISTORICAL-RATES');
+
+        $julyInvoicePreview = app(InvoiceGenerator::class)->preview($contract, 7, 2026);
+        $this->assertSame(3000.0, collect($julyInvoicePreview['lines'])->firstWhere('type', 'electricity')['unit_price']);
+
+        UtilityReading::create([
+            'room_id' => $room->id,
+            'contract_id' => $contract->id,
+            'month' => 7,
+            'year' => 2026,
+            'record_date' => '2026-07-31',
+            'reading_type' => 'periodic',
+            'electricity_old' => 120,
+            'electricity_new' => 140,
+            'water_old' => 55,
+            'water_new' => 60,
+            'status' => 'confirmed',
+        ]);
+        $augustInvoicePreview = app(InvoiceGenerator::class)->preview($contract, 8, 2026);
+        $this->assertSame(5000.0, collect($augustInvoicePreview['lines'])->firstWhere('type', 'electricity')['unit_price']);
+
+        $invoice = $this->issue($contract);
+        $this->assertSame($oldRates->id, $invoice->fee_schedule_id);
+
+        $this->actingAs($this->admin)->put('/admin/settings/fees', [
+            'electric_price' => 9999,
+            'water_price' => 9999,
+            'internet_fee' => 9999,
+            'service_fee' => 9999,
+            'invoice_day' => 5,
+            'payment_due_days' => 10,
+            'fee_effective_from' => '2026-01',
+        ])->assertSessionHasErrors('fee_effective_from');
+
+        $this->assertSame('3000.00', $oldRates->fresh()->electric_price);
+        $this->assertSame('60000.00', $invoice->fresh()->electricity_fee);
     }
 
     public function test_historical_parking_registration_never_creates_a_charge(): void
@@ -302,24 +390,326 @@ class InvoiceManagementTest extends TestCase
         $this->assertSame($before, $invoice->fresh()->only(array_keys($before)));
     }
 
-    public function test_delete_preserves_invoice_with_any_payment_but_removes_empty_invoice_details_only_once(): void
+    public function test_issued_invoice_is_never_deleted_and_only_empty_invoice_can_be_cancelled_then_reissued(): void
     {
         [$paidContract] = $this->fixture('DELETE-PAID');
         $withPayment = $this->issue($paidContract);
         Payment::create(['invoice_id' => $withPayment->id, 'amount_paid' => 1, 'payment_date' => '2026-07-10',
             'payment_method' => Payment::METHOD_CASH, 'status' => Payment::STATUS_FAILED]);
-        $this->actingAs($this->admin)->delete("/admin/invoices/{$withPayment->id}")
-            ->assertRedirect(route('admin.invoices.index'))->assertSessionHas('error');
+        $this->actingAs($this->admin)->post(route('admin.invoices.cancel', $withPayment), [
+            'cancellation_reason' => 'Sai thông tin nhưng hóa đơn đã có giao dịch.',
+        ])->assertSessionHasErrors('cancellation_reason');
         $this->assertDatabaseHas('invoices', ['id' => $withPayment->id]);
         $this->assertDatabaseHas('payments', ['invoice_id' => $withPayment->id]);
 
         [$emptyContract, , , $reading] = $this->fixture('DELETE-EMPTY', 8);
         $empty = $this->issue($emptyContract, 8);
-        $this->delete("/admin/invoices/{$empty->id}")->assertSessionHas('success');
-        $this->assertDatabaseMissing('invoices', ['id' => $empty->id]);
-        $this->assertDatabaseMissing('invoice_details', ['invoice_id' => $empty->id]);
-        $this->assertDatabaseHas('utility_readings', ['id' => $reading->id]);
-        $this->delete("/admin/invoices/{$empty->id}")->assertNotFound();
+        $this->delete("/admin/invoices/{$empty->id}")->assertSessionHas('error');
+        $this->assertDatabaseHas('invoices', ['id' => $empty->id, 'status' => Invoice::STATUS_UNPAID]);
+
+        $this->post(route('admin.invoices.cancel', $empty), [
+            'cancellation_reason' => 'Hóa đơn lập nhầm cần phát hành lại.',
+        ])->assertSessionHas('success');
+        $this->assertDatabaseHas('invoices', [
+            'id' => $empty->id,
+            'status' => Invoice::STATUS_CANCELLED,
+            'cancelled_by' => $this->admin->id,
+        ]);
+        $this->assertDatabaseHas('invoice_details', ['invoice_id' => $empty->id]);
+        $this->assertTrue($reading->fresh()->isConfirmed());
+
+        $replacement = $this->issue($emptyContract, 8);
+        $this->assertSame(2, $replacement->revision);
+        $this->assertNotSame($empty->id, $replacement->id);
+        $this->assertTrue($reading->fresh()->isLocked());
+    }
+
+    public function test_adjustments_preserve_original_total_and_recalculate_payable_status(): void
+    {
+        [$contract] = $this->fixture('ADJUSTMENT');
+        $invoice = $this->issue($contract);
+        $originalTotal = $invoice->total_amount;
+
+        $this->actingAs($this->admin)->post(route('admin.invoices.adjustments.store', $invoice), [
+            'direction' => 'debit',
+            'amount' => 100000,
+            'reason' => 'Bổ sung khoản phí dịch vụ còn thiếu.',
+        ])->assertSessionHas('success');
+
+        $invoice->refresh();
+        $this->assertSame($originalTotal, $invoice->total_amount);
+        $this->assertSame('100000.00', $invoice->adjustment_amount);
+        $this->assertSame(3420000.0, $invoice->payable_amount);
+
+        $this->post(route('admin.invoices.payments.store', $invoice), [
+            'amount_paid' => 3000000,
+            'payment_date' => '2026-07-10',
+            'payment_method' => Payment::METHOD_CASH,
+        ])->assertSessionHas('success');
+        $this->assertSame(Invoice::STATUS_PARTIAL, $invoice->fresh()->status);
+
+        $this->post(route('admin.invoices.adjustments.store', $invoice), [
+            'direction' => 'credit',
+            'amount' => 420000,
+            'reason' => 'Giảm khoản thu sau khi đối soát lại dịch vụ.',
+        ])->assertSessionHas('success');
+
+        $invoice->refresh();
+        $this->assertSame('-320000.00', $invoice->adjustment_amount);
+        $this->assertSame(3000000.0, $invoice->payable_amount);
+        $this->assertSame(Invoice::STATUS_PAID, $invoice->status);
+        $this->assertDatabaseCount('invoice_adjustments', 2);
+        $this->assertNotNull($invoice->adjustments()->first()->adjustment_code);
+    }
+
+    public function test_debt_aging_starts_after_due_date_and_uses_confirmed_buckets(): void
+    {
+        Carbon::setTestNow('2026-08-25 15:00:00');
+
+        try {
+            [$contract] = $this->fixture('DEBT-AGING');
+            $invoice = $this->issue($contract);
+            $cases = [
+                '2026-08-26' => ['upcoming', 0, false],
+                '2026-08-25' => ['due_today', 0, false],
+                '2026-08-24' => ['overdue_1_3', 1, true],
+                '2026-08-21' => ['overdue_4_7', 4, true],
+                '2026-08-17' => ['overdue_8_14', 8, true],
+                '2026-08-10' => ['overdue_15_plus', 15, true],
+            ];
+
+            foreach ($cases as $dueDate => [$bucket, $days, $isOverdue]) {
+                $invoice->update(['due_date' => $dueDate]);
+                $invoice->refresh();
+
+                $this->assertSame($bucket, $invoice->debt_bucket);
+                $this->assertSame($days, $invoice->days_overdue);
+                $this->assertSame($isOverdue, $invoice->isOverdue());
+            }
+
+            $invoice->update(['status' => Invoice::STATUS_PAID]);
+            $this->assertSame('settled', $invoice->fresh()->debt_bucket);
+            $this->assertSame(0, $invoice->fresh()->days_overdue);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_invoice_reminder_is_unique_per_day_and_keeps_actor_snapshot(): void
+    {
+        [$contract] = $this->fixture('REMINDER-UNIQUE');
+        $invoice = $this->issue($contract);
+        $reminder = InvoiceReminder::create([
+            'invoice_id' => $invoice->id,
+            'channel' => InvoiceReminder::CHANNEL_SYSTEM,
+            'note' => 'Đã gửi thông báo đến khách.',
+            'reminded_by' => $this->admin->id,
+            'reminded_by_name' => $this->admin->name,
+            'reminder_date' => '2026-08-25',
+            'reminded_at' => '2026-08-25 09:00:00',
+        ]);
+
+        $this->assertSame('Thông báo trong hệ thống', $reminder->channel_label);
+        $this->assertSame($this->admin->name, $reminder->reminded_by_name);
+
+        $this->expectException(QueryException::class);
+        InvoiceReminder::create([
+            'invoice_id' => $invoice->id,
+            'channel' => InvoiceReminder::CHANNEL_SYSTEM,
+            'reminded_by' => $this->admin->id,
+            'reminded_by_name' => $this->admin->name,
+            'reminder_date' => '2026-08-25',
+            'reminded_at' => '2026-08-25 15:00:00',
+        ]);
+    }
+
+    public function test_invoice_reminder_history_cannot_be_updated_or_deleted(): void
+    {
+        [$contract] = $this->fixture('REMINDER-IMMUTABLE');
+        $invoice = $this->issue($contract);
+        $reminder = InvoiceReminder::create([
+            'invoice_id' => $invoice->id,
+            'channel' => InvoiceReminder::CHANNEL_SYSTEM,
+            'reminded_by' => $this->admin->id,
+            'reminded_by_name' => $this->admin->name,
+            'reminder_date' => '2026-08-25',
+            'reminded_at' => '2026-08-25 10:00:00',
+        ]);
+
+        foreach (['update', 'delete'] as $action) {
+            try {
+                $action === 'update'
+                    ? $reminder->update(['note' => 'Không được sửa'])
+                    : $reminder->delete();
+                $this->fail('Reminder history must be immutable.');
+            } catch (\LogicException $exception) {
+                $this->assertStringContainsString('không thể', $exception->getMessage());
+            }
+        }
+
+        $this->assertDatabaseHas('invoice_reminders', [
+            'id' => $reminder->id,
+            'note' => null,
+        ]);
+    }
+
+    public function test_debt_list_filters_aging_and_calculates_approved_pending_and_remaining_amounts(): void
+    {
+        Carbon::setTestNow('2026-08-25 10:00:00');
+
+        try {
+            [$overdueContract] = $this->fixture('DEBT-LIST-OVERDUE');
+            $overdue = $this->issue($overdueContract);
+            $overdue->update(['due_date' => today()->subDays(4)]);
+            Payment::create([
+                'invoice_id' => $overdue->id,
+                'amount_paid' => 1000000,
+                'payment_date' => today(),
+                'payment_method' => Payment::METHOD_CASH,
+                'status' => Payment::STATUS_SUCCESS,
+            ]);
+            Payment::create([
+                'invoice_id' => $overdue->id,
+                'amount_paid' => 500000,
+                'payment_date' => today(),
+                'payment_method' => Payment::METHOD_QR,
+                'status' => Payment::STATUS_PENDING,
+            ]);
+            $overdue->refreshStatus();
+
+            [$upcomingContract] = $this->fixture('DEBT-LIST-UPCOMING');
+            $upcoming = $this->issue($upcomingContract);
+            $upcoming->update(['due_date' => today()->addDay()]);
+
+            [$paidContract] = $this->fixture('DEBT-LIST-PAID');
+            $paid = $this->issue($paidContract);
+            $paid->update(['status' => Invoice::STATUS_PAID, 'due_date' => today()->subDays(20)]);
+
+            $response = $this->actingAs($this->admin)->get(route('admin.debts.index', [
+                'bucket' => 'overdue_4_7',
+            ]));
+
+            $response->assertSuccessful()
+                ->assertSee($overdue->invoice_code)
+                ->assertDontSee($upcoming->invoice_code)
+                ->assertDontSee($paid->invoice_code)
+                ->assertViewHas('invoices', fn ($invoices) => $invoices->total() === 1
+                    && $invoices->first()->id === $overdue->id)
+                ->assertViewHas('summary', function ($summary) use ($overdue): bool {
+                    return (int) $summary->invoice_count === 1
+                        && (float) $summary->pending_amount === 500000.0
+                        && (float) $summary->remaining_amount === $overdue->payable_amount - 1000000.0;
+                });
+
+            $this->get(route('admin.debts.index', ['keyword' => $upcoming->room->room_code]))
+                ->assertSuccessful()
+                ->assertSee($upcoming->invoice_code)
+                ->assertDontSee($overdue->invoice_code);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_debt_list_requires_admin_and_rejects_invalid_filters(): void
+    {
+        [$contract] = $this->fixture('DEBT-AUTH');
+        $client = $contract->tenant->user;
+
+        $this->get(route('admin.debts.index'))->assertRedirect('/login');
+        $this->actingAs($client)->get(route('admin.debts.index'))->assertForbidden();
+        $this->actingAs($this->admin)
+            ->get(route('admin.debts.index', ['bucket' => 'invalid', 'keyword' => str_repeat('x', 101)]))
+            ->assertSessionHasErrors(['bucket', 'keyword']);
+    }
+
+    public function test_admin_records_one_manual_reminder_per_invoice_per_day_and_sees_full_history(): void
+    {
+        Carbon::setTestNow('2026-08-25 14:30:00');
+
+        try {
+            [$contract] = $this->fixture('REMINDER-STORE');
+            $invoice = $this->issue($contract);
+            $invoice->update(['due_date' => today()->subDays(4)]);
+            InvoiceReminder::create([
+                'invoice_id' => $invoice->id,
+                'channel' => InvoiceReminder::CHANNEL_SYSTEM,
+                'note' => 'Thông báo trong hệ thống ngày hôm trước.',
+                'reminded_by' => $this->admin->id,
+                'reminded_by_name' => $this->admin->name,
+                'reminder_date' => today()->subDay(),
+                'reminded_at' => now()->subDay(),
+            ]);
+
+            $client = $contract->tenant->user;
+            $this->post(route('admin.debts.reminders.store', $invoice))->assertRedirect('/login');
+            $this->actingAs($client)
+                ->post(route('admin.debts.reminders.store', $invoice))
+                ->assertForbidden();
+
+            $this->actingAs($this->admin)
+                ->post(route('admin.debts.reminders.store', $invoice), [
+                    'note' => 'Vui lòng thanh toán trước cuối ngày.',
+                    'reminder_date' => '2000-01-01',
+                    'reminded_by' => $client->id,
+                ])
+                ->assertRedirect(route('admin.debts.show', $invoice))
+                ->assertSessionHas('success');
+
+            $storedReminder = InvoiceReminder::query()
+                ->where('invoice_id', $invoice->id)
+                ->whereDate('reminder_date', today())
+                ->sole();
+            $this->assertSame(InvoiceReminder::CHANNEL_SYSTEM, $storedReminder->channel);
+            $this->assertSame($this->admin->id, $storedReminder->reminded_by);
+            $this->assertSame($this->admin->name, $storedReminder->reminded_by_name);
+            $this->assertSame(today()->toDateString(), $storedReminder->reminder_date->toDateString());
+            $this->assertDatabaseHas('notifications', [
+                'notifiable_type' => User::class,
+                'notifiable_id' => $client->id,
+            ]);
+
+            $this->post(route('admin.debts.reminders.store', $invoice))
+                ->assertSessionHasErrors('reminder');
+            $this->assertSame(2, $invoice->reminders()->count());
+
+            $this->get(route('admin.debts.show', $invoice))
+                ->assertSuccessful()
+                ->assertSee('Thông báo trong hệ thống ngày hôm trước.')
+                ->assertSee('Vui lòng thanh toán trước cuối ngày.')
+                ->assertSee('đã được ghi nhận nhắc hôm nay');
+
+            $notification = $client->notifications()->sole();
+            $this->actingAs($client)->get(route('client.notifications.index'))
+                ->assertSuccessful()
+                ->assertSee($invoice->invoice_code)
+                ->assertSee('Vui lòng thanh toán trước cuối ngày.')
+                ->assertSee('Mới');
+            $this->get(route('client.notifications.open', $notification->id))
+                ->assertRedirect(route('client.invoices.show', $invoice));
+            $this->assertNotNull($notification->fresh()->read_at);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_system_reminder_validates_message_and_rejects_settled_invoice(): void
+    {
+        [$contract] = $this->fixture('REMINDER-VALIDATION');
+        $invoice = $this->issue($contract);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.debts.reminders.store', $invoice), [
+                'note' => str_repeat('x', 1001),
+            ])
+            ->assertSessionHasErrors('note');
+
+        $invoice->update(['status' => Invoice::STATUS_PAID]);
+        $this->post(route('admin.debts.reminders.store', $invoice))
+            ->assertSessionHasErrors('reminder');
+        $this->assertDatabaseCount('invoice_reminders', 0);
+        $this->get(route('admin.debts.show', $invoice))
+            ->assertSuccessful()
+            ->assertSee('không còn công nợ cần nhắc');
     }
 
     private function fixture(string $key, int $month = 7): array

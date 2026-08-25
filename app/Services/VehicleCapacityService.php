@@ -31,7 +31,7 @@ class VehicleCapacityService
 
         $contract = $this->currentContract($owner);
         if (! $contract) {
-            return;
+            $this->fail('vehicle', 'Chỉ người đang ở trong một hợp đồng hoạt động mới được đăng ký phương tiện.');
         }
 
         $this->lockContract($contract);

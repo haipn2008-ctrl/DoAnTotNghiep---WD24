@@ -29,7 +29,7 @@ class OverviewController extends Controller
             ->sum('amount_paid');
 
         // Tỷ lệ thu hồi và tổng tiền công nợ
-        $totalBilledOut = Invoice::sum('total_amount');
+        $totalBilledOut = $this->totalBilled();
         $totalRevenue = Payment::success()->sum('amount_paid');
         $totalReceivable = max(0, $totalBilledOut - $totalRevenue);
         $collectionRate = $totalBilledOut > 0
@@ -67,7 +67,7 @@ class OverviewController extends Controller
         // Hóa đơn quá hạn chưa thanh toán
         $overdueInvoices = Invoice::whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
             ->where('due_date', '<', today())
-            ->selectRaw('COUNT(*) as count, SUM(total_amount) as total_amount')
+            ->selectRaw('COUNT(*) as count, SUM(total_amount + adjustment_amount) as total_amount')
             ->first();
 
         // Yêu cầu hỗ trợ chờ xử lý
@@ -104,29 +104,27 @@ class OverviewController extends Controller
 
     public function revenueChart()
     {
-        $currentYear  = now()->year;
-        $reportDate  = now()->subMonth();
-        $reportYear  = $reportDate->year;
+        $currentYear = now()->year;
+        $reportDate = now()->subMonth();
+        $reportYear = $reportDate->year;
         $reportMonth = $reportDate->month;
 
         // Last month invoice breakdown
         $monthSummary = Invoice::whereYear('invoice_date', $reportYear)
             ->whereMonth('invoice_date', $reportMonth)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
             ->selectRaw('
                 COALESCE(SUM(room_fee),0)        as room_fee,
                 COALESCE(SUM(electricity_fee),0) as electricity_fee,
                 COALESCE(SUM(water_fee),0)       as water_fee,
                 COALESCE(SUM(internet_fee),0)    as internet_fee,
                 COALESCE(SUM(service_fee),0)     as service_fee,
-                COALESCE(SUM(total_amount),0)    as total_invoiced
+                COALESCE(SUM(total_amount + adjustment_amount),0) as total_invoiced
             ')
             ->first();
 
-        $fixedRevenue  = (float) ($monthSummary->room_fee ?? 0);
+        $fixedRevenue = (float) ($monthSummary->room_fee ?? 0);
         $totalInvoiced = (float) ($monthSummary->total_invoiced ?? 0);
-        // Chi phí cố định = internet + dịch vụ thu từ khách (phản ánh chi phí chủ trọ trả ra ngoài)
-        $fixedCosts    = (float) ($monthSummary->internet_fee ?? 0) + (float) ($monthSummary->service_fee ?? 0);
-
         // Đã thu thực tế: chỉ tính payments thuộc hóa đơn tháng trước
         $actualRevenue = (float) Payment::success()
             ->whereHas('invoice', fn ($q) => $q
@@ -135,15 +133,14 @@ class OverviewController extends Controller
             )
             ->sum('amount_paid');
 
-        $totalBilled  = (float) Invoice::sum('total_amount');
+        $totalBilled = $this->totalBilled();
         $totalRevenue = (float) Payment::success()->sum('amount_paid');
 
-        $estimatedProfit = $actualRevenue - $fixedCosts;
         $totalReceivable = max(0, $totalBilled - $totalRevenue);
 
-        $totalRooms    = Room::count();
+        $totalRooms = Room::count();
         $occupiedRooms = Room::occupied()->count();
-        $fillRate      = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
+        $fillRate = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
 
         // Phân tích theo danh mục — 12 tháng trong năm hiện tại
         $categoryLabels = [];
@@ -152,6 +149,7 @@ class OverviewController extends Controller
         for ($m = 1; $m <= 12; $m++) {
             $row = Invoice::whereYear('invoice_date', $currentYear)
                 ->whereMonth('invoice_date', $m)
+                ->where('status', '!=', Invoice::STATUS_CANCELLED)
                 ->selectRaw('
                     COALESCE(SUM(room_fee),0)        as room,
                     COALESCE(SUM(electricity_fee),0) as elec,
@@ -162,26 +160,25 @@ class OverviewController extends Controller
                 ->first();
 
             $categoryLabels[] = 'T'.$m;
-            $catRoom[]     = (float) $row->room;
-            $catElec[]     = (float) $row->elec;
-            $catWater[]    = (float) $row->water;
+            $catRoom[] = (float) $row->room;
+            $catElec[] = (float) $row->elec;
+            $catWater[] = (float) $row->water;
             $catInternet[] = (float) $row->internet;
-            $catService[]  = (float) $row->service;
+            $catService[] = (float) $row->service;
         }
 
         $breakdownItems = [
-            ['label' => 'Tiền phòng',  'value' => (float) ($monthSummary->room_fee        ?? 0), 'color' => 'bg-indigo-500'],
+            ['label' => 'Tiền phòng',  'value' => (float) ($monthSummary->room_fee ?? 0), 'color' => 'bg-indigo-500'],
             ['label' => 'Tiền điện',   'value' => (float) ($monthSummary->electricity_fee ?? 0), 'color' => 'bg-amber-400'],
-            ['label' => 'Tiền nước',   'value' => (float) ($monthSummary->water_fee        ?? 0), 'color' => 'bg-cyan-400'],
-            ['label' => 'Internet',    'value' => (float) ($monthSummary->internet_fee    ?? 0), 'color' => 'bg-emerald-500'],
-            ['label' => 'Dịch vụ',     'value' => (float) ($monthSummary->service_fee     ?? 0), 'color' => 'bg-violet-500'],
+            ['label' => 'Tiền nước',   'value' => (float) ($monthSummary->water_fee ?? 0), 'color' => 'bg-cyan-400'],
+            ['label' => 'Internet',    'value' => (float) ($monthSummary->internet_fee ?? 0), 'color' => 'bg-emerald-500'],
+            ['label' => 'Dịch vụ',     'value' => (float) ($monthSummary->service_fee ?? 0), 'color' => 'bg-violet-500'],
         ];
         $remaining = max(0, $totalInvoiced - $actualRevenue);
 
         return view('admin.overview.revenue-chart', compact(
             'currentYear', 'reportYear', 'reportMonth',
             'fixedRevenue', 'actualRevenue', 'totalInvoiced', 'remaining',
-            'fixedCosts', 'estimatedProfit',
             'totalReceivable', 'fillRate', 'totalRooms', 'occupiedRooms',
             'monthSummary', 'breakdownItems',
             'categoryLabels', 'catRoom', 'catElec', 'catWater', 'catInternet', 'catService'
@@ -193,7 +190,7 @@ class OverviewController extends Controller
         $currentYear = now()->year;
 
         $totalRevenue = Payment::success()->sum('amount_paid');
-        $totalBilled = Invoice::sum('total_amount');
+        $totalBilled = $this->totalBilled();
         $totalReceivable = max(0, $totalBilled - $totalRevenue);
 
         $collectionRate = $totalBilled > 0
@@ -217,6 +214,13 @@ class OverviewController extends Controller
             'todayRevenue',
             'monthRevenue'
         ));
+    }
+
+    private function totalBilled(): float
+    {
+        return (float) Invoice::query()
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->sum(DB::raw('total_amount + adjustment_amount'));
     }
 
     public function roomStats()
