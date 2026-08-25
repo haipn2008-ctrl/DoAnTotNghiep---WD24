@@ -24,10 +24,26 @@ class NotificationController extends Controller
         $notification = $request->user()->notifications()->findOrFail($notification);
         $notification->markAsRead();
 
-        $invoiceId = (int) ($notification->data['invoice_id'] ?? 0);
+        $data = $notification->data;
+        $target = match ($data['type'] ?? null) {
+            'extension_terms_offered' => route('client.extension-requests.index'),
+            default => match ($data['action'] ?? null) {
+            'invoice' => ! empty($data['invoice_id'])
+                ? route('client.invoices.show', $data['invoice_id'])
+                : null,
+            'contract' => ! empty($data['contract_id'])
+                ? route('client.contracts.show', $data['contract_id'])
+                : null,
+            'support' => route('client.support.index'),
+            'vehicles' => route('client.vehicles.index'),
+            default => ! empty($data['invoice_id'])
+                ? route('client.invoices.show', $data['invoice_id'])
+                : null,
+            },
+        };
 
-        return $invoiceId > 0
-            ? redirect()->route('client.invoices.show', $invoiceId)
+        return $target
+            ? redirect()->to($target)
             : redirect()->route('client.notifications.index');
     }
 

@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Models\Contract;
+use App\Models\ContractExtensionRequest;
 use App\Models\ContractLifecycleAlert;
 use App\Models\ContractStatusHistory;
 use App\Models\ContractTenant;
+use App\Models\ContractTerminationRequest;
 use App\Models\Invoice;
 use App\Models\Room;
 use App\Models\Setting;
@@ -20,7 +22,10 @@ use Illuminate\Validation\ValidationException;
 
 class ContractLifecycleService
 {
-    public function __construct(private readonly ContractTenantService $memberService) {}
+    public function __construct(
+        private readonly ContractTenantService $memberService,
+        private readonly SettlementService $settlements,
+    ) {}
 
     public function createDraft(array $data, User $actor): Contract
     {
@@ -326,11 +331,7 @@ class ContractLifecycleService
     {
         return DB::transaction(function () use ($contract, $actor): Contract {
             $contract = $this->lockContract($contract);
-            $this->requireStatus($contract, [
-                Contract::STATUS_PENDING_SIGNATURE,
-                Contract::STATUS_PENDING_DEPOSIT,
-                Contract::STATUS_AWAITING_MOVE_IN,
-            ], 'Chỉ xác nhận thông tin nhận phòng sau khi đã gửi hợp đồng cho khách và trước khi nhận phòng.');
+            $this->requireStatus($contract, [Contract::STATUS_AWAITING_MOVE_IN], 'Chỉ xác nhận thông tin nhận phòng sau khi hợp đồng đã ký và tiền cọc đã được xử lý đầy đủ.');
 
             $tenantUserId = Tenant::query()->whereKey($contract->tenant_id)->value('user_id');
             if (! $tenantUserId || (int) $tenantUserId !== (int) $actor->id) {
@@ -341,6 +342,13 @@ class ContractLifecycleService
             }
             if ($contract->move_in_details_confirmed_at) {
                 return $contract;
+            }
+            $handoverReading = UtilityReading::query()
+                ->where('lifecycle_event_key', $this->readingKey($contract, 'handover'))
+                ->lockForUpdate()
+                ->first();
+            if (! $handoverReading || ! $handoverReading->isDraft()) {
+                $this->fail('handover_reading', 'Ban quản lý chưa lập chỉ số điện nước bàn giao để bạn kiểm tra.');
             }
 
             $contract->forceFill([
@@ -358,8 +366,88 @@ class ContractLifecycleService
                     'inventory_items' => $contract->handoverItems()->count(),
                     'internet_enabled' => $contract->internet_enabled,
                     'service_enabled' => true,
+                    'handover_reading_id' => $handoverReading->id,
+                    'electricity' => $handoverReading->electricity_new,
+                    'water' => $handoverReading->water_new,
                 ],
             );
+
+            return $contract->fresh();
+        }, 3);
+    }
+
+    public function saveHandoverDraft(Contract $contract, User $actor, int $electricity, int $water): UtilityReading
+    {
+        return DB::transaction(function () use ($contract, $actor, $electricity, $water): UtilityReading {
+            $contract = $this->lockContract($contract);
+            $this->requireStatus($contract, [Contract::STATUS_AWAITING_MOVE_IN], 'Chỉ được lập chỉ số bàn giao khi hợp đồng đang chờ nhận phòng.');
+            if ($contract->move_in_details_confirmed_at) {
+                $this->fail('handover_reading', 'Khách đã xác nhận thông tin nhận phòng. Hãy mở lại xác nhận và nêu lý do trước khi sửa chỉ số.');
+            }
+
+            $room = $this->lockRoom($contract);
+            $key = $this->readingKey($contract, 'handover');
+            $reading = UtilityReading::query()->where('lifecycle_event_key', $key)->lockForUpdate()->first();
+            if ($reading && ! $reading->isDraft()) {
+                $this->fail('handover_reading', 'Chỉ số bàn giao đã được chốt và không thể sửa.');
+            }
+            $lastReading = UtilityReading::query()
+                ->where('room_id', $room->id)
+                ->where(function ($query) use ($key): void {
+                    $query->whereNull('lifecycle_event_key')->orWhere('lifecycle_event_key', '!=', $key);
+                })
+                ->orderByDesc('record_date')->orderByDesc('id')->lockForUpdate()->first();
+            if ($lastReading && ($electricity < $lastReading->electricity_new || $water < $lastReading->water_new)) {
+                $this->fail('handover_electricity', 'Chỉ số bàn giao không được nhỏ hơn chỉ số gần nhất của phòng.');
+            }
+
+            $isNew = ! $reading;
+            $reading ??= new UtilityReading;
+            $recordDate = $contract->scheduled_move_in_date ?: today();
+            $reading->forceFill([
+                'room_id' => $room->id,
+                'contract_id' => $contract->id,
+                'month' => $recordDate->month,
+                'year' => $recordDate->year,
+                'record_date' => $recordDate->toDateString(),
+                'reading_type' => 'handover',
+                'lifecycle_event_key' => $key,
+                'electricity_old' => $electricity,
+                'electricity_new' => $electricity,
+                'water_old' => $water,
+                'water_new' => $water,
+                'status' => UtilityReading::STATUS_DRAFT,
+                'note' => 'Chỉ số bàn giao chờ khách thuê xác nhận.',
+            ])->save();
+            $this->history($contract, $contract->status, $contract->status, $isNew ? 'prepare_handover_reading' : 'update_handover_reading', null, $actor, [
+                'handover_reading_id' => $reading->id,
+                'electricity' => $electricity,
+                'water' => $water,
+            ]);
+
+            return $reading->fresh();
+        }, 3);
+    }
+
+    public function reopenMoveInDetails(Contract $contract, User $actor, string $reason): Contract
+    {
+        return DB::transaction(function () use ($contract, $actor, $reason): Contract {
+            $contract = $this->lockContract($contract);
+            $this->requireStatus($contract, [Contract::STATUS_AWAITING_MOVE_IN], 'Chỉ được mở lại thông tin khi hợp đồng đang chờ nhận phòng.');
+            if (! $contract->move_in_details_confirmed_at) {
+                $this->fail('move_in_details', 'Khách chưa xác nhận thông tin nhận phòng.');
+            }
+
+            $previousConfirmedAt = $contract->move_in_details_confirmed_at;
+            $previousConfirmedBy = $contract->move_in_details_confirmed_by;
+            $contract->forceFill([
+                'move_in_details_confirmed_at' => null,
+                'move_in_details_confirmed_by' => null,
+            ])->save();
+            $this->history($contract, $contract->status, $contract->status, 'reopen_move_in_details', $reason, $actor, [
+                'previous_confirmed_at' => $previousConfirmedAt?->toIso8601String(),
+                'previous_confirmed_by' => $previousConfirmedBy,
+            ]);
 
             return $contract->fresh();
         }, 3);
@@ -420,29 +508,28 @@ class ContractLifecycleService
                 $this->fail('number_of_people', 'Số người vượt quá sức chứa của phòng.');
             }
 
+            $handoverReading = UtilityReading::query()
+                ->where('lifecycle_event_key', $this->readingKey($contract, 'handover'))
+                ->lockForUpdate()->first();
+            if (! $handoverReading || ! $handoverReading->isDraft()) {
+                $this->fail('handover_reading', 'Chưa có chỉ số điện nước bàn giao đã được khách kiểm tra.');
+            }
             $lastReading = UtilityReading::query()->where('room_id', $room->id)
+                ->whereKeyNot($handoverReading->id)
                 ->orderByDesc('record_date')->orderByDesc('id')->lockForUpdate()->first();
-            $electricity = (int) $data['handover_electricity'];
-            $water = (int) $data['handover_water'];
+            $electricity = (int) $handoverReading->electricity_new;
+            $water = (int) $handoverReading->water_new;
             if ($lastReading && ($electricity < $lastReading->electricity_new || $water < $lastReading->water_new)) {
-                $this->fail('handover_electricity', 'Chỉ số bàn giao không được nhỏ hơn chỉ số gần nhất của phòng.');
+                $this->fail('handover_reading', 'Chỉ số bàn giao đã cũ so với chỉ số mới nhất của phòng. Hãy mở lại, cập nhật và để khách xác nhận lại.');
             }
 
-            UtilityReading::query()->forceCreate([
-                'room_id' => $room->id,
-                'contract_id' => $contract->id,
+            $handoverReading->forceFill([
                 'month' => $moveInAt->month,
                 'year' => $moveInAt->year,
                 'record_date' => $moveInAt->toDateString(),
-                'reading_type' => 'handover',
-                'lifecycle_event_key' => $this->readingKey($contract, 'handover'),
-                'electricity_old' => $electricity,
-                'electricity_new' => $electricity,
-                'water_old' => $water,
-                'water_new' => $water,
-                'status' => 'confirmed',
-                'note' => 'Chỉ số bàn giao khi quản trị viên xác nhận nhận phòng.',
-            ]);
+                'status' => UtilityReading::STATUS_CONFIRMED,
+                'note' => 'Chỉ số bàn giao đã được khách thuê xác nhận và quản trị viên chốt khi nhận phòng.',
+            ])->save();
             $memberCount = $this->memberService->checkInApproved($contract, $actor, $moveInAt);
             $contract->forceFill([
                 'actual_move_in_at' => $moveInAt,
@@ -539,7 +626,14 @@ class ContractLifecycleService
                 }
                 $this->lockRoom($contract);
                 $this->transition($contract, Contract::STATUS_EXPIRED, 'mark_expired', 'Đã qua ngày kết thúc nhưng khách chưa trả phòng.', $actor);
-                $this->alert($contract, 'contract_expired', 'Hợp đồng quá hạn trả phòng', 'Khách vẫn đang ở sau ngày kết thúc; phòng không được tự giải phóng.');
+                if ($this->alert($contract, 'contract_expired', 'Hợp đồng quá hạn trả phòng', 'Khách vẫn đang ở sau ngày kết thúc; phòng không được tự giải phóng.')) {
+                    app(ClientNotificationService::class)->contract(
+                        $contract,
+                        'contract_expired',
+                        'Hợp đồng đã quá hạn',
+                        'Hợp đồng đã hết hạn nhưng chưa bàn giao phòng. Vui lòng gửi yêu cầu gia hạn hoặc đăng ký lịch rời phòng.'
+                    );
+                }
                 $changed++;
             }, 3);
         }
@@ -565,6 +659,35 @@ class ContractLifecycleService
             }
             if (blank($data['checkout_reason'] ?? null)) {
                 $this->fail('checkout_reason', 'Phải nhập lý do trả phòng/kết thúc.');
+            }
+            if (! ($data['handover_confirmed'] ?? false)) {
+                $this->fail('handover_confirmed', 'Phải xác nhận hai bên đã đối chiếu biên bản bàn giao.');
+            }
+            $handoverItems = $contract->handoverItems()->lockForUpdate()->get();
+            $submittedAssets = collect($data['asset_conditions'] ?? []);
+            $allowedConditions = ['good', 'worn', 'damaged', 'missing'];
+            $assetReport = $handoverItems->map(function ($item) use ($submittedAssets, $allowedConditions): array {
+                $submitted = $submittedAssets->get((string) $item->id, $submittedAssets->get($item->id));
+                if (! is_array($submitted) || ! in_array($submitted['condition'] ?? null, $allowedConditions, true)) {
+                    $this->fail('asset_conditions', 'Phải ghi nhận tình trạng của toàn bộ tài sản bàn giao.');
+                }
+
+                return [
+                    'handover_item_id' => $item->id,
+                    'name' => $item->name,
+                    'quantity' => $item->quantity,
+                    'condition' => $submitted['condition'],
+                    'note' => $submitted['note'] ?? null,
+                ];
+            })->values()->all();
+            $hasDamage = collect($assetReport)->contains(
+                fn (array $item) => in_array($item['condition'], ['damaged', 'missing'], true)
+            );
+            if ($hasDamage && blank($data['checkout_damage_note'] ?? null)) {
+                $this->fail('checkout_damage_note', 'Có hư hỏng, thất lạc hoặc bồi thường thì phải ghi rõ nội dung.');
+            }
+            if ($hasDamage && empty($data['checkout_photo_paths'] ?? [])) {
+                $this->fail('checkout_photos', 'Có hư hỏng, thất lạc hoặc bồi thường thì phải có ảnh hiện trạng.');
             }
             $lastReading = UtilityReading::query()->where('room_id', $contract->room_id)
                 ->where('contract_id', $contract->id)->orderByDesc('record_date')->orderByDesc('id')->lockForUpdate()->first();
@@ -598,23 +721,40 @@ class ContractLifecycleService
                 'checked_out_by' => $actor->id,
                 'checkout_reason' => $data['checkout_reason'],
                 'termination_note' => $data['checkout_reason'],
+                'checkout_key_count' => (int) $data['checkout_key_count'],
+                'checkout_asset_report' => $assetReport,
+                'checkout_damage_note' => $data['checkout_damage_note'] ?? null,
+                'checkout_photo_paths' => $data['checkout_photo_paths'] ?? [],
+                'checkout_handover_confirmed_at' => now(),
             ])->save();
             $this->memberService->moveOutAll($contract, $actor, $moveOutAt, $data['checkout_reason']);
+            if ($contract->approved_termination_request_id) {
+                ContractTerminationRequest::query()
+                    ->whereKey($contract->approved_termination_request_id)
+                    ->where('status', ContractTerminationRequest::STATUS_APPROVED)
+                    ->lockForUpdate()
+                    ->update([
+                        'status' => ContractTerminationRequest::STATUS_COMPLETED,
+                        'fulfilled_at' => now(),
+                    ]);
+            }
             $room->forceFill([
                 'status' => $room->status === Room::STATUS_MAINTENANCE ? Room::STATUS_MAINTENANCE : Room::STATUS_AVAILABLE,
                 'current_people' => 0,
             ])->save();
 
             $settlementAmount = (float) ($data['settlement_amount'] ?? 0);
-            if ($settlementAmount > 0) {
-                $this->createSettlementInvoice($contract, $settlementAmount, $data['settlement_description'] ?? 'Chi phí quyết toán/hư hỏng');
-            }
             $this->transition($contract, Contract::STATUS_SETTLING, 'check_out', $data['checkout_reason'], $actor, [
                 'electricity' => $electricity,
                 'water' => $water,
                 'settlement_amount' => $settlementAmount,
             ]);
-            $this->resolveAlerts($contract, ['contract_expired']);
+            $this->settlements->generate(
+                $contract->fresh(),
+                $settlementAmount,
+                $data['settlement_description'] ?? null,
+            );
+            $this->resolveAlerts($contract, ['contract_expired', 'departure_due']);
             app(TenantAccountLifecycle::class)->sync($contract->tenant()->with('user')->firstOrFail());
 
             return $contract->fresh();
@@ -656,10 +796,23 @@ class ContractLifecycleService
 
             $resolution = (float) $contract->deposit_amount <= 0
                 ? Contract::DEPOSIT_NOT_REQUIRED
-                : ($data['deposit_resolution'] ?? null);
+                : $contract->deposit_resolution;
             if ((float) $contract->deposit_amount > 0
                 && ! in_array($resolution, [Contract::DEPOSIT_REFUNDED, Contract::DEPOSIT_DEDUCTED, Contract::DEPOSIT_RETAINED], true)) {
-                $this->fail('deposit_resolution', 'Phải ghi rõ tiền cọc đã hoàn, khấu trừ hay giữ lại.');
+                $this->fail('deposit_resolution', 'Tiền cọc chưa được xử lý qua quy trình quyết toán và chứng từ hoàn/khấu trừ.');
+            }
+            if ($resolution === Contract::DEPOSIT_REFUNDED
+                && (float) $contract->deposit_refund_amount > 0
+                && (! $contract->deposit_transferred_at || blank($contract->deposit_transfer_proof))) {
+                $this->fail('deposit_resolution', 'Chưa có thời điểm và chứng từ chuyển khoản hoàn cọc.');
+            }
+            if ($resolution === Contract::DEPOSIT_RETAINED && blank($contract->deposit_damage_proof)) {
+                $this->fail('deposit_resolution', 'Giữ toàn bộ tiền cọc phải có chứng từ hoặc ảnh thiệt hại.');
+            }
+            if ($resolution === Contract::DEPOSIT_DEDUCTED
+                && (float) $contract->deposit_refund_amount > 0
+                && (! $contract->deposit_transferred_at || blank($contract->deposit_transfer_proof))) {
+                $this->fail('deposit_resolution', 'Hoàn cọc một phần phải có chứng từ chuyển khoản phần còn lại.');
             }
             if (in_array($resolution, [Contract::DEPOSIT_DEDUCTED, Contract::DEPOSIT_RETAINED], true)
                 && blank($data['settlement_note'] ?? null)) {
@@ -679,28 +832,50 @@ class ContractLifecycleService
                 'deposit_resolution' => $resolution,
                 'written_off_invoice_ids' => $openInvoices->pluck('id')->all(),
             ]);
+            $this->settlements->markSettled($contract);
             app(TenantAccountLifecycle::class)->sync($contract->tenant()->with('user')->firstOrFail());
 
             return $contract->fresh();
         }, 3);
     }
 
-    public function extendContract(Contract $contract, User $actor, Carbon|string $newEndDate, string $reason): Contract
+    public function extendContract(Contract $contract, User $actor, Carbon|string $newEndDate, string $reason, array $terms = []): Contract
     {
-        return DB::transaction(function () use ($contract, $actor, $newEndDate, $reason): Contract {
+        return DB::transaction(function () use ($contract, $actor, $newEndDate, $reason, $terms): Contract {
             $contract = $this->lockContract($contract);
             $this->requireStatus($contract, Contract::OPEN_OCCUPANCY_STATUSES, 'Chỉ hợp đồng đang thuê hoặc quá hạn mới được gia hạn.');
             $newEndDate = Carbon::parse($newEndDate)->startOfDay();
             if (! $newEndDate->gt($contract->end_date->startOfDay())) {
                 $this->fail('new_end_date', 'Ngày kết thúc mới phải sau ngày kết thúc hiện tại.');
             }
+            if (ContractTerminationRequest::query()
+                ->where('contract_id', $contract->id)
+                ->whereIn('status', [
+                    ContractTerminationRequest::STATUS_PENDING,
+                    ContractTerminationRequest::STATUS_APPROVED,
+                ])->lockForUpdate()->exists()) {
+                $this->fail('contract', 'Hợp đồng đang có yêu cầu hoặc lịch trả phòng nên chưa thể gia hạn.');
+            }
             $this->lockRoom($contract);
             $oldEndDate = $contract->end_date->copy();
-            $contract->forceFill(['end_date' => $newEndDate])->save();
+            $oldMonthlyRent = (float) $contract->monthly_rent;
+            $newMonthlyRent = array_key_exists('monthly_rent', $terms)
+                ? (float) $terms['monthly_rent']
+                : $oldMonthlyRent;
+            if ($newMonthlyRent < 0) {
+                $this->fail('monthly_rent', 'Giá thuê gia hạn không hợp lệ.');
+            }
+            $contract->forceFill([
+                'end_date' => $newEndDate,
+                'monthly_rent' => $newMonthlyRent,
+            ])->save();
             try {
                 $this->ensureNoReservationConflict($contract);
             } catch (\Throwable $exception) {
-                $contract->forceFill(['end_date' => $oldEndDate])->save();
+                $contract->forceFill([
+                    'end_date' => $oldEndDate,
+                    'monthly_rent' => $oldMonthlyRent,
+                ])->save();
                 throw $exception;
             }
             $contract->forceFill([
@@ -714,12 +889,88 @@ class ContractLifecycleService
             $this->transition($contract, $target, 'extend_contract', $reason, $actor, [
                 'old_end_date' => $oldEndDate->toDateString(),
                 'new_end_date' => $newEndDate->toDateString(),
+                'old_monthly_rent' => $oldMonthlyRent,
+                'new_monthly_rent' => $newMonthlyRent,
+                'extension_request_id' => $terms['extension_request_id'] ?? null,
             ]);
             if ($target === Contract::STATUS_ACTIVE) {
-                $this->resolveAlerts($contract, ['contract_expired']);
+                $this->resolveAlerts($contract, ['contract_expired', 'contract_expiring']);
             }
 
             return $contract->fresh();
+        }, 3);
+    }
+
+    public function scheduleDeparture(
+        ContractTerminationRequest $departureRequest,
+        User $actor,
+        Carbon|string $approvedEndDate,
+        Carbon|string $scheduledCheckoutAt,
+        ?string $adminNote = null,
+    ): ContractTerminationRequest {
+        return DB::transaction(function () use ($departureRequest, $actor, $approvedEndDate, $scheduledCheckoutAt, $adminNote) {
+            $departureRequest = ContractTerminationRequest::query()->lockForUpdate()->findOrFail($departureRequest->id);
+            if ($departureRequest->status !== ContractTerminationRequest::STATUS_PENDING) {
+                $this->fail('request', 'Yêu cầu rời phòng này đã được xử lý.');
+            }
+
+            $contract = $this->lockContract($departureRequest->contract);
+            $this->requireStatus($contract, Contract::OPEN_OCCUPANCY_STATUSES, 'Chỉ được xếp lịch rời phòng khi khách vẫn đang ở.');
+            if (ContractExtensionRequest::query()
+                ->where('contract_id', $contract->id)
+                ->whereIn('status', [
+                    ContractExtensionRequest::STATUS_PENDING,
+                    ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
+                ])->lockForUpdate()->exists()) {
+                $this->fail('contract', 'Hợp đồng đang có yêu cầu hoặc phụ lục gia hạn chờ xác nhận.');
+            }
+            $approvedEndDate = Carbon::parse($approvedEndDate)->startOfDay();
+            $scheduledCheckoutAt = Carbon::parse($scheduledCheckoutAt);
+            if ($approvedEndDate->lt(today())) {
+                $this->fail('approved_end_date', 'Ngày rời phòng được duyệt không được ở trong quá khứ.');
+            }
+            if (! $scheduledCheckoutAt->isSameDay($approvedEndDate)) {
+                $this->fail('scheduled_checkout_at', 'Thời gian bàn giao phải nằm trong ngày rời phòng được duyệt.');
+            }
+            if ($contract->status === Contract::STATUS_ACTIVE && $approvedEndDate->gt($contract->end_date)) {
+                $this->fail('approved_end_date', 'Muốn ở sau ngày hết hạn cần thực hiện gia hạn hợp đồng.');
+            }
+            $hasOtherSchedule = ContractTerminationRequest::query()
+                ->where('contract_id', $contract->id)
+                ->whereKeyNot($departureRequest->id)
+                ->where('status', ContractTerminationRequest::STATUS_APPROVED)
+                ->lockForUpdate()
+                ->exists();
+            if ($hasOtherSchedule) {
+                $this->fail('request', 'Hợp đồng đã có một lịch rời phòng được duyệt.');
+            }
+
+            $type = $contract->status === Contract::STATUS_EXPIRED
+                ? ContractTerminationRequest::TYPE_OVERDUE_DEPARTURE
+                : ($approvedEndDate->lt($contract->end_date)
+                    ? ContractTerminationRequest::TYPE_EARLY_TERMINATION
+                    : ContractTerminationRequest::TYPE_END_OF_TERM);
+            $departureRequest->forceFill([
+                'request_type' => $type,
+                'status' => ContractTerminationRequest::STATUS_APPROVED,
+                'admin_note' => $adminNote,
+                'approved_end_date' => $approvedEndDate,
+                'scheduled_checkout_at' => $scheduledCheckoutAt,
+                'processed_by' => $actor->id,
+                'processed_at' => now(),
+            ])->save();
+            $contract->forceFill([
+                'scheduled_move_out_at' => $scheduledCheckoutAt,
+                'approved_termination_request_id' => $departureRequest->id,
+            ])->save();
+            $this->history($contract, $contract->status, $contract->status, 'schedule_departure', $adminNote ?: $departureRequest->reason, $actor, [
+                'departure_request_id' => $departureRequest->id,
+                'request_type' => $type,
+                'approved_end_date' => $approvedEndDate->toDateString(),
+                'scheduled_checkout_at' => $scheduledCheckoutAt->toIso8601String(),
+            ]);
+
+            return $departureRequest->fresh('contract');
         }, 3);
     }
 
@@ -740,6 +991,32 @@ class ContractLifecycleService
                     }
                 });
         }
+        foreach ([30, 15, 7] as $days) {
+            $endDate = today()->addDays($days)->toDateString();
+            Contract::query()
+                ->where('status', Contract::STATUS_ACTIVE)
+                ->whereDate('end_date', $endDate)
+                ->whereNull('scheduled_move_out_at')
+                ->orderBy('id')
+                ->each(function (Contract $contract) use ($days, $endDate, &$created): void {
+                    $message = "Hợp đồng {$contract->contract_code} còn {$days} ngày sẽ hết hạn ({$contract->end_date->format('d/m/Y')}). Cần thống nhất gia hạn hoặc lịch bàn giao phòng.";
+                    if ($this->alert(
+                        $contract,
+                        'contract_expiring',
+                        "Hợp đồng sắp hết hạn trong {$days} ngày",
+                        $message,
+                        ['period' => $endDate.':'.$days, 'days_remaining' => $days]
+                    )) {
+                        app(ClientNotificationService::class)->contract(
+                            $contract,
+                            'contract_expiring',
+                            "Hợp đồng còn {$days} ngày",
+                            'Vui lòng chọn gia hạn hợp đồng hoặc đăng ký lịch rời phòng để ban quản lý chuẩn bị bàn giao.'
+                        );
+                        $created++;
+                    }
+                });
+        }
         Contract::query()->where('status', Contract::STATUS_EXPIRED)->orderBy('id')
             ->each(function (Contract $contract) use (&$created): void {
                 if ($this->alert(
@@ -751,45 +1028,25 @@ class ContractLifecycleService
                     $created++;
                 }
             });
+        Contract::query()
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+            ->whereNotNull('scheduled_move_out_at')
+            ->where('scheduled_move_out_at', '<=', now())
+            ->orderBy('id')
+            ->each(function (Contract $contract) use (&$created): void {
+                $message = 'Đã đến lịch bàn giao phòng '.$contract->scheduled_move_out_at?->format('H:i d/m/Y').'. Cần chốt chỉ số, tài sản và thực hiện checkout.';
+                if ($this->alert($contract, 'departure_due', 'Đến lịch bàn giao và trả phòng', $message)) {
+                    app(ClientNotificationService::class)->contract(
+                        $contract,
+                        'departure_due',
+                        'Đến lịch bàn giao phòng',
+                        'Vui lòng phối hợp với ban quản lý để kiểm tra phòng và chốt chỉ số điện nước.'
+                    );
+                    $created++;
+                }
+            });
 
         return ['expired' => $expired, 'alerts_created' => $created];
-    }
-
-    private function createSettlementInvoice(Contract $contract, float $amount, string $description): Invoice
-    {
-        $existing = Invoice::query()->where('lifecycle_event_key', $this->invoiceKey($contract, 'settlement'))
-            ->lockForUpdate()->first();
-        if ($existing) {
-            return $existing;
-        }
-        $date = Carbon::parse($contract->actual_move_out_at ?: now());
-        $invoice = Invoice::query()->forceCreate([
-            'contract_id' => $contract->id,
-            'room_id' => $contract->room_id,
-            'invoice_type' => Invoice::TYPE_SETTLEMENT,
-            'lifecycle_event_key' => $this->invoiceKey($contract, 'settlement'),
-            'invoice_code' => null,
-            'month' => $date->month,
-            'year' => $date->year,
-            'invoice_date' => $date->toDateString(),
-            'due_date' => $date->copy()->addDays((int) Setting::currentOrCreate()->payment_due_days)->toDateString(),
-            'room_fee' => 0,
-            'total_amount' => $amount,
-            'status' => Invoice::STATUS_UNPAID,
-        ]);
-        $invoice->forceFill(['invoice_code' => sprintf('SET-%04d%02d-%06d', $date->year, $date->month, $invoice->id)])->save();
-        $invoice->details()->create([
-            'type' => Invoice::TYPE_SETTLEMENT,
-            'name' => $description,
-            'quantity' => 1,
-            'unit' => 'lần',
-            'unit_price' => $amount,
-            'amount' => $amount,
-            'note' => 'Khoản quyết toán được ghi nhận khi trả phòng.',
-            'sort_order' => 1,
-        ]);
-
-        return $invoice;
     }
 
     private function ensureScheduleIsComplete(Contract $contract): void
@@ -891,7 +1148,7 @@ class ContractLifecycleService
             ->whereDate('start_date', '<=', $contract->end_date)->whereDate('end_date', '>=', $contract->start_date)
             ->lockForUpdate()->first();
         if ($tenantConflict) {
-            $this->fail('tenant_id', 'Người đại diện đã thuộc hợp đồng trùng thời gian: '.$tenantConflict->contract_code.'.');
+            $this->fail('tenant_id', 'Người thuê đại diện đã thuộc hợp đồng trùng thời gian: '.$tenantConflict->contract_code.'.');
         }
 
         $identityNumbers = $contract->members()->current()->whereNotNull('identity_number')->pluck('identity_number');

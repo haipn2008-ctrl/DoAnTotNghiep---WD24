@@ -46,6 +46,7 @@ class ContractLifecycleAlert extends Model
             'deposit_overdue' => 'Quá hạn cọc',
             'move_in_overdue' => 'Quá hạn nhận phòng',
             'contract_expired' => 'Hợp đồng hết hạn',
+            'contract_expiring' => 'Hợp đồng sắp hết hạn',
             'deposit_exception' => 'Ngoại lệ tiền cọc',
             'cancelled_deposit_resolution' => 'Cọc hợp đồng đã hủy',
             'vehicle_review' => 'Phương tiện chờ duyệt',
@@ -55,9 +56,11 @@ class ContractLifecycleAlert extends Model
             'deposit_refund_request' => 'Yêu cầu hoàn cọc',
             'payment_review' => 'Thanh toán chờ duyệt',
             'support_request' => 'Yêu cầu hỗ trợ',
-            'member_review' => 'Người ở cùng chờ duyệt',
+            'member_review' => 'Người thuê chờ duyệt',
             'move_in_confirmation' => 'Sẵn sàng nhận phòng',
+            'departure_due' => 'Đến lịch trả phòng',
             default => 'Cần xử lý',
+            'extension_response' => 'Phản hồi gia hạn',
         };
     }
 

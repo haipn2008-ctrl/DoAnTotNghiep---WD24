@@ -9,7 +9,7 @@
         <p class="mt-1 font-bold text-slate-950">{{ $contract->room?->room_code ?? 'Chưa xác định' }}</p>
     </div>
     <div class="border-b border-slate-100 px-4 py-3 lg:border-b-0 lg:border-r">
-        <p class="text-xs font-medium text-slate-500">Người đại diện</p>
+        <p class="text-xs font-medium text-slate-500">Người thuê đại diện</p>
         <p class="mt-1 truncate font-bold text-slate-950">{{ $representative?->full_name ?? $contract->tenant?->full_name ?? 'Chưa xác định' }}</p>
     </div>
     <div class="border-b border-slate-100 px-4 py-3 sm:border-b-0 sm:border-r">
@@ -98,7 +98,7 @@
                                 {{ $member->status === \App\Models\ContractTenant::STATUS_APPROVED ? 'Đã duyệt' : $member->status_label }}
                             </span>
                         </div>
-                        @if($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)<p class="mt-1 text-xs font-medium leading-5 text-indigo-700">Người đại diện</p>@endif
+                        @if($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)<p class="mt-1 text-xs font-medium leading-5 text-indigo-700">Người thuê đại diện · Tài khoản liên hệ</p>@else<p class="mt-1 text-xs text-slate-500">Người thuê · Không cấp tài khoản riêng</p>@endif
                         <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs leading-5 text-slate-500">
                             <span>CCCD: {{ $member->identity_number ?: 'Chưa cập nhật' }}</span>
                             <span>SĐT: {{ $member->phone ?: 'Chưa cập nhật' }}</span>

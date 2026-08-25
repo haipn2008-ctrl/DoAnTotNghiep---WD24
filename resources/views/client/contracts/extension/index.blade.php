@@ -4,220 +4,84 @@
 @section('page_title', 'Yêu cầu gia hạn')
 
 @section('content')
-<div class="mx-auto max-w-6xl">
+<div class="mx-auto max-w-6xl space-y-6">
+    <h1 class="text-2xl font-bold text-slate-950">Yêu cầu gia hạn hợp đồng</h1>
 
-    {{-- HEADER --}}
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-slate-950">Yêu cầu gia hạn hợp đồng</h1>
-    </div>
+    @if(session('success'))<div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">{{ session('success') }}</div>@endif
+    @if($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"><p class="font-bold">Không thể xử lý yêu cầu</p><ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
-    {{-- THÔNG BÁO --}}
-    @if(session('success'))
-        <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if($errors->any())
-        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-700">
-            <p class="text-sm font-bold">Không thể gửi yêu cầu</p>
-            <ul class="mt-2 list-inside list-disc text-sm">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
-    {{-- FORM --}}
-    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-6 py-4">
-            <h2 class="font-bold text-slate-900">Gửi yêu cầu gia hạn</h2>
-        </div>
-
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4"><h2 class="font-bold text-slate-900">Gửi yêu cầu gia hạn</h2><p class="mt-1 text-sm text-slate-500">Ban quản lý sẽ kiểm tra công nợ và gửi phụ lục. Hợp đồng chỉ gia hạn sau khi người thuê đại diện xác nhận.</p></div>
         <div class="p-6">
             @if($contracts->isEmpty())
-                <div class="py-12 text-center">
-                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M7 3h7l5 5v13H7V3z"/>
-                        </svg>
-                    </div>
-                    <h3 class="mt-4 font-bold text-slate-900">Không có hợp đồng đang hiệu lực</h3>
-                    <p class="mt-1 text-sm text-slate-500">Bạn cần có hợp đồng đang hiệu lực để gửi yêu cầu gia hạn.</p>
-                </div>
+                <div class="py-10 text-center text-sm text-slate-500">Không có hợp đồng đủ điều kiện gửi yêu cầu.</div>
             @else
-                <form method="POST" action="{{ route('client.extension-requests.store') }}" class="space-y-6">
-                    @csrf
-
-                    <div>
-                        <label for="contract_id" class="mb-2 block text-sm font-semibold text-slate-900">
-                            Hợp đồng <span class="text-red-500">*</span>
-                        </label>
-                        <select name="contract_id" id="contract_id" required
-                                class="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-                            <option value="">-- Chọn hợp đồng --</option>
-                            @foreach($contracts as $contract)
-                                <option value="{{ $contract->id }}"
-                                        data-end-date="{{ optional($contract->end_date)->format('Y-m-d') }}"
-                                        {{ old('contract_id') == $contract->id ? 'selected' : '' }}>
-                                    {{ $contract->contract_code ?? ('HD' . str_pad($contract->id, 3, '0', STR_PAD_LEFT)) }}
-                                    - Phòng {{ $contract->room->room_code ?? $contract->room->room_number ?? $contract->room->name ?? 'Không có' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div id="contractInfo" class="hidden rounded-xl border border-indigo-100 bg-indigo-50 px-5 py-4">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-500">Ngày kết thúc hiện tại</p>
-                        <p id="currentEndDate" class="mt-1 text-base font-bold text-indigo-950">-</p>
-                    </div>
-
-                    <div class="grid gap-6 md:grid-cols-2">
-                        <div>
-                            <label for="requested_end_date" class="mb-2 block text-sm font-semibold text-slate-900">
-                                Gia hạn đến ngày <span class="text-red-500">*</span>
-                            </label>
-                            <input type="date"
-                                   name="requested_end_date"
-                                   id="requested_end_date"
-                                   value="{{ old('requested_end_date') }}"
-                                   required
-                                   class="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-                            <p class="mt-2 text-xs text-slate-500">Ngày mới phải sau ngày kết thúc hiện tại của hợp đồng.</p>
-                        </div>
-
-                        <div>
-                            <label for="reason" class="mb-2 block text-sm font-semibold text-slate-900">Lý do gia hạn</label>
-                            <textarea name="reason"
-                                      id="reason"
-                                      rows="4"
-                                      maxlength="1000"
-                                      placeholder="Nhập lý do"
-                                      class="block w-full resize-none rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">{{ old('reason') }}</textarea>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end border-t border-slate-100 pt-5">
-                        <button type="submit"
-                                class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3 3l18 9-18 9 3-9Zm0 0h8"/>
-                            </svg>
-                            Gửi yêu cầu gia hạn
-                        </button>
-                    </div>
+                <form method="POST" action="{{ route('client.extension-requests.store') }}" class="space-y-5">@csrf
+                    <div><label for="contract_id" class="mb-2 block text-sm font-semibold text-slate-900">Hợp đồng <span class="text-rose-500">*</span></label><select name="contract_id" id="contract_id" required class="h-11 w-full rounded-lg border border-slate-300 bg-white px-4 text-sm"><option value="">-- Chọn hợp đồng --</option>@foreach($contracts as $contract)<option value="{{ $contract->id }}" data-end-date="{{ $contract->end_date?->format('Y-m-d') }}" @selected(old('contract_id') == $contract->id)>{{ $contract->contract_code }} — Phòng {{ $contract->room->room_code ?? '-' }}</option>@endforeach</select></div>
+                    <div id="contractInfo" class="hidden rounded-xl border border-indigo-100 bg-indigo-50 px-5 py-4"><p class="text-xs font-semibold uppercase text-indigo-500">Ngày kết thúc hiện tại</p><p id="currentEndDate" class="mt-1 font-bold text-indigo-950">-</p></div>
+                    <div class="grid gap-5 md:grid-cols-2"><div><label for="requested_end_date" class="mb-2 block text-sm font-semibold">Muốn gia hạn đến <span class="text-rose-500">*</span></label><input type="date" name="requested_end_date" id="requested_end_date" value="{{ old('requested_end_date') }}" required class="h-11 w-full rounded-lg border border-slate-300 px-4 text-sm"></div><div><label for="reason" class="mb-2 block text-sm font-semibold">Lý do gia hạn</label><textarea name="reason" id="reason" rows="3" maxlength="1000" class="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm" placeholder="Nhập lý do">{{ old('reason') }}</textarea></div></div>
+                    <div class="flex justify-end border-t border-slate-100 pt-5"><button class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">Gửi yêu cầu gia hạn</button></div>
                 </form>
             @endif
         </div>
-    </div>
+    </section>
 
-    {{-- LỊCH SỬ --}}
-    <div class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-6 py-4">
-            <h2 class="font-bold text-slate-900">Lịch sử yêu cầu</h2>
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4"><h2 class="font-bold text-slate-900">Yêu cầu và phụ lục gia hạn</h2></div>
+        <div class="grid gap-4 bg-slate-50/60 p-4 lg:grid-cols-2 sm:p-6">
+            @forelse($extensionRequests as $extension)
+                @php
+                    $meta = match($extension->status) {
+                        'awaiting_confirmation' => ['Chờ bạn xác nhận', 'border-sky-200 bg-sky-50 text-sky-700'],
+                        'approved' => ['Đã gia hạn', 'border-emerald-200 bg-emerald-50 text-emerald-700'],
+                        'rejected' => ['Admin từ chối', 'border-rose-200 bg-rose-50 text-rose-700'],
+                        'declined_by_tenant' => ['Bạn không đồng ý', 'border-violet-200 bg-violet-50 text-violet-700'],
+                        default => ['Chờ admin xem', 'border-amber-200 bg-amber-50 text-amber-700'],
+                    };
+                    $terms = $extension->terms_snapshot ?? [];
+                @endphp
+                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-3"><div><p class="font-bold text-slate-950">{{ $extension->contract->contract_code }}</p><p class="mt-1 text-xs text-slate-500">Phòng {{ $extension->contract->room->room_code ?? '-' }}</p></div><span class="rounded-full border px-2.5 py-1 text-xs font-semibold {{ $meta[1] }}">{{ $meta[0] }}</span></div>
+                    <div class="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4"><p class="text-xs font-semibold uppercase text-indigo-400">Thời hạn</p><p class="mt-2 text-sm"><span>{{ $extension->current_end_date?->format('d/m/Y') }}</span><span class="mx-2 text-indigo-400">→</span><strong class="text-indigo-700">{{ ($extension->approved_end_date ?: $extension->requested_end_date)?->format('d/m/Y') }}</strong></p></div>
+
+                    @if($extension->status === 'awaiting_confirmation')
+                        <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
+                            <h3 class="font-semibold text-sky-950">Phụ lục chờ xác nhận</h3>
+                            <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2"><div><dt class="text-slate-500">Giá phòng hiện tại</dt><dd class="font-semibold">{{ number_format((float)($terms['old_monthly_rent'] ?? 0), 0, ',', '.') }}đ/tháng</dd></div><div><dt class="text-slate-500">Giá phòng kỳ mới</dt><dd class="font-semibold text-sky-800">{{ number_format((float)$extension->proposed_monthly_rent, 0, ',', '.') }}đ/tháng</dd></div><div><dt class="text-slate-500">Tiền cọc đang giữ</dt><dd class="font-semibold">{{ number_format((float)$extension->proposed_deposit_amount, 0, ',', '.') }}đ</dd></div><div><dt class="text-slate-500">Người tiếp tục thuê</dt><dd class="font-semibold">{{ count($terms['tenants'] ?? []) }} người</dd></div></dl>
+                            @if($extension->admin_note)<p class="mt-3 border-t border-sky-200 pt-3 text-sm text-sky-900"><strong>Ghi chú quản lý:</strong> {{ $extension->admin_note }}</p>@endif
+                        </div>
+                        <form method="POST" action="{{ route('client.extension-requests.accept', $extension) }}" onsubmit="return confirm('Bạn xác nhận đồng ý toàn bộ điều khoản gia hạn?')" class="mt-4">@csrf<label class="mb-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" required class="mt-0.5 rounded border-slate-300 text-indigo-600"><span>Tôi là người thuê đại diện và đồng ý thời hạn, giá thuê, tiền cọc cùng danh sách người thuê nêu trên.</span></label><button class="h-11 w-full rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700">Xác nhận phụ lục và gia hạn</button></form>
+                        <form method="POST" action="{{ route('client.extension-requests.decline', $extension) }}" class="mt-3 flex gap-2">@csrf<input name="decline_reason" required minlength="3" maxlength="1000" placeholder="Lý do không đồng ý" class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm"><button class="h-11 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700">Không đồng ý</button></form>
+                    @else
+                        <div class="mt-4 text-sm leading-6 text-slate-600"><strong>Lý do yêu cầu:</strong> {{ $extension->reason ?: 'Không có' }}@if($extension->admin_note)<p><strong>Phản hồi quản lý:</strong> {{ $extension->admin_note }}</p>@endif @if($extension->tenant_decline_reason)<p><strong>Lý do không đồng ý:</strong> {{ $extension->tenant_decline_reason }}</p>@endif</div>
+                    @endif
+                </article>
+            @empty
+                <div class="py-12 text-center text-sm text-slate-500 lg:col-span-2">Chưa có yêu cầu gia hạn.</div>
+            @endforelse
         </div>
-
-        @if($extensionRequests->isEmpty())
-            <div class="px-6 py-12 text-center">
-                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-                    </svg>
-                </div>
-                <h3 class="mt-4 font-bold text-slate-900">Chưa có yêu cầu gia hạn</h3>
-            </div>
-        @else
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200">
-                    <thead class="bg-slate-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Hợp đồng</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Ngày kết thúc cũ</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Đề nghị đến</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Trạng thái</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100 bg-white">
-                        @foreach($extensionRequests as $extension)
-                            <tr class="transition hover:bg-slate-50">
-                                <td class="px-6 py-4">
-                                    <p class="text-sm font-bold text-slate-900">
-                                        {{ $extension->contract->contract_code ?? ('HD' . str_pad($extension->contract_id, 3, '0', STR_PAD_LEFT)) }}
-                                    </p>
-                                    <p class="mt-1 text-xs text-slate-500">
-                                        Phòng {{ $extension->contract->room->room_code ?? $extension->contract->room->room_number ?? $extension->contract->room->name ?? 'Không có' }}
-                                    </p>
-                                    @if($extension->reason)
-                                        <p class="mt-2 max-w-md text-xs leading-5 text-slate-500">
-                                            <span class="font-semibold text-slate-700">Lý do:</span> {{ $extension->reason }}
-                                        </p>
-                                    @endif
-                                </td>
-                                <td class="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                                    {{ $extension->current_end_date ? \Carbon\Carbon::parse($extension->current_end_date)->format('d/m/Y') : '-' }}
-                                </td>
-                                <td class="whitespace-nowrap px-6 py-4 text-sm font-bold text-slate-900">
-                                    {{ $extension->requested_end_date ? \Carbon\Carbon::parse($extension->requested_end_date)->format('d/m/Y') : '-' }}
-                                </td>
-                                <td class="whitespace-nowrap px-6 py-4">
-                                    @if($extension->status === 'pending')
-                                        <span class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Chờ duyệt</span>
-                                    @elseif($extension->status === 'approved')
-                                        <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Đã duyệt</span>
-                                    @elseif($extension->status === 'rejected')
-                                        <span class="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-bold text-red-700">Từ chối</span>
-                                    @else
-                                        <span class="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">Không xác định</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @endif
-    </div>
+    </section>
 </div>
 @endsection
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const contractSelect = document.getElementById('contract_id');
-    const contractInfo = document.getElementById('contractInfo');
-    const currentEndDate = document.getElementById('currentEndDate');
-    const requestedEndDate = document.getElementById('requested_end_date');
-
-    if (!contractSelect || !contractInfo || !currentEndDate || !requestedEndDate) return;
-
-    function updateContractInfo() {
-        const option = contractSelect.options[contractSelect.selectedIndex];
-        const endDate = option ? option.dataset.endDate : null;
-
-        if (!endDate) {
-            contractInfo.classList.add('hidden');
-            currentEndDate.textContent = '-';
-            requestedEndDate.removeAttribute('min');
-            return;
-        }
-
-        contractInfo.classList.remove('hidden');
-
-        const date = new Date(endDate + 'T00:00:00');
-        currentEndDate.textContent = date.toLocaleDateString('vi-VN');
-
+document.addEventListener('DOMContentLoaded', () => {
+    const select = document.getElementById('contract_id');
+    const info = document.getElementById('contractInfo');
+    const label = document.getElementById('currentEndDate');
+    const input = document.getElementById('requested_end_date');
+    if (!select || !info || !label || !input) return;
+    const refresh = () => {
+        const value = select.options[select.selectedIndex]?.dataset.endDate;
+        if (!value) { info.classList.add('hidden'); input.removeAttribute('min'); return; }
+        const date = new Date(`${value}T00:00:00`);
+        info.classList.remove('hidden');
+        label.textContent = date.toLocaleDateString('vi-VN');
         date.setDate(date.getDate() + 1);
-
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-
-        requestedEndDate.min = `${year}-${month}-${day}`;
-    }
-
-    contractSelect.addEventListener('change', updateContractInfo);
-    updateContractInfo();
+        input.min = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    };
+    select.addEventListener('change', refresh); refresh();
 });
 </script>
 @endpush

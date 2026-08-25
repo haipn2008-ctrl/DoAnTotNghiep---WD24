@@ -66,7 +66,7 @@
         <tr><td class="label">Địa chỉ</td><td>{{ $landlordAddress ?: $blank }}</td></tr>
     </table>
 
-    <p class="party-title">2. Bên thuê (Bên B) – Người đại diện</p>
+    <p class="party-title">2. Bên thuê (Bên B) – Người thuê đại diện</p>
     <table class="no-border">
         <tr><td class="label">Họ và tên</td><td>{{ $representativeMember?->full_name ?? $representativeTenant?->full_name ?? $blank }}</td></tr>
         <tr><td class="label">Ngày sinh</td><td>{{ $representativeMember?->date_of_birth?->format('d/m/Y') ?? $representativeTenant?->date_of_birth?->format('d/m/Y') ?? $blank }}</td></tr>
@@ -107,7 +107,7 @@
             @forelse($members as $member)
                 <tr>
                     <td>{{ $member->full_name }}</td>
-                    <td>{{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'Người đại diện' : 'Người thuê' }}</td>
+                    <td>{{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'Người thuê đại diện' : 'Người thuê' }}</td>
                     <td>{{ $member->date_of_birth?->format('d/m/Y') ?: '—' }}<br>{{ $member->tenant ? (['male' => 'Nam', 'female' => 'Nữ', 'other' => 'Khác'][$member->tenant->gender] ?? '—') : '—' }}</td>
                     <td>{{ $member->identity_number ?: '—' }}<br><span class="muted">{{ $member->tenant?->cccd_issue_date?->format('d/m/Y') ?: '—' }} · {{ $member->tenant?->cccd_issue_place ?: '—' }}</span></td>
                     <td>{{ $member->phone ?: '—' }}<br><span class="muted">{{ $member->tenant?->email ?: '—' }}</span></td>

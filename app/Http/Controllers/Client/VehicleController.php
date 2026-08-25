@@ -28,7 +28,6 @@ class VehicleController extends Controller
     {
         $tenant = $request->user()->tenant()->firstOrFail();
         $contract = $this->capacity->currentContract($tenant);
-        abort_unless($contract, 409, 'Không tìm thấy hợp đồng đang ở để quản lý phương tiện.');
         $owners = $contract && $contract->isManagedBy($request->user())
             ? $contract->members()->with('tenant.vehicles.reviewer')
                 ->where('status', ContractTenant::STATUS_CHECKED_IN)

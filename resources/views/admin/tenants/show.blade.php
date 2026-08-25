@@ -407,7 +407,7 @@
                                     </a>
 
                                     <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
-                                        {{ (int) ($contract->representative_tenant_id ?: $contract->tenant_id) === (int) $tenant->id ? 'Người đại diện' : 'Thành viên' }}
+                                        {{ (int) ($contract->representative_tenant_id ?: $contract->tenant_id) === (int) $tenant->id ? 'Người thuê đại diện' : 'Người thuê' }}
                                     </span>
 
                                 </div>

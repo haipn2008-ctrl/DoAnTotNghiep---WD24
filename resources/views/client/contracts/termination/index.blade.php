@@ -1,7 +1,7 @@
 @extends('layouts.client.index')
 
-@section('title', 'Yêu cầu trả phòng | Cổng khách thuê')
-@section('page_title', 'Yêu cầu trả phòng')
+@section('title', 'Đăng ký lịch rời phòng | Cổng khách thuê')
+@section('page_title', 'Lịch rời phòng')
 
 @section('content')
 <div class="mx-auto max-w-6xl">
@@ -9,8 +9,10 @@
     {{-- HEADER --}}
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-slate-950">
-            Yêu cầu trả phòng
+            Đăng ký lịch rời phòng
         </h1>
+
+        <p class="mt-2 text-sm text-slate-500">Chọn ngày hết hạn nếu bạn rời đi đúng hạn, hoặc một ngày sớm hơn nếu muốn chấm dứt hợp đồng trước hạn.</p>
 
     </div>
 
@@ -55,7 +57,7 @@
         <div class="border-b border-slate-200 px-6 py-4">
 
             <h2 class="font-bold text-slate-900">
-                Gửi yêu cầu trả phòng
+                Gửi lịch rời phòng dự kiến
             </h2>
 
 
@@ -89,7 +91,7 @@
                     </h3>
 
                     <p class="mt-1 text-sm text-slate-500">
-                        Bạn cần có hợp đồng đang hiệu lực để gửi yêu cầu trả phòng.
+                        Bạn cần có hợp đồng đang có người ở hoặc vừa quá hạn để đăng ký lịch rời phòng.
                     </p>
 
                 </div>
@@ -194,7 +196,7 @@
                                    class="block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
 
                             <p class="mt-2 text-xs text-slate-500">
-                                Chọn ngày bạn dự kiến bàn giao và trả phòng.
+                                Ngày bằng ngày hết hạn là rời đúng hạn; ngày sớm hơn là chấm dứt trước hạn.
                             </p>
 
                         </div>
@@ -255,7 +257,7 @@
                   d="M6 12 3 3l18 9-18 9 3-9Zm0 0h8"/>
         </svg>
 
-        <span>Gửi yêu cầu trả phòng</span>
+        <span>Gửi lịch rời phòng</span>
 
     </button>
 

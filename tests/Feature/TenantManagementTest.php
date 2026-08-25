@@ -122,11 +122,10 @@ class TenantManagementTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.tenants.index'))
             ->assertOk()
             ->assertSee('Người đại diện kiểm thử')
-            ->assertSee('Người đại diện')
+            ->assertSee('Người thuê đại diện · Có tài khoản')
             ->assertSee('Người thuê cùng phòng kiểm thử')
             ->assertDontSee('Người thuê cùng phòng</span>', false)
             ->assertDontSee('Chưa có tài khoản')
-            ->assertDontSee('Có tài khoản')
             ->assertDontSee('Dữ liệu cũ thiếu tài khoản')
             ->assertDontSee('Có tài khoản portal');
     }

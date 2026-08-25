@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Services\ContractHistoryService;
 use App\Services\AdminNotificationService;
+use App\Services\ClientNotificationService;
+use App\Services\SettlementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +21,7 @@ class DepositRefundController extends Controller
      */
     public function index()
     {
-        $contracts = Contract::with(['room', 'tenant'])
+        $contracts = Contract::with(['room', 'tenant', 'settlementStatement'])
             ->whereIn('deposit_status', [
                 Contract::DEPOSIT_REFUND_REQUESTED,
                 Contract::DEPOSIT_REFUND_APPROVED,
@@ -70,32 +72,44 @@ class DepositRefundController extends Controller
             ],
         ]);
 
+        $statement = $contract->settlementStatement()->first();
+        if (! $statement) {
+            return back()->with('error', 'Hợp đồng chưa có bảng quyết toán cuối kỳ.');
+        }
+        $statement = app(SettlementService::class)->refreshFinancials($statement);
+        $eligibleRefund = max(0, -(float) $statement->net_amount);
+        if ($eligibleRefund <= 0) {
+            return back()->with('error', 'Sau khi bù trừ công nợ và hóa đơn cuối kỳ, hợp đồng không còn số dư cọc để hoàn.');
+        }
+
         $deposit = (float) $contract->deposit_amount;
         $type = $request->deposit_process_type;
 
         if ($type === 'full_refund') {
-            $deduction = 0;
-            $refund = $deposit;
+            $additionalDeduction = 0;
+            $refund = $eligibleRefund;
             $description = 'Admin duyệt hoàn toàn bộ tiền cọc.';
         } elseif ($type === 'partial_refund') {
-            $deduction = (float) $request->deduction_amount;
+            $additionalDeduction = (float) $request->deduction_amount;
 
-            if ($deduction <= 0 || $deduction >= $deposit) {
+            if ($additionalDeduction <= 0 || $additionalDeduction >= $eligibleRefund) {
                 return back()
                     ->withInput()
                     ->with('error', 'Khoản khấu trừ phải lớn hơn 0 và nhỏ hơn tiền cọc.');
             }
 
-            $refund = $deposit - $deduction;
+            $refund = $eligibleRefund - $additionalDeduction;
             $description = 'Admin duyệt hoàn một phần tiền cọc.';
         } else {
-            $deduction = $deposit;
+            $additionalDeduction = $eligibleRefund;
             $refund = 0;
             $description = 'Admin xác nhận không hoàn tiền cọc.';
         }
 
-        // Có khấu trừ thì bắt buộc phải có ảnh chứng minh hư hỏng/thiệt hại.
-        if ($deduction > 0 && !$request->hasFile('damage_proof')) {
+        $deduction = max(0, $deposit - $refund);
+
+        // Chỉ khoản giữ thêm ngoài bảng quyết toán mới bắt buộc có ảnh chứng minh.
+        if ($additionalDeduction > 0 && !$request->hasFile('damage_proof')) {
             return back()
                 ->withInput()
                 ->with(
@@ -125,18 +139,20 @@ class DepositRefundController extends Controller
             $oldDepositStatus = $contract->deposit_status;
 
             if ($type === 'no_refund') {
-                $contract->update([
-                    'status' => Contract::STATUS_COMPLETED,
+                $contract->forceFill([
                     'deposit_status' => Contract::DEPOSIT_FORFEITED,
+                    'deposit_resolution' => Contract::DEPOSIT_RETAINED,
                     'deposit_process_type' => $type,
                     'deposit_refund_amount' => 0,
                     'deposit_deduction_amount' => $deduction,
                     'deposit_damage_proof' => $damageProofPath,
                     'deposit_processed_at' => now(),
+                    'deposit_resolved_at' => now(),
+                    'deposit_resolved_by' => Auth::id(),
                     'deposit_process_reason' => $request->return_reason,
                     'deposit_process_note' => $request->return_note,
                     'deposit_admin_note' => $request->return_note,
-                ]);
+                ])->save();
             } else {
                 $contract->update([
                     'deposit_status' => Contract::DEPOSIT_REFUND_APPROVED,
@@ -176,8 +192,17 @@ class DepositRefundController extends Controller
             app(AdminNotificationService::class)->depositRefundAwaitingTransfer($contract->fresh());
         }
 
+        app(ClientNotificationService::class)->contract(
+            $contract->fresh(),
+            $type === 'no_refund' ? 'deposit_refund_forfeited' : 'deposit_refund_approved',
+            $type === 'no_refund' ? 'Kết quả xử lý tiền cọc' : 'Yêu cầu hoàn cọc đã được duyệt',
+            $type === 'no_refund'
+                ? 'Ban quản lý xác nhận không hoàn tiền cọc. Lý do: '.$request->return_reason
+                : 'Số tiền hoàn cọc được duyệt là '.number_format($refund, 0, ',', '.').' VNĐ. Ban quản lý đang thực hiện chuyển khoản.'
+        );
+
         if ($type === 'no_refund') {
-            return back()->with('success', 'Đã xác nhận không hoàn cọc. Hợp đồng đã hoàn tất.');
+            return back()->with('success', 'Đã xác nhận không hoàn cọc. Hợp đồng vẫn chờ bước kiểm tra và hoàn tất quyết toán.');
         }
 
         return back()->with(
@@ -240,27 +265,31 @@ class DepositRefundController extends Controller
                     ? Contract::DEPOSIT_PARTIAL
                     : Contract::DEPOSIT_RETURNED;
 
-            $contract->update([
-                'status' => Contract::STATUS_COMPLETED,
+            $contract->forceFill([
                 'deposit_status' => $finalDepositStatus,
+                'deposit_resolution' => $finalDepositStatus === Contract::DEPOSIT_PARTIAL
+                    ? Contract::DEPOSIT_DEDUCTED
+                    : Contract::DEPOSIT_REFUNDED,
                 'deposit_transfer_amount' => $actual,
                 'deposit_transferred_at' => now(),
                 'deposit_transfer_proof' => $proofPath,
                 'deposit_processed_at' => now(),
+                'deposit_resolved_at' => now(),
+                'deposit_resolved_by' => Auth::id(),
                 'deposit_process_note' => $request->transfer_note,
-            ]);
+            ])->save();
 
             ContractHistoryService::log(
                 $contract,
                 ContractHistoryService::DEPOSIT_PROCESSED,
-                'Admin đã chuyển tiền hoàn cọc và xác nhận hoàn tất.',
+                'Admin đã chuyển tiền hoàn cọc; hợp đồng tiếp tục chờ hoàn tất quyết toán.',
                 $request->transfer_note,
                 [
                     'status' => $oldStatus,
                     'deposit_status' => $oldDepositStatus,
                 ],
                 [
-                    'status' => Contract::STATUS_COMPLETED,
+                    'status' => Contract::STATUS_SETTLING,
                     'deposit_status' => $finalDepositStatus,
                     'transfer_amount' => $actual,
                     'transfer_proof' => $proofPath,
@@ -269,10 +298,16 @@ class DepositRefundController extends Controller
         });
 
         app(AdminNotificationService::class)->resolve('deposit_refund_request', $contract);
+        app(ClientNotificationService::class)->contract(
+            $contract->fresh(),
+            'deposit_refund_completed',
+            'Tiền cọc đã được chuyển',
+            'Ban quản lý đã chuyển '.number_format($actual, 0, ',', '.').' VNĐ tiền hoàn cọc. Bạn có thể mở hợp đồng để xem bằng chứng chuyển khoản.'
+        );
 
         return back()->with(
             'success',
-            'Đã xác nhận chuyển tiền và hoàn tất hợp đồng.'
+            'Đã xác nhận chuyển tiền hoàn cọc. Hợp đồng vẫn ở bước quyết toán cho đến khi toàn bộ công nợ được xử lý.'
         );
     }
 
@@ -294,6 +329,12 @@ class DepositRefundController extends Controller
             'deposit_admin_note' => $request->reason,
         ]);
         app(AdminNotificationService::class)->resolve('deposit_refund_request', $contract);
+        app(ClientNotificationService::class)->contract(
+            $contract->fresh(),
+            'deposit_refund_rejected',
+            'Yêu cầu hoàn cọc bị từ chối',
+            'Yêu cầu hoàn cọc chưa được chấp thuận. Lý do: '.$request->reason
+        );
 
         return back()->with('success', 'Đã từ chối yêu cầu hoàn cọc.');
     }

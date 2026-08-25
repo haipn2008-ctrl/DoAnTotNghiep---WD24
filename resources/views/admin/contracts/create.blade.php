@@ -58,7 +58,7 @@
                 </div>
 
                 <div>
-                    <label for="tenant_id" class="mb-1.5 block text-sm font-semibold text-slate-700">Người đại diện thuê</label>
+                    <label for="tenant_id" class="mb-1.5 block text-sm font-semibold text-slate-700">Người thuê đại diện (được cấp tài khoản)</label>
                     <select id="tenant_id" name="tenant_id" data-contract-representative class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         <option value="">Chọn người đại diện</option>
                         @foreach ($tenants as $tenant)

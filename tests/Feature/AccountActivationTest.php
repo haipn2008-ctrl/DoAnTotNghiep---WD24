@@ -90,6 +90,10 @@ class AccountActivationTest extends TestCase
         $this->assertSame('female', $tenant->gender);
         $this->assertSame('Hà Nội', $tenant->cccd_issue_place);
         $this->assertSame('123 Đường Test', $tenant->address);
+        $this->get(route('client.vehicles.index'))
+            ->assertOk()
+            ->assertSee('Chưa thể đăng ký phương tiện')
+            ->assertDontSee('action="'.route('client.vehicles.store').'"', false);
     }
 
     public function test_existing_tenant_is_updated_only_after_final_step(): void

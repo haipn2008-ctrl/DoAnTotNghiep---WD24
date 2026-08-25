@@ -336,6 +336,7 @@
 @foreach($contracts as $contract)
     @php
         $deposit = (float)($contract->deposit_amount ?? 0);
+        $eligibleRefund = max(0, -(float) ($contract->settlementStatement?->net_amount ?? 0));
         $approvedRefund = (float)($contract->deposit_refund_amount ?? 0);
         $refundRequested = $contract->isRefundRequested();
         $refundApproved = $contract->isRefundApproved();
@@ -376,6 +377,10 @@
                             <div class="refund-mini deposit">
                                 <div class="label">Tiền cọc ban đầu</div>
                                 <div class="value">{{ number_format($deposit,0,',','.') }} VNĐ</div>
+                            </div>
+                            <div class="refund-mini">
+                                <div class="label">Tối đa được hoàn sau quyết toán</div>
+                                <div class="value" style="color:#059669">{{ number_format($eligibleRefund,0,',','.') }} VNĐ</div>
                             </div>
                             <div class="refund-mini">
                                 <div class="label">Khách thuê</div>
@@ -437,7 +442,7 @@
                                         <select name="deposit_process_type"
                                                 class="refund-type refund-select"
                                                 data-id="{{ $contract->id }}"
-                                                data-deposit="{{ $deposit }}">
+                                                data-deposit="{{ $eligibleRefund }}">
                                             <option value="full_refund">Hoàn toàn bộ</option>
                                             <option value="partial_refund">Khấu trừ một phần</option>
                                             <option value="no_refund">Không hoàn cọc</option>
@@ -450,7 +455,7 @@
                                                name="deduction_amount"
                                                value="0"
                                                min="0"
-                                               max="{{ $deposit }}"
+                                               max="{{ $eligibleRefund }}"
                                                step="1000"
                                                data-id="{{ $contract->id }}"
                                                class="deduction-input refund-input">
@@ -477,7 +482,7 @@
                                         </div>
                                         <div class="refund-money transfer">
                                             <span>Số tiền sẽ chuyển</span>
-                                            <strong class="refund-preview-{{ $contract->id }}">{{ number_format($deposit,0,',','.') }} VNĐ</strong>
+                                            <strong class="refund-preview-{{ $contract->id }}">{{ number_format($eligibleRefund,0,',','.') }} VNĐ</strong>
                                         </div>
                                     </div>
 

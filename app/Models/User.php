@@ -21,6 +21,7 @@ class User extends Authenticatable
     public const STATUS_PENDING = 'pending';
     public const STATUS_ACTIVE = 'active';
     public const STATUS_SETTLING = 'settling';
+    public const STATUS_FORMER = 'former';
     public const STATUS_LOCKED = 'locked';
     public const STATUS_INACTIVE = 'inactive';
 
@@ -96,7 +97,7 @@ class User extends Authenticatable
     {
         return in_array(
             $this->status,
-            [self::STATUS_ACTIVE, self::STATUS_SETTLING],
+            [self::STATUS_ACTIVE, self::STATUS_SETTLING, self::STATUS_FORMER],
             true
         );
     }

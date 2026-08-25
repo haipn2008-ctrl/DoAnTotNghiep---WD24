@@ -11,12 +11,44 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <a href="{{ route('client.notifications.index') }}" aria-label="Mở thông báo" class="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
-                <i class="bx bx-bell text-xl"></i>
-                @if(($clientUnreadNotificationCount ?? 0) > 0)
-                    <span class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{{ $clientUnreadNotificationCount > 99 ? '99+' : $clientUnreadNotificationCount }}</span>
-                @endif
-            </a>
+            <div class="relative">
+                <button id="clientNotificationButton" type="button" aria-label="Mở thông báo" aria-expanded="false" class="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                    <x-bell-icon class="h-5 w-5" />
+                    @if(($clientUnreadNotificationCount ?? 0) > 0)
+                        <span class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{{ $clientUnreadNotificationCount > 99 ? '99+' : $clientUnreadNotificationCount }}</span>
+                    @endif
+                </button>
+
+                <div id="clientNotificationMenu" class="absolute right-0 top-12 z-40 hidden w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                    <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">Thông báo của tôi</p>
+                            <p class="text-xs text-slate-500">{{ $clientUnreadNotificationCount ?? 0 }} thông báo chưa đọc</p>
+                        </div>
+                        <a href="{{ route('client.notifications.index') }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">Xem tất cả</a>
+                    </div>
+
+                    <div class="max-h-96 overflow-y-auto">
+                        @forelse(($clientNotifications ?? collect()) as $notification)
+                            @php($data = $notification->data)
+                            <a href="{{ route('client.notifications.open', $notification->id) }}" class="flex gap-3 border-b border-slate-100 px-4 py-3 transition last:border-0 hover:bg-slate-50 {{ $notification->read_at ? '' : 'bg-indigo-50/60' }}">
+                                <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full {{ $notification->read_at ? 'bg-slate-100 text-slate-500' : 'bg-indigo-100 text-indigo-700' }}"><x-bell-icon class="h-5 w-5" /></span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-semibold text-slate-900">{{ $data['title'] ?? 'Thông báo' }}</span>
+                                    <span class="mt-0.5 block line-clamp-2 text-xs leading-5 text-slate-500">{{ $data['message'] ?? '' }}</span>
+                                    <span class="mt-1 block text-[11px] text-slate-400">{{ $notification->created_at?->diffForHumans() }}@unless($notification->read_at) · Mới @endunless</span>
+                                </span>
+                            </a>
+                        @empty
+                            <div class="px-5 py-10 text-center">
+                                <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><x-bell-icon class="h-6 w-6" /></span>
+                                <p class="mt-3 text-sm font-semibold text-slate-900">Chưa có thông báo</p>
+                                <p class="mt-1 text-xs text-slate-500">Thông tin cần biết sẽ xuất hiện tại đây.</p>
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
 
             <div class="relative">
             <button id="clientUserMenuButton" type="button" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:bg-slate-50">

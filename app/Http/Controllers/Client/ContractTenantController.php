@@ -21,6 +21,25 @@ class ContractTenantController extends Controller
         private readonly ContractIdentityDocumentService $identityDocuments,
     ) {}
 
+    public function create(Request $request, int $contract)
+    {
+        $contract = Contract::query()
+            ->managedBy($request->user())
+            ->with(['room', 'currentMembers'])
+            ->findOrFail($contract);
+        abort_unless(in_array($contract->status, [
+            Contract::STATUS_DRAFT,
+            Contract::STATUS_PENDING_SIGNATURE,
+            Contract::STATUS_PENDING_DEPOSIT,
+            Contract::STATUS_AWAITING_MOVE_IN,
+            Contract::STATUS_ACTIVE,
+            Contract::STATUS_EXPIRED,
+        ], true), 409, 'Hợp đồng không còn nhận khai báo người thuê.');
+        abort_if($contract->currentMembers->count() >= (int) $contract->room->max_people, 409, 'Phòng đã đạt số người thuê tối đa.');
+
+        return view('client.contracts.tenants.create', compact('contract'));
+    }
+
     public function store(Request $request, Contract $contract)
     {
         $data = $request->validate([
@@ -70,7 +89,8 @@ class ContractTenantController extends Controller
             throw $exception;
         }
 
-        return back()->with('success', 'Đã gửi khai báo người thuê để admin duyệt.');
+        return redirect()->route('client.contracts.show', $contract)
+            ->with('success', 'Đã gửi hồ sơ người thuê để quản lý duyệt. Người này không được cấp tài khoản riêng.');
     }
 
     public function withdraw(Request $request, Contract $contract, ContractTenant $member)

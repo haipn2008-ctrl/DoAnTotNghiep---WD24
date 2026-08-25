@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\SupportRequest;
 use App\Services\AdminNotificationService;
+use App\Services\ClientNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -64,6 +65,21 @@ class SupportController extends Controller
                 app(AdminNotificationService::class)->resolve('support_request', $lockedRequest);
             }
         });
+
+        $supportRequest->refresh();
+        $statusLabel = match ($supportRequest->status) {
+            SupportRequest::STATUS_IN_PROGRESS => 'đang được xử lý',
+            SupportRequest::STATUS_RESOLVED => 'đã hoàn thành',
+            SupportRequest::STATUS_REJECTED => 'đã bị từ chối',
+            default => 'đã được tiếp nhận',
+        };
+        app(ClientNotificationService::class)->support(
+            $supportRequest,
+            'Yêu cầu hỗ trợ '.$statusLabel,
+            filled($supportRequest->admin_response)
+                ? $supportRequest->admin_response
+                : 'Yêu cầu “'.$supportRequest->subject.'” '.$statusLabel.'.'
+        );
 
         return back()->with('success', 'Đã cập nhật yêu cầu hỗ trợ.');
     }

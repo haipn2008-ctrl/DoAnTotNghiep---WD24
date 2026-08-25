@@ -566,11 +566,16 @@ class BusinessScenarioSeeder extends Seeder
             ContractExtensionRequest::STATUS_APPROVED,
             ContractExtensionRequest::STATUS_REJECTED,
         ] as $index => $status) {
+            $statusLabel = match ($status) {
+                ContractExtensionRequest::STATUS_APPROVED => 'đã được duyệt',
+                ContractExtensionRequest::STATUS_REJECTED => 'đã bị từ chối',
+                default => 'đang chờ duyệt',
+            };
             ContractExtensionRequest::query()->create([
                 'contract_id' => $contract->id,
                 'current_end_date' => $contract->end_date,
                 'requested_end_date' => $contract->end_date->copy()->addMonths(6 + $index),
-                'reason' => 'Yêu cầu gia hạn mẫu: '.$status,
+                'reason' => 'Yêu cầu gia hạn mẫu '.$statusLabel.'.',
                 'status' => $status,
                 'admin_note' => $status === ContractExtensionRequest::STATUS_REJECTED ? 'Phòng đã có lịch bảo trì.' : null,
                 'processed_at' => $status === ContractExtensionRequest::STATUS_PENDING ? null : now(),

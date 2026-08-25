@@ -23,19 +23,30 @@
         'normal' => 'Sử dụng bình thường', 'good' => 'Sử dụng bình thường',
         'worn' => 'Sử dụng bình thường', 'damaged' => 'Có hư hỏng',
     ];
-    $canConfirmMoveInDetails = in_array($contract->status, [
-        \App\Models\Contract::STATUS_PENDING_SIGNATURE,
-        \App\Models\Contract::STATUS_PENDING_DEPOSIT,
-        \App\Models\Contract::STATUS_AWAITING_MOVE_IN,
-    ], true);
+    $canConfirmMoveInDetails = $contract->status === \App\Models\Contract::STATUS_AWAITING_MOVE_IN;
 @endphp
 
 @section('content')
     <div class="space-y-5">
         @if($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><ul class="list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+        @if(auth()->user()->status === \App\Models\User::STATUS_FORMER)
+            <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900"><strong>Chế độ xem lịch sử:</strong> hợp đồng đã hoàn tất; bạn vẫn có thể xem hợp đồng, hóa đơn, quyết toán và thông báo cũ.</div>
+        @endif
+        @if($contract->approvedTerminationRequest && $contract->scheduled_move_out_at)
+            <div class="rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
+                <p class="font-bold">Lịch bàn giao đã được xác nhận: {{ $contract->scheduled_move_out_at->format('H:i d/m/Y') }}</p>
+                <p class="mt-1">{{ $contract->approvedTerminationRequest->type_label }} · Ngày kết thúc {{ $contract->approvedTerminationRequest->approved_end_date?->format('d/m/Y') }}@if($contract->approvedTerminationRequest->admin_note) · Lưu ý: {{ $contract->approvedTerminationRequest->admin_note }}@endif</p>
+            </div>
+        @elseif(in_array($contract->status, \App\Models\Contract::OPEN_OCCUPANCY_STATUSES, true))
+            <div class="flex flex-wrap gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <span class="mr-auto font-semibold">Trước ngày hết hạn, bạn cần chọn một phương án.</span>
+                <a href="{{ route('client.extension-requests.index') }}" class="rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white">Yêu cầu gia hạn</a>
+                <a href="{{ route('client.termination-requests.index') }}" class="rounded-lg bg-white px-3 py-2 font-semibold text-amber-900 ring-1 ring-amber-300">Đăng ký rời phòng</a>
+            </div>
+        @endif
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><a href="{{ route('client.contracts.index') }}" class="text-sm font-semibold text-indigo-700">← Hợp đồng của tôi</a><h2 class="mt-2 text-2xl font-bold text-slate-950">{{ $contract->contract_code }}</h2><p class="mt-1 text-sm text-slate-500">{{ $statuses[$contract->status] ?? 'Không xác định' }}</p></div>@if($contract->contractFileExists())<a href="{{ route('client.contracts.file', $contract) }}" target="_blank" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white">Xem file hợp đồng</a>@elseif($contract->contract_file)<span class="text-sm font-medium text-amber-700">File hợp đồng không còn tồn tại</span>@endif</div>
 
-        @if($canConfirmMoveInDetails && $contract->move_in_inventory_snapshotted_at && ! $contract->move_in_details_confirmed_at)
+        @if($canConfirmMoveInDetails && $contract->move_in_inventory_snapshotted_at && ! $contract->move_in_details_confirmed_at && $handoverReading)
             <section class="overflow-hidden rounded-lg border border-indigo-200 bg-white shadow-sm">
                 <div class="border-b border-indigo-100 bg-indigo-50 px-5 py-4">
                     <h3 class="font-semibold text-indigo-950">Xác nhận thông tin nhận phòng</h3>
@@ -44,12 +55,14 @@
                     @csrf
                     <label class="flex items-start gap-3 text-sm font-medium text-slate-800">
                         <input type="checkbox" name="confirmation" value="1" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600">
-                        <span>Tôi đã kiểm tra thông tin dịch vụ và tài sản trong phòng.</span>
+                        <span>Tôi đã kiểm tra chỉ số điện <strong>{{ $handoverReading->electricity_new }} kWh</strong>, chỉ số nước <strong>{{ $handoverReading->water_new }} m³</strong>, dịch vụ và tài sản trong phòng.</span>
                     </label>
                     <button class="shrink-0 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Xác nhận thông tin</button>
                 </form>
                 @error('confirmation')<p class="px-5 pb-4 text-sm text-rose-700">{{ $message }}</p>@enderror
             </section>
+        @elseif($canConfirmMoveInDetails && ! $contract->move_in_details_confirmed_at && ! $handoverReading)
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">Ban quản lý chưa lập chỉ số điện nước bàn giao. Bạn sẽ có nút xác nhận sau khi chỉ số được cập nhật.</div>
         @endif
 
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -76,6 +89,15 @@
             </div>
 
             <div class="p-5">
+                <h4 class="text-sm font-semibold text-slate-900">Chỉ số điện nước bàn giao</h4>
+                @if($handoverReading)
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4"><p class="text-xs font-medium text-amber-700">Điện</p><p class="mt-1 text-xl font-bold text-amber-950">{{ $handoverReading->electricity_new }} kWh</p></div>
+                        <div class="rounded-lg border border-sky-200 bg-sky-50 p-4"><p class="text-xs font-medium text-sky-700">Nước</p><p class="mt-1 text-xl font-bold text-sky-950">{{ $handoverReading->water_new }} m³</p></div>
+                    </div>
+                @else
+                    <p class="mt-2 text-sm text-amber-700">Chưa có chỉ số bàn giao từ ban quản lý.</p>
+                @endif
                 <h4 class="text-sm font-semibold text-slate-900">Tiện nghi và dịch vụ</h4>
                 <div class="mt-3 grid gap-3 sm:grid-cols-3">
                     <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4"><p class="text-sm font-semibold text-indigo-950">Internet bắt buộc</p><p class="mt-1 text-xs text-indigo-700">{{ number_format((float) $setting->internet_fee, 0, ',', '.') }}đ/phòng/tháng</p></div>
@@ -109,8 +131,9 @@
         </section>
 
         <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 p-5">
-                <h3 class="font-semibold text-slate-950">Người thuê</h3>
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
+                <div><h3 class="font-semibold text-slate-950">Danh sách người thuê trong phòng</h3><p class="mt-1 text-xs text-slate-500">Tất cả đều là người thuê; người đại diện là đầu mối duy nhất làm việc với quản lý.</p></div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ $plannedResidentCount }}/{{ $contract->room->max_people }} người</span>
             </div>
             <div class="space-y-3 p-5">
                 @forelse($contract->currentMembers as $member)
@@ -118,19 +141,19 @@
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
                                 <p class="font-semibold text-slate-950">{{ $member->full_name }}</p>
-                                <p class="mt-1 text-xs text-slate-500">{{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'Người đại diện đồng thời là người thuê' : 'Người thuê' }}</p>
+                                <p class="mt-1 text-xs font-medium {{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'text-indigo-700' : 'text-slate-500' }}">{{ $member->role_label }}{{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? ' · Tài khoản liên hệ với quản lý' : ' · Không cấp tài khoản riêng' }}</p>
                                 @if($member->review_note)<p class="mt-2 text-sm text-rose-700">Phản hồi: {{ $member->review_note }}</p>@endif
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $member->status_label }}</span>
                                 @if($member->role !== \App\Models\ContractTenant::ROLE_REPRESENTATIVE && $member->status === \App\Models\ContractTenant::STATUS_PENDING)
-                                    <form method="POST" action="{{ route('client.contracts.members.withdraw', [$contract, $member]) }}">@csrf<button class="text-xs font-semibold text-rose-700">Rút khai báo</button></form>
+                                    <form method="POST" action="{{ route('client.contracts.members.withdraw', [$contract, $member]) }}">@csrf<button class="text-xs font-semibold text-rose-700">Rút hồ sơ</button></form>
                                 @endif
                             </div>
                         </div>
                     </div>
                 @empty
-                    <p class="text-sm text-slate-500">Chưa có hồ sơ cư trú.</p>
+                    <p class="text-sm text-slate-500">Chưa có danh sách người thuê.</p>
                 @endforelse
             </div>
 
@@ -138,25 +161,27 @@
                 @if($occupancyLimitReached)
                     <div class="border-t border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-800">Phòng chỉ chứa tối đa {{ $contract->room->max_people }} người. Đã đạt giới hạn của phòng.</div>
                 @else
-                <form method="POST" action="{{ route('client.contracts.members.store', $contract) }}" enctype="multipart/form-data" class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2">
-                    @csrf
-                    <div class="sm:col-span-2"><h4 class="font-semibold text-slate-900">Thêm người thuê</h4></div>
-                    <input name="full_name" value="{{ old('full_name') }}" required maxlength="150" placeholder="Họ và tên *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input type="date" name="date_of_birth" value="{{ old('date_of_birth') }}" max="{{ now()->subYears(18)->toDateString() }}" required class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <select name="gender" required class="h-10 rounded-lg border border-slate-200 px-3 text-sm"><option value="">Giới tính *</option><option value="male" @selected(old('gender') === 'male')>Nam</option><option value="female" @selected(old('gender') === 'female')>Nữ</option><option value="other" @selected(old('gender') === 'other')>Khác</option></select>
-                    <input name="identity_number" value="{{ old('identity_number') }}" required inputmode="numeric" minlength="12" maxlength="12" placeholder="CCCD *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input type="date" name="cccd_issue_date" value="{{ old('cccd_issue_date') }}" max="{{ today()->toDateString() }}" required title="Ngày cấp CCCD" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input name="cccd_issue_place" value="{{ old('cccd_issue_place') }}" required maxlength="255" placeholder="Nơi cấp CCCD *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input name="phone" value="{{ old('phone') }}" required minlength="10" maxlength="15" inputmode="tel" placeholder="Số điện thoại *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input type="email" name="email" value="{{ old('email') }}" maxlength="255" placeholder="Email (không bắt buộc)" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                    <input name="address" value="{{ old('address') }}" required maxlength="500" placeholder="Địa chỉ thường trú *" class="h-10 rounded-lg border border-slate-200 px-3 text-sm sm:col-span-2">
-                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt trước CCCD *</label><input type="file" name="identity_front" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
-                    <div><label class="mb-1 block text-xs font-semibold text-slate-600">Ảnh mặt sau CCCD *</label><input type="file" name="identity_back" required accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-slate-100 file:px-3 file:py-2"></div>
-                    <div class="sm:col-span-2"><button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white">Gửi duyệt</button></div>
-                </form>
+                    <div class="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+                        <div><p class="text-sm font-semibold text-slate-800">Cần bổ sung một người thuê?</p><p class="mt-1 text-xs text-slate-500">Người thuê đại diện khai báo hồ sơ; quản lý sẽ kiểm tra trước khi ghi nhận vào phòng.</p></div>
+                        <a href="{{ route('client.contracts.tenants.create', $contract) }}" class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">+ Thêm người thuê</a>
+                    </div>
                 @endif
             @endif
         </section>
+
+        @if($contract->actual_move_out_at && $contract->checkout_handover_confirmed_at)
+            @php($checkoutConditionLabels = ['good' => 'Tốt', 'worn' => 'Hao mòn', 'damaged' => 'Hư hỏng', 'missing' => 'Thất lạc'])
+            <section class="overflow-hidden rounded-xl border border-violet-200 bg-white shadow-sm"><div class="border-b border-violet-100 bg-violet-50/60 px-5 py-4"><h3 class="font-semibold text-slate-950">Biên bản bàn giao trả phòng</h3><p class="mt-1 text-xs text-slate-500">Đã đối chiếu lúc {{ $contract->checkout_handover_confirmed_at->format('H:i d/m/Y') }} · {{ $contract->checkout_key_count }} chìa khóa</p></div>@if(filled($contract->checkout_asset_report))<div class="divide-y divide-slate-100">@foreach($contract->checkout_asset_report as $asset)<div class="flex justify-between gap-3 px-5 py-3 text-sm"><div><p class="font-semibold">{{ $asset['name'] }}</p><p class="text-xs text-slate-500">{{ $asset['note'] ?: 'Không có ghi chú' }}</p></div><span class="shrink-0 font-semibold text-slate-700">{{ $checkoutConditionLabels[$asset['condition']] ?? $asset['condition'] }}</span></div>@endforeach</div>@endif @if($contract->checkout_damage_note)<p class="border-t border-slate-100 px-5 py-3 text-sm text-rose-700"><strong>Ghi nhận hiện trạng:</strong> {{ $contract->checkout_damage_note }}</p>@endif @if(filled($contract->checkout_photo_paths))<div class="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-4">@foreach($contract->checkout_photo_paths as $index => $path)<a target="_blank" href="{{ route('client.contracts.checkout-photos.show', [$contract, $index]) }}" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">Xem ảnh {{ $index + 1 }}</a>@endforeach</div>@endif</section>
+        @endif
+
+        @if($contract->settlementStatement)
+            <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 p-5"><h3 class="font-semibold text-slate-950">Bảng quyết toán trả phòng</h3><p class="mt-1 text-sm text-slate-500">Các khoản được tính từ ngày sử dụng thực tế và chỉ số chốt khi bàn giao.</p></div>
+                <div class="divide-y divide-slate-100">@foreach($contract->settlementStatement->items as $item)<div class="flex items-start justify-between gap-4 px-5 py-3 text-sm"><div><p class="font-medium text-slate-900">{{ $item->name }}</p><p class="mt-1 text-xs text-slate-500">{{ $item->note }}</p></div><p class="shrink-0 font-semibold">{{ number_format((float)$item->amount,0,',','.') }}đ</p></div>@endforeach</div>
+                <div class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-4"><div><p class="text-xs text-slate-500">Phí cuối kỳ</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->final_charge_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Công nợ trước đó</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->previous_outstanding_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Tiền cọc đang giữ</p><p class="font-bold text-emerald-700">-{{ number_format((float)$contract->settlementStatement->deposit_credit,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Chênh lệch dự kiến</p><p class="font-bold {{ (float)$contract->settlementStatement->net_amount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format(abs((float)$contract->settlementStatement->net_amount),0,',','.') }}đ {{ (float)$contract->settlementStatement->net_amount > 0 ? 'cần thanh toán' : ((float)$contract->settlementStatement->net_amount < 0 ? 'dự kiến được hoàn' : 'đã cân bằng') }}</p></div></div>
+                @if($contract->settlementStatement->invoice)<div class="border-t border-slate-200 p-5"><a href="{{ route('client.invoices.show',$contract->settlementStatement->invoice) }}" class="text-sm font-semibold text-indigo-700">Mở hóa đơn quyết toán →</a></div>@endif
+            </section>
+        @endif
 
         @if($contract->note)<section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><h3 class="font-semibold">Ghi chú hợp đồng</h3><p class="mt-2 text-sm leading-6 text-slate-600">{{ $contract->note }}</p></section>@endif
     </div>

@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Contract;
 use App\Models\ContractTerminationRequest;
 use App\Services\ContractHistoryService;
 use App\Services\AdminNotificationService;
+use App\Services\ClientNotificationService;
+use App\Services\ContractLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ContractTerminationRequestController extends Controller
 {
+    public function __construct(private readonly ContractLifecycleService $lifecycle) {}
+
     /**
      * Danh sách yêu cầu trả phòng
      */
@@ -33,95 +37,33 @@ class ContractTerminationRequestController extends Controller
     /**
      * Duyệt yêu cầu trả phòng
      */
-    public function approve(
-    ContractTerminationRequest $terminationRequest
-    ) {
-        if (
-            $terminationRequest->status
-            !== ContractTerminationRequest::STATUS_PENDING
-        ) {
-            return back()->with(
-                'error',
-                'Yêu cầu này đã được xử lý.'
-            );
-        }
-
-        $contract = $terminationRequest->contract;
-
-        if (!$contract) {
-            return back()->with(
-                'error',
-                'Không tìm thấy hợp đồng.'
-            );
-        }
-
-        if ($contract->status !== Contract::STATUS_ACTIVE) {
-            return back()->with(
-                'error',
-                'Chỉ có thể duyệt yêu cầu trả phòng của hợp đồng đang hoạt động.'
-            );
-        }
-
-        DB::transaction(function () use (
+    public function approve(Request $request, ContractTerminationRequest $terminationRequest)
+    {
+        $data = $request->validate([
+            'approved_end_date' => ['required', 'date', 'after_or_equal:today'],
+            'scheduled_checkout_at' => ['required', 'date', 'after_or_equal:now'],
+            'admin_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $terminationRequest = $this->lifecycle->scheduleDeparture(
             $terminationRequest,
-            $contract
-        ) {
+            $request->user(),
+            $data['approved_end_date'],
+            $data['scheduled_checkout_at'],
+            $data['admin_note'] ?? null,
+        );
+        $contract = $terminationRequest->contract;
+        app(AdminNotificationService::class)->resolve('termination_request', $terminationRequest);
 
-            /*
-            |--------------------------------------------------------------------------
-            | Duyệt yêu cầu
-            |--------------------------------------------------------------------------
-            | Chỉ duyệt yêu cầu trả phòng.
-            | CHƯA chấm dứt hợp đồng tại đây.
-            */
-
-            $terminationRequest->update([
-                'status' => ContractTerminationRequest::STATUS_APPROVED,
-                'processed_at' => now(),
-            ]);
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Ghi lịch sử
-            |--------------------------------------------------------------------------
-            */
-
-            ContractHistoryService::log(
-                $contract,
-
-                ContractHistoryService::TERMINATION_APPROVED,
-
-                'Admin đã duyệt yêu cầu trả phòng của khách thuê.',
-
-                $terminationRequest->reason
-                    ?? 'Khách thuê yêu cầu trả phòng',
-
-                [
-                    'contract_status' => $contract->status,
-                    'request_status' =>
-                        ContractTerminationRequest::STATUS_PENDING,
-                ],
-
-                [
-                    // Hợp đồng vẫn ACTIVE
-                    'contract_status' => $contract->status,
-
-                    'request_status' =>
-                        ContractTerminationRequest::STATUS_APPROVED,
-
-                    'requested_end_date' =>
-                        $terminationRequest
-                            ->requested_end_date
-                            ?->format('Y-m-d'),
-                ]
-            );
-            app(AdminNotificationService::class)->resolve('termination_request', $terminationRequest);
-        });
+        app(ClientNotificationService::class)->contract(
+            $contract,
+            'termination_request_approved',
+            'Yêu cầu trả phòng đã được duyệt',
+            'Lịch bàn giao hợp đồng '.$contract->contract_code.' là '.$terminationRequest->scheduled_checkout_at?->format('H:i d/m/Y').'.'
+        );
 
         return back()->with(
             'success',
-            'Đã duyệt yêu cầu trả phòng. Hợp đồng chưa bị chấm dứt.'
+            'Đã duyệt và xếp lịch bàn giao phòng. Hợp đồng chỉ chuyển sang quyết toán sau khi checkout thực tế.'
         );
     }
     /**
@@ -131,38 +73,19 @@ class ContractTerminationRequestController extends Controller
     Request $request,
     ContractTerminationRequest $terminationRequest
     ) {
-        if (
-            $terminationRequest->status
-            !== ContractTerminationRequest::STATUS_PENDING
-        ) {
-            return back()->with(
-                'error',
-                'Yêu cầu này đã được xử lý.'
-            );
-        }
-
-        $request->validate([
-            'reject_reason' => [
-                'nullable',
-                'string',
-                'max:1000'
-            ],
+        $data = $request->validate([
+            'reject_reason' => ['required', 'string', 'min:3', 'max:1000'],
         ]);
 
-        $contract = $terminationRequest->contract;
-
-        if (!$contract) {
-            return back()->with(
-                'error',
-                'Không tìm thấy hợp đồng.'
-            );
-        }
-
-        DB::transaction(function () use (
-            $request,
-            $terminationRequest,
-            $contract
-        ) {
+        $contract = DB::transaction(function () use ($request, $terminationRequest, $data) {
+            $terminationRequest = ContractTerminationRequest::query()
+                ->with('contract')
+                ->lockForUpdate()
+                ->findOrFail($terminationRequest->id);
+            if ($terminationRequest->status !== ContractTerminationRequest::STATUS_PENDING) {
+                throw ValidationException::withMessages(['request' => 'Yêu cầu rời phòng này đã được xử lý.']);
+            }
+            $contract = $terminationRequest->contract;
 
             /*
             |--------------------------------------------------------------------------
@@ -175,7 +98,9 @@ class ContractTerminationRequestController extends Controller
                     ContractTerminationRequest::STATUS_REJECTED,
 
                 'admin_note' =>
-                    $request->reject_reason,
+                    $data['reject_reason'],
+
+                'processed_by' => $request->user()->id,
 
                 'processed_at' =>
                     now(),
@@ -195,8 +120,7 @@ class ContractTerminationRequestController extends Controller
 
                 'Admin đã từ chối yêu cầu trả phòng.',
 
-                $request->reject_reason
-                    ?: 'Không có lý do từ chối.',
+                $data['reject_reason'],
 
                 [
                     'contract_status' => $contract->status,
@@ -213,7 +137,16 @@ class ContractTerminationRequestController extends Controller
                 ]
             );
             app(AdminNotificationService::class)->resolve('termination_request', $terminationRequest);
-        });
+
+            return $contract;
+        }, 3);
+
+        app(ClientNotificationService::class)->contract(
+            $contract,
+            'termination_request_rejected',
+            'Yêu cầu trả phòng bị từ chối',
+            'Yêu cầu trả phòng của hợp đồng '.$contract->contract_code.' chưa được chấp thuận. Lý do: '.$data['reject_reason']
+        );
 
         return back()->with(
             'success',

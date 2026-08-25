@@ -82,6 +82,30 @@ class VehicleManagementTest extends TestCase
             ->assertSee('Thông tin mới sẽ được chuyển về trạng thái chờ quản trị viên duyệt lại.');
     }
 
+    public function test_newly_activated_client_without_an_active_contract_can_open_vehicle_page(): void
+    {
+        $newClient = User::create([
+            'name' => 'Khách vừa kích hoạt', 'email' => 'newly-activated@example.test',
+            'phone' => '0900000099', 'role_id' => $this->client->role_id,
+            'password' => 'password', 'status' => User::STATUS_ACTIVE,
+        ]);
+        Tenant::create([
+            'user_id' => $newClient->id, 'full_name' => $newClient->name,
+            'cccd' => '079000000099', 'phone' => $newClient->phone, 'email' => $newClient->email,
+        ]);
+
+        $this->actingAs($newClient)->get(route('client.vehicles.index'))
+            ->assertOk()
+            ->assertSee('Phương tiện của tôi')
+            ->assertSee('Chưa thể đăng ký phương tiện')
+            ->assertSee('chưa có hợp đồng đã nhận phòng')
+            ->assertDontSee('action="'.route('client.vehicles.store').'"', false);
+
+        $this->post(route('client.vehicles.store'), $this->payload())
+            ->assertSessionHasErrors('vehicle');
+        $this->assertDatabaseCount('vehicles', 0);
+    }
+
     public function test_client_editing_approved_vehicle_sends_it_back_to_pending(): void
     {
         $vehicle = $this->tenant->vehicles()->create($this->payload() + ['status' => Vehicle::STATUS_APPROVED, 'reviewed_by' => $this->admin->id, 'reviewed_at' => now()]);

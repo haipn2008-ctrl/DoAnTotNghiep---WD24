@@ -10,6 +10,7 @@ use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\AdminNotificationService;
+use App\Services\ClientNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -123,6 +124,54 @@ class AdminNotificationCenterTest extends TestCase
 
         app(AdminNotificationService::class)->resolve('extension_request', $extensionRequest);
         $this->assertNotNull($notification->fresh()->resolved_at);
+    }
+
+    public function test_client_bell_shows_unread_business_notifications_and_opens_the_right_record(): void
+    {
+        app(ClientNotificationService::class)->contract(
+            $this->contract,
+            'contract_attention_required',
+            'Hợp đồng cần bạn kiểm tra',
+            'Vui lòng mở hợp đồng để xem thông tin mới.'
+        );
+
+        $notification = $this->client->notifications()->sole();
+
+        $this->actingAs($this->client)->get(route('client.home'))
+            ->assertOk()
+            ->assertSee('clientNotificationButton', false)
+            ->assertSee('1 thông báo chưa đọc')
+            ->assertSee('Hợp đồng cần bạn kiểm tra');
+
+        $this->get(route('client.notifications.index'))
+            ->assertOk()
+            ->assertSee('Hợp đồng cần bạn kiểm tra')
+            ->assertSee($this->contract->contract_code);
+
+        $this->get(route('client.notifications.open', $notification->id))
+            ->assertRedirect(route('client.contracts.show', $this->contract));
+        $this->assertNotNull($notification->fresh()->read_at);
+    }
+
+    public function test_client_cannot_open_another_clients_notification_and_can_mark_all_own_as_read(): void
+    {
+        app(ClientNotificationService::class)->contract(
+            $this->contract,
+            'contract_updated',
+            'Hợp đồng đã cập nhật',
+            'Nội dung thay đổi.'
+        );
+        $notification = $this->client->notifications()->sole();
+
+        $other = $this->user(Role::query()->where('role_name', 'User')->firstOrFail(), 'other-notification-client@example.test');
+        $this->actingAs($other)
+            ->get(route('client.notifications.open', $notification->id))
+            ->assertNotFound();
+
+        $this->actingAs($this->client)
+            ->post(route('client.notifications.read-all'))
+            ->assertSessionHas('success');
+        $this->assertNotNull($notification->fresh()->read_at);
     }
 
     private function alert(string $type, string $title, $resolvedAt = null): ContractLifecycleAlert

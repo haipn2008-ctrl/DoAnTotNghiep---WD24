@@ -41,7 +41,7 @@
                                     <p class="font-semibold text-slate-950">{{ $tenant->full_name }}</p>
                                     <p class="text-xs text-slate-500">{{ $tenant->email ?: 'Chưa có email' }}</p>
                                     @if ($activeContract && $isRepresentative)
-                                        <span class="mt-1 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">Người đại diện</span>
+                                        <span class="mt-1 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">Người thuê đại diện · Có tài khoản</span>
                                     @endif
                                 </div>
                             </div>

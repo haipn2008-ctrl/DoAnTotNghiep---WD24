@@ -195,6 +195,16 @@ class Contract extends Model
 
         'number_of_people',
 
+        'checkout_key_count',
+
+        'checkout_asset_report',
+
+        'checkout_damage_note',
+
+        'checkout_photo_paths',
+
+        'checkout_handover_confirmed_at',
+
         'internet_enabled',
 
         'service_enabled',
@@ -276,6 +286,16 @@ class Contract extends Model
         'actual_move_in_at' => 'datetime',
 
         'actual_move_out_at' => 'datetime',
+
+        'checkout_asset_report' => 'array',
+
+        'checkout_photo_paths' => 'array',
+
+        'checkout_key_count' => 'integer',
+
+        'checkout_handover_confirmed_at' => 'datetime',
+
+        'scheduled_move_out_at' => 'datetime',
 
         'actual_end_date' => 'date',
 
@@ -441,6 +461,21 @@ class Contract extends Model
         return $this->hasMany(
             ContractExtensionRequest::class
         );
+    }
+
+    public function terminationRequests()
+    {
+        return $this->hasMany(ContractTerminationRequest::class);
+    }
+
+    public function approvedTerminationRequest()
+    {
+        return $this->belongsTo(ContractTerminationRequest::class, 'approved_termination_request_id');
+    }
+
+    public function settlementStatement()
+    {
+        return $this->hasOne(SettlementStatement::class);
     }
 
     // Hồ sơ đăng ký tạm trú
@@ -664,6 +699,42 @@ class Contract extends Model
                 ],
                 true
             );
+    }
+
+    public function isRefundRequested(): bool
+    {
+        return $this->deposit_status === self::DEPOSIT_REFUND_REQUESTED;
+    }
+
+    public function isRefundApproved(): bool
+    {
+        return $this->status === self::STATUS_SETTLING
+            && in_array($this->deposit_status, [
+                self::DEPOSIT_REFUND_APPROVED,
+                self::DEPOSIT_REFUND_PROCESSING,
+            ], true);
+    }
+
+    public function canRequestDepositRefund(): bool
+    {
+        $statement = $this->relationLoaded('settlementStatement')
+            ? $this->settlementStatement
+            : $this->settlementStatement()->first();
+
+        return $this->status === self::STATUS_SETTLING
+            && (float) $this->deposit_amount > 0
+            && $statement
+            && (float) $statement->net_amount < 0
+            && in_array($this->deposit_status, [
+                self::DEPOSIT_PAID,
+                self::DEPOSIT_NEEDS_RESOLUTION,
+                self::DEPOSIT_REFUND_REJECTED,
+            ], true)
+            && ! in_array($this->deposit_resolution, [
+                self::DEPOSIT_REFUNDED,
+                self::DEPOSIT_DEDUCTED,
+                self::DEPOSIT_RETAINED,
+            ], true);
     }
 
     /*

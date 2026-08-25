@@ -9,6 +9,7 @@ use App\Models\InvoiceAdjustment;
 use App\Models\Payment;
 use App\Models\UtilityReading;
 use App\Services\AdminNotificationService;
+use App\Services\ClientNotificationService;
 use App\Services\ContractLifecycleService;
 use App\Services\InvoiceGenerator;
 use App\Services\TenantAccountLifecycle;
@@ -260,6 +261,7 @@ class InvoiceController extends Controller
                 (int) $data['month'],
                 (int) $data['year']
             );
+            app(ClientNotificationService::class)->invoice($invoice, 'invoice_issued', 'Có hóa đơn mới', 'Hóa đơn '.$invoice->invoice_code.' đã được phát hành. Hạn thanh toán: '.$invoice->due_date?->format('d/m/Y').'.');
         } catch (ValidationException $exception) {
             return back()
                 ->withErrors($exception->errors())
@@ -413,6 +415,8 @@ class InvoiceController extends Controller
                 (int) $data['year']
             );
 
+            app(ClientNotificationService::class)->invoice($invoice, 'invoice_issued', 'Có hóa đơn mới', 'Hóa đơn '.$invoice->invoice_code.' đã được phát hành. Hạn thanh toán: '.$invoice->due_date?->format('d/m/Y').'.');
+
             return response()->json([
                 'success' => true,
                 'message' => 'Sinh hóa đơn thành công.',
@@ -511,6 +515,8 @@ class InvoiceController extends Controller
             }
         });
 
+        app(ClientNotificationService::class)->invoice($invoice->fresh(), 'invoice_cancelled', 'Hóa đơn đã bị hủy', 'Hóa đơn '.$invoice->invoice_code.' đã bị hủy. Lý do: '.$data['cancellation_reason']);
+
         return redirect()
             ->route('admin.invoices.show', $invoice)
             ->with('success', 'Đã hủy hóa đơn. Dữ liệu gốc được giữ lại để truy vết.');
@@ -573,6 +579,8 @@ class InvoiceController extends Controller
             $lockedInvoice->refreshStatus();
             $this->syncTenantAccountAfterPayment($lockedInvoice);
         });
+
+        app(ClientNotificationService::class)->invoice($invoice->fresh(), 'invoice_adjusted', 'Hóa đơn đã được điều chỉnh', 'Số tiền của hóa đơn '.$invoice->invoice_code.' đã thay đổi. Lý do: '.$data['reason']);
 
         return redirect()
             ->route('admin.invoices.show', $invoice)
@@ -1041,6 +1049,14 @@ class InvoiceController extends Controller
             app(AdminNotificationService::class)->resolve('payment_review', $payment);
         });
 
+        $payment->refresh();
+        app(ClientNotificationService::class)->payment(
+            $payment,
+            'payment_approved',
+            'Thanh toán đã được xác nhận',
+            'Ban quản lý đã xác nhận khoản thanh toán '.number_format((float) $payment->amount_paid, 0, ',', '.').' VNĐ.'
+        );
+
         return back()->with('success', 'Đã duyệt xác nhận thanh toán.');
     }
 
@@ -1072,6 +1088,14 @@ class InvoiceController extends Controller
             }
             app(AdminNotificationService::class)->resolve('payment_review', $lockedPayment);
         });
+
+        $payment->refresh();
+        app(ClientNotificationService::class)->payment(
+            $payment,
+            'payment_rejected',
+            'Xác nhận thanh toán bị từ chối',
+            'Khoản thanh toán chưa được chấp thuận. Lý do: '.$data['review_note']
+        );
 
         return back()->with('success', 'Đã từ chối xác nhận thanh toán.');
     }

@@ -116,7 +116,7 @@ class UserController extends Controller
             $this->validateRequestedStatus($user, $newRole, $data['status']);
         }
 
-        if (in_array($data['status'], [User::STATUS_ACTIVE, User::STATUS_SETTLING, User::STATUS_INACTIVE], true)) {
+        if (in_array($data['status'], [User::STATUS_ACTIVE, User::STATUS_SETTLING, User::STATUS_FORMER, User::STATUS_INACTIVE], true)) {
             $data['activated_at'] = $user->activated_at ?? now();
             $data['must_change_password'] = false;
         } elseif ($data['status'] === User::STATUS_PENDING) {
@@ -241,7 +241,7 @@ class UserController extends Controller
 
         $hasSettlement = $tenant->contracts()->where('status', Contract::STATUS_SETTLING)->exists();
 
-        return $hasOutstandingInvoice || $hasSettlement ? User::STATUS_SETTLING : User::STATUS_INACTIVE;
+        return $hasOutstandingInvoice || $hasSettlement ? User::STATUS_SETTLING : User::STATUS_FORMER;
     }
 
     private function throwEmailConflictOrRethrow(QueryException $exception): never

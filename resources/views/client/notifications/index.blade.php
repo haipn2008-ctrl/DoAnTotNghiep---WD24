@@ -25,7 +25,7 @@
                     @php($data = $notification->data)
                     <a href="{{ route('client.notifications.open', $notification->id) }}" class="flex gap-4 p-5 transition hover:bg-slate-50 {{ $notification->read_at ? '' : 'bg-indigo-50/60' }}">
                         <span class="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full {{ $notification->read_at ? 'bg-slate-100 text-slate-500' : 'bg-indigo-100 text-indigo-700' }}">
-                            <i class="bx bx-bell text-xl"></i>
+                            <x-bell-icon class="h-5 w-5" />
                         </span>
                         <span class="min-w-0 flex-1">
                             <span class="flex flex-wrap items-center gap-2">
@@ -35,6 +35,7 @@
                             <span class="mt-1 block text-sm leading-6 text-slate-600">{{ $data['message'] ?? '' }}</span>
                             <span class="mt-2 block text-xs text-slate-500">
                                 @if(!empty($data['invoice_code'])){{ $data['invoice_code'] }}@endif
+                                @if(!empty($data['contract_code'])){{ $data['contract_code'] }}@endif
                                 @if(!empty($data['remaining_amount'])) · Còn nợ {{ number_format($data['remaining_amount'], 0, ',', '.') }}đ @endif
                                 · {{ $notification->created_at?->format('H:i d/m/Y') }}
                             </span>
@@ -42,7 +43,7 @@
                     </a>
                 @empty
                     <div class="p-12 text-center">
-                        <i class="bx bx-bell-off text-4xl text-slate-300"></i>
+                        <x-bell-icon class="mx-auto h-10 w-10 text-slate-300" />
                         <h3 class="mt-3 font-semibold text-slate-900">Chưa có thông báo</h3>
                         <p class="mt-1 text-sm text-slate-500">Thông báo mới từ ban quản lý sẽ xuất hiện tại đây.</p>
                     </div>

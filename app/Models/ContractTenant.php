@@ -92,4 +92,11 @@ class ContractTenant extends Model
             default => $this->status,
         };
     }
+
+    public function getRoleLabelAttribute(): string
+    {
+        return $this->role === self::ROLE_REPRESENTATIVE
+            ? 'Người thuê đại diện'
+            : 'Người thuê';
+    }
 }

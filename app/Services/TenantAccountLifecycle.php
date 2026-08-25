@@ -39,7 +39,7 @@ class TenantAccountLifecycle
             ->exists();
 
         $hasSettlement = $tenant->contracts()->where('status', Contract::STATUS_SETTLING)->exists();
-        $status = $hasOutstandingInvoice || $hasSettlement ? User::STATUS_SETTLING : User::STATUS_INACTIVE;
+        $status = $hasOutstandingInvoice || $hasSettlement ? User::STATUS_SETTLING : User::STATUS_FORMER;
         $user->update(['status' => $status]);
 
         return $status;

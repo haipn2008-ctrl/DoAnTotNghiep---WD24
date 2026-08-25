@@ -64,6 +64,7 @@
                                             'active' => ['Đang hoạt động', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
                                             'settling' => ['Đang quyết toán', 'bg-sky-50 text-sky-700 ring-sky-200'],
                                             'locked' => ['Đã khóa', 'bg-rose-50 text-rose-700 ring-rose-200'],
+                                            'former' => ['Cựu người thuê', 'bg-sky-50 text-sky-700 ring-sky-200'],
                                             'inactive' => ['Ngừng sử dụng', 'bg-slate-100 text-slate-600 ring-slate-200'],
                                         ];
                                         $accountStatus = $statusLabels[$user->status] ?? ['Không xác định', 'bg-slate-100 text-slate-600 ring-slate-200'];

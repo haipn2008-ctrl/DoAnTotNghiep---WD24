@@ -63,7 +63,7 @@
                 <p class="mt-1 text-xs text-slate-500">Sức chứa tối đa {{ $contract->room?->max_people ?? 0 }} người</p>
             </div>
             <div class="rounded-lg bg-slate-50 p-4">
-                <p class="text-sm font-medium text-slate-500">Người đại diện thuê</p>
+                <p class="text-sm font-medium text-slate-500">Người thuê đại diện · Tài khoản liên hệ</p>
                 <p class="mt-2 font-semibold text-slate-950">{{ $representative?->full_name ?? $contract->tenant?->full_name ?? 'Chưa xác định' }}</p>
                 <p class="mt-1 text-xs text-slate-500">{{ $representative?->phone ?? $contract->tenant?->phone ?? 'Chưa có số điện thoại' }}</p>
             </div>
@@ -97,7 +97,7 @@
     <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
             <div>
-                <h3 class="font-semibold text-slate-950">Người đại diện và người thuê</h3>
+                <h3 class="font-semibold text-slate-950">Danh sách người thuê</h3>
             </div>
             <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">{{ $contract->number_of_people }} người dự kiến ở</span>
         </div>
@@ -109,8 +109,7 @@
                         <div>
                             <p class="font-semibold text-slate-950">{{ $member->full_name }}</p>
                             <p class="mt-1 text-xs text-slate-500">
-                                {{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'Người đại diện thuê' : 'Người thuê' }}
-                                @if($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE) · người thuê trực tiếp @endif
+                                {{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'Người thuê đại diện · Có tài khoản liên hệ' : 'Người thuê · Không cấp tài khoản riêng' }}
                             </p>
                         </div>
                         <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{{ $member->identity_number ?: 'Chưa có CCCD' }}</span>

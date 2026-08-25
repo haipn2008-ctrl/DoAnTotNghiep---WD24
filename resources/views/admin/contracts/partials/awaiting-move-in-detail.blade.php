@@ -1,7 +1,7 @@
 @php
     $representative = $contract->currentMembers->firstWhere('role', \App\Models\ContractTenant::ROLE_REPRESENTATIVE);
     $pendingMembers = $contract->currentMembers->where('status', \App\Models\ContractTenant::STATUS_PENDING);
-    $clientConfirmed = filled($contract->move_in_details_confirmed_at) && filled($contract->move_in_inventory_snapshotted_at);
+    $clientConfirmed = filled($contract->move_in_details_confirmed_at) && filled($contract->move_in_inventory_snapshotted_at) && filled($handoverReading);
     $canCheckIn = $clientConfirmed && $pendingMembers->isEmpty();
     $requiresVarianceReason = ! $contract->scheduled_move_in_date?->isSameDay(now());
     $minimumExtension = now()->addMinute();
@@ -17,7 +17,7 @@
         <p class="mt-1 font-bold text-slate-950">{{ $contract->room?->room_code ?? 'Chưa xác định' }}</p>
     </div>
     <div class="border-b border-slate-100 px-4 py-3 lg:border-b-0 lg:border-r">
-        <p class="text-xs font-medium text-slate-500">Người đại diện</p>
+        <p class="text-xs font-medium text-slate-500">Người thuê đại diện</p>
         <p class="mt-1 truncate font-bold text-slate-950">{{ $representative?->full_name ?? $contract->tenant?->full_name ?? 'Chưa xác định' }}</p>
     </div>
     <div class="border-b border-slate-100 px-4 py-3 sm:border-b-0 sm:border-r">
@@ -62,34 +62,69 @@
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-100 bg-emerald-50 px-4 py-3">
         <h3 class="font-semibold text-emerald-950">Xác nhận nhận phòng</h3>
         <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $clientConfirmed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
-            {{ $clientConfirmed ? 'Khách đã xác nhận thông tin' : 'Chờ khách xác nhận thông tin' }}
+            {{ $clientConfirmed ? 'Đã khóa theo xác nhận của khách' : ($contract->move_in_details_confirmed_at ? 'Xác nhận cũ thiếu chỉ số — cần mở lại' : ($handoverReading ? 'Chờ khách xác nhận thông tin' : 'Chờ lập chỉ số bàn giao')) }}
         </span>
     </div>
+
+    @if($contract->move_in_details_confirmed_at && ! $handoverReading)
+        <div class="border-b border-amber-200 bg-amber-50 p-4">
+            <p class="text-sm font-semibold text-amber-900">Xác nhận này được tạo trước khi hệ thống đưa điện nước vào phiếu bàn giao.</p>
+            <p class="mt-1 text-xs text-amber-800">Hãy mở lại để lập chỉ số; khách thuê sẽ xác nhận lại đầy đủ.</p>
+            <form method="POST" action="{{ route('admin.contracts.move-in-details.reopen', $contract) }}" class="mt-3 flex max-w-2xl gap-2">
+                @csrf
+                <input name="reason" required minlength="10" maxlength="1000" value="Cập nhật phiếu bàn giao để bổ sung chỉ số điện nước." class="h-10 min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-3 text-sm">
+                <button class="h-10 shrink-0 rounded-lg bg-amber-700 px-4 text-sm font-semibold text-white hover:bg-amber-800">Mở lại xác nhận cũ</button>
+            </form>
+        </div>
+    @elseif(! $clientConfirmed)
+        <form class="grid gap-4 border-b border-emerald-100 bg-slate-50 p-4 md:grid-cols-5 md:items-end" method="POST" action="{{ route('admin.contracts.handover-reading.store', $contract) }}">
+            @csrf
+            <div class="md:col-span-5">
+                <p class="text-sm font-semibold text-slate-900">Bước 1 · Lập chỉ số để khách kiểm tra</p>
+                <p class="mt-1 text-xs text-slate-500">Có thể sửa khi khách chưa xác nhận. Sau khi khách xác nhận, chỉ số sẽ bị khóa.</p>
+            </div>
+            <label class="block text-sm font-semibold text-slate-700 md:col-span-2">
+                Chỉ số điện (kWh)
+                <input type="number" min="0" name="handover_electricity" value="{{ old('handover_electricity', $handoverReading?->electricity_new ?? $suggestedHandoverReading?->electricity_new) }}" required class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
+            </label>
+            <label class="block text-sm font-semibold text-slate-700 md:col-span-2">
+                Chỉ số nước (m³)
+                <input type="number" min="0" name="handover_water" value="{{ old('handover_water', $handoverReading?->water_new ?? $suggestedHandoverReading?->water_new) }}" required class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
+            </label>
+            <button class="h-10 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">
+                {{ $handoverReading ? 'Cập nhật chỉ số' : 'Lưu chỉ số' }}
+            </button>
+        </form>
+    @else
+        <div class="grid gap-3 border-b border-emerald-100 bg-emerald-50/40 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_2fr] lg:items-center">
+            <div class="rounded-lg bg-white px-4 py-3 ring-1 ring-emerald-200"><p class="text-xs text-slate-500">Điện đã khóa</p><p class="mt-1 text-lg font-bold text-slate-950">{{ $handoverReading->electricity_new }} kWh</p></div>
+            <div class="rounded-lg bg-white px-4 py-3 ring-1 ring-emerald-200"><p class="text-xs text-slate-500">Nước đã khóa</p><p class="mt-1 text-lg font-bold text-slate-950">{{ $handoverReading->water_new }} m³</p></div>
+            <form method="POST" action="{{ route('admin.contracts.move-in-details.reopen', $contract) }}" class="flex flex-col gap-2 sm:col-span-2 lg:col-span-1">
+                @csrf
+                <label class="text-xs font-semibold text-slate-700">Chỉ mở lại khi thật sự cần sửa; khách sẽ phải xác nhận lại.</label>
+                <div class="flex gap-2"><input name="reason" required minlength="10" maxlength="1000" placeholder="Lý do mở lại (ít nhất 10 ký tự)" class="h-10 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm"><button class="h-10 shrink-0 rounded-lg border border-amber-300 bg-white px-3 text-sm font-semibold text-amber-800 hover:bg-amber-50">Mở lại</button></div>
+            </form>
+        </div>
+    @endif
+
     <form class="lifecycle-form grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end" method="POST" action="{{ route('admin.contracts.check-in', $contract) }}">
         @csrf
+        <div class="text-sm font-semibold text-slate-900 md:col-span-2 xl:col-span-12">Bước 2 · Chốt nhận phòng bằng chỉ số khách đã xác nhận</div>
         <label class="block text-sm font-semibold text-slate-700 xl:col-span-3">
             Thời gian nhận phòng
             <input type="datetime-local" name="actual_move_in_at" value="{{ old('actual_move_in_at', now()->format('Y-m-d\\TH:i')) }}" max="{{ now()->format('Y-m-d\\TH:i') }}" required class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
-        </label>
-        <label class="block text-sm font-semibold text-slate-700 xl:col-span-2">
-            Chỉ số điện
-            <input type="number" min="0" name="handover_electricity" value="{{ old('handover_electricity', $suggestedHandoverReading?->electricity_new) }}" required class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
-        </label>
-        <label class="block text-sm font-semibold text-slate-700 xl:col-span-2">
-            Chỉ số nước
-            <input type="number" min="0" name="handover_water" value="{{ old('handover_water', $suggestedHandoverReading?->water_new) }}" required class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
         </label>
         <label class="block text-sm font-semibold text-slate-700 xl:col-span-3">
             Lý do nhận sớm hoặc muộn
             <input name="schedule_variance_reason" value="{{ old('schedule_variance_reason') }}" @required($requiresVarianceReason) placeholder="{{ $requiresVarianceReason ? 'Bắt buộc' : 'Không bắt buộc' }}" class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
         </label>
-        <button @disabled(!$canCheckIn) class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 xl:col-span-2">
+        <button @disabled(!$canCheckIn) class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 xl:col-span-3">
             <i class="bx bx-log-in-circle text-lg"></i>
             Nhận phòng
         </button>
         <label class="flex items-center gap-2 text-sm font-medium text-slate-700 md:col-span-2 xl:col-span-12">
             <input type="checkbox" name="handover_confirmed" value="1" required class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
-            Đã đối chiếu chỉ số và tài sản bàn giao
+            Đã đối chiếu đúng chỉ số điện {{ $handoverReading?->electricity_new ?? '—' }} kWh, nước {{ $handoverReading?->water_new ?? '—' }} m³ và tài sản bàn giao
         </label>
     </form>
 </section>
@@ -123,7 +158,7 @@
             @foreach($contract->currentMembers as $member)
                 <article class="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
                     <p class="truncate font-semibold text-slate-950">{{ $member->full_name }}</p>
-                    @if($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)<p class="mt-0.5 text-xs font-medium text-indigo-700">Người đại diện</p>@endif
+                    @if($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)<p class="mt-0.5 text-xs font-medium text-indigo-700">Người thuê đại diện · Tài khoản liên hệ</p>@else<p class="mt-0.5 text-xs text-slate-500">Người thuê · Không cấp tài khoản riêng</p>@endif
                     <p class="mt-1 truncate text-xs text-slate-500">{{ $member->identity_number ?: 'Chưa có CCCD' }} · {{ $member->phone ?: 'Chưa có số điện thoại' }}</p>
                 </article>
             @endforeach

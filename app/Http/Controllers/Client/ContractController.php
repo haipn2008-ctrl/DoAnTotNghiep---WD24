@@ -28,12 +28,15 @@ class ContractController extends Controller
 
     public function show(Request $request, int $contract): View
     {
-        $contract = Contract::with(['room', 'tenant', 'currentMembers.histories', 'currentMembers.tenant.vehicles.tenant', 'handoverItems', 'moveInDetailsConfirmer'])
+        $contract = Contract::with(['room', 'tenant', 'currentMembers.histories', 'currentMembers.tenant.vehicles.tenant', 'handoverItems', 'moveInDetailsConfirmer', 'settlementStatement.items', 'settlementStatement.invoice', 'approvedTerminationRequest'])
             ->managedBy($request->user())
             ->findOrFail($contract);
+        $handoverReading = $contract->utilityReadings()
+            ->where('reading_type', 'handover')
+            ->first();
         $setting = Setting::currentOrCreate();
 
-        return view('client.contracts.show', compact('contract', 'setting'));
+        return view('client.contracts.show', compact('contract', 'setting', 'handoverReading'));
     }
 
     public function confirmMoveInDetails(Request $request, int $contract)
@@ -41,7 +44,7 @@ class ContractController extends Controller
         $request->validate([
             'confirmation' => ['accepted'],
         ], [
-            'confirmation.accepted' => 'Bạn cần xác nhận đã kiểm tra thông tin dịch vụ và tài sản trong phòng.',
+            'confirmation.accepted' => 'Bạn cần xác nhận đã kiểm tra chỉ số điện nước, dịch vụ và tài sản trong phòng.',
         ]);
         $contract = Contract::query()
             ->managedBy($request->user())
@@ -61,5 +64,14 @@ class ContractController extends Controller
         abort_unless($contract->contract_file && Storage::disk('local')->exists($contract->contract_file), 404);
 
         return Storage::disk('local')->response($contract->contract_file);
+    }
+
+    public function checkoutPhoto(Request $request, int $contract, int $index): StreamedResponse
+    {
+        $contract = Contract::query()->managedBy($request->user())->findOrFail($contract);
+        $path = $contract->checkout_photo_paths[$index] ?? null;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path);
     }
 }

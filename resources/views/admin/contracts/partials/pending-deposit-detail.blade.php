@@ -30,7 +30,7 @@
         <p class="mt-1 font-bold text-slate-950">{{ $contract->room?->room_code ?? 'Chưa xác định' }}</p>
     </div>
     <div class="border-b border-slate-100 px-4 py-3 lg:border-b-0 lg:border-r">
-        <p class="text-xs font-medium text-slate-500">Người đại diện</p>
+        <p class="text-xs font-medium text-slate-500">Người thuê đại diện</p>
         <p class="mt-1 truncate font-bold text-slate-950">{{ $representative?->full_name ?? $contract->tenant?->full_name ?? 'Chưa xác định' }}</p>
     </div>
     <div class="border-b border-slate-100 px-4 py-3 sm:border-b-0 sm:border-r">
@@ -189,7 +189,7 @@
             @foreach($contract->currentMembers as $member)
                 <article class="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
                     <p class="truncate font-semibold text-slate-950">{{ $member->full_name }}</p>
-                    @if($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)<p class="mt-0.5 text-xs font-medium text-indigo-700">Người đại diện</p>@endif
+                    @if($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)<p class="mt-0.5 text-xs font-medium text-indigo-700">Người thuê đại diện · Tài khoản liên hệ</p>@else<p class="mt-0.5 text-xs text-slate-500">Người thuê · Không cấp tài khoản riêng</p>@endif
                     <p class="mt-1 truncate text-xs text-slate-500">{{ $member->identity_number ?: 'Chưa có CCCD' }} · {{ $member->phone ?: 'Chưa có số điện thoại' }}</p>
                 </article>
             @endforeach

@@ -408,6 +408,7 @@ class UserManagementTest extends TestCase
             ->assertSee('value="active"', false)
             ->assertSee('value="locked"', false)
             ->assertDontSee('value="settling"', false)
+            ->assertDontSee('value="former"', false)
             ->assertDontSee('value="inactive"', false);
 
         $this->from("/admin/users/{$target->id}/edit")->put("/admin/users/{$target->id}", [
@@ -454,9 +455,9 @@ class UserManagementTest extends TestCase
             'name' => $target->name,
             'email' => $target->email,
             'role_id' => $target->role_id,
-            'status' => User::STATUS_INACTIVE,
+            'status' => User::STATUS_FORMER,
         ])->assertRedirect('/admin/users');
-        $this->assertSame(User::STATUS_INACTIVE, $target->fresh()->status);
+        $this->assertSame(User::STATUS_FORMER, $target->fresh()->status);
     }
 
     private function createPayload(array $overrides = []): array

@@ -27,10 +27,10 @@ class DepositRefundController extends Controller
 
         // Khách được xem thông tin hoàn cọc khi hợp đồng đã chấm dứt
         // hoặc đã hoàn tất sau khi Admin chuyển tiền.
-        abort_unless(
-            $contract->status === Contract::STATUS_TERMINATED,
-            404
-        );
+        abort_unless(in_array($contract->status, [
+            Contract::STATUS_SETTLING,
+            Contract::STATUS_COMPLETED,
+        ], true), 404);
 
         $contract->load([
             'room',

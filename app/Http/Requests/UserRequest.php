@@ -41,7 +41,7 @@ class UserRequest extends FormRequest
 
             'status' => [
                 Rule::requiredIf($this->isMethod('put') || $this->isMethod('patch')),
-                Rule::in(['pending', 'active', 'settling', 'locked', 'inactive']),
+                Rule::in(['pending', 'active', 'settling', 'former', 'locked', 'inactive']),
             ],
 
             'password' => $this->isMethod('post')

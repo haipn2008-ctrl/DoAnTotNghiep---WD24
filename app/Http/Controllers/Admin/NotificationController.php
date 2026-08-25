@@ -36,7 +36,7 @@ class NotificationController extends Controller
 
     public function open(ContractLifecycleAlert $notification)
     {
-        if ($notification->type === 'vehicle_removed' && ! $notification->resolved_at) {
+        if (in_array($notification->type, ['vehicle_removed', 'extension_response'], true) && ! $notification->resolved_at) {
             $notification->update(['resolved_at' => now()]);
         }
 

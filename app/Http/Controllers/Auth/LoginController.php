@@ -40,7 +40,7 @@ class LoginController extends Controller
 
             $user = $request->user();
 
-            if (! in_array($user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE, User::STATUS_SETTLING], true)) {
+            if (! in_array($user->status, [User::STATUS_PENDING, User::STATUS_ACTIVE, User::STATUS_SETTLING, User::STATUS_FORMER], true)) {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();

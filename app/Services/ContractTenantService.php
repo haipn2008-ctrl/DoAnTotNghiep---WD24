@@ -118,7 +118,7 @@ class ContractTenantService
                 'role' => ContractTenant::ROLE_TENANT,
                 'status' => ContractTenant::STATUS_PENDING,
                 'declared_by' => $actor->id,
-            ], $actor, 'tenant_declare', 'Người đại diện gửi khai báo để admin duyệt.');
+            ], $actor, 'tenant_declare', 'Người thuê đại diện gửi hồ sơ người thuê để admin duyệt.');
             $this->syncPlannedCount($contract);
 
             return $member->fresh();
@@ -133,7 +133,7 @@ class ContractTenantService
             if ($member->role === ContractTenant::ROLE_REPRESENTATIVE || $member->status !== ContractTenant::STATUS_PENDING) {
                 $this->fail('member', 'Chỉ có thể rút khai báo người thuê đang chờ duyệt.');
             }
-            $this->transition($member, ContractTenant::STATUS_WITHDRAWN, 'tenant_withdraw', 'Người đại diện rút khai báo.', $actor);
+            $this->transition($member, ContractTenant::STATUS_WITHDRAWN, 'tenant_withdraw', 'Người thuê đại diện rút hồ sơ đang chờ duyệt.', $actor);
             $this->syncPlannedCount($member->contract);
 
             return $member->fresh();
@@ -255,7 +255,7 @@ class ContractTenantService
             'date_of_birth' => $tenant->date_of_birth,
             'identity_number' => $tenant->cccd,
             'phone' => $tenant->phone,
-            'relationship' => 'Người đại diện hợp đồng',
+            'relationship' => 'Người thuê đại diện của hợp đồng',
             'address' => $tenant->address,
         ];
 
@@ -268,7 +268,7 @@ class ContractTenantService
                     $representative,
                     $targetStatus,
                     'representative_residency_changed',
-                    'Người đại diện luôn là người thuê trực tiếp của phòng.',
+                    'Người thuê đại diện luôn thuộc danh sách người thuê trực tiếp của phòng.',
                     $actor,
                 );
             }

@@ -47,7 +47,10 @@ class AppServiceProvider extends ServiceProvider
         });
         View::composer('layouts.client.blocks.header', function ($view): void {
             $user = request()->user();
-            $view->with('clientUnreadNotificationCount', $user?->unreadNotifications()->count() ?? 0);
+            $view->with([
+                'clientUnreadNotificationCount' => $user?->unreadNotifications()->count() ?? 0,
+                'clientNotifications' => $user?->notifications()->latest()->limit(8)->get() ?? collect(),
+            ]);
         });
     }
 }

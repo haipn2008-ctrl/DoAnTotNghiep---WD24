@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractTerminationRequest;
+use App\Models\ContractExtensionRequest;
 use App\Services\ContractHistoryService;
 use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ContractTerminationRequestController extends Controller
 {
@@ -25,7 +27,7 @@ class ContractTerminationRequestController extends Controller
             ->whereHas('tenant', function ($query) use ($user) {
                 $query->where('user_id', $user->id);
             })
-            ->where('status', Contract::STATUS_ACTIVE)
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->orderByDesc('id')
             ->get();
 
@@ -109,15 +111,16 @@ class ContractTerminationRequestController extends Controller
             ->whereHas('tenant', function ($query) use ($user) {
                 $query->where('user_id', $user->id);
             })
-            ->where('status', Contract::STATUS_ACTIVE)
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->firstOrFail();
-        // Yêu cầu trả phòng chỉ dành cho trường hợp trả trước hạn
-        if ($validated['requested_end_date'] >= $contract->end_date) {
+        // Khi hợp đồng còn hiệu lực, ở quá ngày kết thúc phải đi qua luồng gia hạn.
+        if ($contract->status === Contract::STATUS_ACTIVE
+            && $validated['requested_end_date'] > $contract->end_date->toDateString()) {
             return back()
                 ->withInput()
                 ->withErrors([
                     'requested_end_date' =>
-                        'Ngày dự kiến trả phòng phải trước ngày kết thúc hợp đồng.'
+                        'Ngày dự kiến trả phòng không được sau ngày hết hạn; nếu muốn ở tiếp, hãy gửi yêu cầu gia hạn.'
                 ]);
         }
 
@@ -131,7 +134,10 @@ class ContractTerminationRequestController extends Controller
                 'contract_id',
                 $contract->id
             )
-            ->where('status', 'pending')
+            ->whereIn('status', [
+                ContractTerminationRequest::STATUS_PENDING,
+                ContractTerminationRequest::STATUS_APPROVED,
+            ])
             ->exists();
 
         if ($hasPendingRequest) {
@@ -143,12 +149,49 @@ class ContractTerminationRequestController extends Controller
                 ]);
         }
 
+        if ($contract->extensionRequests()->whereIn('status', [
+            ContractExtensionRequest::STATUS_PENDING,
+            ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
+        ])->exists()) {
+            return back()->withInput()->withErrors([
+                'contract_id' => 'Hợp đồng đang có yêu cầu hoặc phụ lục gia hạn chờ xác nhận. Hãy xử lý yêu cầu gia hạn trước khi đăng ký trả phòng.',
+            ]);
+        }
+
         /*
         |--------------------------------------------------------------------------
         | Tạo yêu cầu trả phòng
         |--------------------------------------------------------------------------
         */
-        DB::transaction(function () use ($contract, $validated) {
+        DB::transaction(function () use ($contract, $validated, $user) {
+        $contract = Contract::query()
+            ->managedBy($user)
+            ->whereKey($contract->id)
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+            ->lockForUpdate()
+            ->firstOrFail();
+        if ($contract->terminationRequests()->whereIn('status', [
+            ContractTerminationRequest::STATUS_PENDING,
+            ContractTerminationRequest::STATUS_APPROVED,
+        ])->exists()) {
+            throw ValidationException::withMessages([
+                'contract_id' => 'Hợp đồng này đã có yêu cầu hoặc lịch rời phòng đang xử lý.',
+            ]);
+        }
+        if ($contract->extensionRequests()->whereIn('status', [
+            ContractExtensionRequest::STATUS_PENDING,
+            ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
+        ])->exists()) {
+            throw ValidationException::withMessages([
+                'contract_id' => 'Hợp đồng đang có yêu cầu hoặc phụ lục gia hạn chờ xác nhận.',
+            ]);
+        }
+        $requestedEndDate = \Carbon\Carbon::parse($validated['requested_end_date'])->startOfDay();
+        $requestType = $contract->status === Contract::STATUS_EXPIRED
+            ? ContractTerminationRequest::TYPE_OVERDUE_DEPARTURE
+            : ($requestedEndDate->lt($contract->end_date)
+                ? ContractTerminationRequest::TYPE_EARLY_TERMINATION
+                : ContractTerminationRequest::TYPE_END_OF_TERM);
 
         /*
         |--------------------------------------------------------------------------
@@ -164,6 +207,8 @@ class ContractTerminationRequestController extends Controller
             'requested_end_date' => $validated['requested_end_date'],
 
             'reason' => $validated['reason'],
+
+            'request_type' => $requestType,
 
             'status' => 'pending',
         ]);
@@ -193,6 +238,7 @@ class ContractTerminationRequestController extends Controller
                 'contract_status' => $contract->status,
                 'request_status' => 'pending',
                 'requested_end_date' => $validated['requested_end_date'],
+                'request_type' => $requestType,
             ]
         );
 

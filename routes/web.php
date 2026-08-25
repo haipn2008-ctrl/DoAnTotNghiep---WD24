@@ -269,6 +269,9 @@ Route::middleware('auth')->group(function () {
                     [ContractController::class, 'file']
                 )->name('contracts.file');
 
+                Route::get('contracts/{contract}/checkout-photos/{index}', [ContractController::class, 'checkoutPhoto'])
+                    ->whereNumber('index')->name('contracts.checkout-photos.show');
+
                 // =================================================
                 // HỢP ĐỒNG - TIỀN CỌC
                 // =================================================
@@ -300,6 +303,16 @@ Route::middleware('auth')->group(function () {
                 // =================================================
                 // HỢP ĐỒNG - CHECK IN / CHECK OUT
                 // =================================================
+
+                Route::post(
+                    'contracts/{contract}/handover-reading',
+                    [ContractController::class, 'saveHandoverReading']
+                )->name('contracts.handover-reading.store');
+
+                Route::post(
+                    'contracts/{contract}/move-in-details/reopen',
+                    [ContractController::class, 'reopenMoveInDetails']
+                )->name('contracts.move-in-details.reopen');
 
                 Route::post(
                     'contracts/{contract}/check-in',
@@ -950,24 +963,32 @@ Route::middleware('auth')->group(function () {
                     [ClientContractController::class, 'file']
                 )->name('contracts.file');
 
+                Route::get('/contracts/{contract}/checkout-photos/{index}', [ClientContractController::class, 'checkoutPhoto'])
+                    ->whereNumber('index')->name('contracts.checkout-photos.show');
+
                 Route::post(
                     '/contracts/{contract}/move-in-details/confirm',
                     [ClientContractController::class, 'confirmMoveInDetails']
-                )->name('contracts.move-in-details.confirm');
+                )->middleware('rental.active')->name('contracts.move-in-details.confirm');
 
                 // =============================================
                 // NGƯỜI THAM GIA HỢP ĐỒNG
                 // =============================================
 
+                Route::get(
+                    '/contracts/{contract}/tenants/create',
+                    [ClientContractTenantController::class, 'create']
+                )->middleware('rental.active')->name('contracts.tenants.create');
+
                 Route::post(
                     '/contracts/{contract}/members',
                     [ClientContractTenantController::class, 'store']
-                )->name('contracts.members.store');
+                )->middleware('rental.active')->name('contracts.members.store');
 
                 Route::post(
                     '/contracts/{contract}/members/{member}/withdraw',
                     [ClientContractTenantController::class, 'withdraw']
-                )->name('contracts.members.withdraw');
+                )->middleware('rental.active')->name('contracts.members.withdraw');
 
                 // =============================================
                 // HOÀN CỌC
@@ -1005,7 +1026,17 @@ Route::middleware('auth')->group(function () {
                 Route::post(
                     '/extension-requests',
                     [ClientContractExtensionRequestController::class, 'store']
-                )->name('extension-requests.store');
+                )->middleware('rental.active')->name('extension-requests.store');
+
+                Route::post(
+                    '/extension-requests/{extensionRequest}/accept',
+                    [ClientContractExtensionRequestController::class, 'accept']
+                )->middleware('rental.active')->name('extension-requests.accept');
+
+                Route::post(
+                    '/extension-requests/{extensionRequest}/decline',
+                    [ClientContractExtensionRequestController::class, 'decline']
+                )->middleware('rental.active')->name('extension-requests.decline');
 
                 // =============================================
                 // YÊU CẦU TRẢ PHÒNG
@@ -1019,7 +1050,7 @@ Route::middleware('auth')->group(function () {
                 Route::post(
                     '/termination-requests',
                     [ClientContractTerminationRequestController::class, 'store']
-                )->name('termination-requests.store');
+                )->middleware('rental.active')->name('termination-requests.store');
 
                 // =============================================
                 // HỖ TRỢ

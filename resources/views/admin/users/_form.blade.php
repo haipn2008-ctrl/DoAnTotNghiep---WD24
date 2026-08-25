@@ -80,6 +80,7 @@
                                 'pending' => 'Chờ kích hoạt',
                                 'active' => 'Đang hoạt động',
                                 'settling' => 'Đang quyết toán',
+                                'former' => 'Cựu người thuê (chỉ xem)',
                                 'locked' => 'Đã khóa',
                                 'inactive' => 'Ngừng sử dụng',
                             ];

@@ -383,7 +383,7 @@ class RoomManagementTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('admin.rooms.show', $room))
             ->assertOk()
-            ->assertSee('Người đại diện thuê')
+            ->assertSee('Người thuê đại diện · Tài khoản liên hệ')
             ->assertSee($representative->full_name)
             ->assertSee('Nguyễn Thành Viên')
             ->assertSee(route('admin.tenants.show', $representative), false)

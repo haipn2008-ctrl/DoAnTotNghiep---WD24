@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Amenity;
 use App\Models\Contract;
+use App\Models\ContractExtensionRequest;
 use App\Models\ContractTenant;
+use App\Models\ContractTerminationRequest;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Room;
@@ -15,6 +17,7 @@ use App\Models\User;
 use App\Rules\AdultDateOfBirth;
 use App\Services\ContractIdentityDocumentService;
 use App\Services\ContractLifecycleService;
+use App\Services\ClientNotificationService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -91,6 +94,8 @@ class ContractController extends Controller
             'statusHistories.performer', 'signedConfirmer', 'moveInTermsConfirmer', 'moveInDetailsConfirmer',
             'handoverItems', 'checkedInBy', 'checkedOutBy',
             'cancelledBy', 'completedBy', 'lifecycleAlerts' => fn ($query) => $query->whereNull('resolved_at')->latest('detected_at'),
+            'settlementStatement.items', 'settlementStatement.invoice',
+            'approvedTerminationRequest.processor',
         ]);
         $readings = $contract->utilityReadings()->orderBy('record_date')->orderBy('id')->get();
         $handoverReading = $readings->firstWhere('reading_type', 'handover');
@@ -164,6 +169,7 @@ class ContractController extends Controller
         Gate::authorize('manageLifecycle', $contract);
         $data = $request->validate(['reason' => ['nullable', 'string', 'max:1000']]);
         $this->lifecycle->submitForSignature($contract, $request->user(), $data['reason'] ?? null);
+        app(ClientNotificationService::class)->contract($contract->fresh(), 'contract_signature_required', 'Hợp đồng đang chờ ký', 'Hợp đồng '.$contract->contract_code.' đã sẵn sàng. Vui lòng mở hợp đồng để kiểm tra và thực hiện ký theo hướng dẫn.');
 
         return back()->with('success', 'Hợp đồng đã chuyển sang chờ ký.');
     }
@@ -176,6 +182,7 @@ class ContractController extends Controller
             'edit_after_return' => ['nullable', 'boolean'],
         ]);
         $this->lifecycle->returnToDraft($contract, $request->user(), $data['reason']);
+        app(ClientNotificationService::class)->contract($contract->fresh(), 'contract_returned_to_draft', 'Hợp đồng đang được chỉnh sửa', 'Hợp đồng '.$contract->contract_code.' được chuyển lại bản nháp. Lý do: '.$data['reason']);
 
         if ($request->boolean('edit_after_return')) {
             return redirect()->route('admin.contracts.edit', $contract)
@@ -224,19 +231,27 @@ class ContractController extends Controller
             Storage::disk('local')->delete($oldPath);
         }
 
+        app(ClientNotificationService::class)->contract($contract->fresh(), 'contract_signed', 'Hợp đồng đã được xác nhận ký', 'Hợp đồng '.$contract->contract_code.' đã được xác nhận ký. Vui lòng theo dõi hóa đơn tiền cọc và thời hạn nhận phòng.');
+
         return back()->with('success', 'Đã xác nhận hợp đồng được ký và giữ lịch phòng.');
     }
 
     public function issueDepositInvoice(Request $request, Contract $contract)
     {
         Gate::authorize('manageLifecycle', $contract);
+        $wasIssued = true;
         try {
             $invoice = $this->lifecycle->issueDepositInvoice($contract, $request->user());
         } catch (QueryException $exception) {
+            $wasIssued = false;
             $invoice = $contract->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->first();
             if (! $invoice) {
                 throw $exception;
             }
+        }
+
+        if ($wasIssued) {
+            app(ClientNotificationService::class)->invoice($invoice, 'deposit_invoice_issued', 'Hóa đơn tiền cọc đã được phát hành', 'Vui lòng kiểm tra và thanh toán hóa đơn '.$invoice->invoice_code.' đúng hạn.');
         }
 
         return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã phát hành hóa đơn tiền cọc.');
@@ -247,15 +262,44 @@ class ContractController extends Controller
         Gate::authorize('manageLifecycle', $contract);
         $data = $request->validate([
             'actual_move_in_at' => ['required', 'date', 'before_or_equal:now'],
-            'handover_electricity' => ['required', 'integer', 'min:0'],
-            'handover_water' => ['required', 'integer', 'min:0'],
             'handover_confirmed' => ['accepted'],
             'schedule_variance_reason' => ['nullable', 'string', 'max:1000'],
         ]);
         $this->lifecycle->checkIn($contract, $request->user(), $data);
         app(\App\Services\AdminNotificationService::class)->resolve('move_in_confirmation', $contract);
+        app(ClientNotificationService::class)->contract($contract->fresh(), 'contract_checked_in', 'Đã xác nhận nhận phòng', 'Hợp đồng '.$contract->contract_code.' đã chuyển sang trạng thái đang thuê.');
 
         return back()->with('success', 'Nhận phòng thành công. Phòng đã chuyển sang có người thuê.');
+    }
+
+    public function saveHandoverReading(Request $request, Contract $contract)
+    {
+        Gate::authorize('manageLifecycle', $contract);
+        $data = $request->validate([
+            'handover_electricity' => ['required', 'integer', 'min:0'],
+            'handover_water' => ['required', 'integer', 'min:0'],
+        ]);
+        $this->lifecycle->saveHandoverDraft(
+            $contract,
+            $request->user(),
+            (int) $data['handover_electricity'],
+            (int) $data['handover_water'],
+        );
+        app(ClientNotificationService::class)->contract($contract, 'move_in_details_ready', 'Thông tin nhận phòng cần xác nhận', 'Ban quản lý đã lập chỉ số điện nước bàn giao. Vui lòng mở hợp đồng để kiểm tra và xác nhận.');
+
+        return back()->with('success', 'Đã lưu chỉ số bàn giao. Khách thuê có thể kiểm tra và xác nhận.');
+    }
+
+    public function reopenMoveInDetails(Request $request, Contract $contract)
+    {
+        Gate::authorize('manageLifecycle', $contract);
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:10', 'max:1000'],
+        ]);
+        $this->lifecycle->reopenMoveInDetails($contract, $request->user(), $data['reason']);
+        app(ClientNotificationService::class)->contract($contract, 'move_in_details_reopened', 'Cần xác nhận lại thông tin nhận phòng', 'Ban quản lý đã cập nhật lại thông tin nhận phòng. Lý do: '.$data['reason']);
+
+        return back()->with('success', 'Đã mở lại thông tin nhận phòng. Sau khi sửa, khách phải xác nhận lại.');
     }
 
     public function extendMoveInDeadline(Request $request, Contract $contract)
@@ -266,6 +310,7 @@ class ContractController extends Controller
             'reason' => ['required', 'string', 'max:1000'],
         ]);
         $this->lifecycle->extendMoveInDeadline($contract, $request->user(), $data['reservation_expires_at'], $data['reason']);
+        app(ClientNotificationService::class)->contract($contract->fresh(), 'move_in_deadline_extended', 'Thời hạn nhận phòng đã được gia hạn', 'Thời hạn giữ phòng mới: '.Carbon::parse($data['reservation_expires_at'])->format('H:i d/m/Y').'.');
 
         return back()->with('success', 'Đã gia hạn thời gian giữ phòng.');
     }
@@ -275,6 +320,7 @@ class ContractController extends Controller
         Gate::authorize('manageLifecycle', $contract);
         $data = $request->validate(['cancel_reason' => ['required', 'string', 'max:2000']]);
         $this->lifecycle->cancel($contract, $request->user(), $data['cancel_reason']);
+        app(ClientNotificationService::class)->contract($contract->fresh(), 'contract_cancelled', 'Hợp đồng đã bị hủy', 'Hợp đồng '.$contract->contract_code.' đã bị hủy. Lý do: '.$data['cancel_reason']);
 
         return back()->with('success', 'Đã hủy hợp đồng và giữ nguyên toàn bộ lịch sử.');
     }
@@ -289,8 +335,36 @@ class ContractController extends Controller
             'checkout_reason' => ['required', 'string', 'max:2000'],
             'settlement_amount' => ['nullable', 'numeric', 'min:0'],
             'settlement_description' => [Rule::requiredIf(fn () => (float) $request->input('settlement_amount', 0) > 0), 'nullable', 'string', 'max:1000'],
+            'checkout_key_count' => ['required', 'integer', 'min:0', 'max:100'],
+            'asset_conditions' => ['nullable', 'array'],
+            'asset_conditions.*.condition' => ['required', Rule::in(['good', 'worn', 'damaged', 'missing'])],
+            'asset_conditions.*.note' => ['nullable', 'string', 'max:500'],
+            'checkout_damage_note' => ['nullable', 'string', 'max:2000'],
+            'checkout_photos' => ['nullable', 'array', 'max:10'],
+            'checkout_photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'handover_confirmed' => ['accepted'],
         ]);
-        $this->lifecycle->checkOut($contract, $request->user(), $data);
+        $storedPaths = [];
+        try {
+            foreach ($request->file('checkout_photos', []) as $photo) {
+                $storedPaths[] = $photo->store("contracts/{$contract->id}/checkout", 'local');
+            }
+            $data['checkout_photo_paths'] = $storedPaths;
+            $contract = $this->lifecycle->checkOut($contract, $request->user(), $data);
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($storedPaths);
+            throw $exception;
+        }
+        $contract->load('settlementStatement.invoice');
+        app(ClientNotificationService::class)->contract($contract->fresh(), 'contract_checked_out', 'Đã ghi nhận trả phòng', 'Hợp đồng '.$contract->contract_code.' đang chờ quyết toán và xử lý tiền cọc.');
+        if ($contract->settlementStatement?->invoice) {
+            app(ClientNotificationService::class)->invoice(
+                $contract->settlementStatement->invoice,
+                'settlement_invoice_issued',
+                'Bảng quyết toán trả phòng đã được lập',
+                'Vui lòng kiểm tra các khoản tiền phòng, điện nước và điều chỉnh cuối hợp đồng.'
+            );
+        }
 
         return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã trả phòng. Hợp đồng đang chờ quyết toán.');
     }
@@ -301,6 +375,8 @@ class ContractController extends Controller
         $request->merge([
             'actual_move_out_at' => $request->input('actual_move_out_at', $request->input('actual_end_date')),
             'checkout_reason' => $request->input('checkout_reason', trim(($request->input('termination_reason') ?? '').' '.($request->input('termination_note') ?? ''))),
+            'checkout_key_count' => $request->input('checkout_key_count', 0),
+            'handover_confirmed' => $request->input('handover_confirmed', $request->boolean('confirm_end') ? '1' : null),
         ]);
 
         return $this->checkOut($request, Contract::findOrFail($id));
@@ -310,13 +386,13 @@ class ContractController extends Controller
     {
         Gate::authorize('manageLifecycle', $contract);
         $data = $request->validate([
-            'deposit_resolution' => ['nullable', Rule::in([Contract::DEPOSIT_REFUNDED, Contract::DEPOSIT_DEDUCTED, Contract::DEPOSIT_RETAINED])],
             'settlement_note' => ['nullable', 'string', 'max:2000'],
             'write_off_outstanding' => ['nullable', 'boolean'],
             'write_off_reason' => ['nullable', 'required_if:write_off_outstanding,1', 'string', 'max:2000'],
             'confirm_complete' => ['accepted'],
         ]);
         $this->lifecycle->completeSettlement($contract, $request->user(), $data);
+        app(ClientNotificationService::class)->contract($contract->fresh(), 'contract_settlement_completed', 'Quyết toán hợp đồng đã hoàn tất', 'Ban quản lý đã hoàn tất quyết toán hợp đồng '.$contract->contract_code.'.');
 
         return back()->with('success', 'Đã hoàn tất quyết toán hợp đồng.');
     }
@@ -330,15 +406,105 @@ class ContractController extends Controller
             'reason' => ['nullable', 'string', 'max:2000'],
             'extend_reason' => ['nullable', 'string', 'max:2000'],
             'extend_note' => ['nullable', 'string', 'max:2000'],
+            'proposed_monthly_rent' => ['nullable', 'numeric', 'min:0'],
+            'financial_override_reason' => ['nullable', 'string', 'min:3', 'max:1000'],
             'confirm_extend' => ['sometimes', 'accepted'],
         ]);
         $reason = $data['reason'] ?? trim(($data['extend_reason'] ?? '').' '.($data['extend_note'] ?? ''));
         if ($reason === '') {
             return back()->withErrors(['reason' => 'Gia hạn hợp đồng bắt buộc có lý do.'])->withInput();
         }
-        $this->lifecycle->extendContract($contract, $request->user(), $data['new_end_date'], $reason);
+        $this->offerExtensionTerms($contract, $request, $data, $reason);
+        app(ClientNotificationService::class)->contract(
+            $contract,
+            'extension_terms_offered',
+            'Điều khoản gia hạn đang chờ bạn xác nhận',
+            'Ban quản lý đã gửi điều khoản gia hạn hợp đồng '.$contract->contract_code.'. Vui lòng kiểm tra và xác nhận trên cổng khách thuê.'
+        );
+
+        return redirect()->route('admin.extension-requests.index')
+            ->with('success', 'Đã gửi phụ lục gia hạn. Hợp đồng chỉ thay đổi sau khi người thuê đại diện xác nhận.');
 
         return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã gia hạn hợp đồng.');
+    }
+
+    private function offerExtensionTerms(Contract $contract, Request $request, array $data, string $reason): ContractExtensionRequest
+    {
+        return DB::transaction(function () use ($contract, $request, $data, $reason): ContractExtensionRequest {
+            $lockedContract = Contract::query()
+                ->with(['currentMembers', 'invoices.payments', 'invoices.adjustments'])
+                ->lockForUpdate()
+                ->findOrFail($contract->id);
+
+            if (! in_array($lockedContract->status, Contract::OPEN_OCCUPANCY_STATUSES, true)) {
+                throw ValidationException::withMessages(['contract' => 'Chỉ có thể đề nghị gia hạn hợp đồng đang có hiệu lực hoặc vừa hết hạn nhưng chưa trả phòng.']);
+            }
+
+            $newEndDate = Carbon::parse($data['new_end_date'])->startOfDay();
+            if (! $lockedContract->end_date || ! $newEndDate->gt($lockedContract->end_date->copy()->startOfDay())) {
+                throw ValidationException::withMessages(['new_end_date' => 'Ngày kết thúc mới phải sau ngày kết thúc hiện tại.']);
+            }
+
+            if ($lockedContract->extensionRequests()->whereIn('status', [
+                ContractExtensionRequest::STATUS_PENDING,
+                ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
+            ])->exists()) {
+                throw ValidationException::withMessages(['contract' => 'Hợp đồng đã có một đề nghị gia hạn đang chờ xử lý hoặc chờ khách xác nhận.']);
+            }
+
+            if ($lockedContract->terminationRequests()->whereIn('status', [
+                ContractTerminationRequest::STATUS_PENDING,
+                ContractTerminationRequest::STATUS_APPROVED,
+            ])->exists()) {
+                throw ValidationException::withMessages(['contract' => 'Hợp đồng đang có yêu cầu hoặc lịch trả phòng. Hãy xử lý yêu cầu đó trước khi gia hạn.']);
+            }
+
+            $outstanding = $lockedContract->invoices
+                ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+                ->sum(fn (Invoice $invoice) => (float) $invoice->remaining_amount);
+            if ($outstanding > 0 && blank($data['financial_override_reason'] ?? null)) {
+                throw ValidationException::withMessages([
+                    'financial_override_reason' => 'Hợp đồng còn '.number_format($outstanding, 0, ',', '.').' VNĐ công nợ. Hãy thu hết hoặc nhập lý do chấp nhận ngoại lệ.',
+                ]);
+            }
+
+            $monthlyRent = (float) ($data['proposed_monthly_rent'] ?? $lockedContract->monthly_rent);
+            $setting = Setting::currentOrCreate();
+
+            return $lockedContract->extensionRequests()->create([
+                'current_end_date' => $lockedContract->end_date,
+                'requested_end_date' => $newEndDate,
+                'approved_end_date' => $newEndDate,
+                'proposed_monthly_rent' => $monthlyRent,
+                'proposed_deposit_amount' => $lockedContract->deposit_amount,
+                'reason' => $reason,
+                'status' => ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
+                'financial_override_reason' => $data['financial_override_reason'] ?? null,
+                'terms_snapshot' => [
+                    'old_end_date' => $lockedContract->end_date?->toDateString(),
+                    'new_end_date' => $newEndDate->toDateString(),
+                    'old_monthly_rent' => (float) $lockedContract->monthly_rent,
+                    'new_monthly_rent' => $monthlyRent,
+                    'deposit_amount' => (float) $lockedContract->deposit_amount,
+                    'outstanding_at_offer' => round($outstanding, 2),
+                    'fees' => [
+                        'electric_price' => (float) $setting->electric_price,
+                        'water_price' => (float) $setting->water_price,
+                        'internet_fee' => (float) $setting->internet_fee,
+                        'service_fee' => (float) $setting->service_fee,
+                        'parking_fee' => (float) $setting->parking_fee,
+                    ],
+                    'tenants' => $lockedContract->currentMembers->map(fn ($member) => [
+                        'id' => $member->id,
+                        'full_name' => $member->full_name,
+                        'role' => $member->role,
+                    ])->values()->all(),
+                ],
+                'processed_by' => $request->user()->id,
+                'processed_at' => now(),
+                'terms_offered_at' => now(),
+            ]);
+        }, 3);
     }
 
     public function print($id)
@@ -372,6 +538,15 @@ class ContractController extends Controller
         abort_unless($contract->contractFileExists(), 404);
 
         return Storage::disk('local')->response($contract->contract_file);
+    }
+
+    public function checkoutPhoto(Contract $contract, int $index): StreamedResponse
+    {
+        Gate::authorize('manageLifecycle', $contract);
+        $path = $contract->checkout_photo_paths[$index] ?? null;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path);
     }
 
     public function identityDocument(ContractTenant $member, string $side): StreamedResponse

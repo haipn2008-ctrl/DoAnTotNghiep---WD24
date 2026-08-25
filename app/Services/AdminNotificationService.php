@@ -25,6 +25,25 @@ class AdminNotificationService
             sprintf('%s muốn gia hạn hợp đồng %s (phòng %s) đến ngày %s%s', $this->tenantName($contract), $contract->contract_code, $contract->room?->room_code ?: '—', $request->requested_end_date?->format('d/m/Y'), filled($request->reason) ? '. Lý do: '.$request->reason : '.'), $request);
     }
 
+    public function extensionResponded(ContractExtensionRequest $request, bool $accepted): ContractLifecycleAlert
+    {
+        $request->loadMissing('contract.tenant', 'contract.room');
+        $contract = $request->contract;
+        $result = $accepted ? 'đã đồng ý' : 'không đồng ý';
+        $detail = $accepted
+            ? 'Phụ lục đã có hiệu lực.'
+            : 'Lý do: '.($request->tenant_decline_reason ?: 'Không nêu lý do.');
+
+        return $this->actionAlert(
+            $contract,
+            'extension_response',
+            "extension-response:{$request->id}:".($accepted ? 'accepted' : 'declined'),
+            $accepted ? 'Khách đã xác nhận phụ lục gia hạn' : 'Khách từ chối phụ lục gia hạn',
+            sprintf('%s %s điều khoản gia hạn hợp đồng %s. %s', $this->tenantName($contract), $result, $contract->contract_code, $detail),
+            $request
+        );
+    }
+
     public function terminationRequested(ContractTerminationRequest $request): ContractLifecycleAlert
     {
         $request->loadMissing('contract.tenant', 'contract.room');
@@ -90,7 +109,7 @@ class AdminNotificationService
         $contract = $member->contract;
 
         return $this->actionAlert($contract, 'member_review', "member-review:{$member->id}",
-            'Khách thuê vừa khai báo thêm người ở cùng',
+            'Người thuê đại diện vừa khai báo thêm người thuê',
             sprintf('%s đã khai báo %s (CCCD %s) vào hợp đồng %s, phòng %s.', $this->tenantName($contract), $member->full_name, $member->identity_number, $contract->contract_code, $contract->room?->room_code ?: '—'), $member);
     }
 

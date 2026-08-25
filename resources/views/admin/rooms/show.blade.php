@@ -127,7 +127,7 @@
                         $representative = $occupancyContract->representative ?: $occupancyContract->tenant;
                     @endphp
                     <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Người đại diện thuê</p>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Người thuê đại diện · Tài khoản liên hệ</p>
                         @if ($representative)
                             <a href="{{ route('admin.tenants.show', $representative) }}" class="mt-2 block font-bold text-slate-950 hover:text-indigo-700 hover:underline">
                                 {{ $representative->full_name }}
@@ -142,7 +142,7 @@
                     </div>
 
                     <div>
-                        <p class="mb-2 text-sm font-semibold text-slate-700">Thành viên trong phòng</p>
+                        <p class="mb-2 text-sm font-semibold text-slate-700">Danh sách người thuê trong phòng</p>
                         <div class="grid gap-2 sm:grid-cols-2">
                             @foreach ($members as $member)
                                 <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-3">
@@ -151,9 +151,9 @@
                                         <span class="block text-xs text-slate-500">{{ $member->phone ?: 'Chưa có số điện thoại' }}</span>
                                     </span>
                                     @if ($member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)
-                                        <span class="shrink-0 rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700">Đại diện</span>
+                                        <span class="shrink-0 rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700">Người thuê đại diện · Có tài khoản</span>
                                     @elseif ($member->tenant)
-                                        <a href="{{ route('admin.tenants.show', $member->tenant) }}" class="text-xs font-semibold text-indigo-700">Xem hồ sơ</a>
+                                        <span class="flex shrink-0 flex-col items-end gap-1"><a href="{{ route('admin.tenants.show', $member->tenant) }}" class="text-xs font-semibold text-indigo-700">Xem hồ sơ</a><span class="text-[11px] text-slate-400">Không cấp tài khoản</span></span>
                                     @else
                                         <span class="text-xs text-slate-400">Không cần tài khoản</span>
                                     @endif

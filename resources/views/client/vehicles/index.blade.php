@@ -24,9 +24,10 @@
             <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ $errors->first() }}</div>
         @endif
 
-        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 class="font-semibold text-slate-950">Đăng ký phương tiện mới</h3>
-            <form method="POST" action="{{ route('client.vehicles.store') }}" enctype="multipart/form-data" class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5" data-vehicle-form>
+        @if($contract)
+            <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="font-semibold text-slate-950">Đăng ký phương tiện mới</h3>
+                <form method="POST" action="{{ route('client.vehicles.store') }}" enctype="multipart/form-data" class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5" data-vehicle-form>
                 @csrf
                 <div>
                     <label class="mb-1 block text-sm font-semibold">Chủ xe</label>
@@ -53,8 +54,14 @@
                     <p class="mt-1 text-xs text-slate-500">Chấp nhận JPG, PNG hoặc WEBP, dung lượng tối đa 5 MB.</p>
                     <img class="mt-3 hidden h-32 w-48 rounded-lg object-cover ring-1 ring-slate-200" alt="Xem trước ảnh phương tiện" data-image-preview>
                 </div>
-            </form>
-        </section>
+                </form>
+            </section>
+        @else
+            <section class="rounded-lg border border-sky-200 bg-sky-50 p-5 text-sky-900 shadow-sm">
+                <h3 class="font-semibold">Chưa thể đăng ký phương tiện</h3>
+                <p class="mt-2 text-sm leading-6">Tài khoản của bạn đã hoạt động, nhưng chưa có hợp đồng đã nhận phòng. Chức năng đăng ký phương tiện sẽ tự động mở sau khi ban quản lý xác nhận nhận phòng.</p>
+            </section>
+        @endif
 
         <section class="space-y-4">
             @forelse($vehicles as $vehicle)

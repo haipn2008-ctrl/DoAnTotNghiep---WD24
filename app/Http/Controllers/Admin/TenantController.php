@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\AdminNotificationService;
+use App\Services\ClientNotificationService;
 use App\Services\VehicleCapacityService;
 use App\Support\Csv;
 use Illuminate\Database\QueryException;
@@ -402,6 +403,13 @@ class TenantController extends Controller
         }, 3);
         $vehicle->refresh();
         $notifications->vehicleReviewed($vehicle);
+        app(ClientNotificationService::class)->vehicle(
+            $vehicle,
+            $data['status'] === Vehicle::STATUS_APPROVED ? 'Phương tiện đã được duyệt' : 'Phương tiện bị từ chối',
+            $data['status'] === Vehicle::STATUS_APPROVED
+                ? 'Phương tiện của bạn đã được ban quản lý chấp thuận.'
+                : 'Phương tiện của bạn chưa được chấp thuận. Lý do: '.($data['review_note'] ?? 'Ban quản lý chưa cung cấp lý do.')
+        );
 
         return back()->with('success', $data['status'] === Vehicle::STATUS_APPROVED
             ? 'Đã duyệt phương tiện.'

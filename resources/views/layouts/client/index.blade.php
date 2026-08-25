@@ -48,6 +48,8 @@
             const closeButton = document.getElementById('clientSidebarClose');
             const userMenuButton = document.getElementById('clientUserMenuButton');
             const userMenu = document.getElementById('clientUserMenu');
+            const notificationButton = document.getElementById('clientNotificationButton');
+            const notificationMenu = document.getElementById('clientNotificationMenu');
 
             function openSidebar() {
                 sidebar?.classList.remove('-translate-x-full');
@@ -63,14 +65,25 @@
             closeButton?.addEventListener('click', closeSidebar);
             overlay?.addEventListener('click', closeSidebar);
 
-            userMenuButton?.addEventListener('click', function () {
+            userMenuButton?.addEventListener('click', function (event) {
+                event.stopPropagation();
+                notificationMenu?.classList.add('hidden');
                 userMenu?.classList.toggle('hidden');
             });
 
-            document.addEventListener('click', function (event) {
-                if (!userMenuButton?.contains(event.target) && !userMenu?.contains(event.target)) {
-                    userMenu?.classList.add('hidden');
-                }
+            notificationButton?.addEventListener('click', function (event) {
+                event.stopPropagation();
+                userMenu?.classList.add('hidden');
+                notificationMenu?.classList.toggle('hidden');
+                notificationButton.setAttribute('aria-expanded', notificationMenu?.classList.contains('hidden') ? 'false' : 'true');
+            });
+
+            notificationMenu?.addEventListener('click', event => event.stopPropagation());
+
+            document.addEventListener('click', function () {
+                userMenu?.classList.add('hidden');
+                notificationMenu?.classList.add('hidden');
+                notificationButton?.setAttribute('aria-expanded', 'false');
             });
         });
     </script>

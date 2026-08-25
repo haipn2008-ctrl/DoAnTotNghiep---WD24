@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\SettlementStatement;
 use App\Models\User;
 use Database\Seeders\AuthenticationScenarioSeeder;
 use Database\Seeders\DatabaseSeeder;
@@ -23,22 +24,39 @@ class AuthenticationSeederTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $this->assertDatabaseCount('roles', 3);
-        $this->assertDatabaseCount('users', 30);
-        $this->assertDatabaseCount('rooms', 18);
-        $this->assertDatabaseCount('tenants', 32);
-        $this->assertDatabaseCount('contracts', 16);
-        $this->assertDatabaseCount('contract_tenants', 27);
+        $this->assertDatabaseCount('users', 33);
+        $this->assertDatabaseCount('rooms', 21);
+        $this->assertDatabaseCount('tenants', 35);
+        $this->assertDatabaseCount('contracts', 19);
+        $this->assertDatabaseCount('contract_tenants', 30);
         $this->assertDatabaseCount('contract_tenant_histories', 27);
-        $this->assertDatabaseCount('utility_readings', 13);
-        $this->assertDatabaseCount('invoices', 18);
-        $this->assertDatabaseCount('invoice_details', 38);
-        $this->assertDatabaseCount('payments', 16);
+        $this->assertDatabaseCount('utility_readings', 16);
+        $this->assertDatabaseCount('invoices', 21);
+        $this->assertDatabaseCount('invoice_details', 41);
+        $this->assertDatabaseCount('payments', 19);
         $this->assertDatabaseCount('support_requests', 4);
         $this->assertDatabaseCount('vehicles', 3);
-        $this->assertDatabaseCount('contract_extension_requests', 3);
-        $this->assertDatabaseCount('contract_termination_requests', 3);
+        $this->assertDatabaseCount('contract_extension_requests', 4);
+        $this->assertDatabaseCount('contract_termination_requests', 5);
         $this->assertDatabaseCount('temporary_residences', 4);
         $this->assertDatabaseCount('settings', 1);
+        $this->assertDatabaseCount('settlement_statements', 7);
+
+        $documentedEndContracts = Contract::query()
+            ->whereIn('contract_code', [
+                'QA-09-SETTLING',
+                'QA-10-REFUND-REQUESTED',
+                'QA-11-REFUND-APPROVED',
+                'QA-12-REFUND-PROCESSING',
+                'QA-13-COMPLETED-REFUNDED',
+                'QA-14-COMPLETED-DEDUCTED',
+                'QA-15-COMPLETED-RETAINED',
+            ])->with('settlementStatement')->get();
+        $this->assertCount(7, $documentedEndContracts);
+        $this->assertTrue($documentedEndContracts->every(
+            fn (Contract $contract) => $contract->checkout_handover_confirmed_at
+                && $contract->settlementStatement instanceof SettlementStatement
+        ));
 
         $this->assertDatabaseHas('settings', [
             'bank_id' => 'MB',
