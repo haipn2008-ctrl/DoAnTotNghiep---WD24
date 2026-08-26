@@ -219,6 +219,10 @@ class Invoice extends Model
 
     public function getRemainingAmountAttribute()
     {
+        if (in_array($this->status, [self::STATUS_WRITTEN_OFF, self::STATUS_CANCELLED], true)) {
+            return 0.0;
+        }
+
         return max(
             0,
             $this->payable_amount - $this->paid_amount

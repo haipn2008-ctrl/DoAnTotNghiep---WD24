@@ -21,7 +21,7 @@ class InvoiceController extends Controller
     public function index(Request $request): View
     {
         $filters = $request->validate([
-            'status' => 'nullable|in:unpaid,partial,paid,cancelled',
+            'status' => 'nullable|in:unpaid,partial,paid,written_off,cancelled',
             'year' => 'nullable|integer|between:2000,2100',
         ]);
 
@@ -222,10 +222,7 @@ class InvoiceController extends Controller
             ->where('status', Payment::STATUS_SUCCESS)
             ->sum('amount_paid');
 
-        $remainingAmount = max(
-            0,
-            $invoice->payable_amount - $paidAmount
-        );
+        $remainingAmount = (float) $invoice->remaining_amount;
 
         $pendingAmount = (float) $invoice->payments
             ->where('status', Payment::STATUS_PENDING)

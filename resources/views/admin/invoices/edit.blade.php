@@ -9,6 +9,7 @@
             'unpaid' => ['text' => 'Chưa thanh toán', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
             'partial' => ['text' => 'Thanh toán một phần', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200'],
             'paid' => ['text' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+            'written_off' => ['text' => 'Đã xóa nợ theo quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200'],
         ];
         $statusData = $statusMap[$invoice->status] ?? ['text' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
     @endphp

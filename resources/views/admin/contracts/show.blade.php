@@ -169,7 +169,7 @@
                 <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><p class="mt-1 text-xs leading-5 text-slate-500">Cập nhật thời hạn và giá thuê sau khi hai bên đã thỏa thuận.</p><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Gia hạn hợp đồng</a></div>
             @endif
             @if($contract->status===\App\Models\Contract::STATUS_SETTLING)
-                @include('admin.contracts.partials.departure-progress', ['progressClass' => 'lg:col-span-2'])
+                @include('admin.contracts.partials.departure-progress', ['progressClass' => 'lg:col-span-2', 'showCheckoutLink' => true])
                 <div class="rounded-xl border border-violet-200 bg-violet-50/50 p-5 lg:col-span-2">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div><h4 class="font-bold text-slate-950">Quy trình trả phòng đang xử lý</h4><p class="mt-1 text-sm text-slate-600">Mở trang quy trình để xử lý công nợ, tiền cọc và hoàn tất hợp đồng trên cùng một giao diện.</p></div>

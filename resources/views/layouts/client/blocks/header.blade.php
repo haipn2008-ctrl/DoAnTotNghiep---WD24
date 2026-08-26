@@ -1,18 +1,18 @@
-<header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-    <div class="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+<header class="sticky top-0 z-20 border-b border-indigo-100/80 bg-white/85 shadow-[0_1px_0_rgba(15,23,42,.03)] backdrop-blur-xl">
+    <div class="flex h-[72px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
         <div class="flex min-w-0 items-center gap-3">
             <button id="clientSidebarOpen" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden" aria-label="Mở menu">
                 <span class="text-xl leading-none">☰</span>
             </button>
             <div class="min-w-0">
-                <p class="text-xs font-semibold uppercase text-slate-400">Cổng khách thuê</p>
-                <h1 class="truncate text-lg font-bold text-slate-950">@yield('page_title', 'Tổng quan')</h1>
+                <p class="text-[11px] font-bold uppercase tracking-[.16em] text-indigo-400">Stay Master · Cổng khách thuê</p>
+                <h1 class="truncate text-lg font-bold tracking-tight text-slate-950">@yield('page_title', 'Tổng quan')</h1>
             </div>
         </div>
 
         <div class="flex items-center gap-2">
             <div class="relative">
-                <button id="clientNotificationButton" type="button" aria-label="Mở thông báo" aria-expanded="false" class="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                <button id="clientNotificationButton" type="button" aria-label="Mở thông báo" aria-expanded="false" class="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-indigo-100 bg-indigo-50/70 text-indigo-600 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-100">
                     <x-bell-icon class="h-5 w-5" />
                     @if(($clientUnreadNotificationCount ?? 0) > 0)
                         <span class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{{ $clientUnreadNotificationCount > 99 ? '99+' : $clientUnreadNotificationCount }}</span>
@@ -51,7 +51,7 @@
             </div>
 
             <div class="relative">
-            <button id="clientUserMenuButton" type="button" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left hover:bg-slate-50">
+            <button id="clientUserMenuButton" type="button" class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-2.5 py-2 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40">
                 <span class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
                     {{ mb_substr(Auth::user()->name ?? 'K', 0, 1) }}
                 </span>

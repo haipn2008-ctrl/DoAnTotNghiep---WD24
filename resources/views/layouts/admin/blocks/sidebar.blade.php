@@ -35,7 +35,8 @@
             'icon' => 'bx bx-file',
             'active' => request()->routeIs('admin.contracts*')
                 || request()->routeIs('admin.extension-requests*')
-                || request()->routeIs('admin.termination-requests*'),
+                || request()->routeIs('admin.termination-requests*')
+                || request()->routeIs('admin.deposit-refunds*'),
 
             'items' => [
                 [
@@ -57,6 +58,11 @@
                     'label' => 'Duyệt trả phòng',
                     'route' => 'admin.termination-requests.index',
                     'active' => request()->routeIs('admin.termination-requests*')
+                ],
+                [
+                    'label' => 'Duyệt hoàn cọc',
+                    'route' => 'admin.deposit-refunds.index',
+                    'active' => request()->routeIs('admin.deposit-refunds*')
                 ],
             ],
         ],

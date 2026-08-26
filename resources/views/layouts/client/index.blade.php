@@ -9,19 +9,19 @@
     <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&display=swap">
     @stack('styles')
 </head>
-<body class="min-h-screen bg-slate-100 font-sans text-slate-900">
+<body class="min-h-screen bg-[#f6f8ff] font-sans text-slate-900 antialiased">
     <div class="flex min-h-screen">
         @include('layouts.client.blocks.sidebar')
 
         <div id="clientSidebarOverlay" class="fixed inset-0 z-30 hidden bg-slate-950/40 lg:hidden"></div>
 
-        <div class="flex min-w-0 flex-1 flex-col lg:pl-72">
+        <div class="flex min-w-0 flex-1 flex-col lg:pl-80">
             @include('layouts.client.blocks.header')
 
-            <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+            <main class="flex-1 bg-[radial-gradient(circle_at_top_right,_rgba(224,231,255,.75),_transparent_35%),linear-gradient(180deg,#f8faff_0%,#f3f6fc_100%)] px-4 py-7 sm:px-6 lg:px-10">
                 <div class="mx-auto max-w-7xl">
                     @if (auth()->user()?->status === \App\Models\User::STATUS_SETTLING)
-                        <div class="mb-5 flex flex-col justify-between gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 sm:flex-row sm:items-center">
+                        <div class="mb-6 flex flex-col justify-between gap-3 rounded-2xl border border-violet-200 bg-violet-50/90 px-5 py-4 text-sm text-violet-900 shadow-sm sm:flex-row sm:items-center">
                             <span><strong>Bạn đã trả phòng.</strong> Tài khoản đang được duy trì để hoàn tất quyết toán.</span>
                             @unless(request()->routeIs('client.settlement.*'))
                                 <a href="{{ route('client.settlement.index') }}" class="font-semibold text-violet-700 hover:text-violet-900">Đến cổng quyết toán →</a>

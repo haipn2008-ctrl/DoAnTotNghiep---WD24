@@ -35,7 +35,7 @@ class InvoiceController extends Controller
         $filters = $request->validate([
             'month' => ['nullable', 'integer', 'between:1,12'],
             'year' => ['nullable', 'integer', 'between:2000,2100'],
-            'status' => ['nullable', 'in:unpaid,partial,paid,cancelled'],
+            'status' => ['nullable', 'in:unpaid,partial,paid,written_off,cancelled'],
             'keyword' => ['nullable', 'string', 'max:100'],
         ]);
         $month = isset($filters['month']) ? (int) $filters['month'] : null;
@@ -68,6 +68,7 @@ class InvoiceController extends Controller
             Invoice::STATUS_UNPAID,
             Invoice::STATUS_PARTIAL,
             Invoice::STATUS_PAID,
+            Invoice::STATUS_WRITTEN_OFF,
             Invoice::STATUS_CANCELLED,
         ])) {
             $query->where('status', $status);
@@ -157,10 +158,7 @@ class InvoiceController extends Controller
             ->success()
             ->sum('amount_paid');
 
-        $remainingAmount = max(
-            0,
-            $invoice->payable_amount - $paidAmount
-        );
+        $remainingAmount = (float) $invoice->remaining_amount;
         $pendingAmount = (float) $invoice->payments()
             ->pending()
             ->sum('amount_paid');
@@ -685,7 +683,7 @@ class InvoiceController extends Controller
 
             foreach ($invoices as $invoice) {
                 $paidAmount = $invoice->paid_amount ?? $invoice->payments()->success()->sum('amount_paid');
-                $remainingAmount = max(0, $invoice->payable_amount - $paidAmount);
+                $remainingAmount = (float) $invoice->remaining_amount;
 
                 Csv::writeRow($file, [
                     $invoice->invoice_code,
