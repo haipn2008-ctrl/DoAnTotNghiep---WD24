@@ -88,14 +88,14 @@ class DepositRefundController extends Controller
         if ($type === 'full_refund') {
             $additionalDeduction = 0;
             $refund = $eligibleRefund;
-            $description = 'Admin duyệt hoàn toàn bộ tiền cọc.';
+            $description = 'Admin duyệt hoàn toàn bộ số dư tiền cọc sau bù trừ.';
         } elseif ($type === 'partial_refund') {
             $additionalDeduction = (float) $request->deduction_amount;
 
             if ($additionalDeduction <= 0 || $additionalDeduction >= $eligibleRefund) {
                 return back()
                     ->withInput()
-                    ->with('error', 'Khoản khấu trừ phải lớn hơn 0 và nhỏ hơn tiền cọc.');
+                    ->with('error', 'Khoản khấu trừ phải lớn hơn 0 và nhỏ hơn số dư tiền cọc được hoàn.');
             }
 
             $refund = $eligibleRefund - $additionalDeduction;
@@ -133,7 +133,8 @@ class DepositRefundController extends Controller
             $deduction,
             $refund,
             $description,
-            $damageProofPath
+            $damageProofPath,
+            $statement,
         ) {
             $oldStatus = $contract->status;
             $oldDepositStatus = $contract->deposit_status;
@@ -166,6 +167,14 @@ class DepositRefundController extends Controller
                     'deposit_admin_note' => $request->return_note,
                 ]);
             }
+
+            $statement->forceFill([
+                'net_amount' => -$refund,
+                'status' => $refund > 0
+                    ? \App\Models\SettlementStatement::STATUS_AWAITING_REFUND
+                    : \App\Models\SettlementStatement::STATUS_BALANCED,
+                'calculated_at' => now(),
+            ])->save();
 
             ContractHistoryService::log(
                 $contract,
@@ -225,8 +234,8 @@ class DepositRefundController extends Controller
         $request->validate([
             'transfer_amount' => [
                 'required',
-                'numeric',
-                'min:0',
+                'integer',
+                'min:1',
             ],
             'transfer_proof' => [
                 'required',

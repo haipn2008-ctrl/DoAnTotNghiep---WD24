@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ContractRepresentativeTransfer;
 use App\Models\ContractTenant;
-use App\Services\ContractTenantService;
+use App\Models\Setting;
 use App\Services\AdminNotificationService;
 use App\Services\ClientNotificationService;
+use App\Services\ContractTenantService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rules\Password;
 
 class ContractTenantController extends Controller
 {
@@ -42,5 +46,39 @@ class ContractTenantController extends Controller
         app(ClientNotificationService::class)->member($member, 'Đã ghi nhận người thuê rời phòng', $member->full_name.' đã được cập nhật rời phòng.');
 
         return back()->with('success', 'Đã ghi nhận người thuê rời phòng và cập nhật số người hiện tại.');
+    }
+
+    public function transferRepresentative(Request $request, ContractTenant $member)
+    {
+        $data = $request->validate([
+            'successor_member_id' => ['required', 'integer', 'exists:contract_tenants,id'],
+            'effective_at' => ['required', 'date', 'before_or_equal:now'],
+            'reason' => ['required', 'string', 'max:1000'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'temporary_password' => ['required', 'confirmed', Password::min(8)],
+        ]);
+        $successor = ContractTenant::query()->findOrFail($data['successor_member_id']);
+        $transfer = $this->members->transferRepresentative(
+            $member,
+            $successor,
+            $request->user(),
+            $data['effective_at'],
+            $data['reason'],
+            $data['email'],
+            $data['temporary_password'],
+        );
+
+        return back()->with('success', 'Đã chuyển người đại diện, cấp tài khoản mới và vô hiệu hóa tài khoản cũ.')
+            ->with('representative_transfer_id', $transfer->id);
+    }
+
+    public function transferAppendix(ContractRepresentativeTransfer $transfer)
+    {
+        $transfer->load(['contract.room', 'oldTenant', 'newTenant', 'performer']);
+        $setting = Setting::currentOrCreate();
+
+        return Pdf::loadView('admin.contracts.representative-transfer-appendix', compact('transfer', 'setting'))
+            ->setPaper('a4')
+            ->stream('phu-luc-chuyen-giao-'.$transfer->contract->contract_code.'-'.$transfer->id.'.pdf');
     }
 }

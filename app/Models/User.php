@@ -16,7 +16,7 @@ class User extends Authenticatable
     ];
 
     public const ROLE_ADMIN = 1;
-    public const ROLE_CLIENT = 2;
+    public const ROLE_USER = 2;
 
     public const STATUS_PENDING = 'pending';
     public const STATUS_ACTIVE = 'active';
@@ -85,7 +85,7 @@ class User extends Authenticatable
 
     public function isClient(): bool
     {
-        return $this->hasRole('user', 'client');
+        return $this->hasRole('user');
     }
 
     public function isActive(): bool

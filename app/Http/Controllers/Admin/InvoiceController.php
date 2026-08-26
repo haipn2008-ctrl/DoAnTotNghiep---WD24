@@ -12,6 +12,7 @@ use App\Services\AdminNotificationService;
 use App\Services\ClientNotificationService;
 use App\Services\ContractLifecycleService;
 use App\Services\InvoiceGenerator;
+use App\Services\SettlementService;
 use App\Services\TenantAccountLifecycle;
 use App\Support\Csv;
 use Carbon\Carbon;
@@ -718,7 +719,9 @@ class InvoiceController extends Controller
             'invoice.room',
             'confirmer',
             'submitter',
-        ])->latest('payment_date');
+        ])
+            ->latest('created_at')
+            ->latest('id');
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
@@ -1121,7 +1124,14 @@ class InvoiceController extends Controller
 
     private function syncTenantAccountAfterPayment(Invoice $invoice): void
     {
-        $tenant = $invoice->contract()->with('tenant.user')->first()?->tenant;
+        $contract = $invoice->contract()->with(['tenant.user', 'settlementStatement'])->first();
+        $tenant = $contract?->tenant;
+
+        if ($contract?->status === Contract::STATUS_SETTLING
+            && $contract->settlementStatement) {
+            app(SettlementService::class)
+                ->refreshFinancials($contract->settlementStatement);
+        }
 
         if ($tenant) {
             app(TenantAccountLifecycle::class)->sync($tenant);

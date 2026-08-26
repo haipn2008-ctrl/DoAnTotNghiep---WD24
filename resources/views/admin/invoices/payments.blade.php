@@ -32,14 +32,21 @@
             @forelse($payments as $payment)
                 @php($status = $statuses[$payment->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'])
                 <article class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="flex flex-col justify-between gap-4 lg:flex-row">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
                         <div class="grid flex-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Giao dịch</p><p class="mt-1 font-bold text-slate-950">{{ $payment->transaction_code ?? 'GD-'.$payment->id }}</p><p class="mt-1 text-xs text-slate-500">{{ $methods[$payment->payment_method] ?? 'Không xác định' }} · {{ $payment->payment_date?->format('d/m/Y') }}</p></div>
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Hóa đơn</p><a href="{{ route('admin.invoices.show', $payment->invoice) }}" class="mt-1 block font-bold text-indigo-700">{{ $payment->invoice->invoice_code }}</a><p class="mt-1 text-xs text-slate-500">Phòng {{ $payment->invoice->room->room_code ?? '-' }}</p></div>
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Khách thuê</p><p class="mt-1 font-bold text-slate-950">{{ $payment->invoice->contract->tenant->full_name ?? '-' }}</p><p class="mt-1 text-xs text-slate-500">{{ $payment->submitter?->email ?? 'Admin ghi nhận' }}</p></div>
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Số tiền</p><p class="mt-1 text-xl font-bold text-emerald-700">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</p><span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span></div>
                         </div>
-                        @if($payment->proof_image)<a href="{{ route('admin.invoices.payments.proof', $payment) }}" target="_blank" class="shrink-0"><img src="{{ route('admin.invoices.payments.proof', $payment) }}" alt="Biên lai" class="h-28 w-28 rounded-lg object-cover ring-1 ring-slate-200"><span class="mt-1 block text-center text-xs font-semibold text-indigo-700">Xem ảnh lớn</span></a>@endif
+                        <div class="shrink-0 lg:w-28">
+                            @if($payment->proof_image)
+                                <a href="{{ route('admin.invoices.payments.proof', $payment) }}" target="_blank" rel="noopener" class="block w-28">
+                                    <img src="{{ route('admin.invoices.payments.proof', $payment) }}" alt="Biên lai" class="h-28 w-28 rounded-lg object-cover ring-1 ring-slate-200">
+                                    <span class="mt-1 block text-center text-xs font-semibold text-indigo-700">Xem ảnh lớn</span>
+                                </a>
+                            @endif
+                        </div>
                     </div>
 
                     @if($payment->note)<p class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Khách ghi chú: {{ $payment->note }}</p>@endif

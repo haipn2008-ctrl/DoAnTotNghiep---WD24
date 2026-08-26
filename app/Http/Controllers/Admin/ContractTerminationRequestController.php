@@ -63,7 +63,7 @@ class ContractTerminationRequestController extends Controller
 
         return back()->with(
             'success',
-            'Đã duyệt và xếp lịch bàn giao phòng. Hợp đồng chỉ chuyển sang quyết toán sau khi checkout thực tế.'
+            'Đã duyệt và xếp lịch bàn giao phòng. Hợp đồng chỉ chuyển sang quyết toán sau khi khách trả phòng thực tế.'
         );
     }
     /**

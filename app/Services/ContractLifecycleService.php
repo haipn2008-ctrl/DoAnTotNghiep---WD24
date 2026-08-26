@@ -105,6 +105,7 @@ class ContractLifecycleService
                 $this->fail('room_id', 'Phòng đang bảo trì. Không thể gửi hợp đồng chờ ký.');
             }
             $this->ensureScheduleIsComplete($contract);
+            $this->ensureNoReservationConflict($contract);
             $this->snapshotMoveInDetails($contract, $room);
             $contract->forceFill([
                 'signature_due_at' => now()->addDays(Contract::SIGNATURE_DEADLINE_DAYS),
@@ -815,20 +816,23 @@ class ContractLifecycleService
                 $this->fail('deposit_resolution', 'Hoàn cọc một phần phải có chứng từ chuyển khoản phần còn lại.');
             }
             if (in_array($resolution, [Contract::DEPOSIT_DEDUCTED, Contract::DEPOSIT_RETAINED], true)
-                && blank($data['settlement_note'] ?? null)) {
+                && blank($data['settlement_note'] ?? null)
+                && blank($contract->deposit_process_reason)) {
                 $this->fail('settlement_note', 'Khấu trừ hoặc giữ cọc bắt buộc có lý do/chứng từ.');
             }
+
+            $settlementNote = $data['settlement_note'] ?? $contract->deposit_process_reason;
 
             $contract->forceFill([
                 'deposit_resolution' => $resolution,
                 'deposit_status' => $resolution,
                 'deposit_resolved_at' => now(),
                 'deposit_resolved_by' => $actor->id,
-                'settlement_note' => $data['settlement_note'] ?? null,
+                'settlement_note' => $settlementNote,
                 'completed_at' => now(),
                 'completed_by' => $actor->id,
             ])->save();
-            $this->transition($contract, Contract::STATUS_COMPLETED, 'complete_settlement', $data['settlement_note'] ?? null, $actor, [
+            $this->transition($contract, Contract::STATUS_COMPLETED, 'complete_settlement', $settlementNote, $actor, [
                 'deposit_resolution' => $resolution,
                 'written_off_invoice_ids' => $openInvoices->pluck('id')->all(),
             ]);
@@ -1034,7 +1038,7 @@ class ContractLifecycleService
             ->where('scheduled_move_out_at', '<=', now())
             ->orderBy('id')
             ->each(function (Contract $contract) use (&$created): void {
-                $message = 'Đã đến lịch bàn giao phòng '.$contract->scheduled_move_out_at?->format('H:i d/m/Y').'. Cần chốt chỉ số, tài sản và thực hiện checkout.';
+                $message = 'Đã đến lịch bàn giao phòng '.$contract->scheduled_move_out_at?->format('H:i d/m/Y').'. Cần chốt chỉ số, tài sản và thực hiện trả phòng.';
                 if ($this->alert($contract, 'departure_due', 'Đến lịch bàn giao và trả phòng', $message)) {
                     app(ClientNotificationService::class)->contract(
                         $contract,
@@ -1098,6 +1102,26 @@ class ContractLifecycleService
 
     private function ensureRoomCanAcceptDraftSchedule(Room $room, array $data): void
     {
+        $reservedContract = Contract::query()
+            ->where('room_id', $room->id)
+            ->whereIn('status', [
+                Contract::STATUS_PENDING_SIGNATURE,
+                Contract::STATUS_PENDING_DEPOSIT,
+                Contract::STATUS_AWAITING_MOVE_IN,
+            ])
+            ->lockForUpdate()
+            ->first();
+        if ($reservedContract) {
+            $availableFrom = $reservedContract->end_date->copy()->addDay()->startOfDay();
+            if (Carbon::parse($data['start_date'])->startOfDay()->lt($availableFrom)) {
+                $this->fail(
+                    'room_id',
+                    'Phòng đã được giữ chỗ bởi hợp đồng '.$reservedContract->contract_code
+                    .' và đang chờ nhận phòng. Ngày bắt đầu sớm nhất là '.$availableFrom->format('d/m/Y').'.'
+                );
+            }
+        }
+
         $currentOccupancy = Contract::query()
             ->where('room_id', $room->id)
             ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)

@@ -162,7 +162,7 @@ Artisan::command('contracts:audit-lifecycle', function () {
             $add('Hợp đồng hủy thiếu lý do.');
         }
         if ($contract->status === Contract::STATUS_COMPLETED && (! $contract->actual_move_out_at || ! $contract->deposit_resolution)) {
-            $add('Hợp đồng completed thiếu checkout hoặc trạng thái tài chính cuối cùng.');
+            $add('Hợp đồng đã hoàn tất nhưng thiếu dữ liệu trả phòng hoặc trạng thái tài chính cuối cùng.');
         }
     });
 

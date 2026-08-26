@@ -1,9 +1,11 @@
 @php
+    $isRentalActive = auth()->user()?->isActive();
+    $isSettling = auth()->user()?->status === \App\Models\User::STATUS_SETTLING;
     $menuItems = [
         [
             'label' => 'Tổng quan',
-            'href' => route('client.home'),
-            'active' => request()->routeIs('client.home'),
+            'href' => $isSettling ? route('client.settlement.index') : route('client.home'),
+            'active' => request()->routeIs('client.home', 'client.settlement.*'),
             'icon' => '⌂'
         ],
         [
@@ -14,7 +16,7 @@
         ],
     ];
     $restrictedRentalPaths = ['/client/room', '/client/utilities', '/client/support'];
-    $menuItems = array_filter($menuItems, fn ($item) => auth()->user()?->isActive()
+    $menuItems = array_filter($menuItems, fn ($item) => $isRentalActive
         || ! in_array(parse_url($item['href'], PHP_URL_PATH), $restrictedRentalPaths, true));
 @endphp
 
@@ -86,6 +88,17 @@
 
         @endforeach
 
+        <a href="{{ route('client.notifications.index') }}"
+           class="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.notifications.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
+            <span class="flex items-center gap-3">
+                <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.notifications.*') ? 'bg-indigo-100' : 'bg-slate-100' }}"><i class="bx bx-bell text-lg"></i></span>
+                <span>Thông báo</span>
+            </span>
+            @if($clientSidebarUnreadCount > 0)
+                <span class="rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">{{ $clientSidebarUnreadCount > 99 ? '99+' : $clientSidebarUnreadCount }}</span>
+            @endif
+        </a>
+
 
 
         {{-- =====================================================
@@ -131,17 +144,18 @@
                 class="ml-4 mt-1 space-y-1 border-l-2 border-indigo-100 pl-2
                 {{ request()->routeIs(
                     'client.contracts.*',
+                    'client.deposit-refunds.*',
                     'client.extension-requests.*',
                     'client.termination-requests.*',
-                    'requests.history'
+                    'client.requests.history'
                 ) ? '' : 'hidden' }}">
 
                 <a href="{{ route('client.contracts.index') }}"
-                class="block rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition
-                        hover:bg-indigo-50 hover:text-indigo-700">
+                class="block rounded-lg px-3 py-2 text-sm font-medium transition {{ request()->routeIs('client.contracts.index', 'client.contracts.show', 'client.contracts.file') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
                     Hợp đồng của tôi
                 </a>
 
+                @if($isRentalActive)
                 <a href="{{ route('client.extension-requests.index') }}"
                 class="block rounded-lg px-3 py-2 text-sm font-medium transition
                 {{ request()->routeIs('client.extension-requests.*')
@@ -157,10 +171,11 @@
                         : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
                     Yêu cầu trả phòng
                 </a>
+                @endif
 
                 <a href="{{ route('client.requests.history') }}"
                 class="block rounded-lg px-3 py-2 text-sm font-medium transition
-                {{ request()->routeIs('requests.history')
+                {{ request()->routeIs('client.requests.history')
                         ? 'bg-indigo-50 text-indigo-700'
                         : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
                     Lịch sử yêu cầu
@@ -170,13 +185,21 @@
 
         </div>
 
+        @if($clientSettlementContract)
+            <a href="{{ route('client.settlement.index') }}"
+               class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.settlement.*', 'client.deposit-refunds.*') ? 'bg-violet-50 text-violet-700' : 'text-slate-600 hover:bg-violet-50 hover:text-violet-700' }}">
+                <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.settlement.*', 'client.deposit-refunds.*') ? 'bg-violet-100' : 'bg-slate-100' }}"><i class="bx bx-wallet text-lg"></i></span>
+                <span>Quyết toán & hoàn cọc</span>
+            </a>
+        @endif
+
 
 
         {{-- =====================================================
             CÁC CHỨC NĂNG KHÁC - GIỮ NGUYÊN
         ====================================================== --}}
 
-        @if(auth()->user()?->isActive())
+        @if($isRentalActive)
         {{-- ĐIỆN NƯỚC --}}
         <a href="{{ route('client.utilities.index') }}"
            class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.utilities.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
@@ -190,11 +213,13 @@
         </a>
         @endif
 
-        <a href="{{ route('client.vehicles.index') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.vehicles.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
-            <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.vehicles.*') ? 'bg-indigo-100' : 'bg-slate-100' }}">⌁</span>
-            <span>Phương tiện của tôi</span>
-        </a>
+        @if($isRentalActive)
+            <a href="{{ route('client.vehicles.index') }}"
+               class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.vehicles.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
+                <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.vehicles.*') ? 'bg-indigo-100' : 'bg-slate-100' }}">⌁</span>
+                <span>Phương tiện của tôi</span>
+            </a>
+        @endif
 
 
         {{-- HÓA ĐƠN --}}
@@ -233,7 +258,7 @@
 
             <div id="supportSubmenu"
                  class="ml-4 mt-1 space-y-1 border-l-2 border-indigo-100 pl-2 {{ request()->routeIs('client.support.*', 'client.landlord-information') ? '' : 'hidden' }}">
-                @if(auth()->user()?->isActive())
+                @if($isRentalActive || $isSettling)
                     <a href="{{ route('client.support.index') }}"
                        class="block rounded-lg px-3 py-2 text-sm font-medium transition {{ request()->routeIs('client.support.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
                         Gửi yêu cầu hỗ trợ
@@ -245,6 +270,12 @@
                 </a>
             </div>
         </div>
+
+        <a href="{{ route('client.account.edit') }}"
+           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.account.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
+            <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.account.*') ? 'bg-indigo-100' : 'bg-slate-100' }}"><i class="bx bx-user-circle text-lg"></i></span>
+            <span>Tài khoản của tôi</span>
+        </a>
 
     </nav>
 

@@ -17,32 +17,41 @@
         </div>
 
         <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <form method="GET" class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <form method="GET" action="{{ route('admin.users.index') }}" data-user-search-form class="grid grid-cols-2 items-end gap-3 md:grid-cols-[minmax(260px,1fr)_minmax(210px,280px)]">
                 <div>
                     <label for="search" class="mb-1.5 block text-sm font-semibold text-slate-700">Tìm kiếm</label>
-                    <input id="search" type="text" name="search" value="{{ $search }}" placeholder="Tên hoặc email" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <input id="search" type="search" name="search" value="{{ $search }}" placeholder="Tên hoặc email" autocomplete="off" data-user-search-input class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                 </div>
-                <button class="inline-flex h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800">
-                    <i class="bx bx-search text-lg"></i>
-                    Tìm
-                </button>
+                <div>
+                    <label for="status" class="mb-1.5 block text-sm font-semibold text-slate-700">Trạng thái tài khoản</label>
+                    <select id="status" name="status" onchange="this.form.requestSubmit()" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="pending" @selected($status === 'pending')>Chờ kích hoạt</option>
+                        <option value="active" @selected($status === 'active')>Đang hoạt động</option>
+                        <option value="settling" @selected($status === 'settling')>Đang quyết toán</option>
+                        <option value="former" @selected($status === 'former')>Cựu người thuê</option>
+                        <option value="locked" @selected($status === 'locked')>Đã khóa</option>
+                        <option value="inactive" @selected($status === 'inactive')>Ngừng sử dụng</option>
+                    </select>
+                </div>
             </form>
         </section>
 
-        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-                        <tr>
-                            <th class="px-5 py-3">Người dùng</th>
-                            <th class="px-5 py-3">Email</th>
-                            <th class="px-5 py-3">Vai trò</th>
-                            <th class="px-5 py-3">Trạng thái</th>
-                            <th class="px-5 py-3">Thời gian tạo</th>
-                            <th class="px-5 py-3 text-right">Hành động</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
+        <div id="user-list-results" aria-live="polite">
+            <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                            <tr>
+                                <th class="px-5 py-3">Người dùng</th>
+                                <th class="px-5 py-3">Email</th>
+                                <th class="px-5 py-3">Vai trò</th>
+                                <th class="px-5 py-3">Trạng thái</th>
+                                <th class="px-5 py-3">Thời gian tạo</th>
+                                <th class="px-5 py-3 text-right">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
                         @forelse ($users as $user)
                             <tr class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">
@@ -94,11 +103,91 @@
                                 <td colspan="6" class="px-5 py-12 text-center text-slate-500">Chưa có tài khoản nào.</td>
                             </tr>
                         @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
-        <div class="flex justify-end">{{ $users->links() }}</div>
+            <div class="mt-6 flex justify-end">{{ $users->links() }}</div>
+        </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.querySelector('[data-user-search-form]');
+            const searchInput = form?.querySelector('[data-user-search-input]');
+
+            if (!form || !searchInput) {
+                return;
+            }
+
+            let debounceTimer;
+            let activeRequest;
+
+            const updateUserList = async () => {
+                const url = new URL(form.action, window.location.origin);
+
+                new FormData(form).forEach((value, key) => {
+                    const normalizedValue = typeof value === 'string' ? value.trim() : value;
+
+                    if (normalizedValue) {
+                        url.searchParams.set(key, normalizedValue);
+                    }
+                });
+
+                activeRequest?.abort();
+                const request = new AbortController();
+                activeRequest = request;
+
+                const currentResults = document.getElementById('user-list-results');
+                currentResults?.setAttribute('aria-busy', 'true');
+
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            Accept: 'text/html',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        signal: request.signal,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Không thể tải danh sách người dùng.');
+                    }
+
+                    const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+                    const nextResults = page.getElementById('user-list-results');
+
+                    if (!nextResults) {
+                        throw new Error('Không tìm thấy danh sách người dùng.');
+                    }
+
+                    currentResults?.replaceWith(nextResults);
+                    window.history.replaceState({}, '', url);
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        window.location.assign(url);
+                    }
+                } finally {
+                    if (activeRequest === request) {
+                        document.getElementById('user-list-results')?.removeAttribute('aria-busy');
+                        activeRequest = undefined;
+                    }
+                }
+            };
+
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                window.clearTimeout(debounceTimer);
+                updateUserList();
+            });
+
+            searchInput.addEventListener('input', () => {
+                window.clearTimeout(debounceTimer);
+                debounceTimer = window.setTimeout(updateUserList, 250);
+            });
+        });
+    </script>
+@endpush

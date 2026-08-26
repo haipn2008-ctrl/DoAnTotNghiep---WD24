@@ -12,7 +12,8 @@
         \App\Models\ContractTenant::STATUS_APPROVED,
         \App\Models\ContractTenant::STATUS_CHECKED_IN,
     ])->count();
-    $occupancyLimitReached = $plannedResidentCount >= (int) $contract->room->max_people;
+    $currentOccupancy = max($plannedResidentCount, (int) $contract->room->current_people);
+    $occupancyLimitReached = $currentOccupancy >= (int) $contract->room->max_people;
     $vehicleTypeLabels = ['motorcycle' => 'Xe máy', 'electric_motorcycle' => 'Xe máy điện', 'bicycle' => 'Xe đạp'];
     $approvedVehicles = $contract->currentMembers
         ->flatMap(fn ($member) => $member->tenant?->vehicles ?? collect())
@@ -132,8 +133,8 @@
 
         <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
-                <div><h3 class="font-semibold text-slate-950">Danh sách người thuê trong phòng</h3><p class="mt-1 text-xs text-slate-500">Tất cả đều là người thuê; người đại diện là đầu mối duy nhất làm việc với quản lý.</p></div>
-                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ $plannedResidentCount }}/{{ $contract->room->max_people }} người</span>
+                <h3 class="font-semibold text-slate-950">Danh sách người thuê trong phòng</h3>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ $currentOccupancy }}/{{ $contract->room->max_people }} người</span>
             </div>
             <div class="space-y-3 p-5">
                 @forelse($contract->currentMembers as $member)
@@ -141,7 +142,7 @@
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
                                 <p class="font-semibold text-slate-950">{{ $member->full_name }}</p>
-                                <p class="mt-1 text-xs font-medium {{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'text-indigo-700' : 'text-slate-500' }}">{{ $member->role_label }}{{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? ' · Tài khoản liên hệ với quản lý' : ' · Không cấp tài khoản riêng' }}</p>
+                                <p class="mt-1 text-xs font-medium {{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'text-indigo-700' : 'text-slate-500' }}">{{ $member->role_label }}</p>
                                 @if($member->review_note)<p class="mt-2 text-sm text-rose-700">Phản hồi: {{ $member->review_note }}</p>@endif
                             </div>
                             <div class="flex items-center gap-2">
@@ -162,7 +163,7 @@
                     <div class="border-t border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-800">Phòng chỉ chứa tối đa {{ $contract->room->max_people }} người. Đã đạt giới hạn của phòng.</div>
                 @else
                     <div class="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div><p class="text-sm font-semibold text-slate-800">Cần bổ sung một người thuê?</p><p class="mt-1 text-xs text-slate-500">Người thuê đại diện khai báo hồ sơ; quản lý sẽ kiểm tra trước khi ghi nhận vào phòng.</p></div>
+                        <p class="text-sm font-semibold text-slate-800">Thêm người thuê vào phòng</p>
                         <a href="{{ route('client.contracts.tenants.create', $contract) }}" class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">+ Thêm người thuê</a>
                     </div>
                 @endif
@@ -178,7 +179,7 @@
             <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 p-5"><h3 class="font-semibold text-slate-950">Bảng quyết toán trả phòng</h3><p class="mt-1 text-sm text-slate-500">Các khoản được tính từ ngày sử dụng thực tế và chỉ số chốt khi bàn giao.</p></div>
                 <div class="divide-y divide-slate-100">@foreach($contract->settlementStatement->items as $item)<div class="flex items-start justify-between gap-4 px-5 py-3 text-sm"><div><p class="font-medium text-slate-900">{{ $item->name }}</p><p class="mt-1 text-xs text-slate-500">{{ $item->note }}</p></div><p class="shrink-0 font-semibold">{{ number_format((float)$item->amount,0,',','.') }}đ</p></div>@endforeach</div>
-                <div class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-4"><div><p class="text-xs text-slate-500">Phí cuối kỳ</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->final_charge_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Công nợ trước đó</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->previous_outstanding_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Tiền cọc đang giữ</p><p class="font-bold text-emerald-700">-{{ number_format((float)$contract->settlementStatement->deposit_credit,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Chênh lệch dự kiến</p><p class="font-bold {{ (float)$contract->settlementStatement->net_amount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format(abs((float)$contract->settlementStatement->net_amount),0,',','.') }}đ {{ (float)$contract->settlementStatement->net_amount > 0 ? 'cần thanh toán' : ((float)$contract->settlementStatement->net_amount < 0 ? 'dự kiến được hoàn' : 'đã cân bằng') }}</p></div></div>
+                <div class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-5"><div><p class="text-xs text-slate-500">Phí cuối kỳ</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->final_charge_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Công nợ trước bù cọc</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->previous_outstanding_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Cọc đã bù công nợ</p><p class="font-bold text-indigo-700">-{{ number_format((float)$contract->deposit_deduction_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Cọc còn được hoàn</p><p class="font-bold text-emerald-700">{{ number_format((float)$contract->deposit_refund_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Kết quả quyết toán</p><p class="font-bold {{ (float)$contract->settlementStatement->net_amount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format(abs((float)$contract->settlementStatement->net_amount),0,',','.') }}đ {{ (float)$contract->settlementStatement->net_amount > 0 ? 'cần thanh toán' : ((float)$contract->settlementStatement->net_amount < 0 ? 'sẽ được hoàn' : 'đã cân bằng') }}</p></div></div>
                 @if($contract->settlementStatement->invoice)<div class="border-t border-slate-200 p-5"><a href="{{ route('client.invoices.show',$contract->settlementStatement->invoice) }}" class="text-sm font-semibold text-indigo-700">Mở hóa đơn quyết toán →</a></div>@endif
             </section>
         @endif

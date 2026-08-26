@@ -8,9 +8,9 @@
     $otherMembers = $contract->currentMembers->where('role', '!=', \App\Models\ContractTenant::ROLE_REPRESENTATIVE);
 @endphp
 
-<section class="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
-    <div class="border-b border-emerald-100 bg-emerald-50 px-5 py-5 sm:px-6">
-        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+<section class="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
+    <div class="border-b border-emerald-100 bg-emerald-50 px-5 py-4">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2 text-sm text-emerald-700">
                     <span class="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-800">Đang thuê</span>
@@ -18,63 +18,96 @@
                     <span>·</span>
                     <span>{{ $contract->currentMembers->count() }} người thuê</span>
                 </div>
-                <h3 class="mt-3 text-xl font-bold text-slate-950 sm:text-2xl">{{ $contract->tenant?->full_name }}</h3>
+                <h3 class="mt-2 text-xl font-bold text-slate-950">{{ $contract->tenant?->full_name }}</h3>
                 <p class="mt-1 text-sm text-slate-600">Người thuê đại diện · {{ $contract->tenant?->phone ?: 'Chưa có số điện thoại' }} · {{ $contract->tenant?->user?->email ?: 'Chưa có email' }}</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-                <a href="{{ route('admin.invoices.index', ['keyword' => $contract->contract_code]) }}" class="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-100">
-                    <i class="bx bx-receipt text-lg"></i>Xem hóa đơn
-                </a>
-                <a href="{{ route('admin.contracts.extend.form', $contract) }}" class="inline-flex h-11 items-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-sky-700">
-                    <i class="bx bx-calendar-plus text-lg"></i>Gia hạn
-                </a>
-                <button type="button" onclick="document.getElementById('checkout-contract-dialog').showModal()" class="inline-flex h-11 items-center gap-2 rounded-xl border border-violet-700 bg-violet-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
-                    <i class="bx bx-log-out-circle text-lg"></i>Lập biên bản trả phòng
-                </button>
             </div>
         </div>
     </div>
 
     <div class="grid divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
-        <div class="p-5">
+        <div class="p-4">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Giá thuê mỗi tháng</p>
             <p class="mt-2 text-xl font-bold text-slate-950">{{ number_format((float) $contract->monthly_rent, 0, ',', '.') }}đ</p>
-            <p class="mt-1 text-xs text-slate-500">Chưa gồm điện, nước và dịch vụ</p>
         </div>
-        <div class="p-5">
+        <div class="p-4">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Còn phải thu</p>
             <p class="mt-2 text-xl font-bold {{ $totalOutstanding > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format($totalOutstanding, 0, ',', '.') }}đ</p>
-            <p class="mt-1 text-xs text-slate-500">Đã thu {{ number_format($totalPaid, 0, ',', '.') }}đ</p>
         </div>
-        <div class="p-5">
+        <div class="p-4">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Thời hạn còn lại</p>
             <p class="mt-2 text-xl font-bold {{ $daysRemaining <= 30 ? 'text-amber-700' : 'text-slate-950' }}">{{ max(0, $daysRemaining) }} ngày</p>
-            <p class="mt-1 text-xs text-slate-500">Đến {{ $contract->end_date->format('d/m/Y') }}</p>
         </div>
-        <div class="p-5">
+        <div class="p-4">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Tiền cọc đang giữ</p>
             <p class="mt-2 text-xl font-bold text-slate-950">{{ number_format((float) $contract->deposit_amount, 0, ',', '.') }}đ</p>
-            <p class="mt-1 text-xs text-emerald-700">Đã thu đủ và giữ đến quyết toán</p>
         </div>
     </div>
 </section>
 
-<div id="contract-overview" class="scroll-mt-24 grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
-    <div class="space-y-6">
-        <section id="contract-tenants" class="scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+<div id="contract-overview" class="scroll-mt-24 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
+    <div class="space-y-4">
+        <section id="contract-tenants" class="scroll-mt-24 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div><h3 class="font-bold text-slate-950">Người thuê trong phòng</h3><p class="mt-1 text-xs text-slate-500">Người đại diện là đầu mối duy nhất có tài khoản; các thành viên còn lại vẫn được ghi trên hợp đồng.</p></div>
+                <h3 class="font-bold text-slate-950">Người thuê trong phòng</h3>
                 <span class="w-fit rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ $contract->currentMembers->count() }}/{{ $contract->room?->max_people }} người</span>
             </div>
 
             @if($representative)
-                <div class="border-b border-slate-100 bg-indigo-50/40 p-5">
+                <div class="border-b border-slate-100 p-4">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div class="flex min-w-0 gap-3">
                             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white">{{ mb_substr($representative->full_name, 0, 1) }}</span>
-                            <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><p class="font-bold text-slate-950">{{ $representative->full_name }}</p><span class="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">Người đại diện</span></div><p class="mt-1 text-sm text-slate-600">{{ $representative->phone ?: 'Chưa có số điện thoại' }} · CCCD {{ $representative->identity_number ?: 'chưa cập nhật' }}</p><p class="mt-1 text-xs text-slate-500">Có tài khoản đăng nhập và làm việc trực tiếp với ban quản lý.</p></div>
+                            <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><p class="font-bold text-slate-950">{{ $representative->full_name }}</p><span class="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">Người đại diện</span></div><p class="mt-1 text-sm text-slate-600">{{ $representative->phone ?: 'Chưa có số điện thoại' }} · CCCD {{ $representative->identity_number ?: 'chưa cập nhật' }}</p></div>
                         </div>
                         @if($representative->identity_front_path && $representative->identity_back_path)<div class="flex shrink-0 gap-2 text-xs font-semibold"><a target="_blank" class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-indigo-700" href="{{ route('admin.contract-tenants.identity-document', [$representative, 'front']) }}">CCCD trước</a><a target="_blank" class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-indigo-700" href="{{ route('admin.contract-tenants.identity-document', [$representative, 'back']) }}">CCCD sau</a></div>@endif
+                    </div>
+
+                    @if($otherMembers->where('status', \App\Models\ContractTenant::STATUS_CHECKED_IN)->isNotEmpty())
+                        <details class="mt-4 rounded-xl border border-indigo-200 bg-white p-4">
+                            <summary class="cursor-pointer text-sm font-semibold text-indigo-700">Ghi nhận đại diện rời phòng và chuyển người đại diện</summary>
+                            <form method="POST" action="{{ route('admin.contract-tenants.transfer-representative', $representative) }}" class="mt-4 grid gap-3 sm:grid-cols-2">
+                                @csrf
+                                <label class="text-xs font-semibold text-slate-600">Người đại diện mới
+                                    <select name="successor_member_id" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal">
+                                        <option value="">Chọn người đang thuê</option>
+                                        @foreach($otherMembers->where('status', \App\Models\ContractTenant::STATUS_CHECKED_IN) as $candidate)
+                                            <option value="{{ $candidate->id }}" @selected(old('successor_member_id') == $candidate->id)>{{ $candidate->full_name }} · {{ $candidate->phone }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="text-xs font-semibold text-slate-600">Thời điểm chuyển giao
+                                    <input type="datetime-local" name="effective_at" value="{{ old('effective_at', now()->format('Y-m-d\TH:i')) }}" max="{{ now()->format('Y-m-d\TH:i') }}" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal">
+                                </label>
+                                <label class="text-xs font-semibold text-slate-600 sm:col-span-2">Lý do đại diện cũ rời phòng
+                                    <input name="reason" value="{{ old('reason') }}" required maxlength="1000" placeholder="Nhập lý do chuyển giao" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal">
+                                </label>
+                                <label class="text-xs font-semibold text-slate-600 sm:col-span-2">Email đăng nhập của đại diện mới
+                                    <input type="email" name="email" value="{{ old('email') }}" required autocomplete="off" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal">
+                                </label>
+                                <label class="text-xs font-semibold text-slate-600">Mật khẩu tạm
+                                    <input type="password" name="temporary_password" required minlength="8" autocomplete="new-password" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal">
+                                </label>
+                                <label class="text-xs font-semibold text-slate-600">Nhập lại mật khẩu tạm
+                                    <input type="password" name="temporary_password_confirmation" required minlength="8" autocomplete="new-password" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal">
+                                </label>
+                                <div class="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900 sm:col-span-2">Thao tác này đồng thời ghi nhận đại diện cũ rời phòng, vô hiệu hóa tài khoản cũ, cấp tài khoản mới và lập phụ lục chuyển giao. Hợp đồng gốc không bị sửa nội dung.</div>
+                                <div class="sm:col-span-2"><button class="h-11 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700">Chuyển đại diện và ghi nhận rời phòng</button></div>
+                            </form>
+                        </details>
+                    @endif
+                </div>
+            @endif
+
+            @if($contract->representativeTransfers->isNotEmpty())
+                <div class="border-b border-slate-100 bg-emerald-50/50 px-5 py-4">
+                    <p class="text-sm font-bold text-emerald-950">Phụ lục chuyển giao người đại diện</p>
+                    <div class="mt-2 space-y-2">
+                        @foreach($contract->representativeTransfers->sortByDesc('effective_at') as $transfer)
+                            <div class="flex flex-col gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                                <span>{{ data_get($transfer->old_representative_snapshot, 'full_name') }} → {{ data_get($transfer->new_representative_snapshot, 'full_name') }} · {{ $transfer->effective_at->format('d/m/Y H:i') }}</span>
+                                <a target="_blank" href="{{ route('admin.representative-transfers.appendix', $transfer) }}" class="font-semibold text-emerald-700 hover:text-emerald-900">In phụ lục chuyển giao</a>
+                            </div>
+                        @endforeach
                     </div>
                 </div>
             @endif
@@ -96,21 +129,20 @@
                         @endif
                     </article>
                 @empty
-                    <p class="px-5 py-6 text-sm text-slate-500">Hiện chỉ có người thuê đại diện trong phòng.</p>
                 @endforelse
             </div>
         </section>
 
-        <section id="contract-utilities" class="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-bold text-slate-950">Điện nước gần nhất</h3><p class="mt-1 text-xs text-slate-500">Đối chiếu nhanh với chỉ số bàn giao ban đầu.</p></div><span class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">{{ $latestReading?->record_date?->format('d/m/Y') ?? 'Chưa ghi chỉ số' }}</span></div>
+        <section id="contract-utilities" class="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-3"><h3 class="font-bold text-slate-950">Điện nước gần nhất</h3><span class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">{{ $latestReading?->record_date?->format('d/m/Y') ?? 'Chưa ghi chỉ số' }}</span></div>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
                 <div class="rounded-xl border border-amber-200 bg-amber-50 p-4"><div class="flex items-center justify-between"><span class="text-sm font-semibold text-amber-900">Điện</span><i class="bx bx-bolt-circle text-2xl text-amber-600"></i></div><p class="mt-3 text-2xl font-bold text-amber-950">{{ $latestReading?->electricity_new ?? '—' }} <span class="text-sm font-medium">kWh</span></p><p class="mt-1 text-xs text-amber-700">Bàn giao: {{ $handoverReading?->electricity_new ?? '—' }}</p></div>
                 <div class="rounded-xl border border-sky-200 bg-sky-50 p-4"><div class="flex items-center justify-between"><span class="text-sm font-semibold text-sky-900">Nước</span><i class="bx bx-water text-2xl text-sky-600"></i></div><p class="mt-3 text-2xl font-bold text-sky-950">{{ $latestReading?->water_new ?? '—' }} <span class="text-sm font-medium">m³</span></p><p class="mt-1 text-xs text-sky-700">Bàn giao: {{ $handoverReading?->water_new ?? '—' }}</p></div>
             </div>
         </section>
 
-        <section id="contract-assets" class="scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div class="px-5 py-4"><h3 class="font-bold text-slate-950">Dịch vụ, phương tiện và tài sản bàn giao</h3><p class="mt-1 text-xs text-slate-500">{{ $contract->handoverItems->count() }} tài sản · {{ $approvedVehicles->count() }} phương tiện đã duyệt</p></div>
+        <section id="contract-assets" class="scroll-mt-24 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="px-5 py-4"><h3 class="font-bold text-slate-950">Dịch vụ, phương tiện và tài sản bàn giao</h3></div>
             <div class="border-t border-slate-200">
                 <div class="grid gap-3 p-5 sm:grid-cols-2"><div class="rounded-xl bg-indigo-50 p-4"><p class="font-semibold text-indigo-950">Internet</p><p class="mt-1 text-sm text-indigo-700">{{ number_format((float) $setting->internet_fee, 0, ',', '.') }}đ/phòng/tháng</p></div><div class="rounded-xl bg-emerald-50 p-4"><p class="font-semibold text-emerald-950">Dịch vụ chung</p><p class="mt-1 text-sm text-emerald-700">{{ number_format((float) $setting->service_fee, 0, ',', '.') }}đ/tháng</p></div></div>
                 <div class="border-t border-slate-100 px-5 py-4"><p class="text-sm font-semibold text-slate-900">Phương tiện</p>@if($approvedVehicles->isNotEmpty())<div class="mt-2 flex flex-wrap gap-2">@foreach($approvedVehicles as $vehicle)<span class="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{{ $vehicleTypeLabels[$vehicle->vehicle_type] ?? 'Phương tiện' }} · {{ $vehicle->license_plate ?: 'Không biển số' }}</span>@endforeach</div>@else<p class="mt-1 text-sm text-slate-500">Chưa có phương tiện được duyệt.</p>@endif</div>
@@ -119,31 +151,26 @@
         </section>
     </div>
 
-    <aside class="space-y-5 xl:sticky xl:top-5 xl:self-start">
-        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <aside class="space-y-4 xl:sticky xl:top-5 xl:self-start">
+        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div class="flex items-center justify-between"><h3 class="font-bold text-slate-950">Thu tiền hợp đồng</h3><span class="text-sm font-bold {{ $totalOutstanding > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ $collectionProgress }}%</span></div>
             <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full {{ $totalOutstanding > 0 ? 'bg-indigo-600' : 'bg-emerald-500' }}" style="width: {{ $collectionProgress }}%"></div></div>
             <dl class="mt-4 divide-y divide-slate-100 text-sm"><div class="flex justify-between gap-3 py-2"><dt class="text-slate-500">Đã xuất hóa đơn</dt><dd class="font-semibold">{{ number_format($totalInvoiced, 0, ',', '.') }}đ</dd></div><div class="flex justify-between gap-3 py-2"><dt class="text-slate-500">Đã thanh toán</dt><dd class="font-semibold text-emerald-700">{{ number_format($totalPaid, 0, ',', '.') }}đ</dd></div><div class="flex justify-between gap-3 py-2"><dt class="text-slate-500">Còn phải thu</dt><dd class="font-bold text-rose-700">{{ number_format($totalOutstanding, 0, ',', '.') }}đ</dd></div></dl>
             <a href="{{ route('admin.invoices.index', ['keyword' => $contract->contract_code]) }}" class="mt-4 flex h-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">Mở danh sách hóa đơn</a>
         </section>
 
-        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 class="font-bold text-slate-950">Thời hạn hợp đồng</h3>
             <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-emerald-500" style="width: {{ $termProgress }}%"></div></div>
             <div class="mt-3 flex justify-between text-xs text-slate-500"><span>{{ $contract->start_date->format('d/m/Y') }}</span><span>{{ $contract->end_date->format('d/m/Y') }}</span></div>
             <dl class="mt-4 divide-y divide-slate-100 text-sm"><div class="flex justify-between gap-3 py-2"><dt class="text-slate-500">Phòng</dt><dd class="font-semibold">{{ $contract->room?->room_code }}</dd></div><div class="flex justify-between gap-3 py-2"><dt class="text-slate-500">Số người</dt><dd class="font-semibold">{{ $contract->currentMembers->count() }}/{{ $contract->room?->max_people }}</dd></div><div class="flex justify-between gap-3 py-2"><dt class="text-slate-500">Nhận phòng</dt><dd class="font-semibold">{{ $contract->actual_move_in_at?->format('d/m/Y H:i') ?: '—' }}</dd></div></dl>
         </section>
 
-        <section class="rounded-2xl border border-sky-200 bg-sky-50 p-5">
-            <h3 class="font-bold text-sky-950">Thao tác cuối hợp đồng</h3>
-            <p class="mt-1 text-xs leading-5 text-sky-800">Chọn gia hạn nếu khách tiếp tục ở. Chỉ lập biên bản trả phòng khi hai bên đang bàn giao thực tế.</p>
-            <div class="mt-4 grid gap-2"><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="flex h-10 items-center justify-center rounded-lg bg-sky-700 text-sm font-semibold text-white">Lập phụ lục gia hạn</a><a href="{{ route('admin.termination-requests.index') }}" class="flex h-10 items-center justify-center rounded-lg border border-sky-200 bg-white text-sm font-semibold text-sky-700">Xem yêu cầu trả phòng</a><button type="button" onclick="document.getElementById('checkout-contract-dialog').showModal()" class="h-10 rounded-lg border border-violet-200 bg-violet-50 text-sm font-semibold text-violet-700">Lập biên bản trả phòng</button></div>
-        </section>
     </aside>
 </div>
 
-<section id="contract-history" class="scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <div class="px-5 py-4"><h3 class="font-bold text-slate-950">Lịch sử hợp đồng</h3><p class="mt-1 text-xs text-slate-500">{{ $contract->statusHistories->count() }} lần cập nhật trạng thái</p></div>
+<section id="contract-history" class="scroll-mt-24 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="px-5 py-4"><h3 class="font-bold text-slate-950">Lịch sử hợp đồng</h3></div>
     <div class="overflow-x-auto border-t border-slate-200"><table class="min-w-full text-sm"><thead class="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-3">Thời điểm</th><th class="px-5 py-3">Trạng thái</th><th class="px-5 py-3">Thao tác</th><th class="px-5 py-3">Người thực hiện</th><th class="px-5 py-3">Lý do</th></tr></thead><tbody class="divide-y divide-slate-100">@forelse($contract->statusHistories as $history)<tr><td class="whitespace-nowrap px-5 py-3 text-slate-500">{{ $history->performed_at?->format('d/m/Y H:i') }}</td><td class="whitespace-nowrap px-5 py-3">{{ $history->from_status ? ($statusLabels[$history->from_status] ?? 'Không xác định') : 'Khởi tạo' }} → <strong>{{ $statusLabels[$history->to_status] ?? 'Không xác định' }}</strong></td><td class="px-5 py-3 font-semibold">{{ $actionLabels[$history->action] ?? 'Cập nhật hợp đồng' }}</td><td class="px-5 py-3 text-slate-500">{{ $history->performer?->name ?? 'Hệ thống' }}</td><td class="px-5 py-3 text-slate-500">{{ $history->reason ?: '—' }}</td></tr>@empty<tr><td colspan="5" class="px-5 py-6 text-center text-slate-500">Chưa có lịch sử.</td></tr>@endforelse</tbody></table></div>
 </section>
 

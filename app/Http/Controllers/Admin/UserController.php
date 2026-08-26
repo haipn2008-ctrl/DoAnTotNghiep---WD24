@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserRequest;
 use App\Models\Contract;
+use App\Models\ContractTenant;
 use App\Models\Invoice;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
@@ -28,8 +30,17 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', Rule::in([
+                User::STATUS_PENDING,
+                User::STATUS_ACTIVE,
+                User::STATUS_SETTLING,
+                User::STATUS_FORMER,
+                User::STATUS_LOCKED,
+                User::STATUS_INACTIVE,
+            ])],
         ]);
         $search = trim($validated['search'] ?? '');
+        $status = $validated['status'] ?? '';
 
         $users = User::with('role')
             ->when($search, function ($query, $search) {
@@ -38,11 +49,12 @@ class UserController extends Controller
                         ->orWhere('email', 'like', "%{$search}%");
                 });
             })
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
             ->orderBy('id', 'desc')
             ->paginate(15)
             ->withQueryString();
 
-        return view('admin.users.index', compact('users', 'search'));
+        return view('admin.users.index', compact('users', 'search', 'status'));
     }
 
     public function create()
@@ -172,7 +184,7 @@ class UserController extends Controller
     private function manageableRoles()
     {
         return Role::query()
-            ->whereIn('role_name', ['Admin', 'User', 'Client'])
+            ->whereIn('role_name', ['Admin', 'User'])
             ->orderBy('id')
             ->get();
     }
@@ -181,13 +193,13 @@ class UserController extends Controller
     {
         return Role::query()
             ->whereKey($roleId)
-            ->whereIn('role_name', ['Admin', 'User', 'Client'])
+            ->whereIn('role_name', ['Admin', 'User'])
             ->firstOrFail();
     }
 
     private function isClientRole(Role $role): bool
     {
-        return in_array(strtolower($role->role_name), ['user', 'client'], true);
+        return strtolower($role->role_name) === 'user';
     }
 
     private function allowedStatusesFor(User $user): array
@@ -240,8 +252,21 @@ class UserController extends Controller
             ->exists();
 
         $hasSettlement = $tenant->contracts()->where('status', Contract::STATUS_SETTLING)->exists();
+        $hasRentalHistory = $tenant->contracts()
+            ->where(function ($query): void {
+                $query->whereNotNull('actual_move_in_at')
+                    ->orWhereIn('status', [Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED]);
+            })
+            ->exists()
+            || $tenant->memberContracts()
+                ->wherePivotIn('status', [
+                    ContractTenant::STATUS_CHECKED_IN,
+                    ContractTenant::STATUS_MOVED_OUT,
+                ])->exists();
 
-        return $hasOutstandingInvoice || $hasSettlement ? User::STATUS_SETTLING : User::STATUS_FORMER;
+        return $hasOutstandingInvoice || $hasSettlement
+            ? User::STATUS_SETTLING
+            : ($hasRentalHistory ? User::STATUS_FORMER : User::STATUS_ACTIVE);
     }
 
     private function throwEmailConflictOrRethrow(QueryException $exception): never

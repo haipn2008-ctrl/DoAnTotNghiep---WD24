@@ -24,6 +24,74 @@ class InvoiceModuleTest extends TestCase
         $this->withoutVite();
     }
 
+    public function test_fractional_vnd_balance_is_rounded_before_refreshing_status(): void
+    {
+        $role = Role::create(['role_name' => 'User']);
+        $user = User::create([
+            'name' => 'Rounding Client',
+            'email' => 'rounding-client@example.test',
+            'role_id' => $role->id,
+            'password' => bcrypt('password'),
+        ]);
+        $tenant = Tenant::create([
+            'user_id' => $user->id,
+            'full_name' => 'Khach lam tron',
+            'cccd' => '079000009999',
+            'phone' => '0900009999',
+        ]);
+        $room = Room::create([
+            'room_code' => 'ROUND-01',
+            'floor' => 1,
+            'price' => 3500000,
+            'area' => 20,
+            'max_people' => 2,
+            'current_people' => 0,
+            'status' => Room::STATUS_AVAILABLE,
+        ]);
+        $contract = Contract::query()->forceCreate([
+            'contract_code' => 'HD-ROUND-01',
+            'room_id' => $room->id,
+            'tenant_id' => $tenant->id,
+            'monthly_rent' => 3500000,
+            'deposit_amount' => 3500000,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'status' => Contract::STATUS_ACTIVE,
+        ]);
+        $invoice = Invoice::query()->forceCreate([
+            'invoice_code' => 'SET-ROUNDING-001',
+            'invoice_type' => Invoice::TYPE_SETTLEMENT,
+            'contract_id' => $contract->id,
+            'room_id' => $room->id,
+            'month' => 8,
+            'year' => 2026,
+            'invoice_date' => '2026-08-26',
+            'due_date' => '2026-09-05',
+            'room_fee' => 3061290.32,
+            'electricity_fee' => 0,
+            'water_fee' => 0,
+            'internet_fee' => 0,
+            'service_fee' => 0,
+            'total_amount' => 3061290.32,
+            'status' => Invoice::STATUS_PARTIAL,
+        ]);
+
+        Payment::query()->forceCreate([
+            'invoice_id' => $invoice->id,
+            'amount_paid' => 3061290,
+            'payment_date' => '2026-08-26',
+            'payment_method' => Payment::METHOD_BANK_TRANSFER,
+            'status' => Payment::STATUS_SUCCESS,
+        ]);
+
+        $this->assertSame(3061290.0, $invoice->payable_amount);
+        $this->assertSame(0.0, (float) $invoice->remaining_amount);
+
+        $invoice->refreshStatus();
+
+        $this->assertSame(Invoice::STATUS_PAID, $invoice->fresh()->status);
+    }
+
     public function test_invoice_can_be_generated_once_and_payment_updates_status(): void
     {
         $role = Role::create(['role_name' => 'Admin']);

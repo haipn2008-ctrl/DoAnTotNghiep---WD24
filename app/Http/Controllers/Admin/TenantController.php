@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TenantRequest;
 use App\Models\Contract;
+use App\Models\ContractTenant;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -32,7 +33,7 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', Rule::in(['renting', 'not_renting'])],
+            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting'])],
         ]);
 
         $search = trim($validated['search'] ?? '');
@@ -96,7 +97,7 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', Rule::in(['renting', 'not_renting'])],
+            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting'])],
         ]);
 
         $search = trim($validated['search'] ?? '');
@@ -115,13 +116,12 @@ class TenantController extends Controller
 
         $filename =
             'danh_sach_khach_thue_'
-            . now()->format('Ymd_His')
-            . '.csv';
+            .now()->format('Ymd_His')
+            .'.csv';
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' =>
-            "attachment; filename=\"{$filename}\"",
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
         $columns = [
@@ -142,21 +142,27 @@ class TenantController extends Controller
             fprintf(
                 $file,
                 chr(0xEF)
-                    . chr(0xBB)
-                    . chr(0xBF)
+                    .chr(0xBB)
+                    .chr(0xBF)
             );
 
             Csv::writeRow($file, $columns);
 
             foreach ($tenants->lazy(500) as $tenant) {
                 $activeRoom = $tenant->contracts
-                    ->concat($tenant->memberContracts)
                     ->whereIn(
                         'status',
                         Contract::OPEN_OCCUPANCY_STATUSES
                     )
+                    ->concat($tenant->memberContracts
+                        ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+                        ->filter(fn (Contract $contract) => $contract->pivot?->status === ContractTenant::STATUS_CHECKED_IN))
                     ->pluck('room.room_code')
                     ->first();
+                $hasRentalHistory = $tenant->contracts
+                    ->contains(fn (Contract $contract) => $contract->actual_move_in_at !== null)
+                    || $tenant->memberContracts
+                        ->contains(fn (Contract $contract) => $contract->pivot?->status === ContractTenant::STATUS_MOVED_OUT);
 
                 Csv::writeRow($file, [
                     $tenant->full_name,
@@ -165,9 +171,7 @@ class TenantController extends Controller
                     $tenant->email,
                     $tenant->address,
                     $activeRoom ?? '-',
-                    $activeRoom
-                        ? 'Đang thuê'
-                        : 'Chưa thuê',
+                    $activeRoom ? 'Đang thuê' : ($hasRentalHistory ? 'Đã rời phòng' : 'Chưa thuê'),
                     $tenant->vehicles->count(),
                     $tenant->created_at->format('d/m/Y'),
                 ]);
@@ -193,9 +197,9 @@ class TenantController extends Controller
     {
         $users = User::whereHas(
             'role',
-            fn($query) => $query->whereIn(
+            fn ($query) => $query->whereIn(
                 'role_name',
-                ['User', 'Client']
+                ['User']
             )
         )
             ->whereIn(
@@ -227,29 +231,29 @@ class TenantController extends Controller
         try {
             $data = $request->validated();
 
-                /*
-                |--------------------------------------------------------------------------
-                | Tách danh sách xe khỏi dữ liệu Tenant
-                |--------------------------------------------------------------------------
-                */
+            /*
+            |--------------------------------------------------------------------------
+            | Tách danh sách xe khỏi dữ liệu Tenant
+            |--------------------------------------------------------------------------
+            */
 
             $vehicles = $data['vehicles'] ?? [];
 
             unset($data['vehicles']);
 
-                /*
-                |--------------------------------------------------------------------------
-                | Tạo khách thuê
-                |--------------------------------------------------------------------------
-                */
+            /*
+            |--------------------------------------------------------------------------
+            | Tạo khách thuê
+            |--------------------------------------------------------------------------
+            */
 
             $tenant = Tenant::create($data);
 
-                /*
-                |--------------------------------------------------------------------------
-                | Tạo xe
-                |--------------------------------------------------------------------------
-                */
+            /*
+            |--------------------------------------------------------------------------
+            | Tạo xe
+            |--------------------------------------------------------------------------
+            */
 
             DB::transaction(function () use ($tenant, $vehicles): void {
                 foreach ($vehicles as $vehicle) {
@@ -262,20 +266,15 @@ class TenantController extends Controller
                     }
 
                     $tenant->vehicles()->create([
-                        'vehicle_type' =>
-                        $vehicle['vehicle_type'] ?? null,
+                        'vehicle_type' => $vehicle['vehicle_type'] ?? null,
 
-                        'vehicle_name' =>
-                        $vehicle['vehicle_name'] ?? null,
+                        'vehicle_name' => $vehicle['vehicle_name'] ?? null,
 
-                        'license_plate' =>
-                        $vehicle['license_plate'] ?? null,
+                        'license_plate' => $vehicle['license_plate'] ?? null,
 
-                        'color' =>
-                        $vehicle['color'] ?? null,
+                        'color' => $vehicle['color'] ?? null,
 
-                        'note' =>
-                        $vehicle['note'] ?? null,
+                        'note' => $vehicle['note'] ?? null,
                     ]);
                 }
             });
@@ -382,8 +381,7 @@ class TenantController extends Controller
         Vehicle $vehicle,
         AdminNotificationService $notifications,
         VehicleCapacityService $capacity,
-    )
-    {
+    ) {
         $data = $request->validate([
             'status' => ['required', Rule::in([Vehicle::STATUS_APPROVED, Vehicle::STATUS_REJECTED])],
             'review_note' => ['nullable', 'required_if:status,'.Vehicle::STATUS_REJECTED, 'string', 'max:500'],
@@ -527,8 +525,7 @@ class TenantController extends Controller
         foreach ($fields as $field => $needles) {
             if (
                 collect($needles)->contains(
-                    fn($needle) =>
-                    str_contains(
+                    fn ($needle) => str_contains(
                         $message,
                         strtolower($needle)
                     )
@@ -587,26 +584,39 @@ class TenantController extends Controller
             }
         );
 
-        $occupying = fn($query) =>
-        $query->whereIn(
+        $representing = fn ($query) => $query->whereIn(
             'contracts.status',
             Contract::OPEN_OCCUPANCY_STATUSES
         );
+        $occupyingMember = fn ($query) => $query
+            ->whereIn('contracts.status', Contract::OPEN_OCCUPANCY_STATUSES)
+            ->where('contract_tenants.status', ContractTenant::STATUS_CHECKED_IN);
+        $representativeHistory = fn ($query) => $query->whereNotNull('contracts.actual_move_in_at');
+        $memberHistory = fn ($query) => $query->where('contract_tenants.status', ContractTenant::STATUS_MOVED_OUT);
 
         if ($status === 'renting') {
-            $query->where(function ($query) use ($occupying): void {
-                $query->whereHas('contracts', $occupying)
-                    ->orWhereHas('memberContracts', $occupying);
+            $query->where(function ($query) use ($representing, $occupyingMember): void {
+                $query->whereHas('contracts', $representing)
+                    ->orWhereHas('memberContracts', $occupyingMember);
             });
+        } elseif ($status === 'moved_out') {
+            $query->whereDoesntHave('contracts', $representing)
+                ->whereDoesntHave('memberContracts', $occupyingMember)
+                ->where(function ($query) use ($representativeHistory, $memberHistory): void {
+                    $query->whereHas('contracts', $representativeHistory)
+                        ->orWhereHas('memberContracts', $memberHistory);
+                });
         } elseif ($status === 'not_renting') {
             $query->whereDoesntHave(
                 'contracts',
-                $occupying
+                $representing
             )
                 ->whereDoesntHave(
                     'memberContracts',
-                    $occupying
-                );
+                    $occupyingMember
+                )
+                ->whereDoesntHave('contracts', $representativeHistory)
+                ->whereDoesntHave('memberContracts', $memberHistory);
         }
     }
 }

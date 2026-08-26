@@ -96,6 +96,10 @@ class LoginController extends Controller
         }
 
         if ($user->isClient()) {
+            if ($user->status === User::STATUS_SETTLING) {
+                return redirect()->route('client.settlement.index');
+            }
+
             return redirect()->route('client.home');
         }
 

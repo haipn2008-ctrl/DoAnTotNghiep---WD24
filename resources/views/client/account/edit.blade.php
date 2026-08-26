@@ -12,7 +12,6 @@
             <p class="mt-2 text-sm text-slate-500">Bạn có thể chủ động cập nhật thông tin. Các thay đổi sẽ được dùng cho hồ sơ và hợp đồng lập sau thời điểm cập nhật.</p>
         </div>
 
-        @if(session('success'))<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{{ session('success') }}</div>@endif
         @if($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"><ul class="list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
         <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">

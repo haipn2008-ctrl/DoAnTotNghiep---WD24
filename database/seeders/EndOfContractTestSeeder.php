@@ -273,7 +273,7 @@ class EndOfContractTestSeeder extends Seeder
                 'water_old' => 100 + ($index * 10),
                 'water_new' => 108 + ($index * 10),
                 'status' => UtilityReading::STATUS_CONFIRMED,
-                'note' => 'Chỉ số gần nhất để thử thao tác checkout.',
+                'note' => 'Chỉ số gần nhất để thử thao tác trả phòng.',
             ]
         );
     }

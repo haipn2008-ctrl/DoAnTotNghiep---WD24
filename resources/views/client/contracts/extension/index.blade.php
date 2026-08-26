@@ -7,7 +7,6 @@
 <div class="mx-auto max-w-6xl space-y-6">
     <h1 class="text-2xl font-bold text-slate-950">Yêu cầu gia hạn hợp đồng</h1>
 
-    @if(session('success'))<div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">{{ session('success') }}</div>@endif
     @if($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"><p class="font-bold">Không thể xử lý yêu cầu</p><ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

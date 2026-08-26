@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\SupportRequest;
+use App\Models\User;
 use App\Services\AdminNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -19,21 +20,41 @@ class SupportController extends Controller
     public function index(Request $request): View
     {
         $requests = SupportRequest::where('user_id', $request->user()->id)
+            ->with('contract.room')
             ->latest()
             ->paginate(10);
 
-        return view('client.support.index', compact('requests'));
+        $eligibleContracts = Contract::query()
+            ->managedBy($request->user())
+            ->whereIn('status', array_merge(Contract::OPEN_OCCUPANCY_STATUSES, [Contract::STATUS_SETTLING]))
+            ->with('room')
+            ->latest('start_date')
+            ->get();
+
+        $canCreateSupport = in_array($request->user()->status, [
+            User::STATUS_ACTIVE,
+            User::STATUS_SETTLING,
+        ], true) && $eligibleContracts->isNotEmpty();
+
+        return view('client.support.index', compact('requests', 'eligibleContracts', 'canCreateSupport'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'submission_token' => 'required|uuid|unique:support_requests,submission_token',
+            'contract_id' => 'nullable|integer',
             'category' => 'required|in:repair,invoice,utility,contract,other',
             'subject' => 'required|string|max:255',
             'description' => 'required|string|max:5000',
             'attachment' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
+
+        if (! in_array($request->user()->status, [User::STATUS_ACTIVE, User::STATUS_SETTLING], true)) {
+            throw ValidationException::withMessages([
+                'contract' => 'Tài khoản khách cũ chỉ được xem lịch sử hỗ trợ.',
+            ]);
+        }
 
         $attachment = null;
         if ($request->hasFile('attachment')) {
@@ -43,15 +64,20 @@ class SupportController extends Controller
         try {
             DB::transaction(function () use ($attachment, $data, $request) {
                 $tenant = $request->user()->tenant()->lockForUpdate()->first();
-                $activeContract = $tenant?->contracts()
-                    ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+                $supportContract = $tenant?->contracts()
+                    ->whereIn('status', array_merge(Contract::OPEN_OCCUPANCY_STATUSES, [Contract::STATUS_SETTLING]))
+                    ->when(
+                        $data['contract_id'] ?? null,
+                        fn ($query, $contractId) => $query->whereKey($contractId)
+                    )
+                    ->orderByRaw("CASE WHEN status IN (?, ?) THEN 0 ELSE 1 END", Contract::OPEN_OCCUPANCY_STATUSES)
                     ->latest('start_date')
                     ->lockForUpdate()
                     ->first();
 
-                if (! $tenant || ! $activeContract) {
+                if (! $tenant || ! $supportContract) {
                     throw ValidationException::withMessages([
-                        'contract' => 'Không tìm thấy hợp đồng đang hoạt động để gửi yêu cầu hỗ trợ.',
+                        'contract' => 'Không tìm thấy hợp đồng đang thuê hoặc đang quyết toán thuộc tài khoản này.',
                     ]);
                 }
 
@@ -59,7 +85,7 @@ class SupportController extends Controller
                     'attachment' => $attachment,
                     'user_id' => $request->user()->id,
                     'tenant_id' => $tenant->id,
-                    'contract_id' => $activeContract->id,
+                    'contract_id' => $supportContract->id,
                     'status' => SupportRequest::STATUS_NEW,
                 ]));
 

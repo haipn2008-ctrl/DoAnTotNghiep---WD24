@@ -58,7 +58,7 @@
 @if($contract->status === \App\Models\Contract::STATUS_DRAFT)
     @include('admin.contracts.partials.draft-detail')
 @else
-<div class="space-y-6">
+<div class="space-y-4">
     <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
             <div class="flex flex-wrap items-center gap-2">
@@ -72,6 +72,17 @@
             <p class="mt-1 text-sm text-slate-500">Phòng {{ $contract->room?->room_code ?? 'Không có' }} · {{ $contract->tenant?->full_name ?? 'Chưa có khách thuê' }}</p>
         </div>
         <div class="flex flex-wrap gap-2">
+            @if($contract->status === \App\Models\Contract::STATUS_ACTIVE)
+                <a href="{{ route('admin.invoices.index', ['keyword' => $contract->contract_code]) }}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-50">
+                    <i class="bx bx-receipt text-lg"></i>Xem hóa đơn
+                </a>
+                <a href="{{ route('admin.contracts.extend.form', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-700">
+                    <i class="bx bx-calendar-plus text-lg"></i>Gia hạn
+                </a>
+                <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
+                    <i class="bx bx-log-out-circle text-lg"></i>Trả phòng
+                </a>
+            @endif
             <a target="_blank" href="{{ route('admin.contracts.print',$contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                 <i class="bx bx-printer text-lg"></i>
                 In hợp đồng
@@ -111,9 +122,9 @@
     @if($contract->isSignatureOverdue())<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-900">Quá hạn ký hợp đồng.</div>@endif
     @if($contract->isDepositOverdue())<div class="rounded-lg border border-orange-300 bg-orange-50 p-4 font-semibold text-orange-900">Quá hạn đóng tiền cọc.</div>@endif
     @if($contract->isReservationOverdue())<div class="rounded-lg border border-rose-300 bg-rose-50 p-4 font-semibold text-rose-900">Quá hạn nhận phòng — hệ thống không tự hủy hợp đồng.</div>@endif
-    @if($contract->status===\App\Models\Contract::STATUS_ACTIVE && $contract->end_date->isBetween(today(), today()->addMonthNoOverflow()))<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-900">Hợp đồng đang ở tháng cuối — cần trao đổi gia hạn hoặc chuẩn bị trả phòng.</div>@endif
+    @if($contract->status===\App\Models\Contract::STATUS_ACTIVE && $contract->end_date->isBetween(today(), today()->addMonthNoOverflow()) && $contract->lifecycleAlerts->isEmpty())<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-900">Hợp đồng đang ở tháng cuối — cần trao đổi gia hạn hoặc chuẩn bị trả phòng.</div>@endif
     @if($contract->status===\App\Models\Contract::STATUS_EXPIRED)<div class="rounded-lg border border-rose-300 bg-rose-50 p-4 font-semibold text-rose-900">Hợp đồng đã hết hạn nhưng khách vẫn đang ở; phòng vẫn được ghi nhận là đang có người thuê.</div>@endif
-    @foreach($contract->lifecycleAlerts as $alert)<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{{ $alert->title }}:</strong> {{ $alert->message }}</div>@endforeach
+    @foreach($contract->lifecycleAlerts as $alert)<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{{ $alert->title }}</strong>@if(filled($alert->message) && !str_contains($alert->message, 'EndOfContractTestSeeder'))<span>: {{ $alert->message }}</span>@endif</div>@endforeach
 
     @if($contract->status === \App\Models\Contract::STATUS_PENDING_SIGNATURE)
         @include('admin.contracts.partials.pending-signature-detail')
@@ -155,19 +166,16 @@
                     <label class="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" name="handover_confirmed" value="1" required class="mt-0.5 rounded border-slate-300 text-violet-600"><span>Xác nhận ban quản lý và người thuê đại diện đã cùng đối chiếu biên bản bàn giao.</span></label>
                     <button class="mt-3 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">Xác nhận trả phòng và lập quyết toán</button>
                 </form>
-                <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><p class="mt-1 text-xs leading-5 text-slate-500">Lập phụ lục gồm thời hạn, giá thuê và tình trạng công nợ để người thuê đại diện xác nhận.</p><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Lập phụ lục gia hạn</a></div>
+                <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><p class="mt-1 text-xs leading-5 text-slate-500">Cập nhật thời hạn và giá thuê sau khi hai bên đã thỏa thuận.</p><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Gia hạn hợp đồng</a></div>
             @endif
             @if($contract->status===\App\Models\Contract::STATUS_SETTLING)
-                <form class="lifecycle-form rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 lg:col-span-2" method="POST" action="{{ route('admin.contracts.complete-settlement',$contract) }}">
-                    @csrf
-                    <h4 class="font-semibold text-slate-950">Hoàn tất quyết toán</h4>
-                    <p class="mt-1 text-xs text-slate-500">Chỉ hoàn tất khi công nợ đã thanh toán hoặc được xóa có lý do, và tiền cọc đã xử lý qua đúng quy trình chứng từ.</p>
-                    <textarea name="settlement_note" rows="2" placeholder="Ghi chú hoàn tất quyết toán" class="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></textarea>
-                    <label class="mt-3 flex gap-2 text-sm text-slate-700"><input type="checkbox" name="write_off_outstanding" value="1" class="rounded border-slate-300 text-emerald-600"> Xóa công nợ còn lại theo phê duyệt</label>
-                    <textarea name="write_off_reason" rows="2" placeholder="Lý do xóa nợ (bắt buộc nếu chọn xóa nợ)" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></textarea>
-                    <label class="mt-3 flex gap-2 text-sm text-slate-700"><input type="checkbox" name="confirm_complete" value="1" required class="rounded border-slate-300 text-emerald-600"><span>Xác nhận đã kiểm tra công nợ, hóa đơn cuối kỳ và chứng từ xử lý tiền cọc.</span></label>
-                    <button class="mt-3 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Hoàn tất hợp đồng</button>
-                </form>
+                @include('admin.contracts.partials.departure-progress', ['progressClass' => 'lg:col-span-2'])
+                <div class="rounded-xl border border-violet-200 bg-violet-50/50 p-5 lg:col-span-2">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div><h4 class="font-bold text-slate-950">Quy trình trả phòng đang xử lý</h4><p class="mt-1 text-sm text-slate-600">Mở trang quy trình để xử lý công nợ, tiền cọc và hoàn tất hợp đồng trên cùng một giao diện.</p></div>
+                        <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-bold text-white hover:bg-violet-800"><span>Tiếp tục xử lý</span><i class="bx bx-right-arrow-alt text-xl"></i></a>
+                    </div>
+                </div>
             @endif
             @if(in_array($contract->status,[\App\Models\Contract::STATUS_DRAFT,\App\Models\Contract::STATUS_PENDING_SIGNATURE,\App\Models\Contract::STATUS_PENDING_DEPOSIT,\App\Models\Contract::STATUS_AWAITING_MOVE_IN],true))
                 <form class="lifecycle-form rounded-lg border border-rose-200 bg-rose-50 p-4 lg:col-span-2" method="POST" action="{{ route('admin.contracts.cancel',$contract) }}">@csrf<h4 class="font-semibold text-rose-800">Hủy hợp đồng</h4><textarea name="cancel_reason" rows="2" required placeholder="Nhập lý do hủy" class="mt-3 w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"></textarea><button class="mt-3 inline-flex items-center gap-2 rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-800"><i class="bx bx-x-circle text-lg"></i>Hủy hợp đồng</button></form>
@@ -193,7 +201,7 @@
             @if($contract->settlementStatement->invoice)<a href="{{ route('admin.invoices.show', $contract->settlementStatement->invoice) }}" class="text-sm font-semibold text-indigo-700">Mở hóa đơn quyết toán</a>@endif
         </div>
         <div class="overflow-x-auto"><table class="min-w-full text-sm"><thead class="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-3">Khoản mục</th><th class="px-5 py-3 text-right">Số lượng</th><th class="px-5 py-3 text-right">Đơn giá</th><th class="px-5 py-3 text-right">Thành tiền</th></tr></thead><tbody class="divide-y divide-slate-100">@foreach($contract->settlementStatement->items as $item)<tr><td class="px-5 py-3"><p class="font-medium text-slate-900">{{ $item->name }}</p><p class="text-xs text-slate-500">{{ $item->note }}</p></td><td class="px-5 py-3 text-right">{{ number_format((float)$item->quantity, 2, ',', '.') }} {{ $item->unit }}</td><td class="px-5 py-3 text-right">{{ number_format((float)$item->unit_price, 0, ',', '.') }}đ</td><td class="px-5 py-3 text-right font-semibold">{{ number_format((float)$item->amount, 0, ',', '.') }}đ</td></tr>@endforeach</tbody></table></div>
-        <div class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-4"><div><p class="text-xs text-slate-500">Phí cuối kỳ</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->final_charge_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Công nợ trước đó</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->previous_outstanding_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Tiền cọc đang giữ</p><p class="font-bold text-emerald-700">-{{ number_format((float)$contract->settlementStatement->deposit_credit,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Chênh lệch dự kiến</p><p class="font-bold {{ (float)$contract->settlementStatement->net_amount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format(abs((float)$contract->settlementStatement->net_amount),0,',','.') }}đ {{ (float)$contract->settlementStatement->net_amount > 0 ? 'khách cần trả' : ((float)$contract->settlementStatement->net_amount < 0 ? 'dự kiến hoàn khách' : 'đã cân bằng') }}</p></div></div>
+        <div class="grid gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-5"><div><p class="text-xs text-slate-500">Phí cuối kỳ</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->final_charge_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Công nợ trước bù cọc</p><p class="font-bold">{{ number_format((float)$contract->settlementStatement->previous_outstanding_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Cọc đã bù công nợ</p><p class="font-bold text-indigo-700">-{{ number_format((float)$contract->deposit_deduction_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Cọc còn hoàn khách</p><p class="font-bold text-emerald-700">{{ number_format((float)$contract->deposit_refund_amount,0,',','.') }}đ</p></div><div><p class="text-xs text-slate-500">Kết quả quyết toán</p><p class="font-bold {{ (float)$contract->settlementStatement->net_amount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format(abs((float)$contract->settlementStatement->net_amount),0,',','.') }}đ {{ (float)$contract->settlementStatement->net_amount > 0 ? 'khách cần trả' : ((float)$contract->settlementStatement->net_amount < 0 ? 'cần hoàn khách' : 'đã cân bằng') }}</p></div></div>
     </section>
     @endif
 

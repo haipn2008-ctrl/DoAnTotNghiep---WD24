@@ -35,7 +35,7 @@ class UserRequest extends FormRequest
             'role_id' => [
                 'required',
                 Rule::exists('roles', 'id')->where(
-                    fn ($query) => $query->whereIn('role_name', ['Admin', 'User', 'Client'])
+                    fn ($query) => $query->whereIn('role_name', ['Admin', 'User'])
                 ),
             ],
 

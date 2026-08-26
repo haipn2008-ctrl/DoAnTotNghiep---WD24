@@ -38,6 +38,7 @@ use App\Http\Controllers\Client\ContractExtensionRequestController as ClientCont
 use App\Http\Controllers\Client\ContractTenantController as ClientContractTenantController;
 use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
+use App\Http\Controllers\Client\SettlementController as ClientSettlementController;
 use App\Http\Controllers\Client\DepositRefundController as ClientDepositRefundController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\LandlordInformationController as ClientLandlordInformationController;
@@ -329,6 +330,11 @@ Route::middleware('auth')->group(function () {
                     [ContractController::class, 'cancel']
                 )->name('contracts.cancel');
 
+                Route::get(
+                    'contracts/{contract}/check-out',
+                    [ContractController::class, 'checkOutForm']
+                )->name('contracts.check-out.form');
+
                 Route::post(
                     'contracts/{contract}/check-out',
                     [ContractController::class, 'checkOut']
@@ -357,6 +363,16 @@ Route::middleware('auth')->group(function () {
                     'contract-tenants/{member}/move-out',
                     [ContractTenantController::class, 'moveOut']
                 )->name('contract-tenants.move-out');
+
+                Route::post(
+                    'contract-tenants/{member}/transfer-representative',
+                    [ContractTenantController::class, 'transferRepresentative']
+                )->name('contract-tenants.transfer-representative');
+
+                Route::get(
+                    'representative-transfers/{transfer}/appendix',
+                    [ContractTenantController::class, 'transferAppendix']
+                )->name('representative-transfers.appendix');
 
                 Route::get(
                     'contract-tenants/{member}/identity/{side}',
@@ -867,7 +883,7 @@ Route::middleware('auth')->group(function () {
 
         Route::prefix('client')
             ->name('client.')
-            ->middleware('role:client')
+            ->middleware('role:user')
             ->group(function () {
 
                 // =============================================
@@ -878,6 +894,11 @@ Route::middleware('auth')->group(function () {
                     '/',
                     [ClientDashboardController::class, 'index']
                 )->name('home');
+
+                Route::get(
+                    '/settlement',
+                    [ClientSettlementController::class, 'index']
+                )->name('settlement.index');
 
                 // =============================================
                 // HÓA ĐƠN
@@ -1060,21 +1081,18 @@ Route::middleware('auth')->group(function () {
                     '/support',
                     [ClientSupportController::class, 'index']
                 )
-                    ->middleware('rental.active')
                     ->name('support.index');
 
                 Route::post(
                     '/support',
                     [ClientSupportController::class, 'store']
                 )
-                    ->middleware('rental.active')
                     ->name('support.store');
 
                 Route::get(
                     '/support/{supportRequest}/attachment',
                     [ClientSupportController::class, 'attachment']
                 )
-                    ->middleware('rental.active')
                     ->name('support.attachment');
 
                 Route::get(

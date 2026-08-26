@@ -1,7 +1,7 @@
 @extends('layouts.admin.index')
 
-@section('title', 'Lập phụ lục gia hạn | Quản lý phòng trọ')
-@section('page_title', 'Lập phụ lục gia hạn')
+@section('title', 'Gia hạn hợp đồng | Quản lý phòng trọ')
+@section('page_title', 'Gia hạn hợp đồng')
 
 @section('content')
 @php
@@ -10,12 +10,18 @@
         ->get()->sum(fn ($invoice) => (float) $invoice->remaining_amount);
 @endphp
 <div class="space-y-6">
+    @if($errors->any())
+        <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            <p class="font-semibold">Không thể gia hạn hợp đồng:</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+        </div>
+    @endif
     <div class="flex flex-wrap items-end justify-between gap-4">
-        <div><p class="text-sm font-medium text-slate-500">Hợp đồng {{ $contract->contract_code }}</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Gửi điều khoản gia hạn</h2></div>
+        <div><p class="text-sm font-medium text-slate-500">Hợp đồng {{ $contract->contract_code }}</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Gia hạn hợp đồng</h2></div>
         <a href="{{ route('admin.contracts.extend.list') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Quay lại</a>
     </div>
 
-    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900">Đây là đề nghị phụ lục. Thời hạn và giá thuê của hợp đồng chỉ thay đổi sau khi người thuê đại diện đăng nhập và xác nhận.</div>
+    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900">Sau khi xác nhận, thời hạn và giá thuê mới sẽ được áp dụng ngay cho hợp đồng.</div>
 
     <div class="grid gap-6 lg:grid-cols-[360px_1fr]">
         <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -31,7 +37,7 @@
 
         <form action="{{ route('admin.contracts.extend', $contract) }}" method="POST" class="rounded-xl border border-slate-200 bg-white shadow-sm">
             @csrf
-            <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Điều khoản gửi khách thuê</h3></div>
+            <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Thông tin gia hạn</h3></div>
             <div class="grid gap-5 p-5 sm:grid-cols-2">
                 <label class="text-sm font-semibold text-slate-700">Ngày kết thúc mới
                     <input type="date" name="new_end_date" min="{{ $contract->end_date->copy()->addDay()->format('Y-m-d') }}" value="{{ old('new_end_date', $contract->end_date->copy()->addYear()->format('Y-m-d')) }}" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 font-normal">
@@ -48,13 +54,13 @@
                 </label>
                 @endif
                 <label class="flex items-start gap-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-700 sm:col-span-2">
-                    <input type="checkbox" name="confirm_extend" value="1" required class="mt-0.5 rounded border-slate-300 text-indigo-600">
-                    <span>Tôi đã kiểm tra thời hạn, giá thuê, công nợ và đồng ý gửi các điều khoản này cho người thuê đại diện xác nhận.</span>
+                    <input type="checkbox" name="confirm_extend" value="1" required @checked(old('confirm_extend')) class="mt-0.5 rounded border-slate-300 text-indigo-600">
+                    <span>2 bên đã thỏa thuận gia hạn</span>
                 </label>
             </div>
             <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
                 <a href="{{ route('admin.contracts.extend.list') }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Hủy</a>
-                <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Gửi phụ lục cho khách xác nhận</button>
+                <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Gia hạn hợp đồng</button>
             </div>
         </form>
     </div>

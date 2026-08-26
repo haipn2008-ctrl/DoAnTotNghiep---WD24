@@ -159,6 +159,49 @@ class ClientInvoicePortalTest extends TestCase
         $admin = $this->createAdmin('proof-admin@example.test');
         $this->actingAs($client)->get($adminProofUrl)->assertForbidden();
         $this->actingAs($admin)->get($adminProofUrl)->assertSuccessful();
+
+        $payment->update([
+            'status' => Payment::STATUS_SUCCESS,
+            'confirmed_by' => $admin->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.invoices.show', $invoice))
+            ->assertSuccessful()
+            ->assertSee('Xem biên lai')
+            ->assertSee($adminProofUrl, false);
+    }
+
+    public function test_admin_payment_page_shows_newest_request_first(): void
+    {
+        [, $contract, $room] = $this->createClientContext('PAYMENTORDER');
+        $invoice = $this->createInvoice($contract, $room, 'INV-PAYMENT-ORDER');
+        $admin = $this->createAdmin('payment-order-admin@example.test');
+
+        foreach ([
+            ['code' => 'PAYMENT-OLDER', 'created_at' => now()->subHour(), 'proof' => null],
+            ['code' => 'PAYMENT-NEWER', 'created_at' => now(), 'proof' => 'payment-proofs/newer.jpg'],
+        ] as $item) {
+            Payment::query()->forceCreate([
+                'invoice_id' => $invoice->id,
+                'amount_paid' => 100000,
+                'payment_date' => today(),
+                'payment_method' => Payment::METHOD_BANK_TRANSFER,
+                'transaction_code' => $item['code'],
+                'status' => Payment::STATUS_PENDING,
+                'proof_image' => $item['proof'],
+                'created_at' => $item['created_at'],
+                'updated_at' => $item['created_at'],
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get(route('admin.invoices.payments'))
+            ->assertSuccessful()
+            ->assertSeeInOrder(['PAYMENT-NEWER', 'PAYMENT-OLDER'])
+            ->assertSee('Xem ảnh lớn')
+            ->assertDontSee('Không có ảnh');
     }
 
     public function test_admin_can_reject_client_payment_without_reducing_invoice_balance(): void

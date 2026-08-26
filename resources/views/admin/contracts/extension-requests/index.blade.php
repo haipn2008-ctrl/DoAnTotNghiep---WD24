@@ -5,18 +5,16 @@
 
 @section('content')
 <div class="space-y-6">
+    @if($errors->any())
+        <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            <p class="font-semibold">Không thể xử lý yêu cầu gia hạn:</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+        </div>
+    @endif
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <h1 class="text-2xl font-bold text-slate-900">Yêu cầu gia hạn hợp đồng</h1>
         <a href="{{ route('admin.contracts.index') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">← Quản lý hợp đồng</a>
     </div>
-
-    @if(session('success'))<div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{{ session('success') }}</div>@endif
-    @if($errors->any())
-        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <p class="font-semibold">Không thể xử lý yêu cầu</p>
-            <ul class="mt-1 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-        </div>
-    @endif
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         @foreach([
@@ -67,14 +65,15 @@
                         <div class="mt-4 space-y-3 border-t border-slate-100 pt-4">
                             <form method="POST" action="{{ route('admin.extension-requests.approve', $request) }}" class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                                 @csrf
-                                <p class="mb-3 text-sm font-semibold text-emerald-800">Lập điều khoản gia hạn</p>
+                                <p class="mb-3 text-sm font-semibold text-emerald-800">Duyệt và gia hạn hợp đồng</p>
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <label class="text-xs font-semibold text-slate-600">Gia hạn đến<input type="date" name="approved_end_date" required value="{{ old('approved_end_date', $request->requested_end_date?->format('Y-m-d')) }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"></label>
                                     <label class="text-xs font-semibold text-slate-600">Giá phòng mới<input type="number" name="proposed_monthly_rent" required min="0" step="1000" value="{{ old('proposed_monthly_rent', (float) $request->contract->monthly_rent) }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"></label>
                                 </div>
                                 <input name="admin_note" maxlength="1000" placeholder="Ghi chú điều khoản (không bắt buộc)" class="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
                                 @if($outstanding > 0)<textarea name="financial_override_reason" required minlength="3" maxlength="1000" rows="2" placeholder="Hợp đồng còn nợ: nhập lý do vẫn đề nghị gia hạn" class="mt-3 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm"></textarea>@endif
-                                <button class="mt-3 h-11 w-full rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700">Gửi phụ lục cho khách xác nhận</button>
+                                <label class="mt-3 flex items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3 text-sm font-semibold text-emerald-900"><input type="checkbox" name="extension_agreed" value="1" required class="mt-0.5 rounded border-slate-300 text-emerald-600"><span>2 bên đã thỏa thuận gia hạn</span></label>
+                                <button class="mt-3 h-11 w-full rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700">Duyệt và gia hạn hợp đồng</button>
                             </form>
                             <form method="POST" action="{{ route('admin.extension-requests.reject', $request) }}" class="flex gap-2">@csrf<input name="reject_reason" required minlength="3" maxlength="1000" placeholder="Nhập lý do từ chối" class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm"><button class="h-11 shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700">Từ chối</button></form>
                         </div>

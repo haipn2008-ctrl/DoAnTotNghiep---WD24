@@ -18,9 +18,16 @@
         ->sortByDesc('id')
         ->values();
 
-    $activeContract = $allContracts
-        ->whereIn('status', ['active', 'expired'])
-        ->first();
+    $activeContract = $tenant->contracts
+        ->whereIn('status', \App\Models\Contract::OPEN_OCCUPANCY_STATUSES)
+        ->first()
+        ?? $tenant->memberContracts
+            ->whereIn('status', \App\Models\Contract::OPEN_OCCUPANCY_STATUSES)
+            ->first(fn ($contract) => $contract->pivot?->status === \App\Models\ContractTenant::STATUS_CHECKED_IN);
+    $hasRentalHistory = $tenant->contracts
+        ->contains(fn ($contract) => $contract->actual_move_in_at !== null)
+        || $tenant->memberContracts
+            ->contains(fn ($contract) => $contract->pivot?->status === \App\Models\ContractTenant::STATUS_MOVED_OUT);
 
     $contractStatusLabels = [
         'draft' => [
@@ -123,6 +130,19 @@
                 ? $tenant->user->name . ' (' . $tenant->user->email . ')'
                 : 'Chưa gắn tài khoản',
         ],
+        [
+            'label' => 'Trạng thái tài khoản',
+            'value' => $tenant->user
+                ? ([
+                    'pending' => 'Chờ kích hoạt',
+                    'active' => 'Đang hoạt động',
+                    'settling' => 'Đang quyết toán',
+                    'former' => 'Cựu người thuê',
+                    'locked' => 'Đã khóa',
+                    'inactive' => 'Ngừng sử dụng',
+                ][$tenant->user->status] ?? 'Không xác định')
+                : 'Không có tài khoản',
+        ],
     ];
 @endphp
 
@@ -193,6 +213,14 @@
 
                             Đang thuê phòng
                             {{ $activeContract->room->room_code ?? 'N/A' }}
+                        </span>
+
+                    @elseif ($hasRentalHistory)
+
+                        <span
+                            class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-700 ring-1 ring-amber-200">
+                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                            Đã rời phòng
                         </span>
 
                     @else

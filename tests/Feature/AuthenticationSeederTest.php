@@ -23,8 +23,8 @@ class AuthenticationSeederTest extends TestCase
         $this->seed(DatabaseSeeder::class);
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertDatabaseCount('roles', 3);
-        $this->assertDatabaseCount('users', 33);
+        $this->assertDatabaseCount('roles', 2);
+        $this->assertDatabaseCount('users', 32);
         $this->assertDatabaseCount('rooms', 21);
         $this->assertDatabaseCount('tenants', 35);
         $this->assertDatabaseCount('contracts', 19);
@@ -127,7 +127,6 @@ class AuthenticationSeederTest extends TestCase
             'quynhanh.vu@example.test' => [User::STATUS_SETTLING, 'User'],
             'auth.locked@example.test' => [User::STATUS_LOCKED, 'User'],
             'auth.inactive@example.test' => [User::STATUS_INACTIVE, 'User'],
-            'auth.unsupported-role@example.test' => [User::STATUS_ACTIVE, 'Auditor'],
         ];
 
         foreach ($expectedAccounts as $email => [$status, $role]) {

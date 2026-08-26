@@ -18,9 +18,50 @@ class DepositRefundLifecycleTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_settlement_portal_lists_each_owned_settlement_contract(): void
+    {
+        [, $client, $contract] = $this->fixture();
+        $secondRoom = Room::create([
+            'room_code' => 'REFUND-02', 'floor' => 2, 'price' => 2500000,
+            'area' => 22, 'max_people' => 2, 'status' => Room::STATUS_AVAILABLE,
+        ]);
+        $completedContract = Contract::query()->forceCreate([
+            'contract_code' => 'HD-REFUND-02',
+            'room_id' => $secondRoom->id,
+            'tenant_id' => $contract->tenant_id,
+            'monthly_rent' => 2500000,
+            'deposit_amount' => 0,
+            'start_date' => today()->subYears(2),
+            'end_date' => today()->subYear(),
+            'actual_move_in_at' => now()->subYears(2),
+            'actual_move_out_at' => now()->subYear(),
+            'status' => Contract::STATUS_COMPLETED,
+        ]);
+        SettlementStatement::query()->create([
+            'contract_id' => $completedContract->id,
+            'status' => SettlementStatement::STATUS_SETTLED,
+            'final_charge_amount' => 0,
+            'previous_outstanding_amount' => 0,
+            'deposit_credit' => 0,
+            'net_amount' => 0,
+            'calculated_at' => now(),
+        ]);
+
+        $this->actingAs($client)->get(route('client.settlement.index'))
+            ->assertSuccessful()
+            ->assertSee('HD-REFUND-01')
+            ->assertSee('HD-REFUND-02')
+            ->assertSee('Tài khoản đang được duy trì để hoàn tất quyết toán.');
+    }
+
     public function test_client_can_request_refund_only_while_contract_is_settling(): void
     {
         [, $client, $contract] = $this->fixture();
+
+        $this->actingAs($client)
+            ->get(route('client.deposit-refunds.index', $contract))
+            ->assertSuccessful()
+            ->assertSee('Thông tin nhận tiền');
 
         $this->actingAs($client)->post(route('client.deposit-refunds.store', $contract), [
             'bank_name' => 'VCB',
@@ -29,12 +70,41 @@ class DepositRefundLifecycleTest extends TestCase
         ])->assertRedirect(route('client.deposit-refunds.index', $contract));
 
         $this->assertTrue($contract->fresh()->isRefundRequested());
+        $this->get(route('client.deposit-refunds.index', $contract))
+            ->assertSuccessful()
+            ->assertSee('Thông tin nhận tiền đã gửi');
+    }
+
+    public function test_admin_can_transfer_the_exact_refund_amount_without_rounding_to_thousands(): void
+    {
+        Storage::fake('public');
+        [$admin, , $contract] = $this->fixture([
+            'deposit_status' => Contract::DEPOSIT_REFUND_APPROVED,
+            'deposit_refund_amount' => 238710,
+            'deposit_bank_name' => 'MB',
+            'deposit_bank_account_number' => '0123456789',
+            'deposit_bank_account_name' => 'NGUYEN VAN A',
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.deposit-refunds.index'))
+            ->assertSuccessful()
+            ->assertSee('value="238710"', false)
+            ->assertSee('step="1"', false);
+
+        $this->post(route('admin.deposit-refunds.complete', $contract), [
+            'transfer_amount' => 238710,
+            'transfer_proof' => UploadedFile::fake()->image('refund-238710.jpg'),
+        ])->assertSessionHasNoErrors();
+
+        $contract->refresh();
+        $this->assertSame(238710.0, (float) $contract->deposit_transfer_amount);
+        $this->assertNotNull($contract->deposit_transfer_proof);
     }
 
     public function test_refund_transfer_does_not_bypass_the_final_settlement_gate(): void
     {
         Storage::fake('public');
-        [$admin, , $contract] = $this->fixture([
+        [$admin, $client, $contract] = $this->fixture([
             'deposit_status' => Contract::DEPOSIT_REFUND_REQUESTED,
         ]);
 
@@ -51,12 +121,22 @@ class DepositRefundLifecycleTest extends TestCase
         $contract->refresh();
         $this->assertSame(Contract::STATUS_SETTLING, $contract->status);
         $this->assertSame(Contract::DEPOSIT_REFUNDED, $contract->deposit_resolution);
+        $this->assertTrue($contract->isRefundCompleted());
+        $this->assertSame(User::STATUS_SETTLING, $client->fresh()->status);
 
-        $this->post(route('admin.contracts.complete-settlement', $contract), [
+        $this->actingAs($client)
+            ->get(route('client.deposit-refunds.index', $contract))
+            ->assertSuccessful()
+            ->assertSee('Tiền hoàn đã được chuyển')
+            ->assertSee(route('client.deposit-refunds.proof', $contract), false);
+        $this->get(route('client.deposit-refunds.proof', $contract))->assertSuccessful();
+
+        $this->actingAs($admin)->post(route('admin.contracts.complete-settlement', $contract), [
             'confirm_complete' => '1',
         ])->assertSessionHas('success');
 
         $this->assertSame(Contract::STATUS_COMPLETED, $contract->fresh()->status);
+        $this->assertSame(User::STATUS_FORMER, $client->fresh()->status);
     }
 
     public function test_forfeiting_deposit_records_resolution_without_completing_contract(): void
@@ -76,6 +156,7 @@ class DepositRefundLifecycleTest extends TestCase
         $this->assertSame(Contract::STATUS_SETTLING, $contract->status);
         $this->assertSame(Contract::DEPOSIT_RETAINED, $contract->deposit_resolution);
         $this->assertSame(Contract::DEPOSIT_FORFEITED, $contract->deposit_status);
+        $this->assertSame(0.0, (float) $contract->settlementStatement->fresh()->net_amount);
     }
 
     public function test_full_refund_is_capped_by_the_balance_after_all_debts_are_offset(): void
@@ -106,6 +187,9 @@ class DepositRefundLifecycleTest extends TestCase
         $this->assertSame(1500000.0, (float) $contract->deposit_refund_amount);
         $this->assertSame(500000.0, (float) $contract->deposit_deduction_amount);
         $this->assertSame(-1500000.0, (float) $contract->settlementStatement->fresh()->net_amount);
+        $debt = Invoice::query()->where('invoice_code', 'INV-REFUND-DEBT')->firstOrFail();
+        $this->assertSame(Invoice::STATUS_PAID, $debt->status);
+        $this->assertSame(0.0, (float) $debt->remaining_amount);
     }
 
     private function fixture(array $contractOverrides = []): array

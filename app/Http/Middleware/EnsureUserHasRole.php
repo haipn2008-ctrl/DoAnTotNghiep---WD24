@@ -12,7 +12,7 @@ class EnsureUserHasRole
     {
         $allowedRoleNames = match (strtolower($role)) {
             'admin' => ['admin'],
-            'client', 'user' => ['client', 'user'],
+            'user' => ['user'],
             default => null,
         };
 

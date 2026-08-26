@@ -43,7 +43,19 @@ class AppServiceProvider extends ServiceProvider
             ]);
         });
         View::composer('layouts.client.blocks.sidebar', function ($view): void {
-            $view->with('clientSupportPhone', Setting::currentOrCreate()->landlord_phone);
+            $user = request()->user();
+            $user?->loadMissing('tenant');
+            $settlementContract = $user?->tenant?->contracts()
+                ->whereIn('status', [Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED])
+                ->latest('actual_move_out_at')
+                ->latest('id')
+                ->first();
+
+            $view->with([
+                'clientSupportPhone' => Setting::currentOrCreate()->landlord_phone,
+                'clientSettlementContract' => $settlementContract,
+                'clientSidebarUnreadCount' => $user?->unreadNotifications()->count() ?? 0,
+            ]);
         });
         View::composer('layouts.client.blocks.header', function ($view): void {
             $user = request()->user();

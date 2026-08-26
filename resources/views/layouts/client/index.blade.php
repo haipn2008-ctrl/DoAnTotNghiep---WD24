@@ -20,6 +20,15 @@
 
             <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
                 <div class="mx-auto max-w-7xl">
+                    @if (auth()->user()?->status === \App\Models\User::STATUS_SETTLING)
+                        <div class="mb-5 flex flex-col justify-between gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 sm:flex-row sm:items-center">
+                            <span><strong>Bạn đã trả phòng.</strong> Tài khoản đang được duy trì để hoàn tất quyết toán.</span>
+                            @unless(request()->routeIs('client.settlement.*'))
+                                <a href="{{ route('client.settlement.index') }}" class="font-semibold text-violet-700 hover:text-violet-900">Đến cổng quyết toán →</a>
+                            @endunless
+                        </div>
+                    @endif
+
                     @if (session('success'))
                         <div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
                             {{ session('success') }}
@@ -29,6 +38,12 @@
                     @if (session('error'))
                         <div class="mb-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
                             {{ session('error') }}
+                        </div>
+                    @endif
+
+                    @if (session('warning'))
+                        <div class="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                            {{ session('warning') }}
                         </div>
                     @endif
 

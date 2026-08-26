@@ -57,7 +57,7 @@ class ApplicationSmokeTest extends TestCase
 
     public function test_client_pages_render_without_a_tenant_profile(): void
     {
-        $client = $this->createUser('Client', 2);
+        $client = $this->createUser('User', 2);
 
         $pages = [
             '/client',

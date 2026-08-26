@@ -58,20 +58,32 @@ class TenantPortalManagementTest extends TestCase
 
     public function test_settling_account_keeps_history_invoice_and_account_access_without_dead_navigation(): void
     {
-        [$client] = $this->createClientContext('SETTLING');
+        [$client, , $contract] = $this->createClientContext('SETTLING');
+        $contract->forceFill([
+            'status' => Contract::STATUS_SETTLING,
+            'actual_move_out_at' => now(),
+        ])->save();
         $client->update(['status' => User::STATUS_SETTLING]);
 
-        $this->actingAs($client)->get('/client')->assertSuccessful()
+        $this->actingAs($client)->get('/client')->assertRedirect('/client/settlement');
+        $this->actingAs($client)->get('/client/settlement')->assertSuccessful()
             ->assertDontSee('href="'.route('client.room.show').'"', false)
             ->assertDontSee('href="'.route('client.utilities.index').'"', false)
-            ->assertDontSee('href="'.route('client.support.index').'"', false)
-            ->assertSee('Xem hóa đơn quyết toán');
+            ->assertSee('href="'.route('client.support.index').'"', false)
+            ->assertDontSee('href="'.route('client.vehicles.index').'"', false)
+            ->assertDontSee('href="'.route('client.extension-requests.index').'"', false)
+            ->assertDontSee('href="'.route('client.termination-requests.index').'"', false)
+            ->assertSee('href="'.route('client.notifications.index').'"', false)
+            ->assertSee('href="'.route('client.account.edit').'"', false)
+            ->assertSee('href="'.route('client.settlement.index').'"', false)
+            ->assertSee('Quyết toán & hoàn cọc', false)
+            ->assertSee('Tài khoản đang được duy trì để hoàn tất quyết toán.');
         $this->actingAs($client)->get('/client/contracts')->assertSuccessful();
         $this->actingAs($client)->get('/client/invoices')->assertSuccessful();
         $this->actingAs($client)->get('/client/account')->assertSuccessful();
         $this->actingAs($client)->get('/client/room')->assertRedirect('/client/invoices');
         $this->actingAs($client)->get('/client/utilities')->assertRedirect('/client/invoices');
-        $this->actingAs($client)->get('/client/support')->assertRedirect('/client/invoices');
+        $this->actingAs($client)->get('/client/support')->assertSuccessful();
     }
 
     public function test_support_menu_links_to_requests_and_public_landlord_information(): void

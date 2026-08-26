@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Contract;
 use App\Models\FeeSchedule;
 use App\Models\Invoice;
+use App\Models\InvoiceAdjustment;
 use App\Models\Setting;
 use App\Models\SettlementStatement;
 use App\Models\UtilityReading;
@@ -14,12 +15,14 @@ use Illuminate\Validation\ValidationException;
 
 class SettlementService
 {
+    private const DEPOSIT_OFFSET_PREFIX = 'COC-BUTRU-';
+
     public function generate(Contract $contract, float $manualAmount = 0, ?string $manualDescription = null): SettlementStatement
     {
         return DB::transaction(function () use ($contract, $manualAmount, $manualDescription): SettlementStatement {
             $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
             if ($contract->status !== Contract::STATUS_SETTLING || ! $contract->actual_move_out_at) {
-                throw ValidationException::withMessages(['contract' => 'Chỉ lập quyết toán sau khi đã checkout thực tế.']);
+                throw ValidationException::withMessages(['contract' => 'Chỉ được lập quyết toán sau khi khách đã trả phòng thực tế.']);
             }
 
             $existing = SettlementStatement::query()->where('contract_id', $contract->id)->lockForUpdate()->first();
@@ -33,7 +36,7 @@ class SettlementService
                 ->lockForUpdate()
                 ->first();
             if (! $checkout) {
-                throw ValidationException::withMessages(['checkout_reading' => 'Thiếu chỉ số checkout để lập quyết toán.']);
+                throw ValidationException::withMessages(['checkout_reading' => 'Thiếu chỉ số điện nước khi trả phòng để lập quyết toán.']);
             }
 
             $moveOutDate = Carbon::parse($contract->actual_move_out_at)->startOfDay();
@@ -75,11 +78,14 @@ class SettlementService
                 $items[] = $this->item('adjustment', $manualDescription ?: 'Bồi thường/điều chỉnh khi trả phòng', 1, 'lần', $manualAmount, $sort++, 'Khoản điều chỉnh do ban quản lý ghi nhận khi kiểm phòng.');
             }
 
-            $finalCharge = round((float) collect($items)->sum('amount'), 2);
+            // VND is collected in whole dong. Round each settlement total
+            // before issuing the invoice so the payment form and invoice
+            // status always compare the same value.
+            $finalCharge = round((float) collect($items)->sum('amount'));
             $invoice = $finalCharge > 0 ? $this->createInvoice($contract, $checkout, $moveOutDate, $items, $finalCharge) : null;
             $previousOutstanding = $this->outstandingAmount($contract, $invoice?->id);
             $depositCredit = $this->depositCredit($contract);
-            $net = round($previousOutstanding + $finalCharge - $depositCredit, 2);
+            $net = round($previousOutstanding + $finalCharge - $depositCredit);
             $statement = SettlementStatement::query()->create([
                 'contract_id' => $contract->id,
                 'invoice_id' => $invoice?->id,
@@ -94,35 +100,41 @@ class SettlementService
             foreach ($items as $item) {
                 $statement->items()->create($item);
             }
-            if ($depositCredit > 0 && $net >= 0) {
-                $contract->forceFill([
-                    'deposit_status' => Contract::DEPOSIT_DEDUCTED,
-                    'deposit_resolution' => Contract::DEPOSIT_DEDUCTED,
-                    'deposit_deduction_amount' => $depositCredit,
-                    'deposit_refund_amount' => 0,
-                    'deposit_resolved_at' => now(),
-                    'deposit_process_reason' => 'Tự động bù trừ vào công nợ và hóa đơn quyết toán.',
-                ])->save();
-            }
 
-            return $statement->load(['items', 'invoice', 'checkoutReading']);
+            return $this->refreshFinancials($statement);
         }, 3);
     }
 
     public function refreshFinancials(SettlementStatement $statement): SettlementStatement
     {
-        $statement->loadMissing(['contract', 'invoice.payments', 'invoice.adjustments']);
-        $finalOutstanding = $statement->invoice ? (float) $statement->invoice->remaining_amount : 0;
-        $previousOutstanding = $this->outstandingAmount($statement->contract, $statement->invoice_id);
-        $net = round($previousOutstanding + $finalOutstanding - (float) $statement->deposit_credit, 2);
-        $statement->forceFill([
-            'previous_outstanding_amount' => $previousOutstanding,
-            'net_amount' => $net,
-            'status' => $this->statusForNet($net),
-            'calculated_at' => now(),
-        ])->save();
+        return DB::transaction(function () use ($statement): SettlementStatement {
+            $statement = SettlementStatement::query()
+                ->with('contract')
+                ->lockForUpdate()
+                ->findOrFail($statement->id);
 
-        return $statement->fresh(['items', 'invoice', 'checkoutReading']);
+            $allocation = $this->applyDepositOffset(
+                $statement->contract,
+                (float) $statement->deposit_credit,
+                $statement->invoice_id,
+            );
+            $net = round($allocation['remaining_debt'] - $allocation['refund_amount']);
+
+            $statement->forceFill([
+                'previous_outstanding_amount' => $allocation['previous_outstanding'],
+                'net_amount' => $net,
+                'status' => $this->statusForNet($net),
+                'calculated_at' => now(),
+            ])->save();
+
+            $this->syncDepositResolution(
+                $statement->contract,
+                $allocation['applied_amount'],
+                $allocation['refund_amount'],
+            );
+
+            return $statement->fresh(['items', 'invoice', 'checkoutReading']);
+        }, 3);
     }
 
     public function markSettled(Contract $contract): void
@@ -170,7 +182,7 @@ class SettlementService
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
             ->with(['payments', 'adjustments'])
             ->get()
-            ->sum(fn (Invoice $invoice) => (float) $invoice->remaining_amount), 2);
+            ->sum(fn (Invoice $invoice) => (float) $invoice->remaining_amount));
     }
 
     private function depositCredit(Contract $contract): float
@@ -182,6 +194,141 @@ class SettlementService
             Contract::DEPOSIT_REFUND_APPROVED,
             Contract::DEPOSIT_REFUND_PROCESSING,
         ], true) ? (float) $contract->deposit_amount : 0;
+    }
+
+    /**
+     * Phân bổ tiền cọc vào các hóa đơn còn nợ theo thứ tự cũ nhất trước.
+     * Phiếu điều chỉnh có mã cố định để thao tác có thể chạy lại an toàn.
+     *
+     * @return array{applied_amount: float, refund_amount: float, remaining_debt: float, previous_outstanding: float}
+     */
+    private function applyDepositOffset(
+        Contract $contract,
+        float $depositCredit,
+        ?int $settlementInvoiceId,
+    ): array {
+        $depositRemaining = max(0, round($depositCredit));
+        $applied = 0.0;
+        $remainingDebt = 0.0;
+        $previousOutstanding = 0.0;
+
+        $invoices = Invoice::query()
+            ->where('contract_id', $contract->id)
+            ->where('invoice_type', '!=', Invoice::TYPE_DEPOSIT)
+            ->whereNotIn('status', [Invoice::STATUS_CANCELLED, Invoice::STATUS_WRITTEN_OFF])
+            ->with(['payments', 'adjustments'])
+            ->orderBy('due_date')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($invoices as $invoice) {
+            $code = self::DEPOSIT_OFFSET_PREFIX.$contract->id.'-'.$invoice->id;
+            $offset = $invoice->adjustments->firstWhere('adjustment_code', $code);
+
+            // Hóa đơn đã thanh toán theo dữ liệu cũ và không do tiền cọc bù trừ
+            // không còn tham gia phân bổ.
+            if ($invoice->status === Invoice::STATUS_PAID && ! $offset) {
+                continue;
+            }
+
+            $otherAdjustments = $invoice->adjustments
+                ->reject(fn (InvoiceAdjustment $item): bool => $item->adjustment_code === $code)
+                ->sum(fn (InvoiceAdjustment $item): float => $item->signed_amount);
+            $paid = (float) $invoice->payments
+                ->where('status', 'success')
+                ->sum('amount_paid');
+            $beforeDeposit = max(0, round(
+                (float) $invoice->total_amount + $otherAdjustments - $paid
+            ));
+
+            if ($invoice->id !== $settlementInvoiceId) {
+                $previousOutstanding += $beforeDeposit;
+            }
+
+            $allocated = min($depositRemaining, $beforeDeposit);
+            if ($allocated > 0) {
+                $adjustment = $invoice->adjustments()->updateOrCreate(
+                    ['adjustment_code' => $code],
+                    [
+                        'direction' => InvoiceAdjustment::DIRECTION_CREDIT,
+                        'amount' => $allocated,
+                        'reason' => 'Tự động bù trừ tiền cọc khi quyết toán hợp đồng.',
+                        'created_by' => null,
+                    ]
+                );
+                if (! $offset) {
+                    $invoice->setRelation('adjustments', $invoice->adjustments->push($adjustment));
+                }
+            } elseif ($offset) {
+                $offset->delete();
+            }
+
+            $adjustmentAmount = (float) $invoice->adjustments()->get()
+                ->sum(fn (InvoiceAdjustment $item): float => $item->signed_amount);
+            $invoice->forceFill(['adjustment_amount' => $adjustmentAmount])->save();
+            $invoice->refreshStatus();
+
+            $depositRemaining -= $allocated;
+            $applied += $allocated;
+            $remainingDebt += max(0, $beforeDeposit - $allocated);
+        }
+
+        return [
+            'applied_amount' => round($applied),
+            'refund_amount' => round($depositRemaining),
+            'remaining_debt' => round($remainingDebt),
+            'previous_outstanding' => round($previousOutstanding),
+        ];
+    }
+
+    private function syncDepositResolution(Contract $contract, float $applied, float $refund): void
+    {
+        if ((float) $contract->deposit_amount <= 0) {
+            return;
+        }
+
+        // Không thay đổi quyết định sau khi Admin đã duyệt hoặc đã chuyển tiền.
+        if (in_array($contract->deposit_status, [
+            Contract::DEPOSIT_REFUND_APPROVED,
+            Contract::DEPOSIT_REFUND_PROCESSING,
+            Contract::DEPOSIT_RETURNED,
+            Contract::DEPOSIT_PARTIAL,
+            Contract::DEPOSIT_FORFEITED,
+            Contract::DEPOSIT_REFUNDED,
+            Contract::DEPOSIT_RETAINED,
+        ], true)) {
+            return;
+        }
+
+        $common = [
+            'deposit_deduction_amount' => $applied,
+            'deposit_refund_amount' => $refund,
+            'deposit_processed_at' => now(),
+            'deposit_process_reason' => 'Tiền cọc được tự động bù trừ vào công nợ khi quyết toán.',
+        ];
+
+        if ($refund > 0) {
+            $status = in_array($contract->deposit_status, [
+                Contract::DEPOSIT_REFUND_REQUESTED,
+                Contract::DEPOSIT_REFUND_REJECTED,
+            ], true) ? $contract->deposit_status : Contract::DEPOSIT_NEEDS_RESOLUTION;
+
+            $contract->forceFill($common + [
+                'deposit_status' => $status,
+                'deposit_resolution' => null,
+                'deposit_resolved_at' => null,
+                'deposit_resolved_by' => null,
+            ])->save();
+
+            return;
+        }
+
+        $contract->forceFill($common + [
+            'deposit_status' => Contract::DEPOSIT_DEDUCTED,
+            'deposit_resolution' => Contract::DEPOSIT_DEDUCTED,
+            'deposit_resolved_at' => now(),
+        ])->save();
     }
 
     private function statusForNet(float $net): string
@@ -199,7 +346,7 @@ class SettlementService
             'quantity' => $quantity,
             'unit' => $unit,
             'unit_price' => round($unitPrice, 2),
-            'amount' => round($quantity * $unitPrice, 2),
+            'amount' => round($quantity * $unitPrice),
             'note' => $note,
             'sort_order' => $sortOrder,
         ];

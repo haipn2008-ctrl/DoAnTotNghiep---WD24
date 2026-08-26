@@ -505,7 +505,7 @@
 
                                     <div class="refund-note">
                                         <i class="bx bx-info-circle"></i>
-                                        <span>Kiểm tra khoản hoàn, khấu trừ và minh chứng trước khi duyệt.</span>
+                                        <span>Bước này duyệt số tiền hoàn. Sau khi duyệt, hãy chuyển khoản và tải minh chứng tại bước “Xác nhận chuyển”.</span>
                                     </div>
                                 </section>
                             </div>
@@ -605,8 +605,9 @@
                                         <input type="number"
                                                name="transfer_amount"
                                                value="{{ $approvedRefund }}"
-                                               min="0"
-                                               step="1000"
+                                               min="1"
+                                               step="1"
+                                               inputmode="numeric"
                                                required
                                                class="refund-input">
                                     </div>

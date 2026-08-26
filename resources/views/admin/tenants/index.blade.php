@@ -33,6 +33,7 @@
                     <select id="status" data-tenant-status name="status" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         <option value="">Tất cả trạng thái</option>
                         <option value="renting" @selected($status === 'renting')>Đang thuê</option>
+                        <option value="moved_out" @selected($status === 'moved_out')>Đã rời phòng</option>
                         <option value="not_renting" @selected($status === 'not_renting')>Chưa thuê</option>
                     </select>
                 </div>

@@ -129,11 +129,14 @@
                                         <td class="px-5 py-4"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $paymentStatus['class'] }}">{{ $paymentStatus['text'] }}</span></td>
                                         <td class="px-5 py-4 text-slate-600">{{ $payment->note ?? '-' }}</td>
                                         <td class="px-5 py-4">
-                                            @if($payment->isPending())
-                                                <div class="flex min-w-52 flex-col gap-2">
-                                                    @if($payment->proof_image)
-                                                        <a href="{{ route('admin.invoices.payments.proof', $payment) }}" target="_blank" class="text-center text-xs font-semibold text-indigo-700 hover:underline">Xem biên lai</a>
-                                                    @endif
+                                            <div class="flex min-w-52 flex-col gap-2">
+                                                @if($payment->proof_image)
+                                                    <a href="{{ route('admin.invoices.payments.proof', $payment) }}" target="_blank" rel="noopener" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                                                        <i class="bx bx-image-alt text-base"></i>
+                                                        Xem biên lai
+                                                    </a>
+                                                @endif
+                                                @if($payment->isPending())
                                                     <form method="POST" action="{{ route('admin.invoices.payments.approve', $payment) }}">
                                                         @csrf
                                                         <button class="h-9 w-full rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700">Duyệt thanh toán</button>
@@ -143,12 +146,12 @@
                                                         <input name="review_note" required maxlength="1000" placeholder="Lý do từ chối..." class="h-9 w-full rounded-lg border border-slate-200 px-2 text-xs">
                                                         <button class="h-9 w-full rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-100">Từ chối</button>
                                                     </form>
-                                                </div>
-                                            @elseif($payment->review_note)
-                                                <span class="text-xs text-rose-700">{{ $payment->review_note }}</span>
-                                            @else
-                                                <span class="text-slate-400">—</span>
-                                            @endif
+                                                @elseif($payment->review_note)
+                                                    <span class="text-xs text-rose-700">{{ $payment->review_note }}</span>
+                                                @elseif(!$payment->proof_image)
+                                                    <span class="text-slate-400">—</span>
+                                                @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty

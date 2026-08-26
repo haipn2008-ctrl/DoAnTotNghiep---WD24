@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Contract;
+use App\Models\ContractRepresentativeTransfer;
 use App\Models\ContractTenant;
 use App\Models\ContractTenantHistory;
+use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Carbon\Carbon;
@@ -188,12 +190,12 @@ class ContractTenantService
     {
         $members = ContractTenant::query()->where('contract_id', $contract->id)->current()->lockForUpdate()->get();
         if ($members->contains('status', ContractTenant::STATUS_PENDING)) {
-            $this->fail('members', 'Còn người thuê đang chờ duyệt. Hãy duyệt hoặc từ chối trước khi check-in.');
+            $this->fail('members', 'Còn người thuê đang chờ duyệt. Hãy duyệt hoặc từ chối trước khi nhận phòng.');
         }
 
         $approved = $members->where('status', ContractTenant::STATUS_APPROVED);
         if ($approved->isEmpty()) {
-            $this->fail('members', 'Phải có ít nhất một người thuê được duyệt trước khi check-in.');
+            $this->fail('members', 'Phải có ít nhất một người thuê được duyệt trước khi nhận phòng.');
         }
         foreach ($approved as $member) {
             $member->forceFill(['actual_move_in_at' => $moveInAt])->save();
@@ -233,6 +235,9 @@ class ContractTenantService
             if ($member->status !== ContractTenant::STATUS_CHECKED_IN) {
                 $this->fail('member', 'Chỉ người đang ở mới có thể xác nhận rời phòng.');
             }
+            if ($member->role === ContractTenant::ROLE_REPRESENTATIVE) {
+                $this->fail('member', 'Người đại diện phải được chuyển giao vai trò cho một người đang thuê khác khi rời phòng.');
+            }
             $moveOutAt = Carbon::parse($moveOutAt);
             if ($moveOutAt->isFuture() || ($member->actual_move_in_at && $moveOutAt->lt($member->actual_move_in_at))) {
                 $this->fail('actual_move_out_at', 'Thời điểm rời phòng không hợp lệ.');
@@ -242,6 +247,133 @@ class ContractTenantService
             $this->syncCounts($member->contract()->with('room')->firstOrFail());
 
             return $member->fresh();
+        }, 3);
+    }
+
+    public function transferRepresentative(
+        ContractTenant $representative,
+        ContractTenant $successor,
+        User $actor,
+        Carbon|string $effectiveAt,
+        string $reason,
+        string $email,
+        string $temporaryPassword,
+    ): ContractRepresentativeTransfer {
+        return DB::transaction(function () use ($representative, $successor, $actor, $effectiveAt, $reason, $email, $temporaryPassword): ContractRepresentativeTransfer {
+            $representative = ContractTenant::query()->lockForUpdate()->findOrFail($representative->id);
+            $contract = Contract::query()->with('room')->lockForUpdate()->findOrFail($representative->contract_id);
+            if (! in_array($contract->status, Contract::OPEN_OCCUPANCY_STATUSES, true)) {
+                $this->fail('member', 'Chỉ được chuyển người đại diện khi hợp đồng đang thuê hoặc quá hạn chưa trả phòng.');
+            }
+            if ($representative->role !== ContractTenant::ROLE_REPRESENTATIVE
+                || $representative->status !== ContractTenant::STATUS_CHECKED_IN) {
+                $this->fail('member', 'Người đại diện hiện tại không còn ở trạng thái đang thuê.');
+            }
+
+            $successor = ContractTenant::query()->lockForUpdate()->findOrFail($successor->id);
+            if ((int) $successor->contract_id !== (int) $contract->id
+                || $successor->role !== ContractTenant::ROLE_TENANT
+                || $successor->status !== ContractTenant::STATUS_CHECKED_IN
+                || ! $successor->tenant_id) {
+                $this->fail('successor_member_id', 'Người đại diện mới phải là người thuê đang ở trong cùng phòng.');
+            }
+
+            $effectiveAt = Carbon::parse($effectiveAt);
+            if ($effectiveAt->isFuture()
+                || ($representative->actual_move_in_at && $effectiveAt->lt($representative->actual_move_in_at))
+                || ($successor->actual_move_in_at && $effectiveAt->lt($successor->actual_move_in_at))) {
+                $this->fail('effective_at', 'Thời điểm chuyển giao không hợp lệ.');
+            }
+
+            $oldTenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($representative->tenant_id);
+            $newTenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($successor->tenant_id);
+            if ($newTenant->user) {
+                $this->fail('successor_member_id', 'Người thuê được chọn đã có tài khoản. Hãy xử lý tài khoản hiện có trước khi chuyển giao.');
+            }
+
+            $email = mb_strtolower(trim($email));
+            if (User::query()->where('email', $email)->lockForUpdate()->exists()) {
+                $this->fail('email', 'Email đăng nhập đã được sử dụng.');
+            }
+            $clientRole = Role::query()->where('role_name', 'User')->first();
+            if (! $clientRole) {
+                $this->fail('email', 'Hệ thống chưa có vai trò tài khoản khách thuê.');
+            }
+
+            $newUser = User::query()->create([
+                'name' => $newTenant->full_name,
+                'email' => $email,
+                'phone' => $newTenant->phone,
+                'role_id' => $clientRole->id,
+                'password' => $temporaryPassword,
+                'status' => User::STATUS_PENDING,
+                'must_change_password' => true,
+                'activated_at' => null,
+            ]);
+            $newTenant->forceFill(['user_id' => $newUser->id, 'email' => $email])->save();
+
+            $oldUser = $oldTenant->user;
+            if ($oldUser) {
+                $oldUser->forceFill([
+                    'status' => User::STATUS_LOCKED,
+                    'must_change_password' => false,
+                ])->save();
+            }
+
+            $representative->forceFill(['actual_move_out_at' => $effectiveAt])->save();
+            $this->transition(
+                $representative,
+                ContractTenant::STATUS_MOVED_OUT,
+                'representative_move_out',
+                $reason,
+                $actor,
+                ['successor_contract_tenant_id' => $successor->id],
+            );
+
+            $successor->forceFill(['role' => ContractTenant::ROLE_REPRESENTATIVE])->save();
+            $this->history(
+                $successor,
+                ContractTenant::STATUS_CHECKED_IN,
+                ContractTenant::STATUS_CHECKED_IN,
+                'promote_to_representative',
+                $reason,
+                $actor,
+                ['previous_role' => ContractTenant::ROLE_TENANT, 'new_role' => ContractTenant::ROLE_REPRESENTATIVE],
+            );
+
+            $contract->forceFill([
+                'tenant_id' => $newTenant->id,
+                'representative_tenant_id' => $newTenant->id,
+            ])->save();
+            $this->syncCounts($contract);
+
+            $transfer = ContractRepresentativeTransfer::query()->create([
+                'contract_id' => $contract->id,
+                'old_contract_tenant_id' => $representative->id,
+                'new_contract_tenant_id' => $successor->id,
+                'old_tenant_id' => $oldTenant->id,
+                'new_tenant_id' => $newTenant->id,
+                'old_user_id' => $oldUser?->id,
+                'new_user_id' => $newUser->id,
+                'performed_by' => $actor->id,
+                'effective_at' => $effectiveAt,
+                'reason' => $reason,
+                'deposit_amount_snapshot' => $contract->deposit_amount,
+                'old_representative_snapshot' => $this->representativeSnapshot($oldTenant, $representative),
+                'new_representative_snapshot' => $this->representativeSnapshot($newTenant, $successor),
+            ]);
+
+            ContractHistoryService::log(
+                $contract,
+                'representative_transferred',
+                'Đã lập phụ lục chuyển giao người đại diện thuê phòng.',
+                $reason,
+                ['tenant_id' => $oldTenant->id, 'user_id' => $oldUser?->id],
+                ['tenant_id' => $newTenant->id, 'user_id' => $newUser->id, 'transfer_id' => $transfer->id],
+                $actor->id,
+            );
+
+            return $transfer->fresh(['contract', 'oldTenant', 'newTenant', 'newUser']);
         }, 3);
     }
 
@@ -340,6 +472,18 @@ class ContractTenantService
         ]);
     }
 
+    private function representativeSnapshot(Tenant $tenant, ContractTenant $member): array
+    {
+        return [
+            'full_name' => $member->full_name,
+            'date_of_birth' => $member->date_of_birth?->toDateString(),
+            'identity_number' => $member->identity_number,
+            'phone' => $member->phone,
+            'email' => $tenant->email,
+            'address' => $member->address,
+        ];
+    }
+
     private function resolveTenantProfile(array $profile): Tenant
     {
         $identityNumber = $profile['identity_number'] ?? null;
@@ -414,8 +558,10 @@ class ContractTenantService
 
     private function ensureCapacity(Contract $contract, int $additional = 0): void
     {
+        $room = $contract->room()->lockForUpdate()->firstOrFail();
         $planned = ContractTenant::query()->where('contract_id', $contract->id)->current()->lockForUpdate()->count();
-        if ($planned + $additional > (int) $contract->room->max_people) {
+        $currentOccupancy = max($planned, (int) $room->current_people);
+        if ($currentOccupancy + $additional > (int) $room->max_people) {
             $this->fail('members', 'Danh sách người thuê vượt quá sức chứa tối đa của phòng.');
         }
     }

@@ -33,7 +33,7 @@ class ContractExtensionRequestController extends Controller
         return view('admin.contracts.extension-requests.index', compact('extensionRequests'));
     }
 
-    /** Admin kiểm tra và gửi phụ lục đề nghị; chưa thay đổi hợp đồng ở bước này. */
+    /** Admin xác nhận hai bên đã thỏa thuận và áp dụng gia hạn ngay. */
     public function approve(Request $request, ContractExtensionRequest $extensionRequest)
     {
         $data = $request->validate([
@@ -41,6 +41,10 @@ class ContractExtensionRequestController extends Controller
             'proposed_monthly_rent' => ['required', 'numeric', 'min:0'],
             'admin_note' => ['nullable', 'string', 'max:1000'],
             'financial_override_reason' => ['nullable', 'string', 'min:3', 'max:1000'],
+            'extension_agreed' => ['required', 'accepted'],
+        ], [
+            'extension_agreed.required' => 'Bạn phải xác nhận 2 bên đã thỏa thuận gia hạn.',
+            'extension_agreed.accepted' => 'Bạn phải xác nhận 2 bên đã thỏa thuận gia hạn.',
         ]);
 
         $contract = DB::transaction(function () use ($request, $extensionRequest, $data) {
@@ -79,17 +83,33 @@ class ContractExtensionRequestController extends Controller
             }
 
             $setting = Setting::currentOrCreate();
+            $oldEndDate = $contract->end_date->copy();
+            $oldMonthlyRent = (float) $contract->monthly_rent;
+            $reason = filled($data['admin_note'] ?? null)
+                ? 'Hai bên đã thỏa thuận gia hạn. '.$data['admin_note']
+                : 'Hai bên đã thỏa thuận gia hạn.';
+            $contract = $this->lifecycle->extendContract(
+                $contract,
+                $request->user(),
+                $approvedEndDate,
+                $reason,
+                [
+                    'monthly_rent' => (float) $data['proposed_monthly_rent'],
+                    'extension_request_id' => $lockedRequest->id,
+                ],
+            );
+
             $lockedRequest->forceFill([
-                'status' => ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
+                'status' => ContractExtensionRequest::STATUS_APPROVED,
                 'approved_end_date' => $approvedEndDate,
                 'proposed_monthly_rent' => $data['proposed_monthly_rent'],
                 'proposed_deposit_amount' => $contract->deposit_amount,
                 'admin_note' => $data['admin_note'] ?? null,
                 'financial_override_reason' => $data['financial_override_reason'] ?? null,
                 'terms_snapshot' => [
-                    'old_end_date' => $contract->end_date?->toDateString(),
+                    'old_end_date' => $oldEndDate->toDateString(),
                     'new_end_date' => $approvedEndDate->toDateString(),
-                    'old_monthly_rent' => (float) $contract->monthly_rent,
+                    'old_monthly_rent' => $oldMonthlyRent,
                     'new_monthly_rent' => (float) $data['proposed_monthly_rent'],
                     'deposit_amount' => (float) $contract->deposit_amount,
                     'outstanding_at_offer' => round($outstanding, 2),
@@ -108,7 +128,6 @@ class ContractExtensionRequestController extends Controller
                 ],
                 'processed_by' => $request->user()->id,
                 'processed_at' => now(),
-                'terms_offered_at' => now(),
             ])->save();
             app(AdminNotificationService::class)->resolve('extension_request', $lockedRequest);
 
@@ -117,12 +136,12 @@ class ContractExtensionRequestController extends Controller
 
         app(ClientNotificationService::class)->contract(
             $contract,
-            'extension_terms_offered',
-            'Điều khoản gia hạn đang chờ bạn xác nhận',
-            'Ban quản lý đã gửi điều khoản gia hạn hợp đồng '.$contract->contract_code.'. Vui lòng kiểm tra thời hạn, giá thuê và xác nhận trên cổng khách thuê.'
+            'extension_request_approved',
+            'Hợp đồng đã được gia hạn',
+            'Theo thỏa thuận giữa hai bên, hợp đồng '.$contract->contract_code.' đã được gia hạn đến '.$contract->end_date?->format('d/m/Y').'.'
         );
 
-        return back()->with('success', 'Đã gửi điều khoản gia hạn. Hợp đồng chỉ được gia hạn sau khi người thuê đại diện xác nhận.');
+        return back()->with('success', 'Đã gia hạn hợp đồng theo thỏa thuận của hai bên.');
     }
 
     public function reject(Request $request, ContractExtensionRequest $extensionRequest)

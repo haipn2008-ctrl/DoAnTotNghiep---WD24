@@ -35,7 +35,11 @@ class ContractTenantController extends Controller
             Contract::STATUS_ACTIVE,
             Contract::STATUS_EXPIRED,
         ], true), 409, 'Hợp đồng không còn nhận khai báo người thuê.');
-        abort_if($contract->currentMembers->count() >= (int) $contract->room->max_people, 409, 'Phòng đã đạt số người thuê tối đa.');
+        $currentOccupancy = max(
+            $contract->currentMembers->count(),
+            (int) $contract->room->current_people,
+        );
+        abort_if($currentOccupancy >= (int) $contract->room->max_people, 409, 'Phòng đã đạt số người thuê tối đa.');
 
         return view('client.contracts.tenants.create', compact('contract'));
     }

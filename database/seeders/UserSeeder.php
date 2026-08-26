@@ -11,7 +11,7 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        $roleIds = Role::whereIn('role_name', ['Admin', 'User', 'Auditor'])
+        $roleIds = Role::whereIn('role_name', ['Admin', 'User'])
             ->pluck('id', 'role_name');
 
         $users = [
@@ -26,19 +26,18 @@ class UserSeeder extends Seeder
             ['name' => 'Hoàng Tuấn Kiệt', 'email' => 'tuankiet@example.test', 'phone' => '0912345607', 'password' => 'Tenant@123456', 'role' => 'User'],
             ['name' => 'Ngô Phương Uyên', 'email' => 'phuonguyen@example.test', 'phone' => '0912345608', 'password' => 'Tenant@123456', 'role' => 'User'],
 
-            // Tài khoản Client trống dành riêng cho kiểm thử thủ công vòng đời hợp đồng.
+            // Tài khoản User trống dành riêng cho kiểm thử thủ công vòng đời hợp đồng.
             ['name' => 'QA Khách A', 'email' => 'qa.client.a@example.test', 'phone' => '0920000001', 'password' => 'Test@123456', 'role' => 'User'],
             ['name' => 'QA Khách B', 'email' => 'qa.client.b@example.test', 'phone' => '0920000002', 'password' => 'Test@123456', 'role' => 'User'],
             ['name' => 'QA Khách C', 'email' => 'qa.client.c@example.test', 'phone' => '0920000003', 'password' => 'Test@123456', 'role' => 'User'],
 
-            // Manual QA accounts for AUTH-01 through AUTH-13. Password: Auth@123456.
+            // Tài khoản kiểm thử thủ công cho các tình huống xác thực. Mật khẩu: Auth@123456.
             ['name' => 'Nguyễn Quốc Hưng', 'email' => 'auth.admin@example.test', 'phone' => '0983201100', 'password' => 'Auth@123456', 'role' => 'Admin'],
             ['name' => 'Nguyễn Đức Thành', 'email' => 'ducthanh.nguyen@example.test', 'legacy_email' => 'auth.client@example.test', 'phone' => '0904123456', 'password' => 'Auth@123456', 'role' => 'User'],
             ['name' => 'Lê Minh Khang', 'email' => 'minhkhang.le@example.test', 'legacy_email' => 'auth.pending@example.test', 'phone' => '0915234567', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_PENDING],
             ['name' => 'Vũ Quỳnh Anh', 'email' => 'quynhanh.vu@example.test', 'legacy_email' => 'auth.settling@example.test', 'phone' => '0936345678', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_SETTLING],
             ['name' => 'Phan Hải Long', 'email' => 'auth.locked@example.test', 'phone' => '0977456789', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_LOCKED],
             ['name' => 'Đinh Thùy Linh', 'email' => 'auth.inactive@example.test', 'phone' => '0968567890', 'password' => 'Auth@123456', 'role' => 'User', 'status' => User::STATUS_INACTIVE],
-            ['name' => 'Trương Anh Khoa', 'email' => 'auth.unsupported-role@example.test', 'phone' => '0949678901', 'password' => 'Auth@123456', 'role' => 'Auditor'],
         ];
 
         foreach ($users as $userData) {

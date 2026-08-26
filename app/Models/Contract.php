@@ -125,6 +125,7 @@ class Contract extends Model
     */
 
     public const RESERVING_STATUSES = [
+        self::STATUS_PENDING_SIGNATURE,
         self::STATUS_PENDING_DEPOSIT,
         self::STATUS_AWAITING_MOVE_IN,
         self::STATUS_ACTIVE,
@@ -424,6 +425,11 @@ class Contract extends Model
             ));
     }
 
+    public function representativeTransfers()
+    {
+        return $this->hasMany(ContractRepresentativeTransfer::class)->latest('effective_at')->latest('id');
+    }
+
     // Hóa đơn
     public function invoices()
     {
@@ -712,6 +718,17 @@ class Contract extends Model
             && in_array($this->deposit_status, [
                 self::DEPOSIT_REFUND_APPROVED,
                 self::DEPOSIT_REFUND_PROCESSING,
+            ], true);
+    }
+
+    public function isRefundCompleted(): bool
+    {
+        return (float) $this->deposit_refund_amount > 0
+            && $this->deposit_transferred_at !== null
+            && filled($this->deposit_transfer_proof)
+            && in_array($this->deposit_resolution, [
+                self::DEPOSIT_REFUNDED,
+                self::DEPOSIT_DEDUCTED,
             ], true);
     }
 

@@ -79,21 +79,26 @@ class SupportRequestManagementTest extends TestCase
         Storage::disk('local')->assertDirectoryEmpty('support-requests');
     }
 
-    public function test_request_creation_fails_safely_and_removes_file_without_active_contract(): void
+    public function test_client_can_request_support_for_a_settling_contract(): void
     {
         [$client, , $contract] = $this->createClientContext('NOCONTRACT');
         $contract->forceFill(['status' => Contract::STATUS_SETTLING])->save();
 
         $this->actingAs($client)->post('/client/support', [
             'submission_token' => (string) Str::uuid(),
+            'contract_id' => $contract->id,
             'category' => 'contract',
             'subject' => 'Không còn hợp đồng',
             'description' => 'Request trực tiếp sau khi hợp đồng kết thúc.',
             'attachment' => UploadedFile::fake()->image('orphan.jpg'),
-        ])->assertSessionHasErrors('contract');
+        ])->assertSessionHasNoErrors();
 
-        $this->assertDatabaseCount('support_requests', 0);
-        Storage::disk('local')->assertDirectoryEmpty('support-requests');
+        $this->assertDatabaseHas('support_requests', [
+            'user_id' => $client->id,
+            'contract_id' => $contract->id,
+            'category' => 'contract',
+        ]);
+        $this->assertNotNull(SupportRequest::query()->sole()->attachment);
     }
 
     public function test_clients_only_list_and_download_their_own_requests_while_admin_can_download_all(): void
@@ -242,7 +247,7 @@ class SupportRequestManagementTest extends TestCase
         $this->assertTrue($respondedAt->equalTo($supportRequest->responded_at));
     }
 
-    public function test_support_endpoints_enforce_authentication_role_and_active_rental_status(): void
+    public function test_support_endpoints_allow_settling_clients_and_still_enforce_authentication_and_role(): void
     {
         [$client, $tenant, $contract] = $this->createClientContext('AUTH');
         $supportRequest = $this->createSupportRequest($client, $tenant, $contract);
@@ -254,11 +259,18 @@ class SupportRequestManagementTest extends TestCase
         $this->actingAs($admin)->get('/client/support')->assertForbidden();
 
         $client->update(['status' => User::STATUS_SETTLING]);
-        $this->actingAs($client)->get('/client/support')->assertRedirect('/client/invoices');
-        $this->actingAs($client)->post('/client/support')->assertRedirect('/client/invoices');
+        $contract->forceFill(['status' => Contract::STATUS_SETTLING])->save();
+        $this->actingAs($client)->get('/client/support')->assertSuccessful();
+        $this->actingAs($client)->post('/client/support', [
+            'submission_token' => (string) Str::uuid(),
+            'contract_id' => $contract->id,
+            'category' => 'contract',
+            'subject' => 'Hỗ trợ quyết toán',
+            'description' => 'Cần kiểm tra số liệu sau khi trả phòng.',
+        ])->assertSessionHasNoErrors();
         $this->actingAs($client)->get('/client/support/'.$supportRequest->id.'/attachment')
-            ->assertRedirect('/client/invoices');
-        $this->assertDatabaseCount('support_requests', 1);
+            ->assertStatus(404);
+        $this->assertDatabaseCount('support_requests', 2);
     }
 
     private function createClientContext(string $suffix): array

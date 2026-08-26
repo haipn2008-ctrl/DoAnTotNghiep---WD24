@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Amenity;
 use App\Models\Contract;
+use App\Models\ContractExtensionRequest;
 use App\Models\ContractLifecycleAlert;
 use App\Models\ContractStatusHistory;
 use App\Models\ContractTenant;
@@ -21,6 +22,7 @@ use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -311,7 +313,7 @@ class ContractManagementTest extends TestCase
         $this->assertSame(0, $contract->handoverItems()->count());
     }
 
-    public function test_active_contract_detail_prioritizes_daily_operations_and_hides_long_checkout_form_in_a_dialog(): void
+    public function test_active_contract_detail_links_to_the_guided_checkout_workflow(): void
     {
         $contract = $this->active();
 
@@ -320,16 +322,25 @@ class ContractManagementTest extends TestCase
             ->assertSee('Người thuê trong phòng')
             ->assertSee('Điện nước gần nhất')
             ->assertSee('Thu tiền hợp đồng')
-            ->assertSee('Thao tác cuối hợp đồng')
+            ->assertDontSee('Thao tác cuối hợp đồng')
             ->assertSee('Dịch vụ, phương tiện và tài sản bàn giao')
             ->assertSee('Lịch sử hợp đồng')
-            ->assertSee('id="checkout-contract-dialog"', false)
-            ->assertSee('action="'.route('admin.contracts.check-out', $contract).'"', false)
+            ->assertSee('href="'.route('admin.contracts.check-out.form', $contract).'"', false)
+            ->assertDontSee("document.getElementById('checkout-contract-dialog').showModal()", false)
             ->assertSee('href="'.route('admin.contracts.extend.form', $contract).'"', false)
             ->assertSee('<section id="contract-assets"', false)
             ->assertSee('<section id="contract-history"', false)
             ->assertDontSee('aria-label="Điều hướng nhanh"', false)
             ->assertDontSee('Bước tiếp theo');
+
+        $this->get(route('admin.contracts.check-out.form', $contract))
+            ->assertOk()
+            ->assertSee('Kết thúc hợp đồng theo 3 bước')
+            ->assertSee('Bước 1/3')
+            ->assertSee('Bàn giao &amp; chốt quyết toán', false)
+            ->assertSee('Xử lý tiền cọc')
+            ->assertSee('Hoàn tất hợp đồng')
+            ->assertSee('action="'.route('admin.contracts.check-out', $contract).'"', false);
     }
 
     public function test_pending_deposit_detail_keeps_invoice_and_collection_actions_on_contract_page(): void
@@ -841,6 +852,39 @@ class ContractManagementTest extends TestCase
         $this->assertSame('2026-09-01', $futureDraft->start_date->toDateString());
     }
 
+    public function test_reserved_room_waiting_for_move_in_is_not_selectable_for_a_new_contract(): void
+    {
+        $reserved = $this->awaiting([], 'reserved-room-guest');
+        $newTenant = $this->tenant('blocked-reserved-room-guest');
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.create'))
+            ->assertOk()
+            ->assertDontSee($reserved->room->room_code);
+
+        $this->post(route('admin.contracts.store'), $this->payload($reserved->room, $newTenant))
+            ->assertSessionHasErrors('room_id');
+
+        $this->assertSame(1, Contract::query()->count());
+        $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $reserved->fresh()->status);
+    }
+
+    public function test_room_is_reserved_as_soon_as_contract_is_waiting_for_signature(): void
+    {
+        $reserved = $this->draft(0, [], 'pending-signature-room-guest');
+        $this->lifecycle->submitForSignature($reserved, $this->admin);
+        $newTenant = $this->tenant('blocked-pending-signature-room-guest');
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.create'))
+            ->assertOk()
+            ->assertDontSee($reserved->room->room_code);
+
+        $this->post(route('admin.contracts.store'), $this->payload($reserved->room, $newTenant))
+            ->assertSessionHasErrors('room_id');
+
+        $this->assertSame(1, Contract::query()->count());
+        $this->assertSame(Contract::STATUS_PENDING_SIGNATURE, $reserved->fresh()->status);
+    }
+
     public function test_move_in_dates_are_limited_to_one_month_from_contract_start(): void
     {
         $room = $this->room('MOVE-IN-TERMS');
@@ -1062,6 +1106,33 @@ class ContractManagementTest extends TestCase
 
         $this->assertSame(ContractTenant::STATUS_CHECKED_IN, $member->fresh()->status);
         $this->assertSame(2, $contract->room->fresh()->current_people);
+    }
+
+    public function test_client_cannot_request_another_member_when_room_is_already_full(): void
+    {
+        $contract = $this->active([], 'full-room-member-request');
+        $contract->room->forceFill(['max_people' => 2, 'current_people' => 2])->save();
+        $client = $contract->tenant->user;
+        $memberCount = ContractTenant::query()->count();
+        $tenantCount = Tenant::query()->count();
+
+        $this->actingAs($client)
+            ->get(route('client.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('2/2')
+            ->assertDontSee('+ Thêm người thuê');
+
+        $this->get(route('client.contracts.tenants.create', $contract))
+            ->assertStatus(409);
+
+        $this->post(route('client.contracts.members.store', $contract), [
+            'full_name' => 'Người không thể thêm',
+            'identity_number' => '012345678912',
+            ...$this->memberIdentityImages('blocked-full-room'),
+        ])->assertSessionHasErrors('members');
+
+        $this->assertDatabaseCount('contract_tenants', $memberCount);
+        $this->assertDatabaseCount('tenants', $tenantCount);
     }
 
     public function test_member_account_cannot_manage_the_representatives_contract(): void
@@ -1338,18 +1409,18 @@ class ContractManagementTest extends TestCase
         $first = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2026-09-01', 'scheduled_move_in_date' => '2026-09-01', 'reservation_expires_at' => '2026-09-02 18:00:00', 'end_date' => '2027-09-01']);
         $this->sign($first);
 
-        $second = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2027-08-01', 'scheduled_move_in_date' => '2027-08-01', 'reservation_expires_at' => '2027-09-01 18:00:00', 'end_date' => '2028-08-01'], 'reserve-second');
-        $this->lifecycle->submitForSignature($second, $this->admin);
-        $this->expectException(ValidationException::class);
         try {
-            $this->lifecycle->markAsSigned($second, $this->admin, now());
-        } finally {
-            $this->assertSame(Contract::STATUS_PENDING_SIGNATURE, $second->fresh()->status);
-            $third = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2027-09-02', 'scheduled_move_in_date' => '2027-09-02', 'reservation_expires_at' => '2027-10-02 18:00:00', 'end_date' => '2028-09-02'], 'reserve-third');
-            $this->sign($third);
-            $this->payDeposit($third);
-            $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $third->fresh()->status);
+            $this->draft(0, ['room_id' => $room->id, 'start_date' => '2027-08-01', 'scheduled_move_in_date' => '2027-08-01', 'reservation_expires_at' => '2027-09-01 18:00:00', 'end_date' => '2028-08-01'], 'reserve-second');
+            $this->fail('Lịch thuê trùng với phòng đã giữ chỗ phải bị từ chối ngay khi tạo bản nháp.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('room_id', $exception->errors());
         }
+
+        $this->assertDatabaseCount('contracts', 1);
+        $third = $this->draft(0, ['room_id' => $room->id, 'start_date' => '2027-09-02', 'scheduled_move_in_date' => '2027-09-02', 'reservation_expires_at' => '2027-10-02 18:00:00', 'end_date' => '2028-09-02'], 'reserve-third');
+        $this->sign($third);
+        $this->payDeposit($third);
+        $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $third->fresh()->status);
     }
 
     public function test_check_in_validates_all_guards_and_rolls_back_when_any_write_fails(): void
@@ -1478,12 +1549,10 @@ class ContractManagementTest extends TestCase
         $this->assertSame(User::STATUS_ACTIVE, $old->tenant->user->fresh()->status);
 
         $this->actingAs($this->admin)->post(route('admin.contracts.extend', $old), [
-            'new_end_date' => '2027-08-10', 'reason' => 'Hai bên đồng ý gia hạn.',
+            'new_end_date' => '2027-08-10', 'reason' => 'Hai bên đồng ý gia hạn.', 'confirm_extend' => '1',
         ])->assertSessionHasNoErrors();
         $extensionRequest = $old->extensionRequests()->latest('id')->firstOrFail();
-        $this->assertSame(\App\Models\ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION, $extensionRequest->status);
-        $this->actingAs($old->tenant->user)->post(route('client.extension-requests.accept', $extensionRequest))
-            ->assertSessionHasNoErrors();
+        $this->assertSame(ContractExtensionRequest::STATUS_APPROVED, $extensionRequest->status);
         $this->assertSame(Contract::STATUS_ACTIVE, $old->fresh()->status);
 
         $future = $this->awaiting(['room_id' => $room->id, 'start_date' => '2027-08-11', 'scheduled_move_in_date' => '2027-08-11', 'reservation_expires_at' => '2027-08-12 18:00:00', 'end_date' => '2028-08-11'], 'future-tenant');
@@ -1510,6 +1579,11 @@ class ContractManagementTest extends TestCase
         $this->assertSame(0, $contract->room->fresh()->current_people);
         $this->assertSame(1, $contract->utilityReadings()->where('reading_type', 'checkout')->count());
         $this->assertSame(1, $contract->invoices()->where('invoice_type', Invoice::TYPE_SETTLEMENT)->count());
+        $this->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Tiến độ trả phòng')
+            ->assertSee('Bàn giao &amp; chốt quyết toán', false)
+            ->assertSee('href="'.route('admin.contracts.check-out.form', $contract).'"', false);
         $history = $contract->statusHistories()->count();
         $this->post(route('admin.contracts.check-out', $contract), $payload)->assertSessionHasNoErrors();
         $this->assertSame(1, $contract->utilityReadings()->where('reading_type', 'checkout')->count());
@@ -1565,6 +1639,124 @@ class ContractManagementTest extends TestCase
         $this->post(route('admin.contracts.submit-for-signature', $draft))->assertSessionHasErrors('contract');
         $this->assertSame(Contract::STATUS_CANCELLED, $draft->fresh()->status);
         $this->assertSame(1, $draft->statusHistories()->where('action', 'cancel')->count());
+    }
+
+    public function test_cancelling_a_draft_releases_new_tenant_for_another_contract(): void
+    {
+        $draft = $this->draft(0, [], 'cancelled-draft-reusable-tenant');
+        $tenant = $draft->tenant;
+        $user = $tenant->user;
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.cancel', $draft), [
+            'cancel_reason' => 'Không tiếp tục ký hợp đồng này.',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(Contract::STATUS_CANCELLED, $draft->fresh()->status);
+        $this->assertSame(User::STATUS_ACTIVE, $user->fresh()->status);
+        $this->assertTrue(Tenant::query()->eligibleForContract()->whereKey($tenant)->exists());
+
+        $this->get(route('admin.contracts.create'))
+            ->assertOk()
+            ->assertSee('value="'.$tenant->id.'"', false)
+            ->assertSee($tenant->full_name);
+    }
+
+    public function test_admin_can_move_out_representative_transfer_role_and_print_immutable_appendix(): void
+    {
+        $contract = $this->active([], 'old-representative');
+        $oldRepresentative = $contract->members()
+            ->where('role', ContractTenant::ROLE_REPRESENTATIVE)
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)
+            ->sole();
+        $oldUser = $contract->tenant->user;
+        $successorTenant = Tenant::create([
+            'user_id' => null,
+            'full_name' => 'Người đại diện mới',
+            'date_of_birth' => '1992-04-05',
+            'gender' => 'other',
+            'cccd' => '079092000321',
+            'cccd_issue_date' => '2021-01-01',
+            'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
+            'phone' => '0901234321',
+            'email' => 'member-before-transfer@example.test',
+            'address' => 'Địa chỉ người đại diện mới',
+        ]);
+        $successor = ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $successorTenant->id,
+            'full_name' => $successorTenant->full_name,
+            'date_of_birth' => $successorTenant->date_of_birth,
+            'identity_number' => $successorTenant->cccd,
+            'phone' => $successorTenant->phone,
+            'address' => $successorTenant->address,
+            'role' => ContractTenant::ROLE_TENANT,
+            'status' => ContractTenant::STATUS_CHECKED_IN,
+            'actual_move_in_at' => now()->subDay(),
+            'declared_by' => $oldUser->id,
+            'reviewed_by' => $this->admin->id,
+            'reviewed_at' => now()->subDay(),
+        ]);
+        $contract->forceFill(['number_of_people' => 2])->save();
+        $contract->room->forceFill(['current_people' => 2])->save();
+
+        $page = $this->actingAs($this->admin)->get(route('admin.contracts.show', $contract));
+        $page->assertOk()
+            ->assertDontSee('Lập biên bản trả phòng')
+            ->assertSee('action="'.route('admin.contract-tenants.transfer-representative', $oldRepresentative).'"', false)
+            ->assertSee('Chuyển đại diện và ghi nhận rời phòng');
+
+        $this->post(route('admin.contract-tenants.transfer-representative', $oldRepresentative), [
+            'successor_member_id' => $successor->id,
+            'effective_at' => now(),
+            'reason' => 'Đại diện cũ chuyển nơi ở và hai bên thống nhất chuyển giao.',
+            'email' => 'new-representative@example.test',
+            'temporary_password' => 'Temporary123!',
+            'temporary_password_confirmation' => 'Temporary123!',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $contract->refresh();
+        $successor->refresh();
+        $newUser = $successorTenant->fresh()->user;
+        $transfer = $contract->representativeTransfers()->sole();
+
+        $this->assertSame(ContractTenant::STATUS_MOVED_OUT, $oldRepresentative->fresh()->status);
+        $this->assertNotNull($oldRepresentative->fresh()->actual_move_out_at);
+        $this->assertSame(ContractTenant::ROLE_REPRESENTATIVE, $successor->role);
+        $this->assertSame(ContractTenant::STATUS_CHECKED_IN, $successor->status);
+        $this->assertSame($successorTenant->id, $contract->tenant_id);
+        $this->assertSame($successorTenant->id, $contract->representative_tenant_id);
+        $this->assertSame(User::STATUS_LOCKED, $oldUser->fresh()->status);
+        $this->assertSame(User::STATUS_PENDING, $newUser->status);
+        $this->assertTrue($newUser->must_change_password);
+        $this->assertTrue(Hash::check('Temporary123!', $newUser->password));
+        $this->assertSame(1, $contract->number_of_people);
+        $this->assertSame(1, $contract->room->fresh()->current_people);
+        $this->assertSame('Người đại diện mới', $transfer->new_representative_snapshot['full_name']);
+        $this->assertDatabaseHas('contract_histories', [
+            'contract_id' => $contract->id,
+            'action' => 'representative_transferred',
+        ]);
+
+        $this->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('In phụ lục chuyển giao')
+            ->assertSee('href="'.route('admin.representative-transfers.appendix', $transfer).'"', false);
+        $this->get(route('admin.tenants.show', $oldRepresentative->tenant_id))
+            ->assertOk()
+            ->assertSee('Đã rời phòng')
+            ->assertSee('Đã khóa');
+        $this->get(route('admin.tenants.index', ['status' => 'renting']))
+            ->assertOk()
+            ->assertDontSee($oldRepresentative->full_name)
+            ->assertSee($successor->full_name);
+        $this->get(route('admin.tenants.index', ['status' => 'moved_out']))
+            ->assertOk()
+            ->assertSee($oldRepresentative->full_name)
+            ->assertDontSee($successor->full_name)
+            ->assertSee('Đã rời phòng');
+        $this->get(route('admin.representative-transfers.appendix', $transfer))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
     }
 
     public function test_check_in_rejects_missing_signature_future_time_capacity_occupied_room_and_regressive_meters(): void

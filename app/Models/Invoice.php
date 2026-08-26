@@ -227,7 +227,10 @@ class Invoice extends Model
 
     public function getPayableAmountAttribute(): float
     {
-        return max(0, (float) $this->total_amount + (float) $this->adjustment_amount);
+        // The application collects VND as whole dong. Always round the final
+        // payable amount so fractional prorated charges cannot leave an
+        // unpayable balance smaller than one dong.
+        return max(0, round((float) $this->total_amount + (float) $this->adjustment_amount));
     }
 
     public function getOverpaidAmountAttribute(): float

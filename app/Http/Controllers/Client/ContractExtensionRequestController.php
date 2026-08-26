@@ -94,7 +94,7 @@ class ContractExtensionRequestController extends Controller
         }, 3);
 
         return redirect()->route('client.extension-requests.index')
-            ->with('success', 'Đã gửi yêu cầu gia hạn. Ban quản lý sẽ gửi điều khoản để bạn xác nhận.');
+            ->with('success', 'Đã gửi yêu cầu gia hạn. Ban quản lý sẽ xem xét và thông báo kết quả cho bạn.');
     }
 
     public function accept(Request $request, ContractExtensionRequest $extensionRequest)

@@ -79,11 +79,11 @@ class RoomRequest extends FormRequest
             $requestedStatus = $this->input('status');
 
             if ($hasOccupancy && $requestedStatus !== Room::STATUS_OCCUPIED) {
-                $validator->errors()->add('status', 'Phòng đang có khách chỉ được đổi trạng thái bằng quy trình checkout hợp đồng.');
+                $validator->errors()->add('status', 'Phòng đang có khách chỉ được đổi trạng thái bằng quy trình trả phòng của hợp đồng.');
             }
 
             if (! $hasOccupancy && $requestedStatus === Room::STATUS_OCCUPIED) {
-                $validator->errors()->add('status', 'Chỉ quy trình check-in hợp đồng mới được chuyển phòng sang Đang thuê.');
+                $validator->errors()->add('status', 'Chỉ quy trình nhận phòng của hợp đồng mới được chuyển phòng sang Đang thuê.');
             }
 
             if ((int) $this->input('max_people') < (int) $room->current_people) {
@@ -114,7 +114,7 @@ class RoomRequest extends FormRequest
             'initial_water.required' => 'Vui lòng nhập chỉ số nước ban đầu của phòng.',
             'initial_water.integer' => 'Chỉ số nước ban đầu phải là số nguyên.',
             'initial_water.min' => 'Chỉ số nước ban đầu không được nhỏ hơn 0.',
-            'current_people.prohibited' => 'Số người hiện tại do quy trình check-in/checkout tự cập nhật, không được nhập tay.',
+            'current_people.prohibited' => 'Số người hiện tại do quy trình nhận phòng/trả phòng tự cập nhật, không được nhập tay.',
             'status.prohibited' => 'Phòng mới luôn ở trạng thái Trống, không được gán trạng thái bằng request.',
             'status.in' => 'Trạng thái phòng không hợp lệ.',
             'image.image' => 'File phải là ảnh.',

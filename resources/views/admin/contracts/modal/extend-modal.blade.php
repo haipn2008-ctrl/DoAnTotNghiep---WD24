@@ -133,6 +133,13 @@
 
                     </div>
 
+                    <div class="col-md-12 mt-3">
+                        <label class="form-check">
+                            <input type="checkbox" name="confirm_extend" value="1" required class="form-check-input">
+                            <span class="form-check-label fw-semibold">2 bên đã thỏa thuận gia hạn</span>
+                        </label>
+                    </div>
+
                 </div>
 
             </div>

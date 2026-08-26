@@ -80,6 +80,31 @@ class UserManagementTest extends TestCase
             ->assertSee('Chưa có tài khoản nào');
     }
 
+    public function test_admin_can_filter_accounts_by_status_and_combine_it_with_search(): void
+    {
+        $active = $this->user($this->clientRole, 'active-filter@example.com', 'Khách đang hoạt động');
+        $locked = $this->user($this->clientRole, 'locked-filter@example.com', 'Khách đã khóa', User::STATUS_LOCKED);
+        $pending = $this->user($this->clientRole, 'pending-filter@example.com', 'Khách chờ kích hoạt', User::STATUS_PENDING);
+
+        $this->actingAs($this->admin)->get(route('admin.users.index', ['status' => User::STATUS_LOCKED]))
+            ->assertOk()
+            ->assertSee('name="status"', false)
+            ->assertSee('value="locked" selected', false)
+            ->assertSee($locked->email)
+            ->assertDontSee($active->email)
+            ->assertDontSee($pending->email);
+
+        $this->get(route('admin.users.index', [
+            'status' => User::STATUS_ACTIVE,
+            'search' => 'Khách đang',
+        ]))->assertOk()
+            ->assertSee($active->email)
+            ->assertDontSee($locked->email);
+
+        $this->get(route('admin.users.index', ['status' => 'unknown']))
+            ->assertSessionHasErrors('status');
+    }
+
     public function test_create_form_only_exposes_supported_roles(): void
     {
         $this->actingAs($this->admin)->get('/admin/users/create')

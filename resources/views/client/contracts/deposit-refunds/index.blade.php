@@ -42,27 +42,6 @@
         </a>
     </div>
 
-    @if(session('success'))
-        <div class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-700 shadow-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" class="mt-0.5 h-5 w-5 shrink-0" fill="none"
-                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-            </svg>
-            <div>{{ session('success') }}</div>
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-700 shadow-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" class="mt-0.5 h-5 w-5 shrink-0" fill="none"
-                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14A2 2 0 003.84 21h16.32a2 2 0 001.73-3.14l-8.18-14a2 2 0 00-3.42 0z"/>
-            </svg>
-            <div>{{ session('error') }}</div>
-        </div>
-    @endif
-
     @php
         $deposit = (float) $contract->deposit_amount;
         $deduction = (float) ($contract->deposit_deduction_amount ?? 0);
@@ -176,7 +155,7 @@
 
             <div class="rounded-2xl border border-red-100 bg-red-50/60 p-5">
                 <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium text-slate-600">Khấu trừ</p>
+                    <p class="text-sm font-medium text-slate-600">Đã bù công nợ</p>
                     <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-red-100 text-red-600">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
                              viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -191,7 +170,7 @@
 
             <div class="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5">
                 <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium text-emerald-700">Dự kiến hoàn</p>
+                    <p class="text-sm font-medium text-emerald-700">Cọc còn được hoàn</p>
                     <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
                              viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -205,7 +184,7 @@
                 </p>
                 @if($refund > 0)
                     <p class="mt-1 text-xs text-emerald-600">
-                        Đã hoàn: {{ number_format($refund, 0, ',', '.') }} VNĐ
+                        Số dư hoàn đã ghi nhận: {{ number_format($refund, 0, ',', '.') }} VNĐ
                     </p>
                 @endif
             </div>
@@ -231,8 +210,7 @@
         @endif
 
         {{-- REFUND COMPLETED --}}
-        @if($contract->status === \App\Models\Contract::STATUS_COMPLETED
-            && filled($contract->deposit_transfer_proof))
+        @if($contract->isRefundCompleted())
             <div class="mx-6 mb-6 overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50">
                 <div class="flex items-start gap-3 border-b border-emerald-200 bg-emerald-100/60 p-5">
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
@@ -241,8 +219,8 @@
                         </svg>
                     </span>
                     <div>
-                        <h4 class="font-bold text-emerald-900">Hoàn cọc đã hoàn tất</h4>
-                        <p class="mt-1 text-sm leading-6 text-emerald-800">Quản trị viên đã chuyển tiền và hoàn tất hợp đồng.</p>
+                        <h4 class="font-bold text-emerald-900">Tiền hoàn đã được chuyển</h4>
+                        <p class="mt-1 text-sm leading-6 text-emerald-800">Ban quản lý đã chuyển tiền. Bạn có thể xem minh chứng chuyển khoản ngay bên dưới.</p>
                     </div>
                 </div>
 
@@ -318,7 +296,7 @@
         {{-- REFUND FORM --}}
         @if($contract->canRequestDepositRefund())
             <form
-                action="{{ route('client.contracts.deposit-refunds.store', $contract) }}"
+                action="{{ route('client.deposit-refunds.store', $contract) }}"
                 method="POST"
                 enctype="multipart/form-data"
                 class="border-t border-slate-100 p-6"
@@ -439,8 +417,8 @@
                     </svg>
                     <div>
                         <strong>Lưu ý:</strong>
-                        Số tiền hoàn chính thức do quản trị viên xác định sau khi kiểm tra
-                        tiền cọc, công nợ và các khoản khấu trừ.
+                        Tiền cọc đã được tự động bù vào công nợ. Quản trị viên chỉ chuyển
+                        phần cọc còn dư sau khi kiểm tra các khoản khấu trừ hợp lệ.
                     </div>
                 </div>
 

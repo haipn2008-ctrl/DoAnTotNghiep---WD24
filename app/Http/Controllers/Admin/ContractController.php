@@ -51,7 +51,13 @@ class ContractController extends Controller
         $rooms = Room::query()->with([
             'activeContract',
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
-        ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
+        ])->where('status', '!=', Room::STATUS_MAINTENANCE)
+            ->whereDoesntHave('contracts', fn ($query) => $query->whereIn('status', [
+                Contract::STATUS_PENDING_SIGNATURE,
+                Contract::STATUS_PENDING_DEPOSIT,
+                Contract::STATUS_AWAITING_MOVE_IN,
+            ]))
+            ->orderBy('room_code')->get();
         $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
             ->orderBy('full_name')->get();
         return view('admin.contracts.create', compact('rooms', 'tenants'));
@@ -96,6 +102,8 @@ class ContractController extends Controller
             'cancelledBy', 'completedBy', 'lifecycleAlerts' => fn ($query) => $query->whereNull('resolved_at')->latest('detected_at'),
             'settlementStatement.items', 'settlementStatement.invoice',
             'approvedTerminationRequest.processor',
+            'representativeTransfers.oldTenant', 'representativeTransfers.newTenant',
+            'representativeTransfers.performer',
         ]);
         $readings = $contract->utilityReadings()->orderBy('record_date')->orderBy('id')->get();
         $handoverReading = $readings->firstWhere('reading_type', 'handover');
@@ -130,7 +138,13 @@ class ContractController extends Controller
         $rooms = Room::query()->with([
             'activeContract',
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
-        ])->where('status', '!=', Room::STATUS_MAINTENANCE)->orderBy('room_code')->get();
+        ])->where('status', '!=', Room::STATUS_MAINTENANCE)
+            ->whereDoesntHave('contracts', fn ($query) => $query->whereIn('status', [
+                Contract::STATUS_PENDING_SIGNATURE,
+                Contract::STATUS_PENDING_DEPOSIT,
+                Contract::STATUS_AWAITING_MOVE_IN,
+            ]))
+            ->orderBy('room_code')->get();
         $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
             ->orderBy('full_name')->get();
         return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants'));
@@ -325,6 +339,42 @@ class ContractController extends Controller
         return back()->with('success', 'Đã hủy hợp đồng và giữ nguyên toàn bộ lịch sử.');
     }
 
+    public function checkOutForm(Contract $contract)
+    {
+        Gate::authorize('manageLifecycle', $contract);
+        abort_unless(
+            in_array($contract->status, [
+                ...Contract::OPEN_OCCUPANCY_STATUSES,
+                Contract::STATUS_SETTLING,
+                Contract::STATUS_COMPLETED,
+            ], true),
+            409,
+            'Hợp đồng không ở trạng thái phù hợp với quy trình trả phòng.'
+        );
+
+        $contract->load([
+            'room', 'tenant.user', 'handoverItems', 'approvedTerminationRequest',
+            'invoices.payments', 'settlementStatement.items', 'settlementStatement.invoice',
+        ]);
+        $latestReading = $contract->utilityReadings()
+            ->orderByDesc('record_date')
+            ->orderByDesc('id')
+            ->first();
+        $openInvoices = $contract->invoices->filter(
+            fn (Invoice $invoice) => in_array($invoice->status, [
+                Invoice::STATUS_UNPAID,
+                Invoice::STATUS_PARTIAL,
+            ], true)
+        );
+        $totalOutstanding = $openInvoices->sum(
+            fn (Invoice $invoice): float => $invoice->remaining_amount
+        );
+
+        return view('admin.contracts.check-out', compact(
+            'contract', 'latestReading', 'openInvoices', 'totalOutstanding'
+        ));
+    }
+
     public function checkOut(Request $request, Contract $contract)
     {
         Gate::authorize('manageLifecycle', $contract);
@@ -366,7 +416,8 @@ class ContractController extends Controller
             );
         }
 
-        return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã trả phòng. Hợp đồng đang chờ quyết toán.');
+        return redirect()->route('admin.contracts.check-out.form', $contract)
+            ->with('success', 'Đã ghi nhận bàn giao và lập quyết toán. Tiếp tục xử lý các bước còn lại.');
     }
 
     /** Route cũ được giữ tương thích nhưng thực hiện đúng nghiệp vụ checkout mới. */
@@ -408,27 +459,29 @@ class ContractController extends Controller
             'extend_note' => ['nullable', 'string', 'max:2000'],
             'proposed_monthly_rent' => ['nullable', 'numeric', 'min:0'],
             'financial_override_reason' => ['nullable', 'string', 'min:3', 'max:1000'],
-            'confirm_extend' => ['sometimes', 'accepted'],
+            'confirm_extend' => ['required', 'accepted'],
+        ], [
+            'confirm_extend.required' => 'Bạn phải xác nhận 2 bên đã thỏa thuận gia hạn.',
+            'confirm_extend.accepted' => 'Bạn phải xác nhận 2 bên đã thỏa thuận gia hạn.',
         ]);
         $reason = $data['reason'] ?? trim(($data['extend_reason'] ?? '').' '.($data['extend_note'] ?? ''));
         if ($reason === '') {
             return back()->withErrors(['reason' => 'Gia hạn hợp đồng bắt buộc có lý do.'])->withInput();
         }
-        $this->offerExtensionTerms($contract, $request, $data, $reason);
+        $extensionRequest = $this->extendByAdminAgreement($contract, $request, $data, $reason);
+        $contract = $extensionRequest->contract->fresh();
         app(ClientNotificationService::class)->contract(
             $contract,
-            'extension_terms_offered',
-            'Điều khoản gia hạn đang chờ bạn xác nhận',
-            'Ban quản lý đã gửi điều khoản gia hạn hợp đồng '.$contract->contract_code.'. Vui lòng kiểm tra và xác nhận trên cổng khách thuê.'
+            'extension_request_approved',
+            'Hợp đồng đã được gia hạn',
+            'Theo thỏa thuận giữa hai bên, hợp đồng '.$contract->contract_code.' đã được gia hạn đến '.$contract->end_date?->format('d/m/Y').'.'
         );
 
-        return redirect()->route('admin.extension-requests.index')
-            ->with('success', 'Đã gửi phụ lục gia hạn. Hợp đồng chỉ thay đổi sau khi người thuê đại diện xác nhận.');
-
-        return redirect()->route('admin.contracts.show', $contract)->with('success', 'Đã gia hạn hợp đồng.');
+        return redirect()->route('admin.contracts.show', $contract)
+            ->with('success', 'Đã gia hạn hợp đồng theo thỏa thuận của hai bên.');
     }
 
-    private function offerExtensionTerms(Contract $contract, Request $request, array $data, string $reason): ContractExtensionRequest
+    private function extendByAdminAgreement(Contract $contract, Request $request, array $data, string $reason): ContractExtensionRequest
     {
         return DB::transaction(function () use ($contract, $request, $data, $reason): ContractExtensionRequest {
             $lockedContract = Contract::query()
@@ -437,7 +490,7 @@ class ContractController extends Controller
                 ->findOrFail($contract->id);
 
             if (! in_array($lockedContract->status, Contract::OPEN_OCCUPANCY_STATUSES, true)) {
-                throw ValidationException::withMessages(['contract' => 'Chỉ có thể đề nghị gia hạn hợp đồng đang có hiệu lực hoặc vừa hết hạn nhưng chưa trả phòng.']);
+                throw ValidationException::withMessages(['contract' => 'Chỉ có thể gia hạn hợp đồng đang có hiệu lực hoặc vừa hết hạn nhưng chưa trả phòng.']);
             }
 
             $newEndDate = Carbon::parse($data['new_end_date'])->startOfDay();
@@ -445,12 +498,10 @@ class ContractController extends Controller
                 throw ValidationException::withMessages(['new_end_date' => 'Ngày kết thúc mới phải sau ngày kết thúc hiện tại.']);
             }
 
-            if ($lockedContract->extensionRequests()->whereIn('status', [
+            $existingRequest = $lockedContract->extensionRequests()->whereIn('status', [
                 ContractExtensionRequest::STATUS_PENDING,
                 ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
-            ])->exists()) {
-                throw ValidationException::withMessages(['contract' => 'Hợp đồng đã có một đề nghị gia hạn đang chờ xử lý hoặc chờ khách xác nhận.']);
-            }
+            ])->lockForUpdate()->latest('id')->first();
 
             if ($lockedContract->terminationRequests()->whereIn('status', [
                 ContractTerminationRequest::STATUS_PENDING,
@@ -471,14 +522,12 @@ class ContractController extends Controller
             $monthlyRent = (float) ($data['proposed_monthly_rent'] ?? $lockedContract->monthly_rent);
             $setting = Setting::currentOrCreate();
 
-            return $lockedContract->extensionRequests()->create([
+            $extensionData = [
                 'current_end_date' => $lockedContract->end_date,
-                'requested_end_date' => $newEndDate,
                 'approved_end_date' => $newEndDate,
                 'proposed_monthly_rent' => $monthlyRent,
                 'proposed_deposit_amount' => $lockedContract->deposit_amount,
-                'reason' => $reason,
-                'status' => ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
+                'status' => ContractExtensionRequest::STATUS_APPROVED,
                 'financial_override_reason' => $data['financial_override_reason'] ?? null,
                 'terms_snapshot' => [
                     'old_end_date' => $lockedContract->end_date?->toDateString(),
@@ -502,8 +551,32 @@ class ContractController extends Controller
                 ],
                 'processed_by' => $request->user()->id,
                 'processed_at' => now(),
-                'terms_offered_at' => now(),
-            ]);
+            ];
+            if ($existingRequest) {
+                $extensionRequest = $existingRequest->forceFill($extensionData + [
+                    'admin_note' => $reason,
+                ]);
+                $extensionRequest->save();
+                app(\App\Services\AdminNotificationService::class)->resolve('extension_request', $extensionRequest);
+            } else {
+                $extensionRequest = $lockedContract->extensionRequests()->create($extensionData + [
+                    'requested_end_date' => $newEndDate,
+                    'reason' => $reason,
+                ]);
+            }
+
+            $this->lifecycle->extendContract(
+                $lockedContract,
+                $request->user(),
+                $newEndDate,
+                $reason,
+                [
+                    'monthly_rent' => $monthlyRent,
+                    'extension_request_id' => $extensionRequest->id,
+                ],
+            );
+
+            return $extensionRequest->fresh('contract');
         }, 3);
     }
 

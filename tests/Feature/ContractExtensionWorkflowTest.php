@@ -42,13 +42,16 @@ class ContractExtensionWorkflowTest extends TestCase
                 'approved_end_date' => $requestedEndDate,
                 'proposed_monthly_rent' => 2700000,
             ])
-            ->assertSessionHas('success');
+            ->assertSessionHasErrors('extension_agreed');
 
-        $this->assertSame(ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION, $extensionRequest->fresh()->status);
+        $this->assertSame(ContractExtensionRequest::STATUS_PENDING, $extensionRequest->fresh()->status);
         $this->assertSame($oldEndDate->toDateString(), $contract->fresh()->end_date->toDateString());
 
-        $this->actingAs($client)
-            ->post(route('client.extension-requests.accept', $extensionRequest))
+        $this->post(route('admin.extension-requests.approve', $extensionRequest), [
+            'approved_end_date' => $requestedEndDate,
+            'proposed_monthly_rent' => 2700000,
+            'extension_agreed' => '1',
+        ])
             ->assertSessionHas('success');
 
         $contract->refresh();
@@ -61,10 +64,9 @@ class ContractExtensionWorkflowTest extends TestCase
         $this->assertNotNull($extensionRequest->processed_at);
         $this->assertNotNull(ContractLifecycleAlert::query()->where('type', 'extension_request')->sole()->resolved_at);
         $this->assertContains('extension_request_approved', $client->notifications()->get()->pluck('data.type')->all());
-        $this->assertDatabaseHas('contract_lifecycle_alerts', [
+        $this->assertDatabaseMissing('contract_lifecycle_alerts', [
             'contract_id' => $contract->id,
             'type' => 'extension_response',
-            'resolved_at' => null,
         ]);
     }
 
@@ -118,7 +120,13 @@ class ContractExtensionWorkflowTest extends TestCase
             'confirm_extend' => '1',
         ];
 
-        $this->actingAs($admin)->post(route('admin.contracts.extend', $contract), $payload)
+        $payloadWithoutAgreement = $payload;
+        unset($payloadWithoutAgreement['confirm_extend']);
+        $this->actingAs($admin)->post(route('admin.contracts.extend', $contract), $payloadWithoutAgreement)
+            ->assertSessionHasErrors('confirm_extend');
+        $this->assertDatabaseCount('contract_extension_requests', 0);
+
+        $this->post(route('admin.contracts.extend', $contract), $payload)
             ->assertSessionHasErrors('financial_override_reason');
         $this->assertDatabaseCount('contract_extension_requests', 0);
 
@@ -127,9 +135,38 @@ class ContractExtensionWorkflowTest extends TestCase
         ])->assertSessionHas('success');
 
         $extensionRequest = ContractExtensionRequest::query()->sole();
-        $this->assertSame(ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION, $extensionRequest->status);
+        $this->assertSame(ContractExtensionRequest::STATUS_APPROVED, $extensionRequest->status);
         $this->assertSame(500000.0, (float) $extensionRequest->terms_snapshot['outstanding_at_offer']);
-        $this->assertSame($contract->end_date->toDateString(), $contract->fresh()->end_date->toDateString());
+        $this->assertSame($payload['new_end_date'], $contract->fresh()->end_date->toDateString());
+    }
+
+    public function test_admin_can_finalize_a_legacy_extension_that_was_waiting_for_tenant_confirmation(): void
+    {
+        [$admin, , $contract] = $this->fixture();
+        $newEndDate = $contract->end_date->copy()->addYear()->toDateString();
+        $legacyRequest = ContractExtensionRequest::create([
+            'contract_id' => $contract->id,
+            'current_end_date' => $contract->end_date,
+            'requested_end_date' => $newEndDate,
+            'approved_end_date' => $newEndDate,
+            'proposed_monthly_rent' => 2800000,
+            'reason' => 'Phụ lục cũ đang chờ khách xác nhận.',
+            'status' => ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.contracts.extend', $contract), [
+            'new_end_date' => $newEndDate,
+            'proposed_monthly_rent' => 2800000,
+            'reason' => 'Hai bên đã thống nhất trực tiếp.',
+            'confirm_extend' => '1',
+        ])->assertRedirect(route('admin.contracts.show', $contract))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseCount('contract_extension_requests', 1);
+        $this->assertSame(ContractExtensionRequest::STATUS_APPROVED, $legacyRequest->fresh()->status);
+        $this->assertSame($newEndDate, $contract->fresh()->end_date->toDateString());
+        $this->assertSame('2800000.00', $contract->fresh()->monthly_rent);
     }
 
     private function fixture(string $status = Contract::STATUS_ACTIVE): array

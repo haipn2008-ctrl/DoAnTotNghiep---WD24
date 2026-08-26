@@ -10,12 +10,23 @@
 
 @section('content')
     <div class="grid gap-6 xl:grid-cols-[380px_1fr]">
+        @if($canCreateSupport)
         <section class="h-fit rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <p class="text-sm font-medium text-slate-500">Liên hệ ban quản lý</p><h2 class="mt-1 text-xl font-bold text-slate-950">Gửi yêu cầu hỗ trợ</h2>
             @if($errors->any())<div class="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{{ $errors->first() }}</div>@endif
             <form method="POST" action="{{ route('client.support.store') }}" enctype="multipart/form-data" class="mt-5 space-y-4">
                 @csrf
                 <input type="hidden" name="submission_token" value="{{ old('submission_token', (string) \Illuminate\Support\Str::uuid()) }}">
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Hợp đồng cần hỗ trợ</label>
+                    <select name="contract_id" required class="h-11 w-full rounded-lg border border-slate-200 px-3">
+                        @foreach($eligibleContracts as $contract)
+                            <option value="{{ $contract->id }}" @selected((string) old('contract_id') === (string) $contract->id)>
+                                {{ $contract->contract_code }} · Phòng {{ $contract->room->room_code ?? '-' }} · {{ $contract->status === \App\Models\Contract::STATUS_SETTLING ? 'Đang quyết toán' : 'Đang thuê' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
                 <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Loại vấn đề</label><select name="category" required class="h-11 w-full rounded-lg border border-slate-200 px-3"><option value="">Chọn loại vấn đề</option>@foreach($categories as $value => $label)<option value="{{ $value }}" @selected(old('category') === $value)>{{ $label }}</option>@endforeach</select></div>
                 <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Tiêu đề</label><input name="subject" value="{{ old('subject') }}" maxlength="255" required placeholder="Mô tả ngắn vấn đề" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                 <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Nội dung chi tiết</label><textarea name="description" rows="5" maxlength="5000" required class="w-full rounded-lg border border-slate-200 px-3 py-2">{{ old('description') }}</textarea></div>
@@ -23,6 +34,14 @@
                 <button class="h-11 w-full rounded-lg bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700">Gửi yêu cầu</button>
             </form>
         </section>
+        @else
+            <section class="h-fit rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-slate-500">Hỗ trợ</p>
+                <h2 class="mt-1 text-xl font-bold text-slate-950">Lịch sử yêu cầu</h2>
+                <p class="mt-3 text-sm leading-6 text-slate-600">Tài khoản khách cũ có thể xem lại các yêu cầu đã gửi. Để phát sinh yêu cầu mới, vui lòng liên hệ trực tiếp ban quản lý.</p>
+                <a href="{{ route('client.landlord-information') }}" class="mt-4 inline-flex text-sm font-semibold text-indigo-700">Xem thông tin liên hệ →</a>
+            </section>
+        @endif
 
         <section class="space-y-4">
             <div><p class="text-sm font-medium text-slate-500">Tiến độ xử lý</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Yêu cầu của tôi</h2></div>

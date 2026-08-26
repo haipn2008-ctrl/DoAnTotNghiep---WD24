@@ -23,21 +23,6 @@
         </a>
     </div>
 
-    {{-- THÔNG BÁO --}}
-    @if(session('success'))
-        <div class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-            <i class="bx bx-check-circle text-xl"></i>
-            <span>{{ session('success') }}</span>
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-            <i class="bx bx-error-circle text-xl"></i>
-            <span>{{ session('error') }}</span>
-        </div>
-    @endif
-
     {{-- THỐNG KÊ --}}
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Setting;
@@ -47,13 +48,74 @@ class SettlementStatementTest extends TestCase
                 ['electricity', 'water', 'room', 'internet', 'service', 'adjustment'],
                 $statement->items->pluck('type')->all()
             );
-            $this->assertEqualsWithDelta(1308387.10, (float) $statement->final_charge_amount, 0.02);
+            $this->assertEqualsWithDelta(1308387, (float) $statement->final_charge_amount, 0.01);
             $this->assertEqualsWithDelta(300000, (float) $statement->previous_outstanding_amount, 0.01);
             $this->assertEqualsWithDelta(2000000, (float) $statement->deposit_credit, 0.01);
-            $this->assertEqualsWithDelta(-391612.90, (float) $statement->net_amount, 0.02);
+            $this->assertEqualsWithDelta(-391613, (float) $statement->net_amount, 0.01);
             $this->assertSame(SettlementStatement::STATUS_AWAITING_REFUND, $statement->status);
             $this->assertSame(Invoice::TYPE_SETTLEMENT, $statement->invoice->invoice_type);
             $this->assertEqualsWithDelta((float) $statement->final_charge_amount, (float) $statement->invoice->total_amount, 0.01);
+
+            $oldInvoice = Invoice::query()->where('invoice_code', 'INV-OLD-DEBT')->firstOrFail();
+            $this->assertSame(Invoice::STATUS_PAID, $oldInvoice->status);
+            $this->assertSame(0.0, (float) $oldInvoice->remaining_amount);
+            $this->assertSame(Invoice::STATUS_PAID, $statement->invoice->fresh()->status);
+            $this->assertSame(0.0, (float) $statement->invoice->fresh()->remaining_amount);
+
+            $contract->refresh();
+            $this->assertSame(1608387.0, (float) $contract->deposit_deduction_amount);
+            $this->assertSame(391613.0, (float) $contract->deposit_refund_amount);
+            $this->assertSame(Contract::DEPOSIT_NEEDS_RESOLUTION, $contract->deposit_status);
+            $this->assertTrue($contract->canRequestDepositRefund());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_client_only_pays_the_debt_remaining_after_automatic_deposit_offset(): void
+    {
+        Carbon::setTestNow('2026-08-10 10:00:00');
+        try {
+            [$admin, $contract] = $this->fixture();
+            Invoice::query()->forceCreate([
+                'invoice_code' => 'INV-DEBT-BEFORE-OFFSET', 'contract_id' => $contract->id,
+                'room_id' => $contract->room_id, 'invoice_type' => Invoice::TYPE_RENTAL,
+                'month' => 7, 'year' => 2026, 'invoice_date' => '2026-07-01', 'due_date' => '2026-07-05',
+                'room_fee' => 1000000, 'total_amount' => 1000000, 'status' => Invoice::STATUS_UNPAID,
+            ]);
+
+            $this->actingAs($admin)->post(route('admin.contracts.check-out', $contract), [
+                'actual_move_out_at' => '2026-08-10 10:00:00',
+                'checkout_electricity' => 130,
+                'checkout_water' => 17,
+                'checkout_reason' => 'Bàn giao và tự động bù tiền cọc.',
+                'checkout_key_count' => 1,
+                'handover_confirmed' => '1',
+                'settlement_amount' => 200000,
+                'settlement_description' => 'Bồi thường tài sản hư hỏng',
+            ])->assertSessionHas('success');
+
+            $statement = SettlementStatement::query()->with('invoice')->sole();
+            $this->assertSame(308387.0, (float) $statement->invoice->remaining_amount);
+            $this->assertSame(308387.0, (float) $statement->net_amount);
+            $this->assertSame(2000000.0, (float) $contract->fresh()->deposit_deduction_amount);
+            $this->assertSame(0.0, (float) $contract->fresh()->deposit_refund_amount);
+            $this->assertSame(Contract::DEPOSIT_DEDUCTED, $contract->fresh()->deposit_resolution);
+
+            $this->post(route('admin.invoices.payments.store', $statement->invoice), [
+                'amount_paid' => 308387,
+                'payment_date' => '2026-08-10',
+                'payment_method' => Payment::METHOD_CASH,
+            ])->assertSessionHasNoErrors();
+
+            $this->assertSame(Invoice::STATUS_PAID, $statement->invoice->fresh()->status);
+            $this->assertSame(0.0, (float) $statement->fresh()->net_amount);
+
+            $this->post(route('admin.contracts.complete-settlement', $contract), [
+                'confirm_complete' => '1',
+            ])->assertSessionHasNoErrors();
+
+            $this->assertSame(Contract::STATUS_COMPLETED, $contract->fresh()->status);
         } finally {
             Carbon::setTestNow();
         }

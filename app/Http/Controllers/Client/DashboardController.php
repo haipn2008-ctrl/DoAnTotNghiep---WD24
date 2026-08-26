@@ -6,13 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\SupportRequest;
+use App\Models\User;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
+        if ($request->user()->status === User::STATUS_SETTLING) {
+            return redirect()->route('client.settlement.index');
+        }
+
         $tenant = $request->user()->tenant;
 
         $activeContract = $tenant?->contracts()

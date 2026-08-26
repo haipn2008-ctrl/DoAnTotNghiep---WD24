@@ -17,12 +17,12 @@ class RoleAuthorizationTest extends TestCase
         $this->withoutVite();
 
         Role::create(['id' => User::ROLE_ADMIN, 'role_name' => 'Admin']);
-        Role::create(['id' => User::ROLE_CLIENT, 'role_name' => 'User']);
+        Role::create(['id' => User::ROLE_USER, 'role_name' => 'User']);
     }
 
     public function test_client_cannot_access_admin_routes(): void
     {
-        $this->actingAs($this->createUser(User::ROLE_CLIENT, 'client@example.com'))
+        $this->actingAs($this->createUser(User::ROLE_USER, 'client@example.com'))
             ->get('/admin/invoices')
             ->assertForbidden();
     }
@@ -40,7 +40,7 @@ class RoleAuthorizationTest extends TestCase
             ->get('/admin/invoices')
             ->assertSuccessful();
 
-        $this->actingAs($this->createUser(User::ROLE_CLIENT, 'client-own@example.com'))
+        $this->actingAs($this->createUser(User::ROLE_USER, 'client-own@example.com'))
             ->get('/client')
             ->assertSuccessful();
     }
@@ -51,7 +51,7 @@ class RoleAuthorizationTest extends TestCase
             ->get('/dashboard')
             ->assertRedirect('/admin');
 
-        $this->actingAs($this->createUser(User::ROLE_CLIENT, 'client-dashboard@example.com'))
+        $this->actingAs($this->createUser(User::ROLE_USER, 'client-dashboard@example.com'))
             ->get('/dashboard')
             ->assertRedirect('/client');
     }

@@ -134,7 +134,9 @@ class AuthenticationTest extends TestCase
 
         $this->post('/login', ['email' => $user->email, 'password' => 'password'])
             ->assertRedirect('/dashboard');
-        $this->get('/dashboard')->assertRedirect('/client');
+        $this->get('/dashboard')->assertRedirect('/client/settlement');
+        $this->get('/client/settlement')->assertSuccessful();
+        $this->get('/client')->assertRedirect('/client/settlement');
         $this->get('/client/room')->assertRedirect('/client/invoices');
         $this->assertAuthenticatedAs($user);
     }

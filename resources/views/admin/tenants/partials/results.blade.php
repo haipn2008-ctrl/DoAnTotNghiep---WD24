@@ -24,11 +24,15 @@
                     @php
                         $membershipContract = $tenant->memberContracts
                             ->whereIn('status', \App\Models\Contract::OPEN_OCCUPANCY_STATUSES)
-                            ->first();
+                            ->first(fn ($contract) => $contract->pivot?->status === \App\Models\ContractTenant::STATUS_CHECKED_IN);
                         $representativeContract = $tenant->contracts
                             ->whereIn('status', \App\Models\Contract::OPEN_OCCUPANCY_STATUSES)
                             ->first();
                         $activeContract = $membershipContract ?? $representativeContract;
+                        $hasRentalHistory = $tenant->contracts
+                            ->contains(fn ($contract) => $contract->actual_move_in_at !== null)
+                            || $tenant->memberContracts
+                                ->contains(fn ($contract) => $contract->pivot?->status === \App\Models\ContractTenant::STATUS_MOVED_OUT);
                         $isRepresentative = $membershipContract
                             ? $membershipContract->pivot->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE
                             : $representativeContract !== null;
@@ -51,6 +55,8 @@
                         <td class="px-5 py-4">
                             @if ($activeContract)
                                 <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Phòng {{ $activeContract->room->room_code ?? 'Không có' }}</span>
+                            @elseif($hasRentalHistory)
+                                <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>Đã rời phòng</span>
                             @else
                                 <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>Chưa thuê</span>
                             @endif
