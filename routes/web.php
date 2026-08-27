@@ -10,9 +10,11 @@ use App\Http\Controllers\Admin\ContractTenantController;
 use App\Http\Controllers\Admin\ContractTerminationRequestController as AdminContractTerminationRequestController;
 use App\Http\Controllers\Admin\DebtController;
 use App\Http\Controllers\Admin\DepositRefundController as AdminDepositRefundController;
+use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\OverviewController;
+use App\Http\Controllers\Admin\ProfitLossController;
 use App\Http\Controllers\Admin\ReconciliationController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\RoomEvidenceController;
@@ -629,6 +631,16 @@ Route::middleware('auth')->group(function () {
                 )->name('reconciliation.index');
 
                 Route::get(
+                    'profit-loss',
+                    [ProfitLossController::class, 'index']
+                )->name('profit-loss.index');
+
+                Route::get(
+                    'overview/profit-loss',
+                    [ProfitLossController::class, 'index']
+                )->name('overview.profit-loss');
+
+                Route::get(
                     'overview/revenue-chart',
                     [OverviewController::class, 'revenueChart']
                 )->name('overview.revenue-chart');
@@ -647,6 +659,15 @@ Route::middleware('auth')->group(function () {
                     'overview/fill-rate',
                     [OverviewController::class, 'fillRate']
                 )->name('overview.fill-rate');
+
+                // =================================================
+                // QUẢN LÝ CHI PHÍ (THU CHI)
+                // =================================================
+
+                Route::get('expenses/{expense}/receipt', [ExpenseController::class, 'receipt'])
+                    ->name('expenses.receipt');
+
+                Route::resource('expenses', ExpenseController::class);
 
                 // =================================================
                 // CÀI ĐẶT
