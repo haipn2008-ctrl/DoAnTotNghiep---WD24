@@ -9,11 +9,14 @@ use App\Models\ContractTenant;
 use App\Models\Invoice;
 use App\Models\Role;
 use App\Models\User;
+use App\Notifications\AccountCreatedNotification;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class UserController extends Controller
 {
@@ -77,16 +80,34 @@ class UserController extends Controller
             : User::STATUS_ACTIVE;
         $data['must_change_password'] = $this->isClientRole($role);
         $data['activated_at'] = $data['status'] === User::STATUS_ACTIVE ? now() : null;
+        $initialPassword = $data['password'];
 
         try {
-            User::create($data);
+            $user = User::create($data);
         } catch (QueryException $exception) {
             $this->throwEmailConflictOrRethrow($exception);
         }
 
+        if ($this->isClientRole($role)) {
+            try {
+                $user->notify(new AccountCreatedNotification($initialPassword));
+            } catch (Throwable $exception) {
+                Log::error('Không thể gửi email thông tin tài khoản khách thuê.', [
+                    'user_id' => $user->id,
+                    'exception' => $exception,
+                ]);
+
+                return redirect()
+                    ->route('admin.users.index')
+                    ->with('error', 'Tài khoản đã được tạo nhưng chưa thể gửi email. Vui lòng kiểm tra cấu hình email và thử lại.');
+            }
+        }
+
         return redirect()
             ->route('admin.users.index')
-            ->with('success', 'Tạo tài khoản thành công.');
+            ->with('success', $this->isClientRole($role)
+                ? 'Tạo tài khoản thành công. Thông tin đăng nhập đã được gửi đến email của khách thuê.'
+                : 'Tạo tài khoản thành công.');
     }
 
     public function edit(User $user)

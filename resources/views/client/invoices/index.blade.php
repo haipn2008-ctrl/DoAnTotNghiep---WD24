@@ -8,6 +8,7 @@
         'unpaid' => ['label' => 'Chưa thanh toán', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
         'partial' => ['label' => 'Thanh toán một phần', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
         'paid' => ['label' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'written_off' => ['label' => 'Đã xóa nợ theo quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200'],
         'cancelled' => ['label' => 'Đã hủy', 'class' => 'bg-slate-100 text-slate-700 ring-slate-300'],
     ];
 @endphp
@@ -65,7 +66,7 @@
                         @forelse ($invoices as $invoice)
                             @php
                                 $status = $statuses[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
-                                $remaining = max(0, $invoice->payable_amount - (float) ($invoice->paid_amount ?? 0));
+                                $remaining = (float) $invoice->remaining_amount;
                             @endphp
                             <tr class="hover:bg-slate-50">
                                 <td class="px-5 py-4">
@@ -94,7 +95,7 @@
                 @forelse ($invoices as $invoice)
                     @php
                         $status = $statuses[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
-                        $remaining = max(0, $invoice->payable_amount - (float) ($invoice->paid_amount ?? 0));
+                        $remaining = (float) $invoice->remaining_amount;
                     @endphp
                     <a href="{{ route('client.invoices.show', $invoice) }}" class="block space-y-3 p-4 hover:bg-slate-50">
                         <div class="flex items-start justify-between gap-3">

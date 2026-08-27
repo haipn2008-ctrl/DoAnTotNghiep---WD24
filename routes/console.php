@@ -5,6 +5,7 @@ use App\Models\Setting;
 use App\Models\SupportRequest;
 use App\Models\UtilityReading;
 use App\Services\ContractLifecycleService;
+use App\Services\OverdueInvoiceService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -135,6 +136,20 @@ Artisan::command('contracts:process-lifecycle', function () {
     return 0;
 })->purpose('Xử lý hết hạn hợp đồng và cảnh báo vòng đời theo cách idempotent');
 
+Artisan::command('invoices:notify-overdue', function () {
+    $count = app(OverdueInvoiceService::class)->notifyNewlyOverdue();
+    $this->info("Đã gửi {$count} thông báo hóa đơn quá hạn.");
+
+    return 0;
+})->purpose('Gửi một lần thông báo quá hạn và yêu cầu khách giải trình chậm thanh toán');
+
+Artisan::command('invoices:notify-due-today', function () {
+    $count = app(OverdueInvoiceService::class)->notifyDueToday();
+    $this->info("Đã gửi {$count} thông báo hạn cuối thanh toán hôm nay.");
+
+    return 0;
+})->purpose('Gửi một lần thông báo cho khách vào chính ngày hết hạn hóa đơn');
+
 Artisan::command('contracts:audit-lifecycle', function () {
     $issues = collect();
     Contract::query()->with(['room', 'utilityReadings'])->orderBy('id')->each(function (Contract $contract) use ($issues): void {
@@ -178,3 +193,5 @@ Artisan::command('contracts:audit-lifecycle', function () {
 })->purpose('Audit read-only dữ liệu vòng đời hợp đồng và dữ liệu cũ mâu thuẫn');
 
 Schedule::command('contracts:process-lifecycle')->dailyAt('01:15')->withoutOverlapping();
+Schedule::command('invoices:notify-due-today')->hourlyAt(5)->withoutOverlapping();
+Schedule::command('invoices:notify-overdue')->dailyAt('00:10')->withoutOverlapping();

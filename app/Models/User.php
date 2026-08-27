@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -16,13 +17,19 @@ class User extends Authenticatable
     ];
 
     public const ROLE_ADMIN = 1;
+
     public const ROLE_USER = 2;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_SETTLING = 'settling';
+
     public const STATUS_FORMER = 'former';
+
     public const STATUS_LOCKED = 'locked';
+
     public const STATUS_INACTIVE = 'inactive';
 
     protected $fillable = [
@@ -100,5 +107,10 @@ class User extends Authenticatable
             [self::STATUS_ACTIVE, self::STATUS_SETTLING, self::STATUS_FORMER],
             true
         );
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
     }
 }

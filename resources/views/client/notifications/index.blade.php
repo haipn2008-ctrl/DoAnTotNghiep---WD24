@@ -4,26 +4,26 @@
 @section('page_title', 'Thông báo')
 
 @section('content')
-    <div class="space-y-5">
+    <div class="mx-auto max-w-5xl space-y-6">
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
-                <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Trao đổi trong hệ thống</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Thông báo của tôi</h2>
-                <p class="mt-2 text-sm text-slate-500">Các nhắc nhở và thông tin do ban quản lý gửi đến tài khoản của bạn.</p>
+                <p class="text-xs font-bold uppercase tracking-[.16em] text-indigo-600">Trung tâm cập nhật</p>
+                <h2 class="mt-2 text-3xl font-bold tracking-tight text-slate-950">Thông báo của tôi</h2>
+                <p class="mt-2 text-sm leading-6 text-slate-500">Mọi nhắc nhở quan trọng từ ban quản lý được lưu tại đây để bạn dễ theo dõi.</p>
             </div>
             @if(auth()->user()->unreadNotifications()->exists())
                 <form method="POST" action="{{ route('client.notifications.read-all') }}">
                     @csrf
-                    <button class="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">Đánh dấu tất cả đã đọc</button>
+                    <button class="h-11 rounded-xl border border-indigo-100 bg-white px-4 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50">Đánh dấu tất cả đã đọc</button>
                 </form>
             @endif
         </div>
 
-        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,.06)]">
             <div class="divide-y divide-slate-100">
                 @forelse($notifications as $notification)
                     @php($data = $notification->data)
-                    <a href="{{ route('client.notifications.open', $notification->id) }}" class="flex gap-4 p-5 transition hover:bg-slate-50 {{ $notification->read_at ? '' : 'bg-indigo-50/60' }}">
+                    <a href="{{ route('client.notifications.open', $notification->id) }}" class="flex gap-4 p-5 transition hover:bg-indigo-50/40 {{ $notification->read_at ? '' : 'bg-indigo-50/70' }}">
                         <span class="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full {{ $notification->read_at ? 'bg-slate-100 text-slate-500' : 'bg-indigo-100 text-indigo-700' }}">
                             <x-bell-icon class="h-5 w-5" />
                         </span>

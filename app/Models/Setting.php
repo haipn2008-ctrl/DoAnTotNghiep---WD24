@@ -113,7 +113,7 @@ class Setting extends Model
             'motorcycle_parking_fee' => 0,
             'car_parking_fee' => 0,
             'invoice_day' => 5,
-            'payment_due_days' => 10,
+            'payment_due_days' => 5,
         ], $defaults);
 
         if (Schema::hasColumn((new self)->getTable(), 'is_active')) {

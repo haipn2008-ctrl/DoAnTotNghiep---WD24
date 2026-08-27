@@ -15,9 +15,10 @@ use App\Models\Setting;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Rules\AdultDateOfBirth;
+use App\Services\AdminNotificationService;
+use App\Services\ClientNotificationService;
 use App\Services\ContractIdentityDocumentService;
 use App\Services\ContractLifecycleService;
-use App\Services\ClientNotificationService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -60,6 +61,7 @@ class ContractController extends Controller
             ->orderBy('room_code')->get();
         $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
             ->orderBy('full_name')->get();
+
         return view('admin.contracts.create', compact('rooms', 'tenants'));
     }
 
@@ -147,6 +149,7 @@ class ContractController extends Controller
             ->orderBy('room_code')->get();
         $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
             ->orderBy('full_name')->get();
+
         return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants'));
     }
 
@@ -280,7 +283,7 @@ class ContractController extends Controller
             'schedule_variance_reason' => ['nullable', 'string', 'max:1000'],
         ]);
         $this->lifecycle->checkIn($contract, $request->user(), $data);
-        app(\App\Services\AdminNotificationService::class)->resolve('move_in_confirmation', $contract);
+        app(AdminNotificationService::class)->resolve('move_in_confirmation', $contract);
         app(ClientNotificationService::class)->contract($contract->fresh(), 'contract_checked_in', 'Đã xác nhận nhận phòng', 'Hợp đồng '.$contract->contract_code.' đã chuyển sang trạng thái đang thuê.');
 
         return back()->with('success', 'Nhận phòng thành công. Phòng đã chuyển sang có người thuê.');
@@ -289,19 +292,62 @@ class ContractController extends Controller
     public function saveHandoverReading(Request $request, Contract $contract)
     {
         Gate::authorize('manageLifecycle', $contract);
+        $existingReading = $contract->utilityReadings()
+            ->where('reading_type', 'handover')
+            ->first();
         $data = $request->validate([
             'handover_electricity' => ['required', 'integer', 'min:0'],
             'handover_water' => ['required', 'integer', 'min:0'],
+            'handover_electricity_image' => [
+                Rule::requiredIf(! $existingReading?->meterImageExists('electricity')),
+                'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096',
+            ],
+            'handover_water_image' => [
+                Rule::requiredIf(! $existingReading?->meterImageExists('water')),
+                'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096',
+            ],
+        ], [
+            'handover_electricity_image.required' => 'Vui lòng tải ảnh đồng hồ điện để khách đối chiếu.',
+            'handover_water_image.required' => 'Vui lòng tải ảnh đồng hồ nước để khách đối chiếu.',
+            'handover_electricity_image.image' => 'Ảnh đồng hồ điện không hợp lệ.',
+            'handover_water_image.image' => 'Ảnh đồng hồ nước không hợp lệ.',
+            'handover_electricity_image.mimes' => 'Ảnh đồng hồ điện phải là JPG, PNG hoặc WEBP.',
+            'handover_water_image.mimes' => 'Ảnh đồng hồ nước phải là JPG, PNG hoặc WEBP.',
+            'handover_electricity_image.max' => 'Ảnh đồng hồ điện không được lớn hơn 4 MB.',
+            'handover_water_image.max' => 'Ảnh đồng hồ nước không được lớn hơn 4 MB.',
         ]);
-        $this->lifecycle->saveHandoverDraft(
-            $contract,
-            $request->user(),
-            (int) $data['handover_electricity'],
-            (int) $data['handover_water'],
-        );
-        app(ClientNotificationService::class)->contract($contract, 'move_in_details_ready', 'Thông tin nhận phòng cần xác nhận', 'Ban quản lý đã lập chỉ số điện nước bàn giao. Vui lòng mở hợp đồng để kiểm tra và xác nhận.');
 
-        return back()->with('success', 'Đã lưu chỉ số bàn giao. Khách thuê có thể kiểm tra và xác nhận.');
+        $newImages = [];
+        foreach (['electricity', 'water'] as $type) {
+            $file = $request->file("handover_{$type}_image");
+            if ($file) {
+                $newImages[$type] = $file->store("utility-readings/{$type}", 'local');
+            }
+        }
+
+        try {
+            $reading = $this->lifecycle->saveHandoverDraft(
+                $contract,
+                $request->user(),
+                (int) $data['handover_electricity'],
+                (int) $data['handover_water'],
+                $newImages['electricity'] ?? null,
+                $newImages['water'] ?? null,
+            );
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete(array_values($newImages));
+            throw $exception;
+        }
+
+        foreach (['electricity', 'water'] as $type) {
+            $oldPath = $existingReading?->{$type.'_image'};
+            if (isset($newImages[$type]) && $oldPath && $oldPath !== $reading->{$type.'_image'}) {
+                Storage::disk('local')->delete($oldPath);
+            }
+        }
+        app(ClientNotificationService::class)->contract($contract, 'move_in_details_ready', 'Thông tin nhận phòng cần xác nhận', 'Ban quản lý đã cập nhật chỉ số và ảnh đồng hồ điện nước bàn giao. Vui lòng mở hợp đồng để đối chiếu và xác nhận.');
+
+        return back()->with('success', 'Đã lưu chỉ số và ảnh đồng hồ bàn giao. Khách thuê có thể đối chiếu và xác nhận.');
     }
 
     public function reopenMoveInDetails(Request $request, Contract $contract)
@@ -557,7 +603,7 @@ class ContractController extends Controller
                     'admin_note' => $reason,
                 ]);
                 $extensionRequest->save();
-                app(\App\Services\AdminNotificationService::class)->resolve('extension_request', $extensionRequest);
+                app(AdminNotificationService::class)->resolve('extension_request', $extensionRequest);
             } else {
                 $extensionRequest = $lockedContract->extensionRequests()->create($extensionData + [
                     'requested_end_date' => $newEndDate,

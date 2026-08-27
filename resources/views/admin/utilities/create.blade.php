@@ -28,7 +28,10 @@
                         @endfor
                     </select>
                 </div>
-                <div><label for="record_date_filter" class="mb-1 block text-xs font-semibold text-slate-600">Ngày chốt</label><input id="record_date_filter" type="date" name="record_date" value="{{ $recordDate }}" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"></div>
+                <div>
+                    <p class="mb-1 text-xs font-semibold text-slate-600">Ngày chốt</p>
+                    <div class="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-100 px-3 text-sm font-semibold text-slate-700">{{ \Carbon\Carbon::parse($recordDate)->format('d/m/Y') }}</div>
+                </div>
                 <button class="h-10 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white">Xem kỳ</button>
             </form>
         </div>
@@ -43,6 +46,12 @@
                 </ul>
             </div>
         @endif
+
+        @unless ($canConfirm)
+            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Kỳ này chỉ được xác nhận từ ngày <strong>{{ \Carbon\Carbon::parse($recordDate)->format('d/m/Y') }}</strong>. Hiện tại bạn vẫn có thể nhập và lưu nháp chỉ số.
+            </div>
+        @endunless
 
         <div class="grid gap-3 sm:grid-cols-3">
             <div class="rounded-lg border border-slate-200 bg-white p-4">
@@ -59,7 +68,6 @@
             @csrf
             <input type="hidden" name="month" value="{{ $month }}">
             <input type="hidden" name="year" value="{{ $year }}">
-            <input type="hidden" name="record_date" value="{{ $recordDate }}">
 
             <div class="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex flex-1 flex-col gap-2 sm:flex-row">
@@ -165,7 +173,7 @@
                             <i class="bx bx-save text-lg"></i>Lưu nháp
                         </button>
                         <button id="confirmButton" type="submit" name="intent" value="confirm" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>
-                            <i class="bx bx-check-circle text-lg"></i>Lưu và xác nhận
+                            <i class="bx bx-check-circle text-lg"></i>{{ $canConfirm ? 'Lưu và xác nhận' : 'Chưa đến ngày chốt' }}
                         </button>
                     </div>
                 </div>
@@ -184,6 +192,7 @@
             const selectedCount = document.getElementById('selectedCount');
             const draftButton = document.getElementById('draftButton');
             const confirmButton = document.getElementById('confirmButton');
+            const canConfirmPeriod = @json($canConfirm);
 
             const updateRow = (row, autoSelect = false) => {
                 const selector = row.querySelector('.row-selector');
@@ -220,7 +229,7 @@
                 const checked = document.querySelectorAll('.row-selector:checked').length;
                 selectedCount.textContent = checked;
                 draftButton.disabled = checked === 0;
-                confirmButton.disabled = checked === 0;
+                confirmButton.disabled = checked === 0 || !canConfirmPeriod;
             };
 
             const applyFilter = () => {

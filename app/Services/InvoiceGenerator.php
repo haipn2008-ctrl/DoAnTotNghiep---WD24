@@ -197,6 +197,14 @@ class InvoiceGenerator
             $servicePeriod = Carbon::createFromDate($year, $month, 1)->subMonthNoOverflow();
             $feeSchedule = FeeSchedule::forPeriod($servicePeriod, true);
             $preview = $this->preview($contract, $month, $year, $feeSchedule);
+
+            if (today()->lt(Carbon::parse($preview['invoice_date'])->startOfDay())) {
+                throw ValidationException::withMessages([
+                    'invoice_date' => 'Hóa đơn kỳ này chỉ được phát hành từ ngày '.
+                        Carbon::parse($preview['invoice_date'])->format('d/m/Y').'.',
+                ]);
+            }
+
             $lockedReading = UtilityReading::query()->lockForUpdate()->findOrFail($preview['reading']->id);
             if (! $lockedReading->isConfirmed()) {
                 throw ValidationException::withMessages([

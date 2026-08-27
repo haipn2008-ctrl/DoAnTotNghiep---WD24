@@ -377,9 +377,15 @@ class ContractLifecycleService
         }, 3);
     }
 
-    public function saveHandoverDraft(Contract $contract, User $actor, int $electricity, int $water): UtilityReading
-    {
-        return DB::transaction(function () use ($contract, $actor, $electricity, $water): UtilityReading {
+    public function saveHandoverDraft(
+        Contract $contract,
+        User $actor,
+        int $electricity,
+        int $water,
+        ?string $electricityImage = null,
+        ?string $waterImage = null,
+    ): UtilityReading {
+        return DB::transaction(function () use ($contract, $actor, $electricity, $water, $electricityImage, $waterImage): UtilityReading {
             $contract = $this->lockContract($contract);
             $this->requireStatus($contract, [Contract::STATUS_AWAITING_MOVE_IN], 'Chỉ được lập chỉ số bàn giao khi hợp đồng đang chờ nhận phòng.');
             if ($contract->move_in_details_confirmed_at) {
@@ -415,8 +421,10 @@ class ContractLifecycleService
                 'lifecycle_event_key' => $key,
                 'electricity_old' => $electricity,
                 'electricity_new' => $electricity,
+                'electricity_image' => $electricityImage ?? $reading->electricity_image,
                 'water_old' => $water,
                 'water_new' => $water,
+                'water_image' => $waterImage ?? $reading->water_image,
                 'status' => UtilityReading::STATUS_DRAFT,
                 'note' => 'Chỉ số bàn giao chờ khách thuê xác nhận.',
             ])->save();

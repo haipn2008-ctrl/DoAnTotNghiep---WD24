@@ -71,6 +71,12 @@
                         </div>
                     @endif
 
+                    @if (session('status'))
+                        <div class="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                            {{ session('status') }}
+                        </div>
+                    @endif
+
                     <form method="POST" action="{{ route('login') }}" class="mt-6 space-y-5">
                         @csrf
 
@@ -95,6 +101,12 @@
                             <input id="remember" type="checkbox" name="remember" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                             <span>Ghi nhớ đăng nhập</span>
                         </label>
+
+                        <div class="text-right">
+                            <a href="{{ route('password.request') }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+                                Quên mật khẩu?
+                            </a>
+                        </div>
 
                         <button type="submit" class="inline-flex h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
                             Đăng nhập

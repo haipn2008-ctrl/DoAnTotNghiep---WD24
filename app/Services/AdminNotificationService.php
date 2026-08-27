@@ -7,6 +7,7 @@ use App\Models\ContractExtensionRequest;
 use App\Models\ContractLifecycleAlert;
 use App\Models\ContractTenant;
 use App\Models\ContractTerminationRequest;
+use App\Models\InvoicePaymentDelayRequest;
 use App\Models\Payment;
 use App\Models\SupportRequest;
 use App\Models\Vehicle;
@@ -89,6 +90,28 @@ class AdminNotificationService
             sprintf('%s đã báo thanh toán %s VNĐ cho hóa đơn %s và có tải ảnh minh chứng.', $this->tenantName($contract), number_format((float) $payment->amount_paid, 0, ',', '.'), $invoice->invoice_code), $payment);
     }
 
+    public function paymentDelayRequested(InvoicePaymentDelayRequest $request): ContractLifecycleAlert
+    {
+        $request->loadMissing('invoice.contract.tenant', 'invoice.contract.room');
+        $invoice = $request->invoice;
+        $contract = $invoice->contract;
+
+        return $this->actionAlert(
+            $contract,
+            'payment_delay_request',
+            "payment-delay-request:{$request->id}",
+            'Khách thuê vừa gửi lý do chậm thanh toán',
+            sprintf(
+                '%s xin chậm thanh toán hóa đơn %s đến ngày %s. Lý do: %s',
+                $this->tenantName($contract),
+                $invoice->invoice_code,
+                $request->promised_payment_date?->format('d/m/Y'),
+                $request->reason,
+            ),
+            $request,
+        );
+    }
+
     public function supportRequested(SupportRequest $request): ContractLifecycleAlert
     {
         $request->loadMissing('contract.tenant', 'contract.room');
@@ -116,6 +139,7 @@ class AdminNotificationService
     public function moveInDetailsConfirmed(Contract $contract): ContractLifecycleAlert
     {
         $contract->loadMissing('tenant', 'room');
+
         return $this->actionAlert($contract, 'move_in_confirmation', "move-in-confirmation:{$contract->id}",
             'Khách thuê đã xác nhận thông tin nhận phòng',
             sprintf('%s đã kiểm tra dịch vụ và tài sản của phòng %s.', $this->tenantName($contract), $contract->room?->room_code ?: '—'), $contract);
@@ -127,6 +151,7 @@ class AdminNotificationService
         $prefix = match ($type) {
             'extension_request' => 'extension-request', 'termination_request' => 'termination-request',
             'deposit_refund_request' => 'deposit-refund', 'payment_review' => 'payment-review',
+            'payment_delay_request' => 'payment-delay-request',
             'support_request' => 'support-request', 'member_review' => 'member-review',
             'move_in_confirmation' => 'move-in-confirmation', default => $type,
         };

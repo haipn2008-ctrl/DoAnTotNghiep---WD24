@@ -543,13 +543,33 @@ class ContractManagementTest extends TestCase
         $this->lifecycle->submitForSignature($contract, $this->admin);
         $this->lifecycle->markAsSigned($contract, $this->admin, now());
         $this->payDeposit($contract);
-        $this->lifecycle->saveHandoverDraft($contract, $this->admin, 135, 24);
+        $this->actingAs($this->admin)->post(route('admin.contracts.handover-reading.store', $contract), [
+            'handover_electricity' => 135,
+            'handover_water' => 24,
+        ])->assertSessionHasErrors(['handover_electricity_image', 'handover_water_image']);
+        $this->assertDatabaseMissing('utility_readings', [
+            'contract_id' => $contract->id,
+            'reading_type' => 'handover',
+        ]);
+        $this->actingAs($this->admin)->post(route('admin.contracts.handover-reading.store', $contract), [
+            'handover_electricity' => 135,
+            'handover_water' => 24,
+            'handover_electricity_image' => UploadedFile::fake()->image('electricity-meter.jpg'),
+            'handover_water_image' => UploadedFile::fake()->image('water-meter.jpg'),
+        ])->assertSessionHasNoErrors();
+        $handoverReading = $contract->utilityReadings()->where('reading_type', 'handover')->sole();
+        Storage::disk('local')->assertExists([
+            $handoverReading->electricity_image,
+            $handoverReading->water_image,
+        ]);
 
         $this->actingAs($tenant->user)->get(route('client.contracts.show', $contract))
             ->assertOk()
             ->assertSee('Xác nhận thông tin nhận phòng')
-            ->assertSee('Tôi đã kiểm tra chỉ số điện')
+            ->assertSee('Tôi đã đối chiếu ảnh đồng hồ với chỉ số điện')
             ->assertSee('135 kWh')
+            ->assertSee(route('client.contracts.handover-meter-image', [$contract, 'electricity']), false)
+            ->assertSee(route('client.contracts.handover-meter-image', [$contract, 'water']), false)
             ->assertSee('24 m³')
             ->assertSee('Xác nhận thông tin')
             ->assertSee('action="'.route('client.contracts.move-in-details.confirm', $contract).'"', false)
@@ -568,11 +588,16 @@ class ContractManagementTest extends TestCase
         $this->actingAs($otherTenant->user)->post(route('client.contracts.move-in-details.confirm', $contract), [
             'confirmation' => 1,
         ])->assertNotFound();
+        $this->get(route('client.contracts.handover-meter-image', [$contract, 'electricity']))
+            ->assertNotFound();
         $this->assertNull($contract->fresh()->move_in_details_confirmed_at);
 
         $this->actingAs($tenant->user)->post(route('client.contracts.move-in-details.confirm', $contract), [
             'confirmation' => 1,
         ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->get(route('client.contracts.handover-meter-image', [$contract, 'electricity']))
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'max-age=0, no-store, private');
         $this->assertSame($tenant->user_id, $contract->fresh()->move_in_details_confirmed_by);
         $this->assertDatabaseHas('contract_status_histories', [
             'contract_id' => $contract->id, 'action' => 'confirm_move_in_details',
@@ -605,6 +630,8 @@ class ContractManagementTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.contracts.handover-reading.store', $contract), [
             'handover_electricity' => 999,
             'handover_water' => 99,
+            'handover_electricity_image' => UploadedFile::fake()->image('tampered-electricity.jpg'),
+            'handover_water_image' => UploadedFile::fake()->image('tampered-water.jpg'),
         ])->assertSessionHasErrors('handover_reading');
 
         $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload([
@@ -649,6 +676,8 @@ class ContractManagementTest extends TestCase
         $this->post(route('admin.contracts.handover-reading.store', $contract), [
             'handover_electricity' => 120,
             'handover_water' => 12,
+            'handover_electricity_image' => UploadedFile::fake()->image('electricity-updated.jpg'),
+            'handover_water_image' => UploadedFile::fake()->image('water-updated.jpg'),
         ])->assertSessionHasNoErrors();
         $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())
             ->assertSessionHasErrors('move_in_details_confirmed');
@@ -1328,7 +1357,7 @@ class ContractManagementTest extends TestCase
         $this->lifecycle->submitForSignature($normal, $this->admin);
         $this->lifecycle->markAsSigned($normal, $this->admin, now());
         $this->assertSame(
-            now()->addDays(10)->toDateTimeString(),
+            now()->addDays(5)->toDateTimeString(),
             $normal->fresh()->deposit_due_at->toDateTimeString()
         );
 
@@ -1380,6 +1409,10 @@ class ContractManagementTest extends TestCase
         $pendingPayment = Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_PENDING]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
+        $this->actingAs($this->admin)
+            ->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertDontSee('Thanh toán chờ xác nhận');
         Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_FAILED]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
@@ -1498,6 +1531,8 @@ class ContractManagementTest extends TestCase
         $this->post(route('admin.contracts.handover-reading.store', $contract), [
             'handover_electricity' => 321,
             'handover_water' => 45,
+            'handover_electricity_image' => UploadedFile::fake()->image('electricity-baseline.jpg'),
+            'handover_water_image' => UploadedFile::fake()->image('water-baseline.jpg'),
         ])->assertSessionHasNoErrors();
         $this->lifecycle->confirmMoveInDetails($contract, $contract->tenant->user);
         $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload([

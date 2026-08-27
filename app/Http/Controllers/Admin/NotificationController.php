@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ContractLifecycleAlert;
+use App\Models\InvoicePaymentDelayRequest;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -46,6 +47,9 @@ class NotificationController extends Controller
             'termination_request' => route('admin.termination-requests.index'),
             'deposit_refund_request' => route('admin.deposit-refunds.index'),
             'payment_review' => route('admin.invoices.payments', ['status' => 'pending']),
+            'payment_delay_request' => ($delayRequest = InvoicePaymentDelayRequest::query()->find($referenceId))
+                ? route('admin.debts.show', $delayRequest->invoice_id)
+                : null,
             'support_request' => route('admin.support.index'),
             'member_review', 'move_in_confirmation' => $notification->contract_id
                 ? route('admin.contracts.show', $notification->contract_id)

@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Contract;
+use App\Models\ContractLifecycleAlert;
 use App\Models\FeeSchedule;
 use App\Models\Invoice;
+use App\Models\InvoicePaymentDelayRequest;
 use App\Models\InvoiceReminder;
 use App\Models\Payment;
 use App\Models\Role;
@@ -14,6 +16,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
 use App\Services\InvoiceGenerator;
+use App\Services\OverdueInvoiceService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,7 +40,7 @@ class InvoiceManagementTest extends TestCase
         Setting::create(['electric_price' => 3500, 'water_price' => 20000,
             'internet_fee' => 100000, 'service_fee' => 50000, 'parking_fee' => 75000,
             'motorcycle_parking_fee' => 80000, 'car_parking_fee' => 500000,
-            'invoice_day' => 5, 'payment_due_days' => 10]);
+            'invoice_day' => 5, 'payment_due_days' => 5]);
     }
 
     public function test_only_admin_can_access_invoice_pages_preview_issue_and_direct_delete(): void
@@ -79,12 +82,54 @@ class InvoiceManagementTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=7&year=2026")
             ->assertOk()->assertJsonPath('invoice_date', '2026-07-05')
-            ->assertJsonPath('due_date', '2026-07-15')
+            ->assertJsonPath('due_date', '2026-07-10')
             ->assertJsonPath('total_amount', 3320000);
         $this->assertSame(['room', 'electricity', 'water', 'internet', 'service'],
             collect($response->json('lines'))->pluck('type')->all());
         $this->assertDatabaseCount('invoices', 0);
         $this->assertDatabaseCount('invoice_details', 0);
+    }
+
+    public function test_invoice_can_be_previewed_but_not_issued_before_scheduled_date(): void
+    {
+        Carbon::setTestNow('2026-08-31 12:00:00');
+
+        try {
+            [$contract, , , $reading] = $this->fixture('SCHEDULED-ISSUE', 9);
+
+            $this->actingAs($this->admin)
+                ->get('/admin/invoices/generate?month=9&year=2026')
+                ->assertOk()
+                ->assertSee('chỉ được phát hành từ ngày')
+                ->assertSee('05/09/2026')
+                ->assertSee('Chưa đến ngày phát hành');
+
+            $this->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=9&year=2026")
+                ->assertOk()
+                ->assertJsonPath('invoice_date', '2026-09-05');
+
+            $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", [
+                'month' => 9,
+                'year' => 2026,
+            ])->assertUnprocessable()
+                ->assertJsonPath('message', 'Hóa đơn kỳ này chỉ được phát hành từ ngày 05/09/2026.');
+
+            $this->assertDatabaseMissing('invoices', [
+                'contract_id' => $contract->id,
+                'month' => 9,
+                'year' => 2026,
+            ]);
+            $this->assertTrue($reading->fresh()->isConfirmed());
+
+            Carbon::setTestNow('2026-09-05 00:00:00');
+            $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", [
+                'month' => 9,
+                'year' => 2026,
+            ])->assertOk();
+            $this->assertTrue($reading->fresh()->isLocked());
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_june_fifth_collects_may_rent_and_may_utilities(): void
@@ -94,7 +139,7 @@ class InvoiceManagementTest extends TestCase
         $preview = app(InvoiceGenerator::class)->preview($contract, 6, 2026);
 
         $this->assertSame('2026-06-05', $preview['invoice_date']);
-        $this->assertSame('2026-06-15', $preview['due_date']);
+        $this->assertSame('2026-06-10', $preview['due_date']);
         $this->assertSame(5, $preview['utility_month']);
         $this->assertSame(2026, $preview['utility_year']);
         $this->assertSame([
@@ -114,7 +159,7 @@ class InvoiceManagementTest extends TestCase
         $preview = app(InvoiceGenerator::class)->preview($contract->fresh(), 6, 2026);
 
         $this->assertSame('2026-06-05', $preview['invoice_date']);
-        $this->assertSame('2026-06-15', $preview['due_date']);
+        $this->assertSame('2026-06-10', $preview['due_date']);
         $this->assertSame(677419.0, $preview['room_fee']);
         $this->assertSame(997419.0, $preview['total_amount']);
         $this->assertSame('Tiền phòng tháng 5/2026', $preview['lines'][0]['name']);
@@ -710,6 +755,120 @@ class InvoiceManagementTest extends TestCase
         $this->get(route('admin.debts.show', $invoice))
             ->assertSuccessful()
             ->assertSee('không còn công nợ cần nhắc');
+    }
+
+    public function test_due_today_job_notifies_the_client_once_on_the_effective_deadline(): void
+    {
+        Carbon::setTestNow('2026-08-10 08:00:00');
+
+        try {
+            [$contract] = $this->fixture('DUE-TODAY');
+            $invoice = $this->issue($contract);
+            $invoice->update(['due_date' => '2026-08-10']);
+            $client = $contract->tenant->user;
+
+            $this->assertSame(1, app(OverdueInvoiceService::class)->notifyDueToday());
+            $this->assertSame(0, app(OverdueInvoiceService::class)->notifyDueToday());
+            $this->assertNotNull($invoice->fresh()->due_notified_at);
+            $notification = $client->notifications()->sole();
+            $this->assertSame('invoice_due_today', $notification->data['type']);
+            $this->assertSame($invoice->id, $notification->data['invoice_id']);
+
+            $this->actingAs($client)->get(route('client.notifications.open', $notification->id))
+                ->assertRedirect(route('client.invoices.show', $invoice));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_overdue_job_notifies_once_and_admin_can_approve_a_payment_extension(): void
+    {
+        Carbon::setTestNow('2026-08-11 00:10:00');
+
+        try {
+            [$contract] = $this->fixture('DELAY-APPROVE');
+            $invoice = $this->issue($contract);
+            $invoice->update(['due_date' => '2026-08-10']);
+            $client = $contract->tenant->user;
+
+            $this->assertSame(1, app(OverdueInvoiceService::class)->notifyNewlyOverdue());
+            $this->assertSame(0, app(OverdueInvoiceService::class)->notifyNewlyOverdue());
+            $this->assertNotNull($invoice->fresh()->overdue_notified_at);
+            $this->assertSame(1, $invoice->reminders()->count());
+            $this->assertSame('invoice_overdue', $client->notifications()->sole()->data['type']);
+
+            $this->actingAs($client)->post(route('client.invoices.payment-delay-request.store', $invoice), [
+                'reason' => 'Tôi nhận lương chậm và xin thêm thời gian thanh toán.',
+                'promised_payment_date' => '2026-08-15',
+            ])->assertSessionHas('success');
+
+            $delayRequest = InvoicePaymentDelayRequest::query()->sole();
+            $this->assertSame(InvoicePaymentDelayRequest::STATUS_PENDING, $delayRequest->status);
+            $this->assertDatabaseHas('contract_lifecycle_alerts', [
+                'type' => 'payment_delay_request',
+            ]);
+            $this->assertSame(
+                $delayRequest->id,
+                (int) ContractLifecycleAlert::query()->sole()->metadata['reference_id']
+            );
+
+            $this->actingAs($this->admin)->post(route('admin.payment-delay-requests.approve', $delayRequest), [
+                'approved_until' => '2026-08-16',
+                'review_note' => 'Đồng ý gia hạn một lần cho khách thuê.',
+            ])->assertSessionHas('success');
+
+            $this->assertDatabaseHas('invoice_payment_delay_requests', [
+                'id' => $delayRequest->id,
+                'status' => InvoicePaymentDelayRequest::STATUS_APPROVED,
+                'reviewed_by' => $this->admin->id,
+            ]);
+            $invoice->refresh();
+            $this->assertSame('2026-08-16', $invoice->effective_due_date->toDateString());
+            $this->assertFalse($invoice->isOverdue());
+            $this->assertNull($invoice->overdue_notified_at);
+            $this->assertNotNull($client->notifications()->where('data->type', 'payment_delay_decision')->first());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_rejected_delay_request_creates_final_warning_without_ending_contract(): void
+    {
+        Carbon::setTestNow('2026-08-11 09:00:00');
+
+        try {
+            [$contract] = $this->fixture('DELAY-REJECT');
+            $invoice = $this->issue($contract);
+            $invoice->update(['due_date' => '2026-08-10']);
+            $client = $contract->tenant->user;
+
+            $this->actingAs($client)->post(route('client.invoices.payment-delay-request.store', $invoice), [
+                'reason' => 'Tôi đang gặp sự cố chuyển khoản và cần thêm thời gian.',
+                'promised_payment_date' => '2026-08-15',
+            ])->assertSessionHas('success');
+            $delayRequest = InvoicePaymentDelayRequest::query()->sole();
+
+            $this->actingAs($this->admin)->post(route('admin.payment-delay-requests.reject', $delayRequest), [
+                'review_note' => 'Không chấp nhận vì khách đã trễ nhiều lần trước đó.',
+            ])->assertSessionHas('success');
+
+            $this->assertDatabaseHas('invoice_payment_delay_requests', [
+                'id' => $delayRequest->id,
+                'status' => InvoicePaymentDelayRequest::STATUS_REJECTED,
+                'reviewed_by' => $this->admin->id,
+            ]);
+            $this->assertSame(Contract::STATUS_ACTIVE, $contract->fresh()->status);
+            $this->assertSame(Room::STATUS_OCCUPIED, $contract->room->fresh()->status);
+            $this->assertNotNull($client->notifications()->where('data->type', 'payment_delay_decision')->first());
+            $this->actingAs($client)->get(route('client.invoices.show', $invoice))
+                ->assertSuccessful()
+                ->assertSee('Ban quản lý đã từ chối lý do chậm thanh toán');
+            $this->actingAs($this->admin)->get(route('admin.debts.show', $invoice))
+                ->assertSuccessful()
+                ->assertSee(route('admin.contracts.check-out.form', $contract));
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     private function fixture(string $key, int $month = 7): array

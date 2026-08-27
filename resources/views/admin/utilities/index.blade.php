@@ -11,6 +11,11 @@
                 <ul class="mt-1 list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             </div>
         @endif
+        @unless ($canConfirm)
+            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Kỳ {{ $month }}/{{ $year }} chỉ được xác nhận từ ngày <strong>{{ $billingPeriodEnd->format('d/m/Y') }}</strong>. Các chỉ số hiện tại chỉ có thể lưu ở trạng thái bản nháp.
+            </div>
+        @endunless
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
                 <p class="text-sm font-medium text-slate-500">Điện nước và dịch vụ</p>
@@ -150,7 +155,11 @@
                                         <form action="{{ route('admin.utilities.reopen', $item) }}" method="POST" class="mt-2">@csrf<button class="text-xs font-semibold text-amber-700 hover:underline">Mở lại để sửa</button></form>
                                     @else
                                         <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Bản nháp</span>
-                                        <form action="{{ route('admin.utilities.confirm', $item) }}" method="POST" class="mt-2">@csrf<button class="text-xs font-semibold text-indigo-700 hover:underline">Xác nhận chỉ số</button></form>
+                                        @if ($canConfirm)
+                                            <form action="{{ route('admin.utilities.confirm', $item) }}" method="POST" class="mt-2">@csrf<button class="text-xs font-semibold text-indigo-700 hover:underline">Xác nhận chỉ số</button></form>
+                                        @else
+                                            <p class="mt-2 text-xs text-slate-500">Chờ đến {{ $billingPeriodEnd->format('d/m/Y') }}</p>
+                                        @endif
                                     @endif
                                 </td>
                             </tr>

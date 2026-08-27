@@ -77,11 +77,11 @@
             </form>
         </div>
     @elseif(! $clientConfirmed)
-        <form class="grid gap-4 border-b border-emerald-100 bg-slate-50 p-4 md:grid-cols-5 md:items-end" method="POST" action="{{ route('admin.contracts.handover-reading.store', $contract) }}">
+        <form class="grid gap-4 border-b border-emerald-100 bg-slate-50 p-4 md:grid-cols-5 md:items-end" method="POST" enctype="multipart/form-data" action="{{ route('admin.contracts.handover-reading.store', $contract) }}">
             @csrf
             <div class="md:col-span-5">
                 <p class="text-sm font-semibold text-slate-900">Bước 1 · Lập chỉ số để khách kiểm tra</p>
-                <p class="mt-1 text-xs text-slate-500">Có thể sửa khi khách chưa xác nhận. Sau khi khách xác nhận, chỉ số sẽ bị khóa.</p>
+                <p class="mt-1 text-xs text-slate-500">Nhập chỉ số và tải ảnh rõ mặt đồng hồ để khách đối chiếu. Có thể sửa khi khách chưa xác nhận; sau khi xác nhận, thông tin sẽ bị khóa.</p>
             </div>
             <label class="block text-sm font-semibold text-slate-700 md:col-span-2">
                 Chỉ số điện (kWh)
@@ -90,6 +90,22 @@
             <label class="block text-sm font-semibold text-slate-700 md:col-span-2">
                 Chỉ số nước (m³)
                 <input type="number" min="0" name="handover_water" value="{{ old('handover_water', $handoverReading?->water_new ?? $suggestedHandoverReading?->water_new) }}" required class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100">
+            </label>
+            <label class="block text-sm font-semibold text-slate-700 md:col-span-2">
+                Ảnh đồng hồ điện
+                <input type="file" name="handover_electricity_image" accept="image/jpeg,image/png,image/webp" capture="environment" @required(! $handoverReading?->meterImageExists('electricity')) class="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">
+                @if($handoverReading?->meterImageExists('electricity'))
+                    <a href="{{ route('admin.utilities.image', [$handoverReading, 'electricity']) }}" target="_blank" class="mt-1.5 inline-block text-xs font-semibold text-indigo-700">Xem ảnh hiện tại</a>
+                @endif
+                @error('handover_electricity_image')<span class="mt-1 block text-xs text-rose-600">{{ $message }}</span>@enderror
+            </label>
+            <label class="block text-sm font-semibold text-slate-700 md:col-span-2">
+                Ảnh đồng hồ nước
+                <input type="file" name="handover_water_image" accept="image/jpeg,image/png,image/webp" capture="environment" @required(! $handoverReading?->meterImageExists('water')) class="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">
+                @if($handoverReading?->meterImageExists('water'))
+                    <a href="{{ route('admin.utilities.image', [$handoverReading, 'water']) }}" target="_blank" class="mt-1.5 inline-block text-xs font-semibold text-indigo-700">Xem ảnh hiện tại</a>
+                @endif
+                @error('handover_water_image')<span class="mt-1 block text-xs text-rose-600">{{ $message }}</span>@enderror
             </label>
             <button class="h-10 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">
                 {{ $handoverReading ? 'Cập nhật chỉ số' : 'Lưu chỉ số' }}

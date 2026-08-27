@@ -22,16 +22,16 @@
 
 
 <aside id="clientSidebar"
-    class="fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform lg:translate-x-0">
+    class="fixed inset-y-0 left-0 z-40 flex w-80 -translate-x-full flex-col border-r border-indigo-100 bg-white/95 shadow-[8px_0_30px_rgba(99,102,241,.05)] backdrop-blur-xl transition-transform lg:translate-x-0">
 
     {{-- =========================
         HEADER
     ========================== --}}
-    <div class="flex h-16 items-center justify-between border-b border-slate-200 px-5">
+    <div class="flex h-[72px] items-center justify-between border-b border-indigo-100 px-5">
 
         <a href="{{ route('client.home') }}" class="flex items-center gap-3">
 
-            <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600">
+            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-200">
                 <img src="{{ asset('assets/images/logo-sm.svg') }}"
                      alt="Logo"
                      class="h-6 w-6">
@@ -63,7 +63,7 @@
     {{-- =========================
         MENU
     ========================== --}}
-    <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+    <nav class="flex-1 space-y-1.5 overflow-y-auto px-4 py-5">
 
 
         {{-- TỔNG QUAN + PHÒNG CỦA TÔI --}}
@@ -87,19 +87,6 @@
             </a>
 
         @endforeach
-
-        <a href="{{ route('client.notifications.index') }}"
-           class="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.notifications.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
-            <span class="flex items-center gap-3">
-                <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.notifications.*') ? 'bg-indigo-100' : 'bg-slate-100' }}"><i class="bx bx-bell text-lg"></i></span>
-                <span>Thông báo</span>
-            </span>
-            @if($clientSidebarUnreadCount > 0)
-                <span class="rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-bold text-white">{{ $clientSidebarUnreadCount > 99 ? '99+' : $clientSidebarUnreadCount }}</span>
-            @endif
-        </a>
-
-
 
         {{-- =====================================================
             HỢP ĐỒNG
@@ -286,7 +273,7 @@
     ========================== --}}
     <div class="border-t border-slate-200 p-4">
 
-        <div class="rounded-lg bg-slate-50 p-4">
+        <div class="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-violet-50 p-4">
 
             <p class="text-sm font-semibold text-slate-950">
                 Cần hỗ trợ?

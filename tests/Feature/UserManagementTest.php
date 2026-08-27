@@ -8,9 +8,11 @@ use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\AccountCreatedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class UserManagementTest extends TestCase
@@ -138,6 +140,34 @@ class UserManagementTest extends TestCase
         $this->assertTrue($newClient->must_change_password);
         $this->assertNull($newClient->activated_at);
         $this->assertTrue(Hash::check('strong-password', $newClient->password));
+    }
+
+    public function test_creating_a_client_emails_the_initial_login_credentials(): void
+    {
+        Notification::fake();
+
+        $this->actingAs($this->admin)->post('/admin/users', $this->createPayload([
+            'name' => 'Khách nhận email',
+            'email' => 'emailed-client@example.com',
+            'role_id' => $this->clientRole->id,
+            'password' => 'Initial@123',
+            'password_confirmation' => 'Initial@123',
+        ]))->assertRedirect('/admin/users')->assertSessionHas('success');
+
+        $client = User::where('email', 'emailed-client@example.com')->sole();
+
+        Notification::assertSentTo(
+            $client,
+            AccountCreatedNotification::class,
+            function (AccountCreatedNotification $notification) use ($client): bool {
+                $mail = $notification->toMail($client);
+
+                return $notification->initialPassword === 'Initial@123'
+                    && in_array('Email đăng nhập: '.$client->email, $mail->introLines, true)
+                    && in_array('Mật khẩu ban đầu: Initial@123', $mail->introLines, true)
+                    && $mail->actionUrl === route('login');
+            }
+        );
     }
 
     public function test_create_validation_rejects_missing_duplicate_weak_or_unsupported_data(): void

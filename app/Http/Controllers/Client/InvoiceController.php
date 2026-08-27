@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Models\InvoicePaymentDelayRequest;
 use App\Models\Payment;
 use App\Models\Setting;
 use App\Services\AdminNotificationService;
@@ -21,7 +22,7 @@ class InvoiceController extends Controller
     public function index(Request $request): View
     {
         $filters = $request->validate([
-            'status' => 'nullable|in:unpaid,partial,paid,cancelled',
+            'status' => 'nullable|in:unpaid,partial,paid,written_off,cancelled',
             'year' => 'nullable|integer|between:2000,2100',
         ]);
 
@@ -188,6 +189,66 @@ class InvoiceController extends Controller
             );
     }
 
+    public function storePaymentDelayRequest(Request $request, int $invoice): RedirectResponse
+    {
+        $ownedInvoice = $this->findOwnedInvoice($request, $invoice);
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:10', 'max:2000'],
+            'promised_payment_date' => ['required', 'date', 'after:today'],
+        ]);
+
+        $delayRequest = DB::transaction(function () use ($request, $ownedInvoice, $data): InvoicePaymentDelayRequest {
+            $invoice = Invoice::query()
+                ->with(['contract.tenant', 'payments'])
+                ->lockForUpdate()
+                ->findOrFail($ownedInvoice->id);
+            $tenantId = $request->user()->tenant?->id;
+
+            if (! $tenantId || $invoice->contract?->tenant_id !== $tenantId) {
+                abort(403);
+            }
+
+            $paid = (float) $invoice->payments->where('status', Payment::STATUS_SUCCESS)->sum('amount_paid');
+            $pending = (float) $invoice->payments->where('status', Payment::STATUS_PENDING)->sum('amount_paid');
+            $remaining = max(0, $invoice->payable_amount - $paid);
+
+            if (! $invoice->canPay() || ! $invoice->isOverdue() || $remaining <= 0) {
+                throw ValidationException::withMessages([
+                    'delay_request' => 'Chỉ hóa đơn đang quá hạn và còn công nợ mới cần gửi lý do chậm thanh toán.',
+                ]);
+            }
+
+            if ($pending >= $remaining) {
+                throw ValidationException::withMessages([
+                    'delay_request' => 'Toàn bộ số tiền còn lại đang chờ xác nhận thanh toán, không cần gửi lý do chậm trễ.',
+                ]);
+            }
+
+            if ($invoice->paymentDelayRequests()->where('status', InvoicePaymentDelayRequest::STATUS_PENDING)->exists()) {
+                throw ValidationException::withMessages([
+                    'delay_request' => 'Yêu cầu chậm thanh toán của hóa đơn này đang chờ quản trị viên xử lý.',
+                ]);
+            }
+
+            if ($invoice->paymentDelayRequests()->where('status', InvoicePaymentDelayRequest::STATUS_REJECTED)->exists()) {
+                throw ValidationException::withMessages([
+                    'delay_request' => 'Lý do chậm thanh toán đã bị từ chối. Vui lòng thanh toán hoặc liên hệ trực tiếp ban quản lý.',
+                ]);
+            }
+
+            return $invoice->paymentDelayRequests()->create([
+                'requested_by' => $request->user()->id,
+                'reason' => $data['reason'],
+                'promised_payment_date' => $data['promised_payment_date'],
+                'status' => InvoicePaymentDelayRequest::STATUS_PENDING,
+            ]);
+        }, 3);
+
+        app(AdminNotificationService::class)->paymentDelayRequested($delayRequest);
+
+        return back()->with('success', 'Đã gửi lý do chậm thanh toán. Ban quản lý sẽ xem xét và phản hồi trên hệ thống.');
+    }
+
     public function paymentProof(Request $request, Payment $payment): BinaryFileResponse
     {
         $tenantId = $request->user()->tenant?->id;
@@ -212,6 +273,7 @@ class InvoiceController extends Controller
                 'details',
                 'adjustments.creator',
                 'payments' => fn ($query) => $query->latest('payment_date')->latest('id'),
+                'paymentDelayRequests.reviewer',
             ])
             ->findOrFail($invoice);
     }
@@ -222,10 +284,7 @@ class InvoiceController extends Controller
             ->where('status', Payment::STATUS_SUCCESS)
             ->sum('amount_paid');
 
-        $remainingAmount = max(
-            0,
-            $invoice->payable_amount - $paidAmount
-        );
+        $remainingAmount = (float) $invoice->remaining_amount;
 
         $pendingAmount = (float) $invoice->payments
             ->where('status', Payment::STATUS_PENDING)

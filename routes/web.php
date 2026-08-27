@@ -27,7 +27,9 @@ use App\Http\Controllers\Admin\UtilityController;
 // =====================================================
 
 use App\Http\Controllers\Auth\AccountActivationController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\ResetPasswordController;
 // =====================================================
 // CLIENT CONTROLLERS
 // =====================================================
@@ -38,13 +40,13 @@ use App\Http\Controllers\Client\ContractExtensionRequestController as ClientCont
 use App\Http\Controllers\Client\ContractTenantController as ClientContractTenantController;
 use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
-use App\Http\Controllers\Client\SettlementController as ClientSettlementController;
 use App\Http\Controllers\Client\DepositRefundController as ClientDepositRefundController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\LandlordInformationController as ClientLandlordInformationController;
 use App\Http\Controllers\Client\NotificationController as ClientNotificationController;
 use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\RoomController as ClientRoomController;
+use App\Http\Controllers\Client\SettlementController as ClientSettlementController;
 use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Http\Controllers\Client\VehicleController as ClientVehicleController;
@@ -95,6 +97,26 @@ Route::middleware('guest')->group(function () {
         LoginController::class,
         'login',
     ]);
+
+    Route::get('/forgot-password', [
+        ForgotPasswordController::class,
+        'showLinkRequestForm',
+    ])->name('password.request');
+
+    Route::post('/forgot-password', [
+        ForgotPasswordController::class,
+        'sendResetLink',
+    ])->middleware('throttle:5,1')->name('password.email');
+
+    Route::get('/reset-password/{token}', [
+        ResetPasswordController::class,
+        'showResetForm',
+    ])->name('password.reset');
+
+    Route::post('/reset-password', [
+        ResetPasswordController::class,
+        'reset',
+    ])->name('password.update');
 });
 
 // =====================================================
@@ -509,6 +531,12 @@ Route::middleware('auth')->group(function () {
 
                 Route::post('debts/{invoice}/reminders', [DebtController::class, 'storeReminder'])
                     ->name('debts.reminders.store');
+
+                Route::post('payment-delay-requests/{delayRequest}/approve', [DebtController::class, 'approveDelayRequest'])
+                    ->name('payment-delay-requests.approve');
+
+                Route::post('payment-delay-requests/{delayRequest}/reject', [DebtController::class, 'rejectDelayRequest'])
+                    ->name('payment-delay-requests.reject');
 
                 Route::get(
                     'invoices/generate',
@@ -931,6 +959,11 @@ Route::middleware('auth')->group(function () {
                     [ClientInvoiceController::class, 'storePayment']
                 )->name('invoices.payments.store');
 
+                Route::post(
+                    '/invoices/{invoice}/payment-delay-request',
+                    [ClientInvoiceController::class, 'storePaymentDelayRequest']
+                )->name('invoices.payment-delay-request.store');
+
                 Route::get(
                     '/payments/{payment}/proof',
                     [ClientInvoiceController::class, 'paymentProof']
@@ -983,6 +1016,12 @@ Route::middleware('auth')->group(function () {
                     '/contracts/{contract}/file',
                     [ClientContractController::class, 'file']
                 )->name('contracts.file');
+
+                Route::get(
+                    '/contracts/{contract}/handover-meter/{type}',
+                    [ClientContractController::class, 'handoverMeterImage']
+                )->whereIn('type', ['electricity', 'water'])
+                    ->name('contracts.handover-meter-image');
 
                 Route::get('/contracts/{contract}/checkout-photos/{index}', [ClientContractController::class, 'checkoutPhoto'])
                     ->whereNumber('index')->name('contracts.checkout-photos.show');

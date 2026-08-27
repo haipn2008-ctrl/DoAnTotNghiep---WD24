@@ -8,6 +8,7 @@
         'unpaid' => ['text' => 'Chưa thanh toán', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
         'partial' => ['text' => 'Thanh toán một phần', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200', 'dot' => 'bg-sky-500'],
         'paid' => ['text' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
+        'written_off' => ['text' => 'Đã xóa nợ theo quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200', 'dot' => 'bg-violet-500'],
         'cancelled' => ['text' => 'Đã hủy', 'class' => 'bg-slate-100 text-slate-700 ring-slate-300', 'dot' => 'bg-slate-500'],
     ];
     $statusData = $statusMap[$invoice->status] ?? ['text' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'];
@@ -183,8 +184,9 @@
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Điều chỉnh</span><span class="font-semibold {{ $invoice->adjustment_amount < 0 ? 'text-emerald-700' : 'text-amber-700' }}">{{ $invoice->adjustment_amount > 0 ? '+' : '' }}{{ number_format($invoice->adjustment_amount, 0, ',', '.') }}đ</span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Phải thu</span><span class="font-semibold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Đã thu</span><span class="font-semibold text-sky-700">{{ number_format($paidAmount, 0, ',', '.') }}đ</span></div>
+                    @if($invoice->status === \App\Models\Invoice::STATUS_WRITTEN_OFF)<div class="flex justify-between gap-4"><span class="text-slate-500">Đã xóa nợ theo quyết toán</span><span class="font-semibold text-violet-700">{{ number_format(max(0, $invoice->payable_amount - $paidAmount), 0, ',', '.') }}đ</span></div>@endif
                     @if($pendingAmount > 0)<div class="flex justify-between gap-4"><span class="text-slate-500">Đang chờ duyệt</span><span class="font-semibold text-amber-700">{{ number_format($pendingAmount, 0, ',', '.') }}đ</span></div>@endif
-                    <div class="flex justify-between gap-4"><span class="text-slate-500">Còn lại</span><span class="font-semibold text-rose-700">{{ number_format($remainingAmount, 0, ',', '.') }}đ</span></div>
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Còn lại</span><span class="font-semibold {{ $remainingAmount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format($remainingAmount, 0, ',', '.') }}đ</span></div>
                     @if($invoice->overpaid_amount > 0)<div class="flex justify-between gap-4"><span class="text-slate-500">Thu thừa cần đối soát</span><span class="font-semibold text-violet-700">{{ number_format($invoice->overpaid_amount, 0, ',', '.') }}đ</span></div>@endif
                 </div>
 

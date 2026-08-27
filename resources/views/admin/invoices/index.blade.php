@@ -8,6 +8,7 @@
         'unpaid' => ['text' => 'Chưa thanh toán', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
         'partial' => ['text' => 'Thanh toán một phần', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200', 'dot' => 'bg-sky-500'],
         'paid' => ['text' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
+        'written_off' => ['text' => 'Đã xóa nợ theo quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200', 'dot' => 'bg-violet-500'],
         'cancelled' => ['text' => 'Đã hủy', 'class' => 'bg-slate-100 text-slate-700 ring-slate-300', 'dot' => 'bg-slate-500'],
     ];
 @endphp
@@ -132,7 +133,12 @@
                                     <p class="mt-1 text-xs text-slate-500">{{ $invoice->contract->contract_code ?? '' }}</p>
                                 </td>
                                 <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</td>
-                                <td class="px-5 py-4 text-right text-slate-600">{{ number_format($paidAmount, 0, ',', '.') }}đ</td>
+                                <td class="px-5 py-4 text-right text-slate-600">
+                                    <p>{{ number_format($paidAmount, 0, ',', '.') }}đ</p>
+                                    @if($invoice->status === \App\Models\Invoice::STATUS_WRITTEN_OFF)
+                                        <p class="mt-1 text-xs font-semibold text-violet-700">Xóa nợ: {{ number_format(max(0, $invoice->payable_amount - $paidAmount), 0, ',', '.') }}đ</p>
+                                    @endif
+                                </td>
                                 <td class="px-5 py-4">
                                     <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $statusData['class'] }}">
                                         <span class="h-1.5 w-1.5 rounded-full {{ $statusData['dot'] }}"></span>

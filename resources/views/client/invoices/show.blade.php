@@ -8,11 +8,15 @@
         'unpaid' => ['label' => 'Chưa thanh toán', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
         'partial' => ['label' => 'Thanh toán một phần', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200'],
         'paid' => ['label' => 'Đã thanh toán', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+        'written_off' => ['label' => 'Đã xóa nợ theo quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200'],
         'cancelled' => ['label' => 'Đã hủy', 'class' => 'bg-slate-100 text-slate-700 ring-slate-300'],
     ];
     $status = $statuses[$invoice->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'];
     $methodLabels = ['cash' => 'Tiền mặt', 'bank_transfer' => 'Chuyển khoản', 'qr' => 'QR'];
     $paymentStatuses = ['pending' => 'Chờ xác nhận', 'success' => 'Thành công', 'failed' => 'Từ chối'];
+    $pendingDelayRequest = $invoice->paymentDelayRequests->firstWhere('status', \App\Models\InvoicePaymentDelayRequest::STATUS_PENDING);
+    $rejectedDelayRequest = $invoice->paymentDelayRequests->firstWhere('status', \App\Models\InvoicePaymentDelayRequest::STATUS_REJECTED);
+    $canRequestDelay = $invoice->isOverdue() && $remainingAmount > $pendingAmount && !$pendingDelayRequest && !$rejectedDelayRequest;
 @endphp
 
 @section('content')
@@ -37,7 +41,7 @@
 
         <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-                <div><h3 class="font-semibold text-slate-950">Các khoản cần thanh toán</h3><p class="mt-1 text-sm text-slate-500">Hạn thanh toán {{ $invoice->due_date?->format('d/m/Y') }}</p></div>
+                <div><h3 class="font-semibold text-slate-950">Các khoản cần thanh toán</h3><p class="mt-1 text-sm text-slate-500">Hạn thanh toán {{ $invoice->effective_due_date?->format('d/m/Y') }}@if($invoice->payment_extension_until) · Hạn gốc {{ $invoice->due_date?->format('d/m/Y') }}@endif</p></div>
                 <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span>
             </div>
             <div class="overflow-x-auto">
@@ -55,6 +59,49 @@
                 </table>
             </div>
         </section>
+
+        @if ($invoice->isOverdue() && $remainingAmount > 0)
+            <section class="rounded-lg border {{ $rejectedDelayRequest ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50' }} p-5 shadow-sm">
+                <h3 class="font-bold {{ $rejectedDelayRequest ? 'text-rose-900' : 'text-amber-900' }}">Hóa đơn đã quá hạn thanh toán</h3>
+                <p class="mt-2 text-sm leading-6 {{ $rejectedDelayRequest ? 'text-rose-800' : 'text-amber-800' }}">Bạn vẫn có thể gửi thanh toán ngay. Nếu chưa thể thanh toán, hãy cung cấp lý do và ngày dự kiến thanh toán để ban quản lý xem xét.</p>
+
+                @if ($pendingDelayRequest)
+                    <div class="mt-4 rounded-lg border border-amber-200 bg-white p-4 text-sm text-slate-700">
+                        <p class="font-semibold text-slate-900">Lý do đang chờ duyệt</p>
+                        <p class="mt-2">{{ $pendingDelayRequest->reason }}</p>
+                        <p class="mt-2 text-slate-500">Dự kiến thanh toán: {{ $pendingDelayRequest->promised_payment_date->format('d/m/Y') }}</p>
+                    </div>
+                @elseif ($rejectedDelayRequest)
+                    <div class="mt-4 rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-800">
+                        <p class="font-semibold">Ban quản lý đã từ chối lý do chậm thanh toán.</p>
+                        <p class="mt-2">{{ $rejectedDelayRequest->review_note }}</p>
+                        <p class="mt-2 font-medium">Vui lòng thanh toán ngay hoặc liên hệ ban quản lý để tránh chuyển sang quy trình chấm dứt hợp đồng.</p>
+                    </div>
+                @elseif ($canRequestDelay)
+                    <form method="POST" action="{{ route('client.invoices.payment-delay-request.store', $invoice) }}" class="mt-4 grid gap-4 rounded-lg border border-amber-200 bg-white p-4 sm:grid-cols-2">
+                        @csrf
+                        <label class="sm:col-span-2 text-sm font-semibold text-slate-700">Lý do chậm thanh toán
+                            <textarea name="reason" rows="4" minlength="10" maxlength="2000" required class="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 font-normal" placeholder="Trình bày cụ thể lý do chưa thể thanh toán đúng hạn">{{ old('reason') }}</textarea>
+                        </label>
+                        <label class="text-sm font-semibold text-slate-700">Ngày dự kiến thanh toán
+                            <input type="date" name="promised_payment_date" min="{{ today()->addDay()->toDateString() }}" value="{{ old('promised_payment_date') }}" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 font-normal">
+                        </label>
+                        <div class="flex items-end"><button class="h-11 w-full rounded-lg bg-amber-600 px-5 text-sm font-semibold text-white hover:bg-amber-700">Gửi lý do cho ban quản lý</button></div>
+                    </form>
+                @endif
+            </section>
+        @endif
+
+        @if ($invoice->paymentDelayRequests->isNotEmpty())
+            <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Lịch sử xin chậm thanh toán</h3></div>
+                <div class="divide-y divide-slate-100">
+                    @foreach ($invoice->paymentDelayRequests as $delayRequest)
+                        <article class="p-5 text-sm"><div class="flex flex-wrap justify-between gap-2"><p class="font-semibold text-slate-900">Dự kiến {{ $delayRequest->promised_payment_date->format('d/m/Y') }}</p><span class="font-semibold {{ $delayRequest->status === 'approved' ? 'text-emerald-700' : ($delayRequest->status === 'rejected' ? 'text-rose-700' : 'text-amber-700') }}">{{ ['pending'=>'Chờ duyệt','approved'=>'Đã chấp nhận','rejected'=>'Đã từ chối'][$delayRequest->status] ?? $delayRequest->status }}</span></div><p class="mt-2 text-slate-600">{{ $delayRequest->reason }}</p>@if($delayRequest->review_note)<p class="mt-2 rounded-lg bg-slate-50 p-3 text-slate-700">Phản hồi: {{ $delayRequest->review_note }}</p>@endif</article>
+                    @endforeach
+                </div>
+            </section>
+        @endif
 
         @if ($remainingAmount > 0 && $invoice->canPay())
             <section class="grid gap-5 rounded-lg border border-indigo-200 bg-white p-5 shadow-sm lg:grid-cols-[320px_1fr]">

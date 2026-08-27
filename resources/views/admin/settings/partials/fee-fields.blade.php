@@ -37,6 +37,7 @@
         <div>
             <label for="payment_due_days" class="mb-1.5 block text-sm font-semibold text-slate-700">Số ngày được thanh toán <span class="font-normal text-slate-400">(1–90 ngày)</span></label>
             <input id="payment_due_days" type="number" min="1" max="90" name="payment_due_days" value="{{ old('payment_due_days', $setting->payment_due_days) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+            <p class="mt-1 text-xs text-slate-500">Mặc định 5 ngày: phát hành ngày 05 thì hạn thanh toán là ngày 10.</p>
             @error('payment_due_days')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror
         </div>
     </div>
