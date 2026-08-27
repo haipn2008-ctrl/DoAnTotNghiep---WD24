@@ -3,13 +3,13 @@
         [
             'label' => 'Tổng quan',
             'icon' => 'bx bx-home-alt',
-            'active' => request()->routeIs('admin.overview*') || request()->routeIs('admin.reconciliation*') || request()->routeIs('admin.home'),
+            'active' => request()->routeIs('admin.overview*') || request()->routeIs('admin.reconciliation*') || request()->routeIs('admin.home') || request()->routeIs('admin.profit-loss*') || request()->routeIs('admin.expenses*'),
             'items' => [
                 ['label' => 'Bảng điều khiển', 'route' => 'admin.home', 'active' => request()->routeIs('admin.home')],
+                ['label' => 'Thu - Chi & Lợi nhuận', 'route' => 'admin.profit-loss.index', 'active' => request()->routeIs('admin.profit-loss*') || request()->routeIs('admin.overview.profit-loss*')],
+                ['label' => 'Quản lý chi phí', 'route' => 'admin.expenses.index', 'active' => request()->routeIs('admin.expenses*')],
                 ['label' => 'Phân tích doanh thu', 'route' => 'admin.overview.revenue-chart', 'active' => request()->routeIs('admin.overview.revenue-chart')],
                 ['label' => 'Đối soát thu tiền', 'route' => 'admin.reconciliation.index', 'active' => request()->routeIs('admin.reconciliation*')],
-                ['label' => 'Thống kê phòng', 'route' => 'admin.overview.room-stats', 'active' => request()->routeIs('admin.overview.room-stats')],
-                ['label' => 'Tỷ lệ lấp đầy', 'route' => 'admin.overview.fill-rate', 'active' => request()->routeIs('admin.overview.fill-rate')],
             ],
         ],
         [
