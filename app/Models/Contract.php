@@ -156,6 +156,14 @@ class Contract extends Model
 
         'deposit_amount',
 
+        'electric_price_snapshot',
+
+        'water_price_snapshot',
+
+        'internet_fee_snapshot',
+
+        'service_fee_snapshot',
+
         'deposit_status',
 
         'deposit_paid_at',
@@ -242,6 +250,12 @@ class Contract extends Model
 
         'contract_content',
 
+        'contract_template_id',
+
+        'contract_content_snapshotted_at',
+
+        'contract_content_sha256',
+
         'note',
     ];
 
@@ -253,6 +267,8 @@ class Contract extends Model
 
     protected $casts = [
         'signed_at' => 'datetime',
+
+        'contract_content_snapshotted_at' => 'datetime',
 
         'signature_due_at' => 'datetime',
 
@@ -330,12 +346,30 @@ class Contract extends Model
 
         'deposit_amount' => 'decimal:2',
 
+        'electric_price_snapshot' => 'decimal:2',
+
+        'water_price_snapshot' => 'decimal:2',
+
+        'internet_fee_snapshot' => 'decimal:2',
+
+        'service_fee_snapshot' => 'decimal:2',
+
         'deposit_refund_amount' => 'decimal:2',
 
         'deposit_deduction_amount' => 'decimal:2',
 
         'deposit_transfer_amount' => 'decimal:2',
     ];
+
+    public function template()
+    {
+        return $this->belongsTo(ContractTemplate::class, 'contract_template_id');
+    }
+
+    public function appendices()
+    {
+        return $this->hasMany(ContractAppendix::class)->orderByDesc('appendix_number')->orderByDesc('revision');
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -345,11 +379,34 @@ class Contract extends Model
 
     protected static function booted(): void
     {
+        static::updating(function (Contract $contract): void {
+            if ($contract->getOriginal('contract_content_snapshotted_at')
+                && $contract->isDirty([
+                    'contract_content',
+                    'contract_template_id',
+                    'contract_content_snapshotted_at',
+                    'contract_content_sha256',
+                    'electric_price_snapshot',
+                    'water_price_snapshot',
+                    'internet_fee_snapshot',
+                    'service_fee_snapshot',
+                ])) {
+                throw new LogicException('Nội dung hợp đồng đã ký đã được đóng băng và không thể sửa trực tiếp.');
+            }
+        });
+
         static::deleting(function (): never {
             throw new LogicException(
                 'Không được xóa hợp đồng. Hãy dùng hành động hủy để giữ lịch sử.'
             );
         });
+    }
+
+    public function hasValidContentSnapshot(): bool
+    {
+        return filled($this->contract_content)
+            && filled($this->contract_content_sha256)
+            && hash_equals($this->contract_content_sha256, hash('sha256', $this->contract_content));
     }
 
     /*
@@ -404,6 +461,27 @@ class Contract extends Model
     public function currentMembers()
     {
         return $this->hasMany(ContractTenant::class)->current();
+    }
+
+    public function capacityOccupancyCount(): int
+    {
+        $memberCount = $this->relationLoaded('currentMembers')
+            ? $this->currentMembers->count()
+            : $this->currentMembers()->count();
+        $room = $this->relationLoaded('room') ? $this->room : $this->room()->first();
+
+        return max(
+            $memberCount,
+            (int) $this->number_of_people,
+            (int) ($room?->current_people ?? 0),
+        );
+    }
+
+    public function hasRoomForMembers(int $additional = 1): bool
+    {
+        $room = $this->relationLoaded('room') ? $this->room : $this->room()->first();
+
+        return $room && $this->capacityOccupancyCount() + $additional <= (int) $room->max_people;
     }
 
     // Người xác nhận nhận phòng

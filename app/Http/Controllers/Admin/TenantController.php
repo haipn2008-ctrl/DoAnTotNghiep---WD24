@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\TenantRequest;
 use App\Models\Contract;
 use App\Models\ContractTenant;
+use App\Models\Invoice;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -33,7 +34,7 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting'])],
+            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting', 'archived'])],
         ]);
 
         $search = trim($validated['search'] ?? '');
@@ -97,7 +98,7 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting'])],
+            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting', 'archived'])],
         ]);
 
         $search = trim($validated['search'] ?? '');
@@ -280,7 +281,7 @@ class TenantController extends Controller
             });
         } catch (QueryException $exception) {
             if ($tenant?->exists) {
-                $tenant->delete();
+                Tenant::query()->whereKey($tenant->id)->delete();
             }
 
             $this->throwConflictOrRethrow($exception);
@@ -348,6 +349,8 @@ class TenantController extends Controller
         TenantRequest $request,
         Tenant $tenant
     ) {
+        abort_if($tenant->status === Tenant::STATUS_ARCHIVED, 409, 'Hồ sơ khách thuê đã lưu trữ không thể chỉnh sửa.');
+
         try {
             DB::transaction(function () use (
                 $request,
@@ -382,6 +385,8 @@ class TenantController extends Controller
         AdminNotificationService $notifications,
         VehicleCapacityService $capacity,
     ) {
+        abort_if(in_array($vehicle->status, [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED], true), 409, 'Phương tiện đã được lưu vào lịch sử và không thể duyệt lại.');
+
         $data = $request->validate([
             'status' => ['required', Rule::in([Vehicle::STATUS_APPROVED, Vehicle::STATUS_REJECTED])],
             'review_note' => ['nullable', 'required_if:status,'.Vehicle::STATUS_REJECTED, 'string', 'max:500'],
@@ -435,50 +440,58 @@ class TenantController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function destroy(Tenant $tenant)
+    public function destroy(Request $request, Tenant $tenant)
     {
-        try {
-            $deleted = DB::transaction(
-                function () use ($tenant): bool {
-                    $tenant = Tenant::lockForUpdate()
-                        ->findOrFail($tenant->id);
+        $data = $request->validate([
+            'archive_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
 
-                    if (
-                        $tenant->contracts()->exists()
-                        || $tenant->memberContracts()->exists()
-                    ) {
-                        return false;
-                    }
+        $hasOpenContract = $tenant->contracts()
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)->exists()
+            || $tenant->memberContracts()
+                ->whereIn('contracts.status', Contract::OPEN_OCCUPANCY_STATUSES)
+                ->where('contract_tenants.status', ContractTenant::STATUS_CHECKED_IN)
+                ->exists();
+        $hasOutstandingInvoice = Invoice::query()
+            ->whereHas('contract', fn ($query) => $query->where('tenant_id', $tenant->id))
+            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+            ->exists();
 
-                    $tenant->delete();
-
-                    return true;
-                }
-            );
-        } catch (QueryException $exception) {
-            if (
-                ! in_array(
-                    (string) $exception->getCode(),
-                    ['19', '23000'],
-                    true
-                )
-            ) {
-                throw $exception;
-            }
-
-            $deleted = false;
-        }
-
-        if (! $deleted) {
+        if ($hasOpenContract || $hasOutstandingInvoice) {
             return back()->with(
                 'error',
-                'Không thể xóa khách thuê vì khách đã có hợp đồng.'
+                'Không thể lưu trữ khách thuê đang có hợp đồng hoặc công nợ chưa hoàn tất.'
             );
         }
+
+        if ($tenant->status === Tenant::STATUS_ARCHIVED) {
+            return back()->with('error', 'Hồ sơ khách thuê đã được lưu trữ trước đó.');
+        }
+
+        DB::transaction(function () use ($tenant, $request, $data): void {
+            $lockedTenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($tenant->id);
+            $lockedTenant->forceFill([
+                'status' => Tenant::STATUS_ARCHIVED,
+                'archived_at' => now(),
+                'archived_by' => $request->user()->id,
+                'archive_reason' => $data['archive_reason'],
+            ])->save();
+
+            if ($lockedTenant->user && $lockedTenant->user->status !== User::STATUS_INACTIVE) {
+                $lockedTenant->user->forceFill([
+                    'status' => User::STATUS_INACTIVE,
+                    'deactivated_at' => now(),
+                    'deactivated_by' => $request->user()->id,
+                    'deactivation_reason' => 'Hồ sơ khách thuê đã được lưu trữ: '.$data['archive_reason'],
+                    'remember_token' => null,
+                ])->save();
+                DB::table('sessions')->where('user_id', $lockedTenant->user->id)->delete();
+            }
+        }, 3);
 
         return back()->with(
             'success',
-            'Xóa khách thuê thành công.'
+            'Đã lưu trữ khách thuê và giữ nguyên hồ sơ, giấy tờ cùng lịch sử liên quan.'
         );
     }
 
@@ -556,6 +569,14 @@ class TenantController extends Controller
         string $search,
         string $status
     ): void {
+        if ($status === 'archived') {
+            $query->where('status', Tenant::STATUS_ARCHIVED);
+
+            return;
+        }
+
+        $query->where('status', Tenant::STATUS_ACTIVE);
+
         $query->when(
             $search,
             function ($query, $search): void {

@@ -132,7 +132,7 @@
                                         <td class="px-5 py-4">
                                             <div class="flex min-w-52 flex-col gap-2">
                                                 @if($payment->proof_image)
-                                                    <a href="{{ route('admin.invoices.payments.proof', $payment) }}" target="_blank" rel="noopener" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                                                    <a href="{{ route('admin.invoices.payments.proof', $payment) }}" data-image-modal data-image-title="Biên lai thanh toán {{ $invoice->invoice_code }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
                                                         <i class="bx bx-image-alt text-base"></i>
                                                         Xem biên lai
                                                     </a>

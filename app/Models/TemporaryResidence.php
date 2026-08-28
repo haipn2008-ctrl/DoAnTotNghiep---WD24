@@ -7,6 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class TemporaryResidence extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa hồ sơ tạm trú. Hãy hủy hồ sơ để giữ lịch sử.');
+        });
+    }
+
     use HasFactory;
 
     protected $fillable = [

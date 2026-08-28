@@ -77,7 +77,7 @@
                     @endif
 
                     @if($vehicle->vehicle_image)
-                        <a href="{{ route('client.vehicles.image', $vehicle) }}" target="_blank" rel="noopener" class="mt-4 inline-block">
+                        <a href="{{ route('client.vehicles.image', $vehicle) }}" data-image-modal data-image-title="Ảnh phương tiện {{ $vehicle->vehicle_name ?: '' }}" class="mt-4 inline-block">
                             <img src="{{ route('client.vehicles.image', $vehicle) }}" alt="Ảnh {{ $vehicle->vehicle_name ?: 'phương tiện' }}" class="h-36 w-52 rounded-lg object-cover ring-1 ring-slate-200">
                         </a>
                     @endif
@@ -109,13 +109,14 @@
                             </div>
                         </form>
                     @endif
-                    <form method="POST" action="{{ route('client.vehicles.destroy', $vehicle) }}" class="mt-3 text-right">
+                    <form method="POST" action="{{ route('client.vehicles.destroy', $vehicle) }}" class="mt-3 text-right" onsubmit="const reason = prompt('Nhập lý do hủy/gỡ phương tiện (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.removal_reason.value = reason.trim(); return true;">
                         @csrf
                         @method('DELETE')
+                        <input type="hidden" name="removal_reason">
                         @if($vehicle->status === \App\Models\Vehicle::STATUS_PENDING)
-                            <button class="rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50" onclick="return confirm('Hủy yêu cầu đăng ký phương tiện này?')">Hủy yêu cầu</button>
+                            <button class="rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50">Hủy yêu cầu</button>
                         @else
-                            <button class="text-sm font-semibold text-rose-600" onclick="return confirm('Gỡ phương tiện này?')">{{ $vehicle->status === \App\Models\Vehicle::STATUS_APPROVED ? 'Gỡ phương tiện' : 'Xóa yêu cầu' }}</button>
+                            <button class="text-sm font-semibold text-rose-600">{{ $vehicle->status === \App\Models\Vehicle::STATUS_APPROVED ? 'Gỡ phương tiện' : 'Hủy yêu cầu' }}</button>
                         @endif
                     </form>
                 </article>

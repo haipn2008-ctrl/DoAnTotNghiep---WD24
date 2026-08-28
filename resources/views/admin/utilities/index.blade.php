@@ -124,7 +124,7 @@
                                 <td class="px-5 py-4 text-center font-semibold text-indigo-700">{{ $item->electricity_new }}</td>
                                 <td class="px-5 py-4 text-center">
                                     @if ($item->meterImageExists('electricity'))
-                                        <a href="{{ route('admin.utilities.image', [$item, 'electricity']) }}" target="_blank">
+                                        <a href="{{ route('admin.utilities.image', [$item, 'electricity']) }}" data-image-modal data-image-title="Ảnh đồng hồ điện">
                                             <img src="{{ route('admin.utilities.image', [$item, 'electricity']) }}" alt="Ảnh đồng hồ điện" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
                                         </a>
                                     @else
@@ -137,7 +137,7 @@
                                 <td class="px-5 py-4 text-center font-semibold text-sky-700">{{ $item->water_new }}</td>
                                 <td class="px-5 py-4 text-center">
                                     @if ($item->meterImageExists('water'))
-                                        <a href="{{ route('admin.utilities.image', [$item, 'water']) }}" target="_blank">
+                                        <a href="{{ route('admin.utilities.image', [$item, 'water']) }}" data-image-modal data-image-title="Ảnh đồng hồ nước">
                                             <img src="{{ route('admin.utilities.image', [$item, 'water']) }}" alt="Ảnh đồng hồ nước" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
                                         </a>
                                     @else

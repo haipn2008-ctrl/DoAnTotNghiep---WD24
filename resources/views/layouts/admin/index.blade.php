@@ -49,6 +49,8 @@
         </div>
     </div>
 
+    <x-image-modal />
+
     <script src="{{ asset('assets/libs/apexcharts/apexcharts.min.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

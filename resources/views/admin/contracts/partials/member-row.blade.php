@@ -84,7 +84,7 @@
                         <div class="mb-2 flex items-center justify-between gap-2">
                             <label class="text-xs font-semibold text-slate-700">{{ $identityImage['label'] }} *</label>
                             @if($identityImage['path'] && !empty($member['id']))
-                                <a target="_blank" href="{{ route('admin.contract-tenants.identity-document', [$member['id'], $identityImage['side']]) }}" class="text-xs font-semibold text-indigo-700 hover:text-indigo-900">Xem ảnh gốc</a>
+                                <a data-image-modal data-image-title="{{ $identityImage['label'] }}" href="{{ route('admin.contract-tenants.identity-document', [$member['id'], $identityImage['side']]) }}" class="text-xs font-semibold text-indigo-700 hover:text-indigo-900">Xem ảnh gốc</a>
                             @endif
                         </div>
                         <div class="mb-3 flex h-32 items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-white">

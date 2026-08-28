@@ -122,8 +122,8 @@
 
                     @if($member->identity_front_path && $member->identity_back_path)
                         <div class="mt-4 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-                            <a target="_blank" href="{{ route('admin.contract-tenants.identity-document', [$member, 'front']) }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-slate-50"><i class="bx bx-id-card"></i> CCCD mặt trước</a>
-                            <a target="_blank" href="{{ route('admin.contract-tenants.identity-document', [$member, 'back']) }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-slate-50"><i class="bx bx-id-card"></i> CCCD mặt sau</a>
+                            <a data-image-modal data-image-title="CCCD mặt trước - {{ $member->full_name }}" href="{{ route('admin.contract-tenants.identity-document', [$member, 'front']) }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-slate-50"><i class="bx bx-id-card"></i> CCCD mặt trước</a>
+                            <a data-image-modal data-image-title="CCCD mặt sau - {{ $member->full_name }}" href="{{ route('admin.contract-tenants.identity-document', [$member, 'back']) }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-slate-50"><i class="bx bx-id-card"></i> CCCD mặt sau</a>
                         </div>
                     @endif
                 </article>

@@ -62,7 +62,7 @@
                     <select id="tenant_id" name="tenant_id" data-contract-representative class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         <option value="">Chọn người đại diện</option>
                         @foreach ($tenants as $tenant)
-                            <option value="{{ $tenant->id }}" data-full-name="{{ $tenant->full_name }}" data-phone="{{ $tenant->phone }}" data-date-of-birth="{{ $tenant->date_of_birth?->toDateString() }}" data-gender="{{ $tenant->gender }}" data-cccd="{{ $tenant->cccd }}" data-address="{{ $tenant->address }}" @selected((string) old('tenant_id') === (string) $tenant->id)>
+                            <option value="{{ $tenant->id }}" data-full-name="{{ $tenant->full_name }}" data-phone="{{ $tenant->phone }}" data-date-of-birth="{{ $tenant->date_of_birth?->toDateString() }}" data-gender="{{ $tenant->gender }}" data-cccd="{{ $tenant->cccd }}" data-address="{{ $tenant->address }}" data-identity-front-url="{{ $tenant->document?->hasImage('front') ? route('admin.tenants.identity-document', [$tenant, 'front']) : '' }}" data-identity-back-url="{{ $tenant->document?->hasImage('back') ? route('admin.tenants.identity-document', [$tenant, 'back']) : '' }}" @selected((string) old('tenant_id') === (string) $tenant->id)>
                                 {{ $tenant->full_name }} — {{ $tenant->user?->email }}{{ $tenant->cccd ? '' : ' (cần bổ sung CCCD)' }}
                             </option>
                         @endforeach

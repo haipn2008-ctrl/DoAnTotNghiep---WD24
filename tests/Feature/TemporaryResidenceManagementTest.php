@@ -95,7 +95,7 @@ class TemporaryResidenceManagementTest extends TestCase
         $this->get(route('admin.temporary_residences.edit', $this->temporaryResidence))
             ->assertSessionHasErrors('temporary_residence');
 
-        $this->delete(route('admin.temporary_residences.destroy', $this->temporaryResidence))
+        $this->patch(route('admin.temporary_residences.cancel', $this->temporaryResidence))
             ->assertSessionHasErrors('temporary_residence');
 
         $this->post(route('admin.temporary_residences.sign', $this->temporaryResidence), [
@@ -117,8 +117,8 @@ class TemporaryResidenceManagementTest extends TestCase
             'signed_at' => null,
         ]);
 
-        $this->actingAs($this->admin)->delete(
-            route('admin.temporary_residences.destroy', $this->temporaryResidence),
+        $this->actingAs($this->admin)->patch(
+            route('admin.temporary_residences.cancel', $this->temporaryResidence),
             ['cancellation_reason' => 'Khách khai báo sai hồ sơ ban đầu.']
         )->assertRedirect(route('admin.temporary_residences.index'))
             ->assertSessionHasNoErrors();
@@ -131,7 +131,7 @@ class TemporaryResidenceManagementTest extends TestCase
         ]);
         $this->assertNotNull($this->temporaryResidence->fresh()->cancelled_at);
 
-        $this->delete(route('admin.temporary_residences.destroy', $this->temporaryResidence), [
+        $this->patch(route('admin.temporary_residences.cancel', $this->temporaryResidence), [
             'cancellation_reason' => 'Thử hủy hồ sơ thêm một lần nữa.',
         ])->assertSessionHasErrors('temporary_residence');
     }

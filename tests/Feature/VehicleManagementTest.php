@@ -212,8 +212,11 @@ class VehicleManagementTest extends TestCase
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $currentImage = $vehicle->vehicle_image;
-        $this->actingAs($this->client)->delete(route('client.vehicles.destroy', $vehicle))->assertRedirect();
-        Storage::disk('local')->assertMissing($currentImage);
+        $this->actingAs($this->client)->delete(route('client.vehicles.destroy', $vehicle), [
+            'removal_reason' => 'Không còn gửi phương tiện này trong nhà trọ.',
+        ])->assertRedirect();
+        Storage::disk('local')->assertExists($currentImage);
+        $this->assertDatabaseHas('vehicles', ['id' => $vehicle->id, 'status' => Vehicle::STATUS_REMOVED]);
 
         $removedAlert = ContractLifecycleAlert::query()->where('type', 'vehicle_removed')->sole();
         $this->assertSame($this->tenant->id, $removedAlert->tenant_id);
@@ -231,11 +234,13 @@ class VehicleManagementTest extends TestCase
         $vehicle = $this->tenant->vehicles()->sole();
         $reviewAlert = ContractLifecycleAlert::query()->where('type', 'vehicle_review')->sole();
 
-        $this->delete(route('client.vehicles.destroy', $vehicle))
+        $this->delete(route('client.vehicles.destroy', $vehicle), [
+            'removal_reason' => 'Thông tin đăng ký ban đầu chưa chính xác.',
+        ])
             ->assertRedirect()
-            ->assertSessionHas('success', 'Đã hủy yêu cầu. Bạn có thể đăng ký lại phương tiện từ đầu.');
+            ->assertSessionHas('success');
 
-        $this->assertDatabaseMissing('vehicles', ['id' => $vehicle->id]);
+        $this->assertDatabaseHas('vehicles', ['id' => $vehicle->id, 'status' => Vehicle::STATUS_CANCELLED]);
         $this->assertNotNull($reviewAlert->fresh()->resolved_at);
         $this->assertDatabaseMissing('contract_lifecycle_alerts', ['type' => 'vehicle_removed']);
 

@@ -13,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 
 class InvoiceGenerator
 {
+    public function __construct(private readonly ContractRateResolver $pricing) {}
+
     public function preview(Contract $contract, int $month, int $year, ?FeeSchedule $lockedFeeSchedule = null): array
     {
         $contract->loadMissing(['room', 'tenant']);
@@ -52,7 +54,7 @@ class InvoiceGenerator
 
         $setting = Setting::currentOrCreate();
         $feeSchedule = $lockedFeeSchedule ?? FeeSchedule::forPeriod($servicePeriod);
-        $rates = $feeSchedule ?? $setting;
+        $rates = $this->pricing->forPeriod($contract, $servicePeriod, $feeSchedule ?? $setting);
 
         // Thu tiền phòng, điện, nước và dịch vụ của tháng trước theo lịch đã cấu hình.
         $invoiceDateCarbon = $billingPeriod->copy();

@@ -95,7 +95,7 @@
                 Ảnh đồng hồ điện
                 <input type="file" name="handover_electricity_image" accept="image/jpeg,image/png,image/webp" capture="environment" @required(! $handoverReading?->meterImageExists('electricity')) class="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">
                 @if($handoverReading?->meterImageExists('electricity'))
-                    <a href="{{ route('admin.utilities.image', [$handoverReading, 'electricity']) }}" target="_blank" class="mt-1.5 inline-block text-xs font-semibold text-indigo-700">Xem ảnh hiện tại</a>
+                    <a href="{{ route('admin.utilities.image', [$handoverReading, 'electricity']) }}" data-image-modal data-image-title="Ảnh đồng hồ điện" class="mt-1.5 inline-block text-xs font-semibold text-indigo-700">Xem ảnh hiện tại</a>
                 @endif
                 @error('handover_electricity_image')<span class="mt-1 block text-xs text-rose-600">{{ $message }}</span>@enderror
             </label>
@@ -103,7 +103,7 @@
                 Ảnh đồng hồ nước
                 <input type="file" name="handover_water_image" accept="image/jpeg,image/png,image/webp" capture="environment" @required(! $handoverReading?->meterImageExists('water')) class="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">
                 @if($handoverReading?->meterImageExists('water'))
-                    <a href="{{ route('admin.utilities.image', [$handoverReading, 'water']) }}" target="_blank" class="mt-1.5 inline-block text-xs font-semibold text-indigo-700">Xem ảnh hiện tại</a>
+                    <a href="{{ route('admin.utilities.image', [$handoverReading, 'water']) }}" data-image-modal data-image-title="Ảnh đồng hồ nước" class="mt-1.5 inline-block text-xs font-semibold text-indigo-700">Xem ảnh hiện tại</a>
                 @endif
                 @error('handover_water_image')<span class="mt-1 block text-xs text-rose-600">{{ $message }}</span>@enderror
             </label>

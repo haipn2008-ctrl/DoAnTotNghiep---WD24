@@ -29,7 +29,7 @@ class ContractController extends Controller
 
     public function show(Request $request, int $contract): View
     {
-        $contract = Contract::with(['room', 'tenant', 'currentMembers.histories', 'currentMembers.tenant.vehicles.tenant', 'handoverItems', 'moveInDetailsConfirmer', 'settlementStatement.items', 'settlementStatement.invoice', 'approvedTerminationRequest'])
+        $contract = Contract::with(['room', 'tenant', 'currentMembers.histories', 'currentMembers.tenant.vehicles.tenant', 'handoverItems', 'moveInDetailsConfirmer', 'settlementStatement.items', 'settlementStatement.invoice', 'approvedTerminationRequest', 'appendices'])
             ->managedBy($request->user())
             ->findOrFail($contract);
         $handoverReading = $contract->utilityReadings()

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Contract;
+use App\Models\ContractAppendix;
 use App\Models\ContractExtensionRequest;
 use App\Models\ContractLifecycleAlert;
 use App\Models\ContractTenant;
@@ -16,6 +17,23 @@ use Illuminate\Support\Str;
 
 class AdminNotificationService
 {
+    public function appendixResponded(ContractAppendix $appendix, bool $accepted): ContractLifecycleAlert
+    {
+        $appendix->loadMissing('contract.tenant', 'contract.room');
+        $contract = $appendix->contract;
+
+        return $this->actionAlert(
+            $contract,
+            'contract_appendix_response',
+            "contract-appendix-response:{$appendix->id}",
+            $accepted ? 'Khách đã chấp nhận phụ lục hợp đồng' : 'Khách từ chối phụ lục hợp đồng',
+            $accepted
+                ? sprintf('%s đã chấp nhận phụ lục %s.', $this->tenantName($contract), $appendix->code)
+                : sprintf('%s từ chối phụ lục %s. Lý do: %s', $this->tenantName($contract), $appendix->code, $appendix->rejection_reason),
+            $appendix,
+        );
+    }
+
     public function extensionRequested(ContractExtensionRequest $request): ContractLifecycleAlert
     {
         $request->loadMissing('contract.tenant', 'contract.room');

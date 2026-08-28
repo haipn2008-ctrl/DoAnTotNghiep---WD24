@@ -65,9 +65,11 @@
                         <td class="px-5 py-4">
                             <div class="flex justify-end gap-2">
                                 <a href="{{ route('admin.tenants.show', $tenant) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" title="Xem chi tiết"><i class="bx bx-show text-lg"></i></a>
-                                <a href="{{ route('admin.tenants.edit', $tenant) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa"><i class="bx bx-edit text-lg"></i></a>
-                                @if ($tenant->contracts->isEmpty() && $tenant->memberContracts->isEmpty())
-                                    <form action="{{ route('admin.tenants.destroy', $tenant) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa khách thuê này?')">@csrf @method('DELETE')<button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Xóa"><i class="bx bx-trash text-lg"></i></button></form>
+                                @if ($tenant->status !== \App\Models\Tenant::STATUS_ARCHIVED)
+                                    <a href="{{ route('admin.tenants.edit', $tenant) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa"><i class="bx bx-edit text-lg"></i></a>
+                                @endif
+                                @if ($tenant->status !== \App\Models\Tenant::STATUS_ARCHIVED && ! $activeContract)
+                                    <form action="{{ route('admin.tenants.destroy', $tenant) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do lưu trữ khách thuê (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.archive_reason.value = reason.trim(); return confirm('Xác nhận lưu trữ hồ sơ? Dữ liệu và giấy tờ sẽ được giữ lại.');">@csrf @method('DELETE')<input type="hidden" name="archive_reason"><button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Lưu trữ"><i class="bx bx-archive text-lg"></i></button></form>
                                 @endif
                             </div>
                         </td>

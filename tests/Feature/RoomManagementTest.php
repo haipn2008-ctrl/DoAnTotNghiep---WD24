@@ -406,6 +406,24 @@ class RoomManagementTest extends TestCase
         $this->delete("/admin/rooms/{$empty->id}")->assertNotFound();
     }
 
+    public function test_historical_room_is_retired_and_excluded_from_operational_use(): void
+    {
+        [$room, $contract] = $this->contract(Contract::STATUS_TERMINATED);
+
+        $this->actingAs($this->admin)->patch(route('admin.rooms.retire', $room), [
+            'retirement_reason' => 'Phòng được chuyển đổi sang mục đích sử dụng khác.',
+        ])->assertRedirect(route('admin.rooms.index'))->assertSessionHas('success');
+
+        $this->assertDatabaseHas('rooms', [
+            'id' => $room->id,
+            'status' => Room::STATUS_RETIRED,
+            'retired_by' => $this->admin->id,
+        ]);
+        $this->assertDatabaseHas('contracts', ['id' => $contract->id, 'room_id' => $room->id]);
+        $this->get(route('admin.rooms.edit', $room))->assertStatus(409);
+        $this->get(route('admin.contracts.create'))->assertDontSee($room->room_code);
+    }
+
     private function payload(array $overrides = []): array
     {
         return array_merge(['room_code' => 'ROOM-NEW', 'floor' => 2, 'price' => 3500000,

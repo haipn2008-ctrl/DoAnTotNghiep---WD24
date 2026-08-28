@@ -13,6 +13,7 @@ use App\Notifications\AccountCreatedNotification;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -157,8 +158,21 @@ class UserController extends Controller
             $data['must_change_password'] = true;
         }
 
+        if ($data['status'] === User::STATUS_INACTIVE && $user->status !== User::STATUS_INACTIVE) {
+            $data['deactivated_at'] = now();
+            $data['deactivated_by'] = $request->user()->id;
+            $data['deactivation_reason'] = 'Ngừng sử dụng từ màn hình cập nhật tài khoản.';
+        } elseif ($data['status'] !== User::STATUS_INACTIVE) {
+            $data['deactivated_at'] = null;
+            $data['deactivated_by'] = null;
+            $data['deactivation_reason'] = null;
+        }
+
         try {
             $user->update($data);
+            if ($data['status'] === User::STATUS_INACTIVE) {
+                DB::table('sessions')->where('user_id', $user->id)->delete();
+            }
         } catch (QueryException $exception) {
             $this->throwEmailConflictOrRethrow($exception);
         }
@@ -168,14 +182,23 @@ class UserController extends Controller
             ->with('success', 'Cập nhật tài khoản thành công.');
     }
 
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
         $this->adminOnly();
 
         if (Auth::id() === $user->id) {
             return redirect()
                 ->route('admin.users.index')
-                ->with('error', 'Không thể xóa chính bạn.');
+                ->with('error', 'Không thể ngừng sử dụng chính tài khoản của bạn.');
+        }
+
+        $data = $request->validate([
+            'deactivation_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        if ($user->status === User::STATUS_INACTIVE) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'Tài khoản đã ngừng sử dụng trước đó.');
         }
 
         $tenant = $user->tenant;
@@ -192,14 +215,25 @@ class UserController extends Controller
         if ($hasOpenContract || $hasOutstandingInvoice) {
             return redirect()
                 ->route('admin.users.index')
-                ->with('error', 'Không thể xóa tài khoản đang có hợp đồng hoặc công nợ chưa hoàn tất.');
+                ->with('error', 'Không thể ngừng tài khoản đang có hợp đồng hoặc công nợ chưa hoàn tất.');
         }
 
-        $user->delete();
+        DB::transaction(function () use ($user, $request, $data): void {
+            $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
+            $lockedUser->forceFill([
+                'status' => User::STATUS_INACTIVE,
+                'deactivated_at' => now(),
+                'deactivated_by' => $request->user()->id,
+                'deactivation_reason' => $data['deactivation_reason'],
+                'remember_token' => null,
+            ])->save();
+
+            DB::table('sessions')->where('user_id', $lockedUser->id)->delete();
+        }, 3);
 
         return redirect()
             ->route('admin.users.index')
-            ->with('success', 'Xóa tài khoản thành công.');
+            ->with('success', 'Đã ngừng sử dụng tài khoản và giữ nguyên lịch sử liên quan.');
     }
 
     private function manageableRoles()

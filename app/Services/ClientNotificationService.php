@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Contract;
+use App\Models\ContractAppendix;
 use App\Models\ContractTenant;
 use App\Models\Invoice;
 use App\Models\Payment;
@@ -13,6 +14,19 @@ use App\Notifications\ClientPortalNotification;
 
 class ClientNotificationService
 {
+    public function appendix(ContractAppendix $appendix, string $title, string $message): void
+    {
+        $appendix->loadMissing('contract.tenant.user');
+        $this->send(
+            $appendix->contract?->tenant?->user,
+            'contract_appendix_pending',
+            $title,
+            $message,
+            'appendix',
+            ['appendix_id' => $appendix->id, 'contract_id' => $appendix->contract_id]
+        );
+    }
+
     public function contract(Contract $contract, string $type, string $title, string $message): void
     {
         $contract->loadMissing('tenant.user');

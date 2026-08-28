@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
-use App\Models\Tenant;
 use App\Models\TemporaryResidence;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -167,26 +167,19 @@ class TemporaryResidenceController extends Controller
                 'max:1000',
             ],
         ], [
-            'tenant_id.required' =>
-            'Vui lòng chọn khách thuê.',
+            'tenant_id.required' => 'Vui lòng chọn khách thuê.',
 
-            'tenant_id.exists' =>
-            'Khách thuê không tồn tại.',
+            'tenant_id.exists' => 'Khách thuê không tồn tại.',
 
-            'contract_id.required' =>
-            'Vui lòng chọn hợp đồng.',
+            'contract_id.required' => 'Vui lòng chọn hợp đồng.',
 
-            'contract_id.exists' =>
-            'Hợp đồng không tồn tại.',
+            'contract_id.exists' => 'Hợp đồng không tồn tại.',
 
-            'status.required' =>
-            'Vui lòng chọn trạng thái.',
+            'status.required' => 'Vui lòng chọn trạng thái.',
 
-            'status.in' =>
-            'Trạng thái không hợp lệ.',
+            'status.in' => 'Trạng thái không hợp lệ.',
 
-            'note.max' =>
-            'Ghi chú không được vượt quá 1000 ký tự.',
+            'note.max' => 'Ghi chú không được vượt quá 1000 ký tự.',
         ]);
 
         /*
@@ -214,8 +207,7 @@ class TemporaryResidenceController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'contract_id' =>
-                    'Hợp đồng không thuộc về khách thuê đã chọn.',
+                    'contract_id' => 'Hợp đồng không thuộc về khách thuê đã chọn.',
                 ]);
         }
 
@@ -225,7 +217,7 @@ class TemporaryResidenceController extends Controller
     |--------------------------------------------------------------------------
     */
         if (
-            !in_array(
+            ! in_array(
                 $contract->status,
                 ['active', 'pending'],
                 true
@@ -234,8 +226,7 @@ class TemporaryResidenceController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'contract_id' =>
-                    'Hợp đồng không ở trạng thái phù hợp để đăng ký tạm trú.',
+                    'contract_id' => 'Hợp đồng không ở trạng thái phù hợp để đăng ký tạm trú.',
                 ]);
         }
 
@@ -258,8 +249,7 @@ class TemporaryResidenceController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'contract_id' =>
-                    'Hợp đồng này đã có đăng ký tạm trú đang chờ hoặc đang hoạt động.',
+                    'contract_id' => 'Hợp đồng này đã có đăng ký tạm trú đang chờ hoặc đang hoạt động.',
                 ]);
         }
 
@@ -268,12 +258,11 @@ class TemporaryResidenceController extends Controller
     | THỜI GIAN TẠM TRÚ LẤY TRỰC TIẾP TỪ HỢP ĐỒNG
     |--------------------------------------------------------------------------
     */
-        if (!$contract->start_date) {
+        if (! $contract->start_date) {
             return back()
                 ->withInput()
                 ->withErrors([
-                    'contract_id' =>
-                    'Hợp đồng chưa có ngày bắt đầu nên không thể đăng ký tạm trú.',
+                    'contract_id' => 'Hợp đồng chưa có ngày bắt đầu nên không thể đăng ký tạm trú.',
                 ]);
         }
 
@@ -399,38 +388,27 @@ class TemporaryResidenceController extends Controller
                 'max:1000',
             ],
         ], [
-            'tenant_id.required' =>
-            'Vui lòng chọn khách thuê.',
+            'tenant_id.required' => 'Vui lòng chọn khách thuê.',
 
-            'tenant_id.exists' =>
-            'Khách thuê không tồn tại.',
+            'tenant_id.exists' => 'Khách thuê không tồn tại.',
 
-            'contract_id.required' =>
-            'Vui lòng chọn hợp đồng.',
+            'contract_id.required' => 'Vui lòng chọn hợp đồng.',
 
-            'contract_id.exists' =>
-            'Hợp đồng không tồn tại.',
+            'contract_id.exists' => 'Hợp đồng không tồn tại.',
 
-            'start_date.required' =>
-            'Vui lòng nhập ngày bắt đầu.',
+            'start_date.required' => 'Vui lòng nhập ngày bắt đầu.',
 
-            'start_date.date' =>
-            'Ngày bắt đầu không hợp lệ.',
+            'start_date.date' => 'Ngày bắt đầu không hợp lệ.',
 
-            'end_date.date' =>
-            'Ngày kết thúc không hợp lệ.',
+            'end_date.date' => 'Ngày kết thúc không hợp lệ.',
 
-            'end_date.after_or_equal' =>
-            'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.',
+            'end_date.after_or_equal' => 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.',
 
-            'status.required' =>
-            'Vui lòng chọn trạng thái.',
+            'status.required' => 'Vui lòng chọn trạng thái.',
 
-            'status.in' =>
-            'Trạng thái không hợp lệ.',
+            'status.in' => 'Trạng thái không hợp lệ.',
 
-            'note.max' =>
-            'Ghi chú không được vượt quá 1000 ký tự.',
+            'note.max' => 'Ghi chú không được vượt quá 1000 ký tự.',
         ]);
 
         /*
@@ -450,8 +428,7 @@ class TemporaryResidenceController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'contract_id' =>
-                    'Hợp đồng không thuộc về khách thuê đã chọn.',
+                    'contract_id' => 'Hợp đồng không thuộc về khách thuê đã chọn.',
                 ]);
         }
 
@@ -479,8 +456,7 @@ class TemporaryResidenceController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'contract_id' =>
-                    'Hợp đồng này đã có đăng ký tạm trú đang hoạt động.',
+                    'contract_id' => 'Hợp đồng này đã có đăng ký tạm trú đang hoạt động.',
                 ]);
         }
 
@@ -490,7 +466,7 @@ class TemporaryResidenceController extends Controller
         |--------------------------------------------------------------------------
         */
         if (
-            !in_array(
+            ! in_array(
                 $contract->status,
                 ['active', 'pending'],
                 true
@@ -501,8 +477,7 @@ class TemporaryResidenceController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'contract_id' =>
-                    'Chỉ được đăng ký tạm trú cho hợp đồng đang chờ hoặc đang hoạt động.',
+                    'contract_id' => 'Chỉ được đăng ký tạm trú cho hợp đồng đang chờ hoặc đang hoạt động.',
                 ]);
         }
 
@@ -511,7 +486,7 @@ class TemporaryResidenceController extends Controller
         | Cập nhật
         |--------------------------------------------------------------------------
         */
-        if (!$contract->start_date) {
+        if (! $contract->start_date) {
             return back()
                 ->withInput()
                 ->withErrors([
@@ -541,7 +516,7 @@ class TemporaryResidenceController extends Controller
     /**
      * Xóa đăng ký tạm trú.
      */
-    public function destroy(
+    public function cancel(
         Request $request,
         TemporaryResidence $temporaryResidence
     ) {
@@ -579,6 +554,7 @@ class TemporaryResidenceController extends Controller
                 'Hồ sơ tạm trú đã được hủy và lưu lại để truy vết.'
             );
     }
+
     public function sign(
         Request $request,
         TemporaryResidence $temporaryResidence
@@ -592,7 +568,7 @@ class TemporaryResidenceController extends Controller
                 'string',
                 'max:1500000',
                 function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (!preg_match('/^data:image\/png;base64,([A-Za-z0-9+\/=\r\n]+)$/', $value, $matches)) {
+                    if (! preg_match('/^data:image\/png;base64,([A-Za-z0-9+\/=\r\n]+)$/', $value, $matches)) {
                         $fail('Chữ ký phải là ảnh PNG hợp lệ.');
 
                         return;
@@ -625,6 +601,7 @@ class TemporaryResidenceController extends Controller
             'Chữ ký đã được lưu thành công.'
         );
     }
+
     public function pdf(TemporaryResidence $temporaryResidence)
     {
         $temporaryResidence->load([

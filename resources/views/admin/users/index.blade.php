@@ -87,11 +87,12 @@
                                             <i class="bx bx-edit text-lg"></i>
                                         </a>
                                         @if (! auth()->user()->is($user))
-                                            <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="return confirm('Xác nhận xóa tài khoản này?');">
+                                            <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do ngừng sử dụng tài khoản (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.deactivation_reason.value = reason.trim(); return confirm('Xác nhận ngừng sử dụng tài khoản? Lịch sử sẽ được giữ lại.');">
                                                 @csrf
                                                 @method('DELETE')
-                                                <button class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Xóa">
-                                                    <i class="bx bx-trash text-lg"></i>
+                                                <input type="hidden" name="deactivation_reason">
+                                                <button class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Ngừng sử dụng">
+                                                    <i class="bx bx-user-x text-lg"></i>
                                                 </button>
                                             </form>
                                         @endif

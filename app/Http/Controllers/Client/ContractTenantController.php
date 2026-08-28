@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Rules\AdultDateOfBirth;
+use App\Services\AdminNotificationService;
 use App\Services\ContractIdentityDocumentService;
 use App\Services\ContractTenantService;
-use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -35,11 +35,7 @@ class ContractTenantController extends Controller
             Contract::STATUS_ACTIVE,
             Contract::STATUS_EXPIRED,
         ], true), 409, 'Hợp đồng không còn nhận khai báo người thuê.');
-        $currentOccupancy = max(
-            $contract->currentMembers->count(),
-            (int) $contract->room->current_people,
-        );
-        abort_if($currentOccupancy >= (int) $contract->room->max_people, 409, 'Phòng đã đạt số người thuê tối đa.');
+        abort_unless($contract->hasRoomForMembers(), 409, 'Phòng đã đạt số người thuê tối đa.');
 
         return view('client.contracts.tenants.create', compact('contract'));
     }

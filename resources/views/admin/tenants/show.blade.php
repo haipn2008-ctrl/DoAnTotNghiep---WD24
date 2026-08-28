@@ -167,11 +167,13 @@
 
             <div class="flex flex-wrap gap-2">
 
+                @if ($tenant->status !== \App\Models\Tenant::STATUS_ARCHIVED)
                 <a href="{{ route('admin.tenants.edit', $tenant) }}"
                     class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                     <i class="bx bx-edit text-lg"></i>
                     Cập nhật
                 </a>
+                @endif
 
                 <a href="{{ route('admin.tenants.index') }}"
                     class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
@@ -345,12 +347,12 @@
                                     </td>
 
                                     <td class="px-5 py-4 text-sm font-semibold text-slate-950">
-                                        {{ $vehicle->license_plate ?: ($vehicle->vehicle_type === 'bicycle' ? 'Không áp dụng' : '---') }}
+                                        {{ $vehicle->display_license_plate ?: ($vehicle->vehicle_type === 'bicycle' ? 'Không áp dụng' : '---') }}
                                     </td>
 
                                     <td class="px-5 py-4 text-sm text-slate-500">
                                         @if($vehicle->vehicle_image)
-                                            <a href="{{ route('admin.vehicles.image', $vehicle) }}" target="_blank" rel="noopener">
+                                            <a href="{{ route('admin.vehicles.image', $vehicle) }}" data-image-modal data-image-title="Ảnh phương tiện {{ $vehicle->vehicle_name ?: '' }}">
                                                 <img src="{{ route('admin.vehicles.image', $vehicle) }}" alt="Ảnh phương tiện" class="h-16 w-24 rounded-lg object-cover ring-1 ring-slate-200">
                                             </a>
                                         @else
@@ -360,11 +362,11 @@
 
                                     <td class="px-5 py-4 text-sm">
                                         @php
-                                            $vehicleLabels = ['pending' => 'Chờ duyệt', 'approved' => 'Đã duyệt', 'rejected' => 'Từ chối'];
-                                            $vehicleClasses = ['pending' => 'bg-amber-50 text-amber-700', 'approved' => 'bg-emerald-50 text-emerald-700', 'rejected' => 'bg-rose-50 text-rose-700'];
+                                            $vehicleLabels = ['pending' => 'Chờ duyệt', 'approved' => 'Đã duyệt', 'rejected' => 'Từ chối', 'cancelled' => 'Đã hủy', 'removed' => 'Đã gỡ'];
+                                            $vehicleClasses = ['pending' => 'bg-amber-50 text-amber-700', 'approved' => 'bg-emerald-50 text-emerald-700', 'rejected' => 'bg-rose-50 text-rose-700', 'cancelled' => 'bg-slate-100 text-slate-600', 'removed' => 'bg-slate-100 text-slate-600'];
                                         @endphp
                                         <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $vehicleClasses[$vehicle->status] ?? 'bg-slate-100 text-slate-600' }}">{{ $vehicleLabels[$vehicle->status] ?? $vehicle->status }}</span>
-                                        @if($vehicle->status !== \App\Models\Vehicle::STATUS_APPROVED)
+                                        @if(in_array($vehicle->status, [\App\Models\Vehicle::STATUS_PENDING, \App\Models\Vehicle::STATUS_REJECTED], true))
                                             <form method="POST" action="{{ route('admin.vehicles.review', $vehicle) }}" class="mt-3 flex min-w-64 gap-2">@csrf @method('PUT')
                                                 <input name="review_note" value="{{ $vehicle->review_note }}" maxlength="500" placeholder="Lý do nếu từ chối" class="h-9 min-w-0 flex-1 rounded border border-slate-200 px-2 text-xs">
                                                 <button name="status" value="approved" class="rounded bg-emerald-600 px-2.5 text-xs font-semibold text-white">Duyệt</button>

@@ -185,7 +185,7 @@
 
                                 @if($contract->deposit_qr_image)
                                     <a href="{{ route('admin.deposit-refunds.qr', $contract) }}"
-                                       target="_blank"
+                                       data-image-modal data-image-title="Mã QR hoàn cọc"
                                        class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800">
                                         <i class="bx bx-qr-scan text-base"></i>
                                         Xem QR

@@ -41,7 +41,7 @@
         'pending' => 'Chờ duyệt', 'approved' => 'Đã duyệt', 'rejected' => 'Đã từ chối',
         'checked_in' => 'Đang ở', 'moved_out' => 'Đã rời phòng', 'withdrawn' => 'Đã rút khai báo',
     ];
-    $roomStatusLabels = ['available' => 'Còn trống', 'occupied' => 'Đang có người thuê', 'maintenance' => 'Đang bảo trì'];
+    $roomStatusLabels = ['available' => 'Còn trống', 'occupied' => 'Đang có người thuê', 'maintenance' => 'Đang bảo trì', 'retired' => 'Ngừng khai thác'];
     $vehicleTypeLabels = ['motorcycle' => 'Xe máy', 'electric_motorcycle' => 'Xe máy điện', 'bicycle' => 'Xe đạp'];
     $approvedVehicles = $contract->currentMembers
         ->flatMap(fn ($member) => $member->tenant?->vehicles ?? collect())
@@ -126,6 +126,8 @@
     @if($contract->status===\App\Models\Contract::STATUS_EXPIRED)<div class="rounded-lg border border-rose-300 bg-rose-50 p-4 font-semibold text-rose-900">Hợp đồng đã hết hạn nhưng khách vẫn đang ở; phòng vẫn được ghi nhận là đang có người thuê.</div>@endif
     @foreach($contract->lifecycleAlerts as $alert)<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{{ $alert->title }}</strong>@if(filled($alert->message) && !str_contains($alert->message, 'EndOfContractTestSeeder'))<span>: {{ $alert->message }}</span>@endif</div>@endforeach
 
+    @include('admin.contracts.appendices._contract-section')
+
     @if($contract->status === \App\Models\Contract::STATUS_PENDING_SIGNATURE)
         @include('admin.contracts.partials.pending-signature-detail')
     @elseif($contract->status === \App\Models\Contract::STATUS_PENDING_DEPOSIT)
@@ -190,7 +192,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-violet-100 bg-violet-50/50 px-5 py-4"><div><h3 class="font-semibold text-slate-950">Biên bản bàn giao trả phòng</h3><p class="mt-1 text-xs text-slate-500">Đối chiếu lúc {{ $contract->checkout_handover_confirmed_at->format('H:i d/m/Y') }} · Đã trả {{ $contract->checkout_key_count }} chìa khóa</p></div><span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Hai bên đã đối chiếu</span></div>
         @if(filled($contract->checkout_asset_report))<div class="divide-y divide-slate-100">@foreach($contract->checkout_asset_report as $asset)<div class="flex flex-wrap items-start justify-between gap-3 px-5 py-3 text-sm"><div><p class="font-semibold text-slate-900">{{ $asset['name'] }}</p><p class="text-xs text-slate-500">{{ $asset['note'] ?: 'Không có ghi chú' }}</p></div><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $checkoutConditionLabels[$asset['condition']] ?? $asset['condition'] }}</span></div>@endforeach</div>@endif
         @if($contract->checkout_damage_note)<p class="border-t border-slate-100 px-5 py-3 text-sm text-rose-700"><strong>Hư hỏng/thất lạc:</strong> {{ $contract->checkout_damage_note }}</p>@endif
-        @if(filled($contract->checkout_photo_paths))<div class="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-4">@foreach($contract->checkout_photo_paths as $index => $path)<a target="_blank" href="{{ route('admin.contracts.checkout-photos.show', [$contract, $index]) }}" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">Xem ảnh {{ $index + 1 }}</a>@endforeach</div>@endif
+        @if(filled($contract->checkout_photo_paths))<div class="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-4">@foreach($contract->checkout_photo_paths as $index => $path)<a href="{{ route('admin.contracts.checkout-photos.show', [$contract, $index]) }}" data-image-modal data-image-title="Ảnh bàn giao trả phòng {{ $index + 1 }}" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">Xem ảnh {{ $index + 1 }}</a>@endforeach</div>@endif
     </section>
     @endif
 
@@ -211,7 +213,7 @@
             @forelse($contract->currentMembers as $member)
                 <article class="rounded-lg border border-slate-200 p-4">
                     <div class="flex items-start justify-between gap-3">
-                        <div><p class="font-semibold text-slate-950">{{ $member->full_name }}</p><p class="mt-1 text-xs text-slate-500">{{ $member->role_label }}{{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? ' · Có tài khoản liên hệ' : ' · Không cấp tài khoản riêng' }} · {{ $member->identity_number ?: 'Chưa có giấy tờ' }}</p>@if($member->identity_front_path && $member->identity_back_path)<p class="mt-2 flex gap-3 text-xs font-semibold"><a target="_blank" class="text-indigo-700" href="{{ route('admin.contract-tenants.identity-document', [$member, 'front']) }}">CCCD mặt trước</a><a target="_blank" class="text-indigo-700" href="{{ route('admin.contract-tenants.identity-document', [$member, 'back']) }}">CCCD mặt sau</a></p>@endif</div>
+                        <div><p class="font-semibold text-slate-950">{{ $member->full_name }}</p><p class="mt-1 text-xs text-slate-500">{{ $member->role_label }}{{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? ' · Có tài khoản liên hệ' : ' · Không cấp tài khoản riêng' }} · {{ $member->identity_number ?: 'Chưa có giấy tờ' }}</p>@if($member->identity_front_path && $member->identity_back_path)<p class="mt-2 flex gap-3 text-xs font-semibold"><a data-image-modal data-image-title="CCCD mặt trước - {{ $member->full_name }}" class="text-indigo-700" href="{{ route('admin.contract-tenants.identity-document', [$member, 'front']) }}">CCCD mặt trước</a><a data-image-modal data-image-title="CCCD mặt sau - {{ $member->full_name }}" class="text-indigo-700" href="{{ route('admin.contract-tenants.identity-document', [$member, 'back']) }}">CCCD mặt sau</a></p>@endif</div>
                         <span class="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $member->status_label }}</span>
                     </div>
                     @if($member->review_note)<p class="mt-2 text-sm text-rose-700">Lý do: {{ $member->review_note }}</p>@endif

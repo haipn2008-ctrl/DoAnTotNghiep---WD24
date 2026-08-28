@@ -20,6 +20,7 @@ use App\Services\OverdueInvoiceService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class InvoiceManagementTest extends TestCase
@@ -56,7 +57,7 @@ class InvoiceManagementTest extends TestCase
         $this->post(route('admin.invoices.adjustments.store', $invoice), [
             'direction' => 'debit', 'amount' => 1, 'reason' => 'Không có quyền thao tác.',
         ])->assertForbidden();
-        $this->delete("/admin/invoices/{$invoice->id}")->assertForbidden();
+        $this->delete("/admin/invoices/{$invoice->id}")->assertMethodNotAllowed();
         $this->assertDatabaseHas('invoices', ['id' => $invoice->id, 'utility_reading_id' => $reading->id]);
     }
 
@@ -318,7 +319,7 @@ class InvoiceManagementTest extends TestCase
     public function test_missing_or_unconfirmed_reading_and_contract_outside_period_are_rejected(): void
     {
         [$contract, , , $reading] = $this->fixture('INVALID');
-        $reading->delete();
+        DB::table('utility_readings')->where('id', $reading->id)->delete();
         $this->actingAs($this->admin)->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=7&year=2026")
             ->assertStatus(422)->assertJsonFragment(['message' => 'Phòng ROOM-INVALID chưa chốt điện nước tháng 6/2026.']);
         $reading = $this->reading($contract->room, 6, 'draft');
@@ -449,7 +450,7 @@ class InvoiceManagementTest extends TestCase
 
         [$emptyContract, , , $reading] = $this->fixture('DELETE-EMPTY', 8);
         $empty = $this->issue($emptyContract, 8);
-        $this->delete("/admin/invoices/{$empty->id}")->assertSessionHas('error');
+        $this->delete("/admin/invoices/{$empty->id}")->assertMethodNotAllowed();
         $this->assertDatabaseHas('invoices', ['id' => $empty->id, 'status' => Invoice::STATUS_UNPAID]);
 
         $this->post(route('admin.invoices.cancel', $empty), [

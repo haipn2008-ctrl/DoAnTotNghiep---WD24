@@ -228,21 +228,25 @@ class TenantManagementTest extends TestCase
         $this->assertNull($replacement->fresh()->tenant);
     }
 
-    public function test_tenant_without_contract_can_be_deleted_but_linked_user_is_preserved(): void
+    public function test_tenant_without_contract_is_archived_and_linked_user_is_deactivated(): void
     {
         $client = $this->user($this->clientRole, 'delete@example.com');
         $tenant = $this->tenant($client);
 
-        $this->actingAs($this->admin)->delete("/admin/tenants/{$tenant->id}")
+        $this->actingAs($this->admin)->delete("/admin/tenants/{$tenant->id}", [
+            'archive_reason' => 'Hồ sơ được tạo nhưng không còn sử dụng.',
+        ])
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        $this->assertDatabaseMissing('tenants', ['id' => $tenant->id]);
-        $this->assertDatabaseHas('users', ['id' => $client->id]);
-        $this->delete("/admin/tenants/{$tenant->id}")->assertNotFound();
+        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_ARCHIVED]);
+        $this->assertDatabaseHas('users', ['id' => $client->id, 'status' => User::STATUS_INACTIVE]);
+        $this->delete("/admin/tenants/{$tenant->id}", [
+            'archive_reason' => 'Thử lưu trữ hồ sơ thêm lần nữa.',
+        ])->assertSessionHas('error');
     }
 
-    public function test_tenant_with_any_contract_cannot_be_deleted_from_ui_or_direct_request(): void
+    public function test_tenant_with_historical_contract_can_be_archived_without_losing_history(): void
     {
         $client = $this->user($this->clientRole, 'contract@example.com');
         $tenant = $this->tenant($client);
@@ -250,13 +254,15 @@ class TenantManagementTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/tenants')
             ->assertOk()
-            ->assertDontSee('action="'.route('admin.tenants.destroy', $tenant).'"', false);
+            ->assertSee('action="'.route('admin.tenants.destroy', $tenant).'"', false);
 
-        $this->delete("/admin/tenants/{$tenant->id}")
+        $this->delete("/admin/tenants/{$tenant->id}", [
+            'archive_reason' => 'Khách đã kết thúc hợp đồng và rời phòng.',
+        ])
             ->assertRedirect()
-            ->assertSessionHas('error');
+            ->assertSessionHas('success');
 
-        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'user_id' => $client->id]);
+        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'user_id' => $client->id, 'status' => Tenant::STATUS_ARCHIVED]);
         $this->assertDatabaseHas('contracts', ['id' => $contract->id]);
         $this->assertDatabaseHas('rooms', ['id' => $room->id]);
     }

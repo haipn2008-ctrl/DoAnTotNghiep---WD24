@@ -17,6 +17,8 @@ class SettlementService
 {
     private const DEPOSIT_OFFSET_PREFIX = 'COC-BUTRU-';
 
+    public function __construct(private readonly ContractRateResolver $pricing) {}
+
     public function generate(Contract $contract, float $manualAmount = 0, ?string $manualDescription = null): SettlementStatement
     {
         return DB::transaction(function () use ($contract, $manualAmount, $manualDescription): SettlementStatement {
@@ -40,7 +42,8 @@ class SettlementService
             }
 
             $moveOutDate = Carbon::parse($contract->actual_move_out_at)->startOfDay();
-            $rates = FeeSchedule::forPeriod($moveOutDate, true) ?: Setting::currentOrCreate();
+            $globalRates = FeeSchedule::forPeriod($moveOutDate, true) ?: Setting::currentOrCreate();
+            $rates = $this->pricing->forPeriod($contract, $moveOutDate, $globalRates);
             $items = [];
             $sort = 1;
             $electricityUsage = $checkout->electricity_new - $checkout->electricity_old;

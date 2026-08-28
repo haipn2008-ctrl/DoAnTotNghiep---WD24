@@ -6,12 +6,23 @@ use Illuminate\Database\Eloquent\Model;
 
 class Payment extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa giao dịch thanh toán. Hãy chuyển trạng thái để giữ chứng từ.');
+        });
+    }
+
     const METHOD_CASH = 'cash';
+
     const METHOD_BANK_TRANSFER = 'bank_transfer';
+
     const METHOD_QR = 'qr';
 
     const STATUS_PENDING = 'pending';
+
     const STATUS_SUCCESS = 'success';
+
     const STATUS_FAILED = 'failed';
 
     protected $fillable = [

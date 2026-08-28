@@ -12,11 +12,13 @@ class Room extends Model
     |--------------------------------------------------------------------------
     */
 
-    const STATUS_AVAILABLE   = 'available';
+    const STATUS_AVAILABLE = 'available';
 
-    const STATUS_OCCUPIED    = 'occupied';
+    const STATUS_OCCUPIED = 'occupied';
 
     const STATUS_MAINTENANCE = 'maintenance';
+
+    const STATUS_RETIRED = 'retired';
 
     /**
      * Các trường được phép gán dữ liệu.
@@ -41,6 +43,16 @@ class Room extends Model
         'description',
 
         'status',
+
+        'retired_at',
+
+        'retired_by',
+
+        'retirement_reason',
+    ];
+
+    protected $casts = [
+        'retired_at' => 'datetime',
     ];
 
     /*
@@ -68,7 +80,7 @@ class Room extends Model
                 Contract::STATUS_PENDING_SIGNATURE,
                 Contract::STATUS_SIGNED,
                 Contract::STATUS_DEPOSIT_PAID,
-                Contract::STATUS_ACTIVE
+                Contract::STATUS_ACTIVE,
             ]);
     }
 
@@ -110,6 +122,11 @@ class Room extends Model
         return $this->hasMany(RoomImage::class)->latest('taken_at')->latest('id');
     }
 
+    public function retiredBy()
+    {
+        return $this->belongsTo(User::class, 'retired_by');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Query Scope
@@ -129,6 +146,11 @@ class Room extends Model
     public function scopeMaintenance($query)
     {
         return $query->where('status', self::STATUS_MAINTENANCE);
+    }
+
+    public function scopeRetired($query)
+    {
+        return $query->where('status', self::STATUS_RETIRED);
     }
 
     /*
@@ -151,14 +173,15 @@ class Room extends Model
     {
         return $this->status === self::STATUS_MAINTENANCE;
     }
+
     public function getStatusTextAttribute()
     {
         return match ($this->status) {
             self::STATUS_AVAILABLE => 'Còn trống',
             self::STATUS_OCCUPIED => 'Đang thuê',
             self::STATUS_MAINTENANCE => 'Đang bảo trì',
+            self::STATUS_RETIRED => 'Ngừng khai thác',
             default => 'Không xác định',
         };
     }
-    
 }

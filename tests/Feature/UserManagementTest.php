@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Contract;
+use App\Models\ContractHistory;
 use App\Models\Invoice;
 use App\Models\Role;
 use App\Models\Room;
@@ -348,16 +349,25 @@ class UserManagementTest extends TestCase
         $this->assertAuthenticatedAs($this->admin);
     }
 
-    public function test_admin_can_delete_another_account_and_repeated_delete_is_not_found(): void
+    public function test_admin_deactivates_another_account_without_deleting_it(): void
     {
         $target = $this->user($this->clientRole, 'delete@example.com', 'Cần xóa');
 
-        $this->actingAs($this->admin)->delete("/admin/users/{$target->id}")
+        $this->actingAs($this->admin)->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Tài khoản không còn được sử dụng.',
+        ])
             ->assertRedirect('/admin/users')
             ->assertSessionHas('success');
-        $this->assertDatabaseMissing('users', ['id' => $target->id]);
+        $this->assertDatabaseHas('users', [
+            'id' => $target->id,
+            'status' => User::STATUS_INACTIVE,
+            'deactivated_by' => $this->admin->id,
+        ]);
+        $this->assertNotNull($target->fresh()->deactivated_at);
 
-        $this->delete("/admin/users/{$target->id}")->assertNotFound();
+        $this->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Thử ngừng sử dụng thêm lần nữa.',
+        ])->assertSessionHas('error');
         $this->assertAuthenticatedAs($this->admin);
     }
 
@@ -387,7 +397,9 @@ class UserManagementTest extends TestCase
             'status' => Contract::STATUS_ACTIVE,
         ]);
 
-        $this->actingAs($this->admin)->delete("/admin/users/{$target->id}")
+        $this->actingAs($this->admin)->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Yêu cầu ngừng tài khoản đang thuê.',
+        ])
             ->assertRedirect('/admin/users')
             ->assertSessionHas('error');
 
@@ -411,25 +423,38 @@ class UserManagementTest extends TestCase
             'status' => Invoice::STATUS_UNPAID,
         ]);
 
-        $this->delete("/admin/users/{$target->id}")
+        $this->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Yêu cầu ngừng khi còn công nợ.',
+        ])
             ->assertRedirect('/admin/users')
             ->assertSessionHas('error');
         $this->assertDatabaseHas('users', ['id' => $target->id]);
         $this->assertDatabaseHas('invoices', ['id' => $invoice->id, 'status' => Invoice::STATUS_UNPAID]);
 
         $invoice->update(['status' => Invoice::STATUS_PAID]);
-        $this->delete("/admin/users/{$target->id}")->assertSessionHas('error');
+        $this->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Hợp đồng vẫn đang quyết toán.',
+        ])->assertSessionHas('error');
         $contract->forceFill([
             'status' => Contract::STATUS_COMPLETED,
             'actual_move_out_at' => now(),
             'completed_at' => now(),
             'deposit_resolution' => Contract::DEPOSIT_NOT_REQUIRED,
         ])->save();
-        $this->delete("/admin/users/{$target->id}")->assertRedirect('/admin/users')->assertSessionHas('success');
-        $this->assertDatabaseMissing('users', ['id' => $target->id]);
-        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'user_id' => null]);
+        $history = ContractHistory::create([
+            'contract_id' => $contract->id,
+            'user_id' => $target->id,
+            'action' => 'completed',
+            'description' => 'Dữ liệu audit phải được giữ lại.',
+        ]);
+        $this->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Khách đã hoàn tất toàn bộ nghĩa vụ.',
+        ])->assertRedirect('/admin/users')->assertSessionHas('success');
+        $this->assertDatabaseHas('users', ['id' => $target->id, 'status' => User::STATUS_INACTIVE]);
+        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'user_id' => $target->id]);
         $this->assertDatabaseHas('contracts', ['id' => $contract->id]);
         $this->assertDatabaseHas('invoices', ['id' => $invoice->id]);
+        $this->assertDatabaseHas('contract_histories', ['id' => $history->id, 'user_id' => $target->id]);
     }
 
     public function test_manual_client_status_must_match_contract_and_debt_state(): void

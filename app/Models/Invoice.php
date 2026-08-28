@@ -6,6 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa hóa đơn đã phát hành. Hãy hủy hoặc lập phiếu điều chỉnh.');
+        });
+    }
+
     const TYPE_RENTAL = 'rental';
 
     const TYPE_DEPOSIT = 'deposit';

@@ -471,6 +471,7 @@ năm
         <tr>
             <td style="height:120px; vertical-align:bottom;">
 
+                @if(\Illuminate\Support\Facades\Storage::disk('public')->exists('signatures/contracts/chukyD.jpg'))
                 <div style="
                     height:85px;
                     display:flex;
@@ -487,6 +488,9 @@ năm
                         "
                     >
                 </div>
+                @else
+                    <div style="height:85px;"></div>
+                @endif
 
                 <strong>Nguyễn Văn A</strong>
                 <br>
@@ -496,7 +500,7 @@ năm
 
             <td style="height:120px; vertical-align:bottom;">
 
-                @if(!empty($contract->tenant_signature))
+                @if(!empty($contract->tenant_signature) && \Illuminate\Support\Facades\Storage::disk('public')->exists($contract->tenant_signature))
                     <div style="height:85px; display:flex; align-items:flex-end; justify-content:center;">
                         <img src="{{ asset('storage/' . $contract->tenant_signature) }}"
                              alt="Chữ ký khách thuê"

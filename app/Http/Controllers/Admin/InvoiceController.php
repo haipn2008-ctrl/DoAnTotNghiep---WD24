@@ -596,19 +596,6 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Hóa đơn đã phát hành là dữ liệu bất biến và không còn hỗ trợ xóa cứng.
-     */
-    public function destroy(Invoice $invoice)
-    {
-        return redirect()
-            ->route('admin.invoices.show', $invoice)
-            ->with(
-                'error',
-                'Không thể xóa hóa đơn đã phát hành. Hãy hủy hóa đơn hoặc tạo phiếu điều chỉnh.'
-            );
-    }
-
-    /**
      * Xuất danh sách hóa đơn ra CSV
      */
     public function export(Request $request)

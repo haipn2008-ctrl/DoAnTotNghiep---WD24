@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\ContractExtensionRequest;
+use App\Models\ContractTemplate;
 use App\Models\ContractTenant;
 use App\Models\ContractTerminationRequest;
 use App\Models\Invoice;
@@ -17,6 +18,7 @@ use App\Models\User;
 use App\Rules\AdultDateOfBirth;
 use App\Services\AdminNotificationService;
 use App\Services\ClientNotificationService;
+use App\Services\ContractDocumentService;
 use App\Services\ContractIdentityDocumentService;
 use App\Services\ContractLifecycleService;
 use Carbon\Carbon;
@@ -34,6 +36,7 @@ class ContractController extends Controller
     public function __construct(
         private readonly ContractLifecycleService $lifecycle,
         private readonly ContractIdentityDocumentService $identityDocuments,
+        private readonly ContractDocumentService $documents,
     ) {}
 
     public function index(Request $request)
@@ -52,14 +55,14 @@ class ContractController extends Controller
         $rooms = Room::query()->with([
             'activeContract',
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
-        ])->where('status', '!=', Room::STATUS_MAINTENANCE)
+        ])->whereNotIn('status', [Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED])
             ->whereDoesntHave('contracts', fn ($query) => $query->whereIn('status', [
                 Contract::STATUS_PENDING_SIGNATURE,
                 Contract::STATUS_PENDING_DEPOSIT,
                 Contract::STATUS_AWAITING_MOVE_IN,
             ]))
             ->orderBy('room_code')->get();
-        $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
+        $tenants = Tenant::query()->eligibleForContract()->with(['user:id,email,status', 'document'])
             ->orderBy('full_name')->get();
 
         return view('admin.contracts.create', compact('rooms', 'tenants'));
@@ -106,6 +109,7 @@ class ContractController extends Controller
             'approvedTerminationRequest.processor',
             'representativeTransfers.oldTenant', 'representativeTransfers.newTenant',
             'representativeTransfers.performer',
+            'appendices.creator', 'appendices.responder',
         ]);
         $readings = $contract->utilityReadings()->orderBy('record_date')->orderBy('id')->get();
         $handoverReading = $readings->firstWhere('reading_type', 'handover');
@@ -140,14 +144,14 @@ class ContractController extends Controller
         $rooms = Room::query()->with([
             'activeContract',
             'amenities' => fn ($query) => $query->where('category', Amenity::CATEGORY_ASSET),
-        ])->where('status', '!=', Room::STATUS_MAINTENANCE)
+        ])->whereNotIn('status', [Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED])
             ->whereDoesntHave('contracts', fn ($query) => $query->whereIn('status', [
                 Contract::STATUS_PENDING_SIGNATURE,
                 Contract::STATUS_PENDING_DEPOSIT,
                 Contract::STATUS_AWAITING_MOVE_IN,
             ]))
             ->orderBy('room_code')->get();
-        $tenants = Tenant::query()->eligibleForContract()->with('user:id,email,status')
+        $tenants = Tenant::query()->eligibleForContract()->with(['user:id,email,status', 'document'])
             ->orderBy('full_name')->get();
 
         return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants'));
@@ -629,27 +633,80 @@ class ContractController extends Controller
     public function print($id)
     {
         $contract = Contract::with([
-            'room.amenities', 'tenant', 'currentMembers.tenant', 'representativeMember.tenant', 'handoverItems',
+            'room.amenities', 'tenant', 'currentMembers.tenant', 'representativeMember.tenant', 'handoverItems', 'template',
         ])->findOrFail($id);
+        // Dữ liệu có trước chức năng phiên bản được đóng băng an toàn ở lần in đầu tiên.
+        if ($contract->signed_at && ! $contract->contract_content_snapshotted_at) {
+            $this->documents->snapshotSignedDocument($contract);
+            $contract->refresh()->load([
+                'room.amenities', 'tenant', 'currentMembers.tenant', 'representativeMember.tenant', 'handoverItems', 'template',
+            ]);
+        }
+        abort_if(
+            $contract->contract_content_snapshotted_at && ! $contract->hasValidContentSnapshot(),
+            409,
+            'Bản chụp hợp đồng không vượt qua kiểm tra toàn vẹn SHA-256.'
+        );
         $referenceReading = $contract->utilityReadings()->latest('record_date')->latest('id')->first()
             ?? $contract->room?->utilityReadings()->latest('record_date')->latest('id')->first();
         $setting = Setting::currentOrCreate();
 
-        return view('admin.contracts.print', compact('contract', 'referenceReading', 'setting'));
+        $template = $contract->template ?: ContractTemplate::activeOrCreate();
+
+        return view('admin.contracts.print', compact('contract', 'referenceReading', 'setting', 'template'));
     }
 
     public function template()
     {
         $setting = Setting::currentOrCreate();
+        $template = ContractTemplate::activeOrCreate();
+        $versions = ContractTemplate::query()->latest('version')->get();
 
-        return view('admin.contracts.template', compact('setting'));
+        return view('admin.contracts.template', compact('setting', 'template', 'versions'));
+    }
+
+    public function storeTemplate(Request $request)
+    {
+        $rules = ['name' => ['required', 'string', 'max:255']];
+        foreach (array_keys(ContractTemplate::DEFAULT_CLAUSES) as $key) {
+            $rules["clauses.{$key}"] = ['required', 'string', 'min:10', 'max:5000'];
+        }
+        $data = $request->validate($rules);
+
+        $template = DB::transaction(function () use ($data, $request): ContractTemplate {
+            ContractTemplate::query()->where('is_active', true)->lockForUpdate()->update(['is_active' => false]);
+            $nextVersion = ((int) ContractTemplate::query()->max('version')) + 1;
+
+            return ContractTemplate::query()->create([
+                'name' => $data['name'],
+                'version' => $nextVersion,
+                'clauses' => $data['clauses'],
+                'is_active' => true,
+                'effective_from' => now(),
+                'created_by' => $request->user()->id,
+            ]);
+        }, 3);
+
+        return redirect()->route('admin.contracts.template.show', $template)
+            ->with('success', "Đã phát hành mẫu hợp đồng phiên bản {$template->version}. Hợp đồng cũ không bị thay đổi.");
+    }
+
+    public function showTemplate(ContractTemplate $contractTemplate)
+    {
+        $setting = Setting::currentOrCreate();
+
+        return view('admin.contracts.template-show', [
+            'setting' => $setting,
+            'template' => $contractTemplate,
+        ]);
     }
 
     public function templatePrint()
     {
         $setting = Setting::currentOrCreate();
+        $template = ContractTemplate::activeOrCreate();
 
-        return view('admin.contracts.template-print', compact('setting'));
+        return view('admin.contracts.template-print', compact('setting', 'template'));
     }
 
     public function file(Contract $contract): StreamedResponse
@@ -666,6 +723,19 @@ class ContractController extends Controller
         abort_unless($path && Storage::disk('local')->exists($path), 404);
 
         return Storage::disk('local')->response($path);
+    }
+
+    public function tenantIdentityDocument(Tenant $tenant, string $side): StreamedResponse
+    {
+        abort_unless(in_array($side, ['front', 'back'], true), 404);
+        $document = $tenant->document;
+        $path = $document?->imagePath($side);
+        abort_unless($path && $document->hasImage($side), 404);
+
+        return Storage::disk('local')->response($path, null, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function identityDocument(ContractTenant $member, string $side): StreamedResponse
@@ -715,10 +785,12 @@ class ContractController extends Controller
     private function contractData(Request $request, bool $editing = false, ?Contract $contract = null): array
     {
         $this->mergeCalculatedContractDates($request);
-        $representativeTenant = Tenant::query()->with('user')->find($request->input('tenant_id'));
+        $representativeTenant = Tenant::query()->with(['user', 'document'])->find($request->input('tenant_id'));
         $existingRepresentative = $contract?->representativeMember()->first();
         $hasExistingIdentityPair = $existingRepresentative?->identity_front_path
             && $existingRepresentative?->identity_back_path;
+        $hasProfileIdentityPair = $representativeTenant?->document?->hasCompleteImagePair() ?? false;
+        $hasAvailableIdentityPair = $hasExistingIdentityPair || $hasProfileIdentityPair;
         $request->merge([
             'representative' => array_merge([
                 'full_name' => $representativeTenant?->full_name,
@@ -746,11 +818,11 @@ class ContractController extends Controller
                 Rule::unique('tenants', 'cccd')->ignore($representativeTenant?->id),
             ],
             'representative.identity_front' => [
-                Rule::requiredIf(! $editing || ! $hasExistingIdentityPair || $request->hasFile('representative.identity_back')),
+                Rule::requiredIf(! $hasAvailableIdentityPair || $request->hasFile('representative.identity_back')),
                 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120',
             ],
             'representative.identity_back' => [
-                Rule::requiredIf(! $editing || ! $hasExistingIdentityPair || $request->hasFile('representative.identity_front')),
+                Rule::requiredIf(! $hasAvailableIdentityPair || $request->hasFile('representative.identity_front')),
                 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120',
             ],
             'representative.phone' => [
@@ -925,9 +997,9 @@ class ContractController extends Controller
 
     private function storeSubmittedIdentityDocuments(Contract $contract, array $data, User $actor, array &$storedPaths): void
     {
+        $representative = $contract->members()->where('role', ContractTenant::ROLE_REPRESENTATIVE)
+            ->lockForUpdate()->latest('id')->firstOrFail();
         if (isset($data['representative']['identity_front'], $data['representative']['identity_back'])) {
-            $representative = $contract->members()->where('role', ContractTenant::ROLE_REPRESENTATIVE)
-                ->lockForUpdate()->latest('id')->firstOrFail();
             $this->identityDocuments->storePair(
                 $representative,
                 $data['representative']['identity_front'],
@@ -935,6 +1007,8 @@ class ContractController extends Controller
                 $actor,
                 $storedPaths,
             );
+        } elseif (! $representative->identity_front_path || ! $representative->identity_back_path) {
+            $this->identityDocuments->useTenantProfile($representative, $actor);
         }
 
         foreach ($data['members'] as $memberData) {

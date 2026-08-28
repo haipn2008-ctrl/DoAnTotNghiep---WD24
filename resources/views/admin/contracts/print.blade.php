@@ -22,7 +22,11 @@
         <button type="button" class="print" onclick="window.print()">In hợp đồng</button>
     </div>
     <main class="print-page">
-        @include('admin.contracts.contract-template-content')
+        @if($contract->contract_content_snapshotted_at && filled($contract->contract_content))
+            {!! $contract->contract_content !!}
+        @else
+            @include('admin.contracts.contract-template-content')
+        @endif
     </main>
     <script>window.addEventListener('load', () => setTimeout(() => window.print(), 300));</script>
 </body>

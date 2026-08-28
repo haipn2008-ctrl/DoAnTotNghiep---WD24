@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -34,6 +35,7 @@ class VehicleController extends Controller
                 ->whereNotNull('tenant_id')->get()->pluck('tenant')->filter()->unique('id')->values()
             : collect([$tenant->load('vehicles.reviewer')]);
         $vehicles = $owners->flatMap(fn (Tenant $owner) => $owner->vehicles)
+            ->whereNotIn('status', [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED])
             ->sortByDesc('created_at')->values();
 
         return view('client.vehicles.index', compact('tenant', 'contract', 'owners', 'vehicles'));
@@ -70,6 +72,7 @@ class VehicleController extends Controller
     public function update(Request $request, Vehicle $vehicle): RedirectResponse
     {
         $vehicle = $this->managedVehicle($request, $vehicle);
+        abort_if(in_array($vehicle->status, [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED], true), 409, 'Phương tiện đã được lưu vào lịch sử và không thể cập nhật.');
         abort_if($vehicle->status === Vehicle::STATUS_PENDING, 409, 'Yêu cầu đang chờ duyệt. Hãy hủy yêu cầu nếu cần đăng ký lại.');
         $data = $this->validatedVehicle($request, $vehicle);
         $oldImagePath = $vehicle->vehicle_image;
@@ -106,23 +109,34 @@ class VehicleController extends Controller
     public function destroy(Request $request, Vehicle $vehicle): RedirectResponse
     {
         $vehicle = $this->managedVehicle($request, $vehicle);
-        $imagePath = $vehicle->vehicle_image;
+        abort_if(in_array($vehicle->status, [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED], true), 409, 'Phương tiện đã được gỡ hoặc hủy trước đó.');
+        $data = $request->validate([
+            'removal_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
         $wasApproved = $vehicle->status === Vehicle::STATUS_APPROVED;
 
-        if ($wasApproved) {
-            $this->notifications->vehicleRemoved($vehicle);
-        } else {
-            $this->notifications->vehicleRequestCancelled($vehicle);
-        }
+        DB::transaction(function () use ($vehicle, $request, $data, $wasApproved): void {
+            $lockedVehicle = Vehicle::query()->with('tenant')->lockForUpdate()->findOrFail($vehicle->id);
 
-        $vehicle->delete();
-        if ($imagePath) {
-            Storage::disk('local')->delete($imagePath);
-        }
+            if ($wasApproved) {
+                $this->notifications->vehicleRemoved($lockedVehicle);
+            } else {
+                $this->notifications->vehicleRequestCancelled($lockedVehicle);
+            }
+
+            $lockedVehicle->forceFill([
+                'archived_license_plate' => $lockedVehicle->license_plate,
+                'license_plate' => null,
+                'status' => $wasApproved ? Vehicle::STATUS_REMOVED : Vehicle::STATUS_CANCELLED,
+                'removed_at' => now(),
+                'removed_by' => $request->user()->id,
+                'removal_reason' => $data['removal_reason'],
+            ])->save();
+        }, 3);
 
         return back()->with('success', $wasApproved
-            ? 'Đã gỡ phương tiện.'
-            : 'Đã hủy yêu cầu. Bạn có thể đăng ký lại phương tiện từ đầu.');
+            ? 'Đã gỡ phương tiện và giữ lại lịch sử xét duyệt.'
+            : 'Đã hủy yêu cầu và giữ lại lịch sử. Bạn có thể đăng ký lại phương tiện từ đầu.');
     }
 
     public function image(Request $request, Vehicle $vehicle): StreamedResponse
@@ -158,7 +172,7 @@ class VehicleController extends Controller
     {
         $contract = $this->capacity->currentContract($tenant);
         if (! $contract) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'vehicle' => 'Chỉ người đang ở trong một hợp đồng hoạt động mới được đăng ký phương tiện.',
             ]);
         }
@@ -168,7 +182,7 @@ class VehicleController extends Controller
 
         $ownerId = (int) ($request->input('owner_tenant_id') ?: $tenant->id);
         if (! $allowedOwnerIds->contains($ownerId)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'owner_tenant_id' => 'Chủ xe phải là người đang ở trong phòng.',
             ]);
         }

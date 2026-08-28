@@ -40,6 +40,7 @@
                         <option value="available" @selected(request('status') === 'available')>Trống</option>
                         <option value="occupied" @selected(request('status') === 'occupied')>Đang thuê</option>
                         <option value="maintenance" @selected(request('status') === 'maintenance')>Bảo trì</option>
+                        <option value="retired" @selected(request('status') === 'retired')>Ngừng khai thác</option>
                     </select>
                 </div>
             </form>

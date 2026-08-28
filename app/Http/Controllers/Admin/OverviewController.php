@@ -41,7 +41,7 @@ class OverviewController extends Controller
         $monthlyRevenuePreviousYear = $this->monthlyRevenue($previousYear);
 
         // Trạng thái phòng
-        $totalRooms = Room::count();
+        $totalRooms = Room::where('status', '!=', Room::STATUS_RETIRED)->count();
         $occupiedRooms = Room::occupied()->count();
         $availableRooms = Room::available()->count();
         $maintenanceRooms = Room::maintenance()->count();
@@ -138,7 +138,7 @@ class OverviewController extends Controller
 
         $totalReceivable = max(0, $totalBilled - $totalRevenue);
 
-        $totalRooms = Room::count();
+        $totalRooms = Room::where('status', '!=', Room::STATUS_RETIRED)->count();
         $occupiedRooms = Room::occupied()->count();
         $fillRate = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
 
@@ -225,7 +225,7 @@ class OverviewController extends Controller
 
     public function roomStats()
     {
-        $totalRooms = Room::count();
+        $totalRooms = Room::where('status', '!=', Room::STATUS_RETIRED)->count();
         $occupiedRooms = Room::occupied()->count();
         $availableRooms = Room::available()->count();
         $maintenanceRooms = Room::maintenance()->count();
@@ -240,7 +240,7 @@ class OverviewController extends Controller
 
     public function fillRate()
     {
-        $totalRooms = Room::count();
+        $totalRooms = Room::where('status', '!=', Room::STATUS_RETIRED)->count();
         $occupiedRooms = Room::occupied()->count();
         $availableRooms = Room::available()->count();
         $maintenanceRooms = Room::maintenance()->count();

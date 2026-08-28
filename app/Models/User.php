@@ -11,6 +11,13 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa tài khoản. Hãy chuyển trạng thái sang ngừng sử dụng.');
+        });
+    }
+
     protected $attributes = [
         'status' => 'active',
         'must_change_password' => false,
@@ -42,6 +49,9 @@ class User extends Authenticatable
         'activated_at',
         'terms_accepted_at',
         'last_login_at',
+        'deactivated_at',
+        'deactivated_by',
+        'deactivation_reason',
         'must_change_password',
     ];
 
@@ -58,6 +68,7 @@ class User extends Authenticatable
             'activated_at' => 'datetime',
             'terms_accepted_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'deactivated_at' => 'datetime',
             'must_change_password' => 'boolean',
         ];
     }
@@ -75,6 +86,11 @@ class User extends Authenticatable
     public function contractHistories()
     {
         return $this->hasMany(ContractHistory::class);
+    }
+
+    public function deactivatedBy()
+    {
+        return $this->belongsTo(self::class, 'deactivated_by');
     }
 
     public function hasRole(string ...$roles): bool

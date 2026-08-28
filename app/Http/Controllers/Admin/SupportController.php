@@ -88,6 +88,9 @@ class SupportController extends Controller
     {
         abort_unless($supportRequest->attachment && Storage::disk('local')->exists($supportRequest->attachment), 404);
 
-        return Storage::disk('local')->download($supportRequest->attachment);
+        return Storage::disk('local')->response($supportRequest->attachment, null, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 }
