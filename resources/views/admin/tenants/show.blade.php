@@ -207,7 +207,15 @@
                 </p>
 
                 <div class="mt-5">
-                    @if ($activeContract)
+                    @if ($tenant->status === \App\Models\Tenant::STATUS_ARCHIVED)
+
+                        <span
+                            class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-300">
+                            <span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>
+                            Đã lưu trữ
+                        </span>
+
+                    @elseif ($activeContract)
 
                         <span
                             class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">

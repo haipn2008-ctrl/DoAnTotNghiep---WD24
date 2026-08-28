@@ -371,6 +371,38 @@ class UserManagementTest extends TestCase
         $this->assertAuthenticatedAs($this->admin);
     }
 
+    public function test_admin_can_restore_an_inactive_standalone_account_with_audit_data(): void
+    {
+        $target = $this->user($this->clientRole, 'restore@example.com', 'Cần khôi phục');
+        $target->forceFill([
+            'status' => User::STATUS_INACTIVE,
+            'deactivated_at' => now()->subDay(),
+            'deactivated_by' => $this->admin->id,
+            'deactivation_reason' => 'Tài khoản đã ngừng sử dụng trước đó.',
+        ])->save();
+
+        $this->actingAs($this->admin)->put(route('admin.users.update', $target), [
+            'name' => $target->name,
+            'email' => $target->email,
+            'phone' => $target->phone,
+            'role_id' => $target->role_id,
+            'status' => User::STATUS_ACTIVE,
+        ])->assertSessionHasErrors('status');
+        $this->assertSame(User::STATUS_INACTIVE, $target->fresh()->status);
+
+        $this->patch(route('admin.users.restore', $target), [
+            'reactivation_reason' => 'Người dùng có nhu cầu sử dụng lại tài khoản.',
+        ])->assertSessionHas('success');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $target->id,
+            'status' => User::STATUS_ACTIVE,
+            'reactivated_by' => $this->admin->id,
+        ]);
+        $this->assertNotNull($target->fresh()->reactivated_at);
+        $this->assertNotNull($target->fresh()->deactivated_at);
+    }
+
     public function test_account_with_open_contract_cannot_be_deleted_or_orphan_related_data(): void
     {
         $target = $this->user($this->clientRole, 'renting@example.com', 'Đang thuê');

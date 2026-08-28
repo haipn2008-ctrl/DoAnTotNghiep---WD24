@@ -241,9 +241,35 @@ class TenantManagementTest extends TestCase
 
         $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'status' => Tenant::STATUS_ARCHIVED]);
         $this->assertDatabaseHas('users', ['id' => $client->id, 'status' => User::STATUS_INACTIVE]);
+        $this->get(route('admin.tenants.index'))
+            ->assertOk()
+            ->assertSee($tenant->cccd)
+            ->assertSee('Đã lưu trữ');
+        $this->get(route('admin.tenants.index', ['status' => 'archived']))
+            ->assertOk()
+            ->assertSee('Đã lưu trữ');
+        $this->get(route('admin.tenants.show', $tenant))
+            ->assertOk()
+            ->assertSee('Đã lưu trữ')
+            ->assertDontSee('Chưa thuê phòng');
         $this->delete("/admin/tenants/{$tenant->id}", [
             'archive_reason' => 'Thử lưu trữ hồ sơ thêm lần nữa.',
         ])->assertSessionHas('error');
+
+        $this->patch(route('admin.tenants.restore', $tenant), [
+            'restoration_reason' => 'Khách quay lại và yêu cầu tiếp tục sử dụng hồ sơ cũ.',
+        ])->assertSessionHas('success');
+        $this->assertDatabaseHas('tenants', [
+            'id' => $tenant->id,
+            'status' => Tenant::STATUS_ACTIVE,
+            'restored_by' => $this->admin->id,
+        ]);
+        $this->assertDatabaseHas('users', [
+            'id' => $client->id,
+            'status' => User::STATUS_ACTIVE,
+            'reactivated_by' => $this->admin->id,
+        ]);
+        $this->assertNotNull($tenant->fresh()->restored_at);
     }
 
     public function test_tenant_with_historical_contract_can_be_archived_without_losing_history(): void

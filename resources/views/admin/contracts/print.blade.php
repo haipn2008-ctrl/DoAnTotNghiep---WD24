@@ -28,6 +28,12 @@
             @include('admin.contracts.contract-template-content')
         @endif
     </main>
-    <script>window.addEventListener('load', () => setTimeout(() => window.print(), 300));</script>
+    <script>
+        window.addEventListener('load', () => {
+            if (window.self === window.top) {
+                setTimeout(() => window.print(), 300);
+            }
+        });
+    </script>
 </body>
 </html>

@@ -188,6 +188,9 @@ Route::middleware('auth')->group(function () {
                 Route::resource('users', UserController::class)
                     ->except(['show']);
 
+                Route::patch('users/{user}/restore', [UserController::class, 'restore'])
+                    ->name('users.restore');
+
                 // =================================================
                 // PHÒNG
                 // =================================================
@@ -204,6 +207,9 @@ Route::middleware('auth')->group(function () {
 
                 Route::patch('rooms/{room}/retire', [RoomController::class, 'retire'])
                     ->name('rooms.retire');
+
+                Route::patch('rooms/{room}/restore', [RoomController::class, 'restore'])
+                    ->name('rooms.restore');
 
                 Route::resource(
                     'rooms',
@@ -223,6 +229,9 @@ Route::middleware('auth')->group(function () {
                     'tenants',
                     TenantController::class
                 )->only(['index', 'show', 'edit', 'update', 'destroy']);
+
+                Route::patch('tenants/{tenant}/restore', [TenantController::class, 'restore'])
+                    ->name('tenants.restore');
 
                 Route::put('vehicles/{vehicle}/review', [TenantController::class, 'reviewVehicle'])
                     ->name('vehicles.review');
@@ -1243,6 +1252,7 @@ Route::middleware('auth')->group(function () {
                 Route::get('/vehicles/{vehicle}/image', [ClientVehicleController::class, 'image'])->middleware('rental.active')->name('vehicles.image');
                 Route::put('/vehicles/{vehicle}', [ClientVehicleController::class, 'update'])->middleware('rental.active')->name('vehicles.update');
                 Route::delete('/vehicles/{vehicle}', [ClientVehicleController::class, 'destroy'])->middleware('rental.active')->name('vehicles.destroy');
+                Route::patch('/vehicles/{vehicle}/restore', [ClientVehicleController::class, 'restore'])->middleware('rental.active')->name('vehicles.restore');
 
                 // =============================================
                 // LỊCH SỬ YÊU CẦU

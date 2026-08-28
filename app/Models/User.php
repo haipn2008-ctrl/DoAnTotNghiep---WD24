@@ -52,6 +52,9 @@ class User extends Authenticatable
         'deactivated_at',
         'deactivated_by',
         'deactivation_reason',
+        'reactivated_at',
+        'reactivated_by',
+        'reactivation_reason',
         'must_change_password',
     ];
 
@@ -69,6 +72,7 @@ class User extends Authenticatable
             'terms_accepted_at' => 'datetime',
             'last_login_at' => 'datetime',
             'deactivated_at' => 'datetime',
+            'reactivated_at' => 'datetime',
             'must_change_password' => 'boolean',
         ];
     }
@@ -91,6 +95,11 @@ class User extends Authenticatable
     public function deactivatedBy()
     {
         return $this->belongsTo(self::class, 'deactivated_by');
+    }
+
+    public function reactivatedBy()
+    {
+        return $this->belongsTo(self::class, 'reactivated_by');
     }
 
     public function hasRole(string ...$roles): bool

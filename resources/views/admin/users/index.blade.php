@@ -86,7 +86,16 @@
                                         <a href="{{ route('admin.users.edit', $user) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Sửa">
                                             <i class="bx bx-edit text-lg"></i>
                                         </a>
-                                        @if (! auth()->user()->is($user))
+                                        @if ($user->status === \App\Models\User::STATUS_INACTIVE)
+                                            <form action="{{ route('admin.users.restore', $user) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do khôi phục tài khoản (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.reactivation_reason.value = reason.trim(); return confirm('Xác nhận khôi phục tài khoản?');">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="reactivation_reason">
+                                                <button class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Khôi phục tài khoản">
+                                                    <i class="bx bx-user-check text-lg"></i>
+                                                </button>
+                                            </form>
+                                        @elseif (! auth()->user()->is($user))
                                             <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do ngừng sử dụng tài khoản (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.deactivation_reason.value = reason.trim(); return confirm('Xác nhận ngừng sử dụng tài khoản? Lịch sử sẽ được giữ lại.');">
                                                 @csrf
                                                 @method('DELETE')

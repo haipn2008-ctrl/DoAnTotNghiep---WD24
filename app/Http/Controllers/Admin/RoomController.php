@@ -13,7 +13,6 @@ use App\Services\RoomEvidenceService;
 use App\Support\Csv;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class RoomController extends Controller
@@ -199,38 +198,9 @@ class RoomController extends Controller
         return redirect()->route('admin.rooms.show', $room)->with('success', 'Cập nhật phòng thành công. Ảnh cũ vẫn được giữ trong nhật ký bằng chứng.');
     }
 
-    public function destroy(Room $room)
+    public function destroy(Request $request, Room $room)
     {
-        $legacyThumbnail = $room->thumbnail;
-        $images = $room->images()->get();
-        $cannotDelete = DB::transaction(function () use ($room): bool {
-            $lockedRoom = Room::query()->lockForUpdate()->findOrFail($room->id);
-
-            $hasOperationalReadings = $lockedRoom->utilityReadings()
-                ->where(fn ($query) => $query
-                    ->whereNull('reading_type')
-                    ->orWhere('reading_type', '!=', 'baseline'))
-                ->exists();
-
-            if ($lockedRoom->contracts()->exists() || $hasOperationalReadings) {
-                return true;
-            }
-
-            $lockedRoom->delete();
-
-            return false;
-        });
-
-        if ($cannotDelete) {
-            return redirect()->route('admin.rooms.index')->with('error', 'Không thể xóa phòng đã có dữ liệu thuê hoặc chỉ số điện nước.');
-        }
-
-        $this->evidenceService->deleteFiles($images);
-        if ($legacyThumbnail && ! $images->contains('path', $legacyThumbnail)) {
-            Storage::disk('public')->delete($legacyThumbnail);
-        }
-
-        return redirect()->route('admin.rooms.index')->with('success', 'Xóa phòng thành công.');
+        return $this->retire($request, $room);
     }
 
     public function retire(Request $request, Room $room)
@@ -246,16 +216,8 @@ class RoomController extends Controller
                 return 'already_retired';
             }
 
-            if ($lockedRoom->activeContract()->exists() || (int) $lockedRoom->current_people > 0) {
-                return 'occupied';
-            }
-
-            $hasHistory = $lockedRoom->contracts()->exists()
-                || $lockedRoom->utilityReadings()
-                    ->where(fn ($query) => $query->whereNull('reading_type')->orWhere('reading_type', '!=', 'baseline'))
-                    ->exists();
-            if (! $hasHistory) {
-                return 'unused';
+            if ($lockedRoom->reservingContract()->exists() || (int) $lockedRoom->current_people > 0) {
+                return 'reserved';
             }
 
             $lockedRoom->forceFill([
@@ -270,9 +232,42 @@ class RoomController extends Controller
 
         return match ($result) {
             'retired' => redirect()->route('admin.rooms.index')->with('success', 'Đã ngừng khai thác phòng và giữ nguyên toàn bộ lịch sử.'),
-            'occupied' => back()->with('error', 'Không thể ngừng khai thác phòng đang có người thuê.'),
-            'unused' => back()->with('error', 'Phòng chưa từng vận hành; hãy dùng chức năng xóa cứng nếu đây là dữ liệu tạo nhầm.'),
+            'reserved' => back()->with('error', 'Không thể ngừng khai thác phòng đang được giữ chỗ, chờ ký, chờ cọc, chờ nhận phòng hoặc đang có người thuê.'),
             default => back()->with('error', 'Phòng đã ngừng khai thác trước đó.'),
+        };
+    }
+
+    public function restore(Request $request, Room $room)
+    {
+        $data = $request->validate([
+            'restoration_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        $result = DB::transaction(function () use ($room, $request, $data): string {
+            $lockedRoom = Room::query()->lockForUpdate()->findOrFail($room->id);
+
+            if ($lockedRoom->status !== Room::STATUS_RETIRED) {
+                return 'not_retired';
+            }
+
+            if ($lockedRoom->reservingContract()->exists() || (int) $lockedRoom->current_people > 0) {
+                return 'reserved';
+            }
+
+            $lockedRoom->forceFill([
+                'status' => Room::STATUS_AVAILABLE,
+                'restored_at' => now(),
+                'restored_by' => $request->user()->id,
+                'restoration_reason' => $data['restoration_reason'],
+            ])->save();
+
+            return 'restored';
+        }, 3);
+
+        return match ($result) {
+            'restored' => back()->with('success', 'Đã đưa phòng trở lại trạng thái sẵn sàng khai thác.'),
+            'reserved' => back()->with('error', 'Không thể khôi phục phòng đang được giữ chỗ hoặc có hợp đồng hoạt động.'),
+            default => back()->with('error', 'Chỉ có thể khôi phục phòng đã ngừng khai thác.'),
         };
     }
 
@@ -319,7 +314,7 @@ class RoomController extends Controller
         ]);
         $query = Room::with('amenities')->withCount([
             'contracts',
-            'activeContract as active_contracts_count',
+            'reservingContract as reserving_contracts_count',
             'utilityReadings as operational_utility_readings_count' => fn ($query) => $query
                 ->where(fn ($query) => $query->whereNull('reading_type')->orWhere('reading_type', '!=', 'baseline')),
         ]);

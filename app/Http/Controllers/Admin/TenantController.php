@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\AdminNotificationService;
 use App\Services\ClientNotificationService;
+use App\Services\TenantAccountLifecycle;
 use App\Services\VehicleCapacityService;
 use App\Support\Csv;
 use Illuminate\Database\QueryException;
@@ -172,7 +173,9 @@ class TenantController extends Controller
                     $tenant->email,
                     $tenant->address,
                     $activeRoom ?? '-',
-                    $activeRoom ? 'Đang thuê' : ($hasRentalHistory ? 'Đã rời phòng' : 'Chưa thuê'),
+                    $tenant->status === Tenant::STATUS_ARCHIVED
+                        ? 'Đã lưu trữ'
+                        : ($activeRoom ? 'Đang thuê' : ($hasRentalHistory ? 'Đã rời phòng' : 'Chưa thuê')),
                     $tenant->vehicles->count(),
                     $tenant->created_at->format('d/m/Y'),
                 ]);
@@ -495,6 +498,47 @@ class TenantController extends Controller
         );
     }
 
+    public function restore(Request $request, Tenant $tenant, TenantAccountLifecycle $accountLifecycle)
+    {
+        $data = $request->validate([
+            'restoration_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        if ($tenant->status !== Tenant::STATUS_ARCHIVED) {
+            return back()->with('error', 'Chỉ có thể khôi phục hồ sơ khách thuê đang được lưu trữ.');
+        }
+
+        DB::transaction(function () use ($tenant, $request, $data, $accountLifecycle): void {
+            $lockedTenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($tenant->id);
+
+            if ($lockedTenant->status !== Tenant::STATUS_ARCHIVED) {
+                throw ValidationException::withMessages([
+                    'tenant' => 'Trạng thái hồ sơ đã thay đổi. Vui lòng tải lại trang.',
+                ]);
+            }
+
+            $lockedTenant->forceFill([
+                'status' => Tenant::STATUS_ACTIVE,
+                'restored_at' => now(),
+                'restored_by' => $request->user()->id,
+                'restoration_reason' => $data['restoration_reason'],
+            ])->save();
+
+            if ($lockedTenant->user && $lockedTenant->user->status === User::STATUS_INACTIVE) {
+                $lockedTenant->user->forceFill([
+                    'reactivated_at' => now(),
+                    'reactivated_by' => $request->user()->id,
+                    'reactivation_reason' => 'Khôi phục cùng hồ sơ khách thuê: '.$data['restoration_reason'],
+                    'activated_at' => $lockedTenant->user->activated_at ?? now(),
+                    'must_change_password' => false,
+                ])->save();
+                $accountLifecycle->sync($lockedTenant);
+            }
+        }, 3);
+
+        return back()->with('success', 'Đã khôi phục hồ sơ khách thuê và tài khoản liên kết.');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Xử lý lỗi trùng dữ liệu
@@ -569,14 +613,6 @@ class TenantController extends Controller
         string $search,
         string $status
     ): void {
-        if ($status === 'archived') {
-            $query->where('status', Tenant::STATUS_ARCHIVED);
-
-            return;
-        }
-
-        $query->where('status', Tenant::STATUS_ACTIVE);
-
         $query->when(
             $search,
             function ($query, $search): void {
@@ -604,6 +640,18 @@ class TenantController extends Controller
                 });
             }
         );
+
+        if ($status === 'archived') {
+            $query->where('status', Tenant::STATUS_ARCHIVED);
+
+            return;
+        }
+
+        if ($status === '') {
+            return;
+        }
+
+        $query->where('status', Tenant::STATUS_ACTIVE);
 
         $representing = fn ($query) => $query->whereIn(
             'contracts.status',

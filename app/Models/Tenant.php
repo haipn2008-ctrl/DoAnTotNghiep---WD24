@@ -24,6 +24,9 @@ class Tenant extends Model
         'archived_at',
         'archived_by',
         'archive_reason',
+        'restored_at',
+        'restored_by',
+        'restoration_reason',
 
         'full_name',
         'date_of_birth',
@@ -43,6 +46,7 @@ class Tenant extends Model
         'date_of_birth' => 'date',
         'cccd_issue_date' => 'date',
         'archived_at' => 'datetime',
+        'restored_at' => 'datetime',
     ];
 
     /*
@@ -59,6 +63,11 @@ class Tenant extends Model
     public function archivedBy()
     {
         return $this->belongsTo(User::class, 'archived_by');
+    }
+
+    public function restoredBy()
+    {
+        return $this->belongsTo(User::class, 'restored_by');
     }
 
     public function scopeActive($query)

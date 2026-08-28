@@ -97,6 +97,46 @@
                 notificationMenu?.classList.add('hidden');
                 notificationButton?.setAttribute('aria-expanded', 'false');
             });
+
+            document.addEventListener('click', (event) => {
+                const printLink = event.target.closest('[data-contract-print]');
+
+                if (!printLink) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                const oldFrame = document.getElementById('contract-print-frame');
+                oldFrame?.remove();
+
+                const printFrame = document.createElement('iframe');
+                printFrame.id = 'contract-print-frame';
+                printFrame.title = 'Nội dung in hợp đồng';
+                printFrame.style.position = 'fixed';
+                printFrame.style.width = '0';
+                printFrame.style.height = '0';
+                printFrame.style.border = '0';
+
+                printFrame.addEventListener('load', () => {
+                    const printWindow = printFrame.contentWindow;
+
+                    if (!printWindow) {
+                        return;
+                    }
+
+                    const cleanup = () => setTimeout(() => printFrame.remove(), 500);
+                    printWindow.addEventListener('afterprint', cleanup, { once: true });
+
+                    setTimeout(() => {
+                        printWindow.focus();
+                        printWindow.print();
+                    }, 300);
+                }, { once: true });
+
+                printFrame.src = printLink.href;
+                document.body.appendChild(printFrame);
+            });
         });
     </script>
     @stack('scripts')

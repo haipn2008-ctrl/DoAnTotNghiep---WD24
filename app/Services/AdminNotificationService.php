@@ -229,6 +229,17 @@ class AdminNotificationService
         ]);
     }
 
+    public function vehicleRestored(Vehicle $vehicle): ContractLifecycleAlert
+    {
+        ContractLifecycleAlert::query()
+            ->where('vehicle_id', $vehicle->id)
+            ->where('type', 'vehicle_removed')
+            ->whereNull('resolved_at')
+            ->update(['resolved_at' => now()]);
+
+        return $this->vehicleSubmitted($vehicle, true);
+    }
+
     private function actionAlert(Contract $contract, string $type, string $dedupeKey, string $title, string $message, Model $reference): ContractLifecycleAlert
     {
         return ContractLifecycleAlert::query()->updateOrCreate(

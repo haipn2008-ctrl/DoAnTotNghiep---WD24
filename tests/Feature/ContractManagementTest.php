@@ -296,6 +296,7 @@ class ContractManagementTest extends TestCase
             ->assertSee('action="'.route('admin.contracts.return-to-draft', $contract).'"', false)
             ->assertDontSee('Trả lại bản nháp')
             ->assertSee('In hợp đồng')
+            ->assertSee('data-contract-print', false)
             ->assertSeeInOrder(['Bản nháp', 'Chờ ký'])
             ->assertSee('Tạo bản nháp')
             ->assertSee('Gửi chờ ký')

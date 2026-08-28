@@ -249,6 +249,40 @@ class VehicleManagementTest extends TestCase
         $this->assertDatabaseHas('vehicles', ['license_plate' => '30A-67890', 'status' => Vehicle::STATUS_PENDING]);
     }
 
+    public function test_client_can_restore_a_cancelled_vehicle_for_review(): void
+    {
+        $this->actingAs($this->client)->post(route('client.vehicles.store'), $this->payload())
+            ->assertSessionHasNoErrors();
+        $vehicle = $this->tenant->vehicles()->sole();
+
+        $this->delete(route('client.vehicles.destroy', $vehicle), [
+            'removal_reason' => 'Thông tin ban đầu chưa phù hợp nên tạm thời hủy yêu cầu.',
+        ])->assertSessionHas('success');
+        $this->assertNull($vehicle->fresh()->license_plate);
+
+        $this->get(route('client.vehicles.index'))
+            ->assertOk()
+            ->assertSee('Phương tiện đã hủy hoặc đã gỡ')
+            ->assertSee(route('client.vehicles.restore', $vehicle), false);
+
+        $this->patch(route('client.vehicles.restore', $vehicle), [
+            'restoration_reason' => 'Thông tin đã được kiểm tra và muốn gửi đăng ký lại.',
+        ])->assertSessionHas('success');
+
+        $this->assertDatabaseHas('vehicles', [
+            'id' => $vehicle->id,
+            'license_plate' => '30A-12345',
+            'status' => Vehicle::STATUS_PENDING,
+            'restored_by' => $this->client->id,
+        ]);
+        $this->assertNotNull($vehicle->fresh()->restored_at);
+        $this->assertDatabaseHas('contract_lifecycle_alerts', [
+            'vehicle_id' => $vehicle->id,
+            'type' => 'vehicle_review',
+            'resolved_at' => null,
+        ]);
+    }
+
     public function test_representative_selects_vehicle_owner_and_each_person_has_only_one_vehicle(): void
     {
         [$contract, $secondTenant] = $this->activeContractWithResidents(2);

@@ -8,6 +8,7 @@ use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\Invoice;
 use App\Models\Role;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\AccountCreatedNotification;
 use Illuminate\Database\QueryException;
@@ -236,6 +237,44 @@ class UserController extends Controller
             ->with('success', 'Đã ngừng sử dụng tài khoản và giữ nguyên lịch sử liên quan.');
     }
 
+    public function restore(Request $request, User $user)
+    {
+        $this->adminOnly();
+
+        $data = $request->validate([
+            'reactivation_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        if ($user->status !== User::STATUS_INACTIVE) {
+            return back()->with('error', 'Chỉ có thể khôi phục tài khoản đang ngừng sử dụng.');
+        }
+
+        if ($user->tenant?->status === Tenant::STATUS_ARCHIVED) {
+            return back()->with('error', 'Hãy khôi phục hồ sơ khách thuê để đồng bộ cả hồ sơ và tài khoản liên kết.');
+        }
+
+        DB::transaction(function () use ($user, $request, $data): void {
+            $lockedUser = User::query()->with('tenant')->lockForUpdate()->findOrFail($user->id);
+
+            if ($lockedUser->status !== User::STATUS_INACTIVE) {
+                throw ValidationException::withMessages([
+                    'user' => 'Trạng thái tài khoản đã thay đổi. Vui lòng tải lại trang.',
+                ]);
+            }
+
+            $lockedUser->forceFill([
+                'status' => $lockedUser->isClient() ? $this->expectedClientStatus($lockedUser) : User::STATUS_ACTIVE,
+                'reactivated_at' => now(),
+                'reactivated_by' => $request->user()->id,
+                'reactivation_reason' => $data['reactivation_reason'],
+                'activated_at' => $lockedUser->activated_at ?? now(),
+                'must_change_password' => false,
+            ])->save();
+        }, 3);
+
+        return back()->with('success', 'Đã khôi phục tài khoản và ghi nhận đầy đủ thông tin khôi phục.');
+    }
+
     private function manageableRoles()
     {
         return Role::query()
@@ -259,6 +298,10 @@ class UserController extends Controller
 
     private function allowedStatusesFor(User $user): array
     {
+        if ($user->status === User::STATUS_INACTIVE) {
+            return [User::STATUS_INACTIVE];
+        }
+
         if ($user->isAdmin()) {
             return [User::STATUS_ACTIVE, User::STATUS_LOCKED];
         }

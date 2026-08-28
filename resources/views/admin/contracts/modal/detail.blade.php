@@ -1346,7 +1346,7 @@ Thông tin hợp đồng
 
         href="{{ route('admin.contracts.print',$contract) }}"
 
-        target="_blank"
+        data-contract-print
 
         class="btn btn-success">
 

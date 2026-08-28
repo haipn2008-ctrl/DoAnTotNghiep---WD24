@@ -57,7 +57,7 @@
                         <td class="px-5 py-4">
                             <div class="flex justify-end gap-2">
                                 <a href="{{ route('admin.contracts.show', $contract) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" title="Xem chi tiết"><i class="bx bx-show text-lg"></i></a>
-                                <a href="{{ route('admin.contracts.print', $contract->id) }}" target="_blank" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="In hợp đồng"><i class="bx bx-printer text-lg"></i></a>
+                                <a data-contract-print href="{{ route('admin.contracts.print', $contract->id) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="In hợp đồng"><i class="bx bx-printer text-lg"></i></a>
                             </div>
                         </td>
                     </tr>

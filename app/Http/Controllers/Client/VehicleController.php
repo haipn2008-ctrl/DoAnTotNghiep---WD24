@@ -37,8 +37,11 @@ class VehicleController extends Controller
         $vehicles = $owners->flatMap(fn (Tenant $owner) => $owner->vehicles)
             ->whereNotIn('status', [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED])
             ->sortByDesc('created_at')->values();
+        $archivedVehicles = $owners->flatMap(fn (Tenant $owner) => $owner->vehicles)
+            ->whereIn('status', [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED])
+            ->sortByDesc('removed_at')->values();
 
-        return view('client.vehicles.index', compact('tenant', 'contract', 'owners', 'vehicles'));
+        return view('client.vehicles.index', compact('tenant', 'contract', 'owners', 'vehicles', 'archivedVehicles'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -137,6 +140,55 @@ class VehicleController extends Controller
         return back()->with('success', $wasApproved
             ? 'Đã gỡ phương tiện và giữ lại lịch sử xét duyệt.'
             : 'Đã hủy yêu cầu và giữ lại lịch sử. Bạn có thể đăng ký lại phương tiện từ đầu.');
+    }
+
+    public function restore(Request $request, Vehicle $vehicle): RedirectResponse
+    {
+        $vehicle = $this->managedVehicle($request, $vehicle);
+        abort_unless(in_array($vehicle->status, [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED], true), 409, 'Chỉ có thể đăng ký lại phương tiện đã hủy hoặc đã gỡ.');
+
+        $data = $request->validate([
+            'restoration_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($vehicle, $request, $data): void {
+            $lockedVehicle = Vehicle::query()->with('tenant')->lockForUpdate()->findOrFail($vehicle->id);
+
+            if (! in_array($lockedVehicle->status, [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED], true)) {
+                throw ValidationException::withMessages([
+                    'vehicle' => 'Trạng thái phương tiện đã thay đổi. Vui lòng tải lại trang.',
+                ]);
+            }
+
+            $this->capacity->ensureCanSubmit($lockedVehicle->tenant, $lockedVehicle);
+            $licensePlate = $lockedVehicle->archived_license_plate;
+
+            if ($licensePlate && Vehicle::query()
+                ->where('license_plate', $licensePlate)
+                ->whereKeyNot($lockedVehicle->id)
+                ->lockForUpdate()
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'vehicle' => 'Biển số cũ đang được sử dụng bởi phương tiện khác.',
+                ]);
+            }
+
+            $lockedVehicle->forceFill([
+                'license_plate' => $licensePlate,
+                'status' => Vehicle::STATUS_PENDING,
+                'submitted_by' => $request->user()->id,
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'review_note' => null,
+                'restored_at' => now(),
+                'restored_by' => $request->user()->id,
+                'restoration_reason' => $data['restoration_reason'],
+            ])->save();
+
+            $this->notifications->vehicleRestored($lockedVehicle);
+        }, 3);
+
+        return back()->with('success', 'Đã khôi phục và gửi lại phương tiện để quản trị viên duyệt.');
     }
 
     public function image(Request $request, Vehicle $vehicle): StreamedResponse

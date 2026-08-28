@@ -40,11 +40,15 @@ class Vehicle extends Model
         'removed_at',
         'removed_by',
         'removal_reason',
+        'restored_at',
+        'restored_by',
+        'restoration_reason',
     ];
 
     protected $casts = [
         'reviewed_at' => 'datetime',
         'removed_at' => 'datetime',
+        'restored_at' => 'datetime',
     ];
 
     /*
@@ -72,6 +76,11 @@ class Vehicle extends Model
     public function remover()
     {
         return $this->belongsTo(User::class, 'removed_by');
+    }
+
+    public function restoredBy()
+    {
+        return $this->belongsTo(User::class, 'restored_by');
     }
 
     public function getDisplayLicensePlateAttribute(): ?string
