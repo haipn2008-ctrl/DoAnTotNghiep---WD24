@@ -1,7 +1,7 @@
 <x-auth-layout
     title="Quên mật khẩu"
     eyebrow="Khôi phục tài khoản"
-    description="Nhập email đã đăng ký. Chúng tôi sẽ gửi cho bạn liên kết để tạo mật khẩu mới."
+    description="Nhập email đã đăng ký. Chúng tôi sẽ gửi mã xác thực 6 số để bạn tạo mật khẩu mới."
 >
     @if (session('status'))
         <div class="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
@@ -25,7 +25,7 @@
                 class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
         </div>
         <button type="submit" class="inline-flex h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
-            Gửi liên kết đặt lại mật khẩu
+            Gửi mã xác thực
         </button>
     </form>
 

@@ -42,7 +42,7 @@ class PasswordResetTest extends TestCase
             ->assertSessionHas('status');
 
         Notification::assertSentTo($user, ResetPasswordNotification::class);
-        $this->assertDatabaseHas('password_reset_tokens', ['email' => $user->email]);
+        $this->assertDatabaseHas('password_reset_otps', ['email' => $user->email]);
 
         $this->post('/forgot-password', ['email' => 'unknown@example.com'])
             ->assertRedirect()
@@ -52,59 +52,59 @@ class PasswordResetTest extends TestCase
             new User(['email' => 'unknown@example.com']),
             ResetPasswordNotification::class
         );
-        $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'unknown@example.com']);
+        $this->assertDatabaseMissing('password_reset_otps', ['email' => 'unknown@example.com']);
     }
 
     public function test_user_can_reset_password_with_the_emailed_token(): void
     {
         Notification::fake();
         $user = $this->user('client@example.com');
-        $token = null;
+        $code = null;
 
         $this->post('/forgot-password', ['email' => $user->email]);
 
         Notification::assertSentTo(
             $user,
             ResetPasswordNotification::class,
-            function (ResetPasswordNotification $notification) use (&$token): bool {
-                $token = $notification->token;
+            function (ResetPasswordNotification $notification) use (&$code): bool {
+                $code = $notification->code;
 
                 return true;
             }
         );
 
-        $this->get(route('password.reset', ['token' => $token, 'email' => $user->email]))
+        $this->get(route('password.reset', ['email' => $user->email]))
             ->assertOk()
             ->assertViewIs('auth.reset-password');
 
         $this->post('/reset-password', [
-            'token' => $token,
+            'code' => $code,
             'email' => $user->email,
             'password' => 'new-password-123',
             'password_confirmation' => 'new-password-123',
         ])->assertRedirect(route('login'))->assertSessionHas('status');
 
         $this->assertTrue(Hash::check('new-password-123', $user->fresh()->password));
-        $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
+        $this->assertDatabaseMissing('password_reset_otps', ['email' => $user->email]);
     }
 
     public function test_invalid_token_and_unconfirmed_password_are_rejected(): void
     {
         $user = $this->user('client@example.com');
 
-        $this->from('/reset-password/invalid')->post('/reset-password', [
-            'token' => 'invalid-token',
+        $this->from('/reset-password')->post('/reset-password', [
+            'code' => '000000',
             'email' => $user->email,
             'password' => 'new-password-123',
             'password_confirmation' => 'different-password',
-        ])->assertRedirect('/reset-password/invalid')->assertSessionHasErrors('password');
+        ])->assertRedirect('/reset-password')->assertSessionHasErrors('password');
 
-        $this->from('/reset-password/invalid')->post('/reset-password', [
-            'token' => 'invalid-token',
+        $this->from('/reset-password')->post('/reset-password', [
+            'code' => '000000',
             'email' => $user->email,
             'password' => 'new-password-123',
             'password_confirmation' => 'new-password-123',
-        ])->assertRedirect('/reset-password/invalid')->assertSessionHasErrors('email');
+        ])->assertRedirect('/reset-password')->assertSessionHasErrors('code');
 
         $this->assertTrue(Hash::check('old-password', $user->fresh()->password));
     }

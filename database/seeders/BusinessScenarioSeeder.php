@@ -42,8 +42,13 @@ class BusinessScenarioSeeder extends Seeder
         DB::transaction(function (): void {
             $this->admin = User::query()->where('email', 'admin@nhatroanphuc.test')->sole();
             $this->setting = Setting::query()->where('is_active', true)->sole();
-            if (Contract::query()->where('contract_code', 'QA-01-DRAFT')->exists()) {
+            // Some demo databases intentionally omit draft contracts. QA-07 is the
+            // stable scenario used by the request screens, so use it to detect an
+            // existing scenario set and avoid inserting every fixture again.
+            if (Contract::query()->where('contract_code', 'QA-07-ACTIVE-PAID')->exists()
+                || SupportRequest::query()->where('submission_token', '20000000-0000-4000-8000-000000000001')->exists()) {
                 $this->loadExistingContracts();
+                $this->syncRequestScenarios();
                 $this->syncNewWorkflowScenarios();
 
                 return;
@@ -570,23 +575,54 @@ class BusinessScenarioSeeder extends Seeder
         }
     }
 
+    /** Rebuild only rows explicitly marked as demo requests when refreshing QA data. */
+    private function syncRequestScenarios(): void
+    {
+        ContractExtensionRequest::query()
+            ->where('reason', 'like', 'Yêu cầu gia hạn mẫu %')
+            ->delete();
+
+        $terminationIds = ContractTerminationRequest::query()
+            ->where('reason', 'like', 'Yêu cầu trả phòng mẫu:%')
+            ->pluck('id');
+
+        if ($terminationIds->isNotEmpty()) {
+            Contract::query()
+                ->whereIn('approved_termination_request_id', $terminationIds)
+                ->update([
+                    'approved_termination_request_id' => null,
+                    'scheduled_move_out_at' => null,
+                ]);
+            ContractTerminationRequest::query()->whereIn('id', $terminationIds)->delete();
+        }
+
+        $this->seedRequestScenarios();
+    }
+
     private function seedRequestScenarios(): void
     {
-        $contract = $this->contracts['active_paid'];
-        foreach ([
-            ContractExtensionRequest::STATUS_PENDING,
-            ContractExtensionRequest::STATUS_APPROVED,
-            ContractExtensionRequest::STATUS_REJECTED,
-        ] as $index => $status) {
+        // One contract must represent one coherent workflow. Do not mix an open
+        // departure request with an open extension request on the same contract.
+        $extensionCases = [
+            ['active_paid', ContractExtensionRequest::STATUS_PENDING],
+            ['active_partial', ContractExtensionRequest::STATUS_APPROVED],
+            ['active_unpaid', ContractExtensionRequest::STATUS_REJECTED],
+        ];
+
+        foreach ($extensionCases as $index => [$contractKey, $status]) {
+            $contract = $this->contracts[$contractKey];
+            $requestedEndDate = $contract->end_date->copy()->addMonths(6 + $index);
             $statusLabel = match ($status) {
                 ContractExtensionRequest::STATUS_APPROVED => 'đã được duyệt',
                 ContractExtensionRequest::STATUS_REJECTED => 'đã bị từ chối',
                 default => 'đang chờ duyệt',
             };
+
             ContractExtensionRequest::query()->create([
                 'contract_id' => $contract->id,
                 'current_end_date' => $contract->end_date,
-                'requested_end_date' => $contract->end_date->copy()->addMonths(6 + $index),
+                'requested_end_date' => $requestedEndDate,
+                'approved_end_date' => $status === ContractExtensionRequest::STATUS_APPROVED ? $requestedEndDate : null,
                 'reason' => 'Yêu cầu gia hạn mẫu '.$statusLabel.'.',
                 'status' => $status,
                 'admin_note' => $status === ContractExtensionRequest::STATUS_REJECTED ? 'Phòng đã có lịch bảo trì.' : null,
@@ -594,20 +630,41 @@ class BusinessScenarioSeeder extends Seeder
             ]);
         }
 
-        foreach ([
-            ContractTerminationRequest::STATUS_PENDING,
-            ContractTerminationRequest::STATUS_APPROVED,
-            ContractTerminationRequest::STATUS_REJECTED,
-        ] as $index => $status) {
-            ContractTerminationRequest::query()->create([
+        $departureCases = [
+            ['expired', ContractTerminationRequest::STATUS_PENDING],
+            ['active_unpaid', ContractTerminationRequest::STATUS_APPROVED],
+            ['active_partial', ContractTerminationRequest::STATUS_REJECTED],
+        ];
+
+        foreach ($departureCases as $index => [$contractKey, $status]) {
+            $contract = $this->contracts[$contractKey];
+            $requestedEndDate = $status === ContractTerminationRequest::STATUS_PENDING
+                ? today()
+                : now()->addMonths(1 + $index)->startOfDay();
+            $isApproved = $status === ContractTerminationRequest::STATUS_APPROVED;
+
+            $request = ContractTerminationRequest::query()->create([
                 'contract_id' => $contract->id,
                 'tenant_id' => $contract->tenant_id,
-                'requested_end_date' => now()->addMonths(1 + $index),
+                'requested_end_date' => $requestedEndDate,
                 'reason' => 'Yêu cầu trả phòng mẫu: '.$status,
+                'request_type' => $contract->status === Contract::STATUS_EXPIRED
+                    ? ContractTerminationRequest::TYPE_OVERDUE_DEPARTURE
+                    : ContractTerminationRequest::TYPE_EARLY_TERMINATION,
                 'status' => $status,
                 'admin_note' => $status === ContractTerminationRequest::STATUS_REJECTED ? 'Ngày trả phòng không hợp lệ.' : null,
+                'approved_end_date' => $isApproved ? $requestedEndDate : null,
+                'scheduled_checkout_at' => $isApproved ? $requestedEndDate->copy()->setTime(9, 0) : null,
+                'processed_by' => $isApproved ? $this->admin->id : null,
                 'processed_at' => $status === ContractTerminationRequest::STATUS_PENDING ? null : now(),
             ]);
+
+            if ($isApproved) {
+                $contract->forceFill([
+                    'scheduled_move_out_at' => $request->scheduled_checkout_at,
+                    'approved_termination_request_id' => $request->id,
+                ])->save();
+            }
         }
 
         $supportCases = [

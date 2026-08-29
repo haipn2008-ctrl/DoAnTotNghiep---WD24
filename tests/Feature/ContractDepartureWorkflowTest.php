@@ -99,6 +99,32 @@ class ContractDepartureWorkflowTest extends TestCase
         );
     }
 
+    public function test_admin_can_approve_a_same_day_departure_after_the_scheduled_time(): void
+    {
+        [$admin, , $contract] = $this->fixture();
+        $departureRequest = ContractTerminationRequest::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $contract->tenant_id,
+            'requested_end_date' => today()->toDateString(),
+            'reason' => 'Đã hoàn tất bàn giao phòng trong hôm nay.',
+            'request_type' => ContractTerminationRequest::TYPE_END_OF_TERM,
+            'status' => ContractTerminationRequest::STATUS_PENDING,
+        ]);
+
+        Carbon::setTestNow(today()->setTime(23, 59));
+
+        try {
+            $this->actingAs($admin)->post(route('admin.termination-requests.approve', $departureRequest), [
+                'approved_end_date' => today()->toDateString(),
+                'scheduled_checkout_at' => today()->setTime(23, 0)->format('Y-m-d H:i:s'),
+            ])->assertSessionHas('success');
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $this->assertSame(ContractTerminationRequest::STATUS_APPROVED, $departureRequest->fresh()->status);
+    }
+
     private function fixture(): array
     {
         $adminRole = Role::create(['role_name' => 'Admin']);

@@ -81,9 +81,15 @@
                     $isEarlyDeparture = $request->requested_end_date
                         && $request->contract?->end_date
                         && $request->requested_end_date->lt($request->contract->end_date);
-                    $defaultCheckout = $request->requested_end_date?->isToday()
-                        ? now()->addHour()
-                        : $request->requested_end_date?->copy()->setTime(9, 0);
+                    // A pending request may be opened after its requested date has passed.
+                    // The admin must then schedule the handover for today instead of submitting
+                    // a date that the approval endpoint correctly rejects as being in the past.
+                    $approvedDepartureDate = $request->requested_end_date?->lt(today())
+                        ? today()
+                        : $request->requested_end_date;
+                    $defaultCheckout = $approvedDepartureDate?->isToday()
+                        ? now()
+                        : $approvedDepartureDate?->copy()->setTime(9, 0);
                 @endphp
 
                 <article id="request-{{ $request->id }}" class="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md target:ring-2 target:ring-indigo-300">
@@ -142,6 +148,11 @@
 
                     @if($request->status === 'pending')
                         <div class="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                            @if ($errors->hasAny(['approved_end_date', 'scheduled_checkout_at', 'request', 'contract']))
+                                <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                                    {{ $errors->first('approved_end_date') ?: $errors->first('scheduled_checkout_at') ?: $errors->first('request') ?: $errors->first('contract') }}
+                                </div>
+                            @endif
                             <form method="POST" action="{{ route('admin.termination-requests.approve', $request) }}" onsubmit="return confirm('Bạn chắc chắn muốn duyệt yêu cầu trả phòng này?')" class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                                 @csrf
                                 <p class="mb-3 text-sm font-semibold text-emerald-800">Xác nhận lịch rời phòng và bàn giao</p>
@@ -149,7 +160,7 @@
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <label class="block text-xs font-semibold text-slate-600">
                                         Ngày rời phòng
-                                        <input type="date" name="approved_end_date" required value="{{ $request->requested_end_date?->format('Y-m-d') }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100">
+                                        <input type="date" name="approved_end_date" required value="{{ $approvedDepartureDate?->format('Y-m-d') }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100">
                                     </label>
                                     <label class="block text-xs font-semibold text-slate-600">
                                         Thời gian bàn giao

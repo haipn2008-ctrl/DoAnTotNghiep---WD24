@@ -54,6 +54,10 @@
                     <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Thông tin hồ sơ đã đầy đủ. Hãy tạo mật khẩu riêng để hoàn tất kích hoạt tài khoản.</div>
                     <div><label for="password" class="mb-1.5 block text-sm font-semibold">Mật khẩu mới</label><input id="password" type="password" name="password" required minlength="8" autocomplete="new-password" autofocus class="h-11 w-full rounded-lg border border-slate-200 px-3"><p class="mt-1 text-xs text-slate-500">Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</p></div>
                     <div><label for="password_confirmation" class="mb-1.5 block text-sm font-semibold">Nhập lại mật khẩu mới</label><input id="password_confirmation" type="password" name="password_confirmation" required minlength="8" autocomplete="new-password" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
+                    <label class="flex w-fit cursor-pointer items-center gap-2 text-sm font-medium text-slate-600">
+                        <input id="toggle-password-visibility" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        Hiển thị mật khẩu
+                    </label>
                 @endif
 
                 <div class="flex items-center justify-between gap-3 pt-2">
@@ -64,5 +68,14 @@
             <form method="POST" action="{{ route('logout') }}" class="mt-4 text-center">@csrf<button class="text-sm font-medium text-slate-500">Đăng xuất</button></form>
         </div>
     </main>
+    @if($step === 'password')
+        <script>
+            document.getElementById('toggle-password-visibility')?.addEventListener('change', function () {
+                const type = this.checked ? 'text' : 'password';
+                document.getElementById('password').type = type;
+                document.getElementById('password_confirmation').type = type;
+            });
+        </script>
+    @endif
 </body>
 </html>

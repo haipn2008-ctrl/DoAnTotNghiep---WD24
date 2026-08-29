@@ -110,7 +110,7 @@ Route::middleware('guest')->group(function () {
         'sendResetLink',
     ])->middleware('throttle:5,1')->name('password.email');
 
-    Route::get('/reset-password/{token}', [
+    Route::get('/reset-password', [
         ResetPasswordController::class,
         'showResetForm',
     ])->name('password.reset');
@@ -118,7 +118,7 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [
         ResetPasswordController::class,
         'reset',
-    ])->name('password.update');
+    ])->middleware('throttle:5,1')->name('password.update');
 });
 
 // =====================================================

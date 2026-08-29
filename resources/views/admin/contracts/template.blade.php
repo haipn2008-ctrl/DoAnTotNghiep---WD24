@@ -11,7 +11,7 @@
             <h2 class="mt-2 text-2xl font-bold text-slate-950">Quản lý mẫu hợp đồng</h2>
             <p class="mt-1 text-sm text-slate-600">Mẫu hiện hành: phiên bản {{ $template->version }}. Muốn chỉnh sửa, hãy mở chi tiết một phiên bản để tạo phiên bản mới từ nội dung đó.</p>
         </div>
-        <a target="_blank" href="{{ route('admin.contracts.template.print') }}" class="inline-flex h-11 items-center justify-center rounded-lg bg-emerald-700 px-5 text-sm font-bold text-white hover:bg-emerald-800">In bản mẫu hiện hành</a>
+        <a data-contract-print href="{{ route('admin.contracts.template.print') }}" class="inline-flex h-11 items-center justify-center rounded-lg bg-emerald-700 px-5 text-sm font-bold text-white hover:bg-emerald-800">In bản mẫu hiện hành</a>
     </div>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
