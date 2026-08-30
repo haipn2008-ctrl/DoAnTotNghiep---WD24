@@ -522,6 +522,11 @@ class Contract extends Model
         return $this->hasMany(ContractRepresentativeTransfer::class)->latest('effective_at')->latest('id');
     }
 
+    public function roomTransfers()
+    {
+        return $this->hasMany(RoomTransfer::class)->latest('created_at')->latest('id');
+    }
+
     // Hóa đơn
     public function invoices()
     {
@@ -955,24 +960,13 @@ class Contract extends Model
 
     public function getDepositPaidAmountAttribute(): float
     {
-        $depositInvoice = $this->relationLoaded('invoices')
-            ? $this->invoices->firstWhere(
-                'invoice_type',
-                Invoice::TYPE_DEPOSIT
-            )
-            : $this->invoices()
-                ->where(
-                    'invoice_type',
-                    Invoice::TYPE_DEPOSIT
-                )
-                ->first();
+        $depositInvoices = $this->relationLoaded('invoices')
+            ? $this->invoices->where('invoice_type', Invoice::TYPE_DEPOSIT)
+            : $this->invoices()->where('invoice_type', Invoice::TYPE_DEPOSIT)->get();
 
-        return $depositInvoice
-            ? (float) $depositInvoice
-                ->payments()
-                ->success()
-                ->sum('amount_paid')
-            : 0.0;
+        return (float) $depositInvoices->sum(
+            fn (Invoice $invoice): float => (float) $invoice->payments()->success()->sum('amount_paid')
+        );
     }
 
     public function getDepositRemainingAmountAttribute(): float

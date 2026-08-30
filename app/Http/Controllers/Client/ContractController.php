@@ -40,8 +40,9 @@ class ContractController extends Controller
             ->managedBy($request->user())
             ->findOrFail($contract);
         $handoverReading = $contract->utilityReadings()
-            ->where('reading_type', 'handover')
-            ->first();
+            ->where('room_id', $contract->room_id)
+            ->whereIn('reading_type', ['handover', 'transfer_handover'])
+            ->latest('record_date')->latest('id')->first();
         $setting = Setting::currentOrCreate();
 
         return view('client.contracts.show', compact('contract', 'setting', 'handoverReading'));
@@ -69,8 +70,9 @@ class ContractController extends Controller
             ->findOrFail($contract);
 
         $handoverReading = $contract->utilityReadings()
-            ->where('reading_type', 'handover')
-            ->first();
+            ->where('room_id', $contract->room_id)
+            ->whereIn('reading_type', ['handover', 'transfer_handover'])
+            ->latest('record_date')->latest('id')->first();
         if (! $handoverReading?->meterImageExists('electricity') || ! $handoverReading?->meterImageExists('water')) {
             throw ValidationException::withMessages([
                 'confirmation' => 'Ban quản lý phải cung cấp đủ ảnh đồng hồ điện và nước trước khi bạn xác nhận.',
@@ -91,8 +93,9 @@ class ContractController extends Controller
             ->managedBy($request->user())
             ->findOrFail($contract);
         $reading = $contract->utilityReadings()
-            ->where('reading_type', 'handover')
-            ->firstOrFail();
+            ->where('room_id', $contract->room_id)
+            ->whereIn('reading_type', ['handover', 'transfer_handover'])
+            ->latest('record_date')->latest('id')->firstOrFail();
         $path = $reading->{$type.'_image'};
 
         abort_unless(

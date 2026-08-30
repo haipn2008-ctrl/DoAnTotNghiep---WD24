@@ -20,6 +20,7 @@ class TemporaryResidence extends Model
     protected $fillable = [
         'tenant_id',
         'contract_id',
+        'room_id',
         'contract_tenant_id',
         'start_date',
         'end_date',
@@ -54,6 +55,11 @@ class TemporaryResidence extends Model
     public function contract()
     {
         return $this->belongsTo(Contract::class);
+    }
+
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
     }
 
     public function contractTenant()

@@ -14,30 +14,43 @@ class ContractHistoryService
     |--------------------------------------------------------------------------
     */
 
-    public const CREATED               = 'created';
-    public const UPDATED               = 'updated';
+    public const CREATED = 'created';
 
-    public const SENT_FOR_SIGNATURE    = 'sent_for_signature';
-    public const RECALLED              = 'recalled';
-    public const SIGNED                = 'signed';
+    public const UPDATED = 'updated';
 
-    public const DEPOSIT_PAID          = 'deposit_paid';
+    public const SENT_FOR_SIGNATURE = 'sent_for_signature';
 
-    public const ACTIVATED             = 'activated';
+    public const RECALLED = 'recalled';
 
-    public const EXTENSION_REQUESTED   = 'extension_requested';
-    public const EXTENDED              = 'extended';
-    public const EXTENSION_REJECTED    = 'extension_rejected';
+    public const SIGNED = 'signed';
+
+    public const DEPOSIT_PAID = 'deposit_paid';
+
+    public const ACTIVATED = 'activated';
+
+    public const EXTENSION_REQUESTED = 'extension_requested';
+
+    public const EXTENDED = 'extended';
+
+    public const EXTENSION_REJECTED = 'extension_rejected';
 
     public const TERMINATION_REQUESTED = 'termination_requested';
-    public const TERMINATION_APPROVED  = 'termination_approved';
-    public const TERMINATION_REJECTED  = 'termination_rejected';
-    public const TERMINATED            = 'terminated';
+
+    public const TERMINATION_APPROVED = 'termination_approved';
+
+    public const TERMINATION_REJECTED = 'termination_rejected';
+
+    public const TERMINATED = 'terminated';
+
+    public const ROOM_TRANSFER_REQUESTED = 'room_transfer_requested';
+
+    public const ROOM_TRANSFER_REJECTED = 'room_transfer_rejected';
+
+    public const ROOM_TRANSFERRED = 'room_transferred';
 
     // Xử lý cọc sau khi hợp đồng kết thúc:
     // hoàn toàn bộ / hoàn một phần / không hoàn
-    public const DEPOSIT_PROCESSED     = 'deposit_processed';
-
+    public const DEPOSIT_PROCESSED = 'deposit_processed';
 
     /*
     |--------------------------------------------------------------------------
@@ -69,7 +82,6 @@ class ContractHistoryService
         ]);
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Tạo hợp đồng
@@ -87,7 +99,6 @@ class ContractHistoryService
             self::snapshot($contract)
         );
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -119,7 +130,6 @@ class ContractHistoryService
         );
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Lấy snapshot dữ liệu quan trọng của hợp đồng
@@ -129,20 +139,19 @@ class ContractHistoryService
     public static function snapshot(Contract $contract): array
     {
         return [
-            'room_id'        => $contract->room_id,
-            'tenant_id'      => $contract->tenant_id,
+            'room_id' => $contract->room_id,
+            'tenant_id' => $contract->tenant_id,
 
             'start_date' => $contract->start_date?->format('Y-m-d'),
-            'end_date'   => $contract->end_date?->format('Y-m-d'),
+            'end_date' => $contract->end_date?->format('Y-m-d'),
 
-            'monthly_rent'   => $contract->monthly_rent,
+            'monthly_rent' => $contract->monthly_rent,
             'deposit_amount' => $contract->deposit_amount,
-            
-            'status'         => $contract->status,
+
+            'status' => $contract->status,
             'deposit_status' => $contract->deposit_status,
         ];
     }
-
 
     /*
     |--------------------------------------------------------------------------

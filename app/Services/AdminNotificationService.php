@@ -10,6 +10,7 @@ use App\Models\ContractTenant;
 use App\Models\ContractTerminationRequest;
 use App\Models\InvoicePaymentDelayRequest;
 use App\Models\Payment;
+use App\Models\RoomTransfer;
 use App\Models\SupportRequest;
 use App\Models\Vehicle;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,28 @@ use Illuminate\Support\Str;
 
 class AdminNotificationService
 {
+    public function roomTransferRequested(RoomTransfer $request): ContractLifecycleAlert
+    {
+        $request->loadMissing('contract.tenant', 'oldRoom', 'newRoom');
+        $contract = $request->contract;
+
+        return $this->actionAlert(
+            $contract,
+            'room_transfer_request',
+            "room-transfer-request:{$request->id}",
+            'Khách thuê vừa gửi yêu cầu đổi phòng',
+            sprintf(
+                '%s muốn chuyển từ phòng %s sang phòng %s vào ngày %s. Lý do: %s',
+                $this->tenantName($contract),
+                $request->oldRoom?->room_code ?: '—',
+                $request->newRoom?->room_code ?: '—',
+                $request->requested_transfer_date?->format('d/m/Y'),
+                $request->reason,
+            ),
+            $request,
+        );
+    }
+
     public function appendixResponded(ContractAppendix $appendix, bool $accepted): ContractLifecycleAlert
     {
         $appendix->loadMissing('contract.tenant', 'contract.room');
@@ -168,6 +191,7 @@ class AdminNotificationService
         $id = $reference instanceof Model ? $reference->getKey() : $reference;
         $prefix = match ($type) {
             'extension_request' => 'extension-request', 'termination_request' => 'termination-request',
+            'room_transfer_request' => 'room-transfer-request',
             'deposit_refund_request' => 'deposit-refund', 'payment_review' => 'payment-review',
             'payment_delay_request' => 'payment-delay-request',
             'support_request' => 'support-request', 'member_review' => 'member-review',

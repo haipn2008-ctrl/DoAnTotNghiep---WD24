@@ -37,6 +37,7 @@
             'active' => request()->routeIs('admin.contracts*')
                 || request()->routeIs('admin.extension-requests*')
                 || request()->routeIs('admin.termination-requests*')
+                || request()->routeIs('admin.room-transfers*')
                 || request()->routeIs('admin.deposit-refunds*'),
 
             'items' => [
@@ -59,6 +60,11 @@
                     'label' => 'Duyệt trả phòng',
                     'route' => 'admin.termination-requests.index',
                     'active' => request()->routeIs('admin.termination-requests*')
+                ],
+                [
+                    'label' => 'Duyệt đổi phòng',
+                    'route' => 'admin.room-transfers.index',
+                    'active' => request()->routeIs('admin.room-transfers*')
                 ],
                 [
                     'label' => 'Duyệt hoàn cọc',

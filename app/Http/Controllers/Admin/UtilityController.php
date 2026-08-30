@@ -72,7 +72,7 @@ class UtilityController extends Controller
                     $query->whereDate('record_date', '<', $recordDate)
                         ->orWhere(fn ($sameDay) => $sameDay
                             ->whereDate('record_date', $recordDate)
-                            ->where('reading_type', 'handover'));
+                            ->whereIn('reading_type', ['handover', 'transfer_handover']));
                 })
                 ->latest('record_date')->latest('id')->first() : null;
             $startDate = $activeContract ? Carbon::parse($activeContract->start_date)->format('d/m/Y') : 'Không có';
@@ -205,7 +205,7 @@ class UtilityController extends Controller
                             $query->whereDate('record_date', '<', $data['record_date'])
                                 ->orWhere(fn ($sameDay) => $sameDay
                                     ->whereDate('record_date', $data['record_date'])
-                                    ->where('reading_type', 'handover'));
+                                    ->whereIn('reading_type', ['handover', 'transfer_handover']));
                         })
                         ->latest('record_date')->latest('id')->first();
 
@@ -408,7 +408,7 @@ class UtilityController extends Controller
                         ->whereNull('contract_id')
                         ->whereDate('record_date', '>=', $contract->start_date));
             })
-            ->where('reading_type', 'handover')
+            ->whereIn('reading_type', ['handover', 'transfer_handover'])
             ->whereDate('record_date', '<=', $period->copy()->endOfMonth())
             ->whereIn('status', [UtilityReading::STATUS_CONFIRMED, UtilityReading::STATUS_LOCKED])
             ->exists();

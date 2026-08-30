@@ -122,8 +122,10 @@ class ContractController extends Controller
             'appendices.creator', 'appendices.responder',
         ]);
         $readings = $contract->utilityReadings()->orderBy('record_date')->orderBy('id')->get();
-        $handoverReading = $readings->firstWhere('reading_type', 'handover');
-        $checkoutReading = $readings->where('reading_type', 'checkout')->last();
+        $handoverReading = $readings->where('room_id', $contract->room_id)
+            ->whereIn('reading_type', ['handover', 'transfer_handover'])->last();
+        $checkoutReading = $readings->where('room_id', $contract->room_id)
+            ->where('reading_type', 'checkout')->last();
         $latestReading = $readings->last();
         $baselineReading = $contract->room?->utilityReadings()
             ->where('reading_type', 'baseline')

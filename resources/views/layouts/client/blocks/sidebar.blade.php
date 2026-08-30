@@ -166,6 +166,7 @@
                     'client.deposit-refunds.*',
                     'client.extension-requests.*',
                     'client.termination-requests.*',
+                    'client.room-transfers.*',
                     'client.requests.history'
                 ) ? '' : 'hidden' }}">
 
@@ -189,6 +190,14 @@
                         ? 'bg-indigo-50 text-indigo-700'
                         : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
                     Yêu cầu trả phòng
+                </a>
+
+                <a href="{{ route('client.room-transfers.index') }}"
+                class="block rounded-lg px-3 py-2 text-sm font-medium transition
+                {{ request()->routeIs('client.room-transfers.*')
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
+                    Yêu cầu đổi phòng
                 </a>
                 @endif
 

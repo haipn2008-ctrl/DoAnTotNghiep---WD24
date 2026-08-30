@@ -305,11 +305,10 @@ class ContractLifecycleService
             $contract = $this->lockContract($contract);
             $invoices = Invoice::query()->where('contract_id', $contract->id)
                 ->where('invoice_type', Invoice::TYPE_DEPOSIT)
-                ->lockForUpdate()->get()->keyBy('invoice_type');
-            $paidFor = fn (string $type): float => ($invoice = $invoices->get($type))
-                ? (float) DB::table('payments')->where('invoice_id', $invoice->id)
-                    ->where('status', 'success')->lockForUpdate()->sum('amount_paid')
-                : 0.0;
+                ->lockForUpdate()->get();
+            $paidFor = fn (string $type): float => (float) DB::table('payments')
+                ->whereIn('invoice_id', $invoices->where('invoice_type', $type)->pluck('id'))
+                ->where('status', 'success')->lockForUpdate()->sum('amount_paid');
             $depositPaid = $paidFor(Invoice::TYPE_DEPOSIT);
             $depositRequired = (float) $contract->deposit_amount;
             $depositEnough = $depositRequired <= 0 || round($depositPaid, 2) >= round($depositRequired, 2);

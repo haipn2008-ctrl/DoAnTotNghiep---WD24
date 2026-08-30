@@ -12,7 +12,7 @@
     <div class="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
         <div><p class="text-xs text-slate-500">Người thuê</p><p class="mt-1 font-bold text-slate-950">{{ $temporaryResidence->contractTenant?->full_name ?? $temporaryResidence->tenant?->full_name }}</p></div>
         <div><p class="text-xs text-slate-500">CCCD</p><p class="mt-1 font-semibold text-slate-950">{{ $temporaryResidence->contractTenant?->identity_number ?? $temporaryResidence->tenant?->cccd ?? '—' }}</p></div>
-        <div><p class="text-xs text-slate-500">Phòng</p><p class="mt-1 font-semibold text-slate-950">{{ $temporaryResidence->contract?->room?->room_code ?? '—' }}</p></div>
+        <div><p class="text-xs text-slate-500">Phòng</p><p class="mt-1 font-semibold text-slate-950">{{ $temporaryResidence->room?->room_code ?? $temporaryResidence->contract?->room?->room_code ?? '—' }}</p></div>
     </div>
 @else
     <label class="block text-sm font-semibold text-slate-700">Người thuê đang ở <span class="text-rose-600">*</span>

@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\OverviewController;
 use App\Http\Controllers\Admin\ReconciliationController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\RoomEvidenceController;
+use App\Http\Controllers\Admin\RoomTransferController as AdminRoomTransferController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SupportController as AdminSupportController;
 use App\Http\Controllers\Admin\TemporaryResidenceController;
@@ -49,6 +50,7 @@ use App\Http\Controllers\Client\LandlordInformationController as ClientLandlordI
 use App\Http\Controllers\Client\NotificationController as ClientNotificationController;
 use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\RoomController as ClientRoomController;
+use App\Http\Controllers\Client\RoomTransferController as ClientRoomTransferController;
 use App\Http\Controllers\Client\SettlementController as ClientSettlementController;
 use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
@@ -301,6 +303,19 @@ Route::middleware('auth')->group(function () {
                     'contracts/{id}/extend',
                     [ContractController::class, 'extend']
                 )->name('contracts.extend');
+
+                Route::get('room-transfers', [AdminRoomTransferController::class, 'index'])
+                    ->name('room-transfers.index');
+                Route::get('contracts/{contract}/room-transfer', [AdminRoomTransferController::class, 'create'])
+                    ->name('room-transfers.create');
+                Route::post('contracts/{contract}/room-transfer', [AdminRoomTransferController::class, 'store'])
+                    ->name('room-transfers.store');
+                Route::get('room-transfers/{roomTransfer}/review', [AdminRoomTransferController::class, 'review'])
+                    ->name('room-transfers.review');
+                Route::post('room-transfers/{roomTransfer}/approve', [AdminRoomTransferController::class, 'approve'])
+                    ->name('room-transfers.approve');
+                Route::post('room-transfers/{roomTransfer}/reject', [AdminRoomTransferController::class, 'reject'])
+                    ->name('room-transfers.reject');
 
                 // =================================================
                 // HỢP ĐỒNG - IN / FILE
@@ -1151,6 +1166,11 @@ Route::middleware('auth')->group(function () {
                     '/contracts/{contract}/move-in-details/confirm',
                     [ClientContractController::class, 'confirmMoveInDetails']
                 )->middleware('rental.active')->name('contracts.move-in-details.confirm');
+
+                Route::get('/room-transfers', [ClientRoomTransferController::class, 'index'])
+                    ->name('room-transfers.index');
+                Route::post('/room-transfers', [ClientRoomTransferController::class, 'store'])
+                    ->middleware('rental.active')->name('room-transfers.store');
 
                 // =============================================
                 // NGƯỜI THAM GIA HỢP ĐỒNG

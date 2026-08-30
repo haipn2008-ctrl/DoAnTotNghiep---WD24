@@ -34,8 +34,11 @@ class SettlementService
 
             $checkout = UtilityReading::query()
                 ->where('contract_id', $contract->id)
+                ->where('room_id', $contract->room_id)
                 ->where('reading_type', 'checkout')
                 ->lockForUpdate()
+                ->latest('record_date')
+                ->latest('id')
                 ->first();
             if (! $checkout) {
                 throw ValidationException::withMessages(['checkout_reading' => 'Thiếu chỉ số điện nước khi trả phòng để lập quyết toán.']);

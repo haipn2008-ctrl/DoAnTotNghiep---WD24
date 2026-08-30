@@ -52,6 +52,7 @@ class NotificationController extends Controller
         $target = match ($notification->type) {
             'extension_request' => route('admin.extension-requests.index'),
             'termination_request' => route('admin.termination-requests.index'),
+            'room_transfer_request' => route('admin.room-transfers.index'),
             'deposit_refund_request' => route('admin.deposit-refunds.index'),
             'payment_review' => route('admin.invoices.payments', ['status' => 'pending']),
             'payment_delay_request' => ($delayRequest = InvoicePaymentDelayRequest::query()->find($referenceId))
@@ -68,7 +69,7 @@ class NotificationController extends Controller
         };
 
         if ($target) {
-            return redirect()->to($target.($referenceId && in_array($notification->type, ['extension_request', 'termination_request', 'support_request'], true) ? "#request-{$referenceId}" : ''));
+            return redirect()->to($target.($referenceId && in_array($notification->type, ['extension_request', 'termination_request', 'room_transfer_request', 'support_request'], true) ? "#request-{$referenceId}" : ''));
         }
 
         if ($notification->contract_id && $notification->contract()->exists()) {

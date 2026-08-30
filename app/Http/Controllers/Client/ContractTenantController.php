@@ -156,7 +156,8 @@ class ContractTenantController extends Controller
         if ($this->members->incompleteMoveInProfiles($contract)->isEmpty()) {
             $notifications = app(ClientNotificationService::class);
             $notifications->resolveContract($contract, 'contract_members_profile_incomplete');
-            $handoverReading = $contract->utilityReadings()->where('reading_type', 'handover')->first();
+            $handoverReading = $contract->utilityReadings()->where('room_id', $contract->room_id)
+                ->whereIn('reading_type', ['handover', 'transfer_handover'])->latest('record_date')->latest('id')->first();
             if (! $currentMembers->contains('status', ContractTenant::STATUS_PENDING)
                 && $contract->move_in_inventory_snapshotted_at
                 && $handoverReading?->meterImageExists('electricity')

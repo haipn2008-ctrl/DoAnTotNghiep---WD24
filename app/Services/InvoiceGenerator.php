@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Contract;
 use App\Models\FeeSchedule;
 use App\Models\Invoice;
+use App\Models\RoomTransfer;
 use App\Models\Setting;
 use App\Models\UtilityReading;
 use Carbon\Carbon;
@@ -70,6 +71,7 @@ class InvoiceGenerator
         $electricityUsage = $reading->electricity_new - $reading->electricity_old;
         $waterUsage = $reading->water_new - $reading->water_old;
         $grossRoomFee = $this->roomFeeForPeriod($contract, $servicePeriod);
+        $roomRatio = $this->roomBillingRatioForPeriod($contract, $servicePeriod);
         $firstMonthCredit = $this->firstMonthPrepaidCredit($contract, $servicePeriod, $grossRoomFee);
         $roomFee = max(0, $grossRoomFee - $firstMonthCredit);
 
@@ -83,17 +85,23 @@ class InvoiceGenerator
             [
                 'type' => 'room',
                 'name' => "Tiền phòng tháng {$servicePeriod->month}/{$servicePeriod->year}",
-                'quantity' => $servicePeriod->isSameMonth($contract->start_date) ? $contract->first_month_rent_days : 1,
-                'unit' => $servicePeriod->isSameMonth($contract->start_date) ? 'ngày' : 'tháng',
-                'unit_price' => $servicePeriod->isSameMonth($contract->start_date)
+                'quantity' => $roomRatio < 1
+                    ? round($roomRatio, 4)
+                    : ($servicePeriod->isSameMonth($contract->start_date) ? $contract->first_month_rent_days : 1),
+                'unit' => $roomRatio < 1 ? 'tháng' : ($servicePeriod->isSameMonth($contract->start_date) ? 'ngày' : 'tháng'),
+                'unit_price' => $roomRatio < 1
+                    ? (float) $contract->monthly_rent
+                    : ($servicePeriod->isSameMonth($contract->start_date)
                     ? round((float) $contract->monthly_rent / $servicePeriod->daysInMonth, 2)
-                    : (float) $contract->monthly_rent,
+                    : (float) $contract->monthly_rent),
                 'amount' => $grossRoomFee,
                 'old_index' => null,
                 'new_index' => null,
-                'note' => $servicePeriod->isSameMonth($contract->start_date) && $contract->first_month_rent_days <= 5
+                'note' => $roomRatio < 1
+                    ? 'Tính theo số ngày sử dụng phòng mới sau khi chuyển phòng.'
+                    : ($servicePeriod->isSameMonth($contract->start_date) && $contract->first_month_rent_days <= 5
                     ? 'Miễn tiền phòng vì thời gian thuê trong tháng không quá 5 ngày.'
-                    : "Thu sau cho tháng {$servicePeriod->month}/{$servicePeriod->year} · Hạn ngày 05/{$month}/{$year}",
+                    : "Thu sau cho tháng {$servicePeriod->month}/{$servicePeriod->year} · Hạn ngày 05/{$month}/{$year}"),
                 'sort_order' => 1,
             ],
             [
@@ -137,10 +145,11 @@ class InvoiceGenerator
             ];
         }
 
+        $serviceRatio = $roomRatio;
         $serviceLines = [
             // Internet là phí cố định theo phòng, thu một lần mỗi tháng và không phụ thuộc số người.
-            ['internet', "Phí internet tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->internet_fee ?? 0), 1, 4],
-            ['service', "Phí dịch vụ tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->service_fee ?? 0), 1, 5],
+            ['internet', "Phí internet tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->internet_fee ?? 0), $serviceRatio, 4],
+            ['service', "Phí dịch vụ tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->service_fee ?? 0), $serviceRatio, 5],
         ];
 
         foreach ($serviceLines as [$type, $name, $unitPrice, $quantity, $sortOrder]) {
@@ -292,11 +301,38 @@ class InvoiceGenerator
 
     private function roomFeeForPeriod(Contract $contract, Carbon $servicePeriod): float
     {
+        $ratio = $this->roomBillingRatioForPeriod($contract, $servicePeriod);
+        if ($ratio < 1) {
+            return round((float) $contract->monthly_rent * $ratio);
+        }
+
         if ($servicePeriod->isSameMonth($contract->start_date)) {
             return (float) $contract->calculated_first_month_rent_amount;
         }
 
         return (float) $contract->monthly_rent;
+    }
+
+    private function roomBillingRatioForPeriod(Contract $contract, Carbon $servicePeriod): float
+    {
+        $transfer = RoomTransfer::query()
+            ->where('contract_id', $contract->id)
+            ->where('new_room_id', $contract->room_id)
+            ->where('status', RoomTransfer::STATUS_COMPLETED)
+            ->whereBetween('effective_date', [
+                $servicePeriod->copy()->startOfMonth()->toDateString(),
+                $servicePeriod->copy()->endOfMonth()->toDateString(),
+            ])
+            ->latest('effective_date')->latest('id')->first();
+
+        if (! $transfer) {
+            return 1.0;
+        }
+
+        $days = $transfer->effective_date->copy()->startOfDay()
+            ->diffInDays($servicePeriod->copy()->endOfMonth()) + 1;
+
+        return $days / $servicePeriod->daysInMonth;
     }
 
     private function firstMonthPrepaidCredit(Contract $contract, Carbon $servicePeriod, float $roomFee): float

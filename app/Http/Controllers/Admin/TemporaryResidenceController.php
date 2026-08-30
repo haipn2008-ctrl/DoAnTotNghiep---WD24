@@ -117,6 +117,7 @@ class TemporaryResidenceController extends Controller
                 return TemporaryResidence::query()->create([
                     'tenant_id' => $lockedMember->tenant_id,
                     'contract_id' => $lockedMember->contract_id,
+                    'room_id' => $lockedMember->contract->room_id,
                     'contract_tenant_id' => $lockedMember->id,
                     'start_date' => $validated['start_date'],
                     'end_date' => $validated['end_date'] ?? null,
@@ -144,7 +145,7 @@ class TemporaryResidenceController extends Controller
     public function show(TemporaryResidence $temporaryResidence)
     {
         $temporaryResidence->load([
-            'tenant.document', 'contract.room', 'contractTenant', 'verifiedBy', 'cancelledBy',
+            'tenant.document', 'room', 'contract.room', 'contractTenant', 'verifiedBy', 'cancelledBy',
         ]);
         $residenceHistory = TemporaryResidence::query()
             ->where('contract_tenant_id', $temporaryResidence->contract_tenant_id)
@@ -160,7 +161,7 @@ class TemporaryResidenceController extends Controller
     public function edit(TemporaryResidence $temporaryResidence)
     {
         $this->ensureMutable($temporaryResidence);
-        $temporaryResidence->load(['tenant', 'contract.room', 'contractTenant']);
+        $temporaryResidence->load(['tenant', 'room', 'contract.room', 'contractTenant']);
 
         return view('admin.temporary_residences.edit', compact('temporaryResidence'));
     }
@@ -312,6 +313,7 @@ class TemporaryResidenceController extends Controller
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if (! preg_match('/^data:image\/png;base64,([A-Za-z0-9+\/=\r\n]+)$/', $value, $matches)) {
                         $fail('Chữ ký phải là ảnh PNG hợp lệ.');
+
                         return;
                     }
                     $decoded = base64_decode($matches[1], true);
@@ -334,7 +336,7 @@ class TemporaryResidenceController extends Controller
 
     public function pdf(TemporaryResidence $temporaryResidence)
     {
-        $temporaryResidence->load(['tenant.document', 'tenant.vehicles', 'contract.room']);
+        $temporaryResidence->load(['tenant.document', 'tenant.vehicles', 'room', 'contract.room']);
 
         return view('admin.temporary_residences.pdf', compact('temporaryResidence'));
     }

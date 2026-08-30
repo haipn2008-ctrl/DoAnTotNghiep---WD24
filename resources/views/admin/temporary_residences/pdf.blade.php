@@ -519,7 +519,7 @@
 
                     <td>
 
-                        {{ $temporaryResidence->contract->room->room_code
+                        {{ $temporaryResidence->room?->room_code ?? $temporaryResidence->contract->room->room_code
                             ?? 'Chưa xác định' }}
 
                     </td>

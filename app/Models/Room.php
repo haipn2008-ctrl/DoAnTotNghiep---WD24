@@ -117,6 +117,16 @@ class Room extends Model
         return $this->hasMany(UtilityReading::class);
     }
 
+    public function outgoingTransfers()
+    {
+        return $this->hasMany(RoomTransfer::class, 'old_room_id');
+    }
+
+    public function incomingTransfers()
+    {
+        return $this->hasMany(RoomTransfer::class, 'new_room_id');
+    }
+
     /**
      * Tài sản bàn giao đang áp dụng cho phòng.
      */

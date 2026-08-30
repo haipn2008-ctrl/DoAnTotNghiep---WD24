@@ -17,7 +17,7 @@
         <dl class="grid gap-0 sm:grid-cols-2 lg:grid-cols-3">
             @foreach([
                 'CCCD' => $temporaryResidence->contractTenant?->identity_number ?? $temporaryResidence->tenant?->cccd ?? '—',
-                'Phòng' => $temporaryResidence->contract?->room?->room_code ?? '—',
+                'Phòng' => $temporaryResidence->room?->room_code ?? $temporaryResidence->contract?->room?->room_code ?? '—',
                 'Hợp đồng' => $temporaryResidence->contract?->contract_code ?? '—',
                 'Hiệu lực từ' => $temporaryResidence->start_date?->format('d/m/Y') ?? '—',
                 'Hiệu lực đến' => $temporaryResidence->end_date?->format('d/m/Y') ?? 'Không thời hạn',
