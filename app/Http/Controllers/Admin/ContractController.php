@@ -79,6 +79,13 @@ class ContractController extends Controller
 
                 return $contract;
             }, 3);
+        } catch (ValidationException $exception) {
+            Storage::disk('local')->delete($storedPaths);
+
+            return back()
+                ->withErrors($exception->errors())
+                ->withInput()
+                ->with('error', collect($exception->errors())->flatten()->first());
         } catch (\Throwable $exception) {
             Storage::disk('local')->delete($storedPaths);
             throw $exception;
@@ -102,11 +109,14 @@ class ContractController extends Controller
         $contract->load([
             'room', 'tenant.user', 'invoices.payments',
             'currentMembers.histories.performer', 'currentMembers.tenant.vehicles.tenant',
+            'members.histories.performer',
             'statusHistories.performer', 'signedConfirmer', 'moveInTermsConfirmer', 'moveInDetailsConfirmer',
             'handoverItems', 'checkedInBy', 'checkedOutBy',
             'cancelledBy', 'completedBy', 'lifecycleAlerts' => fn ($query) => $query->whereNull('resolved_at')->latest('detected_at'),
             'settlementStatement.items', 'settlementStatement.invoice',
             'approvedTerminationRequest.processor',
+            'extensionRequests' => fn ($query) => $query->latest('id'),
+            'terminationRequests' => fn ($query) => $query->latest('id'),
             'representativeTransfers.oldTenant', 'representativeTransfers.newTenant',
             'representativeTransfers.performer',
             'appendices.creator', 'appendices.responder',
@@ -349,9 +359,16 @@ class ContractController extends Controller
                 Storage::disk('local')->delete($oldPath);
             }
         }
-        app(ClientNotificationService::class)->contract($contract, 'move_in_details_ready', 'Thông tin nhận phòng cần xác nhận', 'Ban quản lý đã cập nhật chỉ số và ảnh đồng hồ điện nước bàn giao. Vui lòng mở hợp đồng để đối chiếu và xác nhận.');
+        $moveInMembers = $contract->currentMembers()->with('tenant')->get();
+        $profilesReady = ! $moveInMembers->contains('status', ContractTenant::STATUS_PENDING)
+            && $moveInMembers->every(fn (ContractTenant $member): bool => $member->hasCompleteMoveInProfile());
+        if ($profilesReady) {
+            app(ClientNotificationService::class)->contractOnce($contract, 'move_in_details_ready', 'Thông tin nhận phòng cần xác nhận', 'Ban quản lý đã cập nhật chỉ số và ảnh đồng hồ điện nước bàn giao. Vui lòng mở hợp đồng để đối chiếu và xác nhận.');
 
-        return back()->with('success', 'Đã lưu chỉ số và ảnh đồng hồ bàn giao. Khách thuê có thể đối chiếu và xác nhận.');
+            return back()->with('success', 'Đã lưu chỉ số và ảnh đồng hồ bàn giao. Khách thuê có thể đối chiếu và xác nhận.');
+        }
+
+        return back()->with('success', 'Đã lưu chỉ số và ảnh đồng hồ bàn giao. Khách thuê cần hoàn thiện hồ sơ người nhận phòng trước khi xác nhận.');
     }
 
     public function reopenMoveInDetails(Request $request, Contract $contract)
@@ -425,6 +442,70 @@ class ContractController extends Controller
         ));
     }
 
+    public function scheduleDeparture(Request $request, Contract $contract)
+    {
+        Gate::authorize('manageLifecycle', $contract);
+        $data = $request->validate([
+            'approved_end_date' => ['required', 'date', 'after_or_equal:today'],
+            'departure_reason' => ['required', 'string', 'min:3', 'max:1000'],
+            'admin_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $departureRequest = DB::transaction(function () use ($contract, $request, $data): ContractTerminationRequest {
+            $lockedContract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+            if (! in_array($lockedContract->status, Contract::OPEN_OCCUPANCY_STATUSES, true)) {
+                throw ValidationException::withMessages([
+                    'contract' => 'Chỉ hợp đồng đang thuê hoặc quá hạn mới được lập lịch kết thúc.',
+                ]);
+            }
+
+            if ($lockedContract->terminationRequests()
+                ->where('status', ContractTerminationRequest::STATUS_APPROVED)
+                ->lockForUpdate()->exists()) {
+                throw ValidationException::withMessages([
+                    'contract' => 'Hợp đồng đã có lịch bàn giao được duyệt.',
+                ]);
+            }
+
+            $departureRequest = $lockedContract->terminationRequests()
+                ->where('status', ContractTerminationRequest::STATUS_PENDING)
+                ->lockForUpdate()->latest('id')->first();
+
+            if (! $departureRequest) {
+                $departureRequest = $lockedContract->terminationRequests()->create([
+                    'tenant_id' => $lockedContract->tenant_id,
+                    'requested_end_date' => $data['approved_end_date'],
+                    'reason' => $data['departure_reason'],
+                    'request_type' => ContractTerminationRequest::TYPE_EARLY_TERMINATION,
+                    'status' => ContractTerminationRequest::STATUS_PENDING,
+                ]);
+            } else {
+                $departureRequest->forceFill([
+                    'reason' => $data['departure_reason'],
+                ])->save();
+            }
+
+            return $this->lifecycle->scheduleDeparture(
+                $departureRequest,
+                $request->user(),
+                $data['approved_end_date'],
+                Carbon::parse($data['approved_end_date'])->setTime(8, 0),
+                $data['admin_note'] ?? $data['departure_reason'],
+            );
+        }, 3);
+
+        app(ClientNotificationService::class)->contract(
+            $departureRequest->contract,
+            'departure_scheduled',
+            'Đã xác nhận lịch kết thúc hợp đồng',
+            'Ngày bàn giao hợp đồng '.$departureRequest->contract->contract_code.' là '
+                .$departureRequest->approved_end_date?->format('d/m/Y').' trong giờ hành chính.'
+        );
+
+        return redirect()->route('admin.contracts.check-out.form', $contract)
+            ->with('success', 'Đã ghi nhận lý do kết thúc và lịch bàn giao.');
+    }
+
     public function checkOut(Request $request, Contract $contract)
     {
         Gate::authorize('manageLifecycle', $contract);
@@ -433,16 +514,25 @@ class ContractController extends Controller
             'checkout_electricity' => ['required', 'integer', 'min:0'],
             'checkout_water' => ['required', 'integer', 'min:0'],
             'checkout_reason' => ['required', 'string', 'max:2000'],
-            'settlement_amount' => ['nullable', 'numeric', 'min:0'],
-            'settlement_description' => [Rule::requiredIf(fn () => (float) $request->input('settlement_amount', 0) > 0), 'nullable', 'string', 'max:1000'],
-            'checkout_key_count' => ['required', 'integer', 'min:0', 'max:100'],
+            'schedule_variance_reason' => ['nullable', 'string', 'min:3', 'max:1000'],
+            'has_damage' => ['required', 'boolean'],
+            'settlement_amount' => [Rule::requiredIf(fn () => $request->boolean('has_damage')), Rule::prohibitedIf(fn () => ! $request->boolean('has_damage')), 'nullable', 'numeric', 'gt:0'],
+            'settlement_description' => [Rule::requiredIf(fn () => $request->boolean('has_damage')), Rule::prohibitedIf(fn () => ! $request->boolean('has_damage')), 'nullable', 'string', 'max:1000'],
             'asset_conditions' => ['nullable', 'array'],
             'asset_conditions.*.condition' => ['required', Rule::in(['good', 'worn', 'damaged', 'missing'])],
             'asset_conditions.*.note' => ['nullable', 'string', 'max:500'],
-            'checkout_damage_note' => ['nullable', 'string', 'max:2000'],
-            'checkout_photos' => ['nullable', 'array', 'max:10'],
+            'checkout_damage_note' => [Rule::requiredIf(fn () => $request->boolean('has_damage')), Rule::prohibitedIf(fn () => ! $request->boolean('has_damage')), 'nullable', 'string', 'max:2000'],
+            'checkout_photos' => [Rule::requiredIf(fn () => $request->boolean('has_damage')), 'nullable', 'array', 'max:10'],
             'checkout_photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'handover_confirmed' => ['accepted'],
+        ], [
+            'has_damage.required' => 'Vui lòng xác nhận phòng có hư hỏng hoặc thất lạc hay không.',
+            'settlement_amount.required' => 'Vui lòng nhập số tiền người thuê cần bồi thường.',
+            'settlement_amount.gt' => 'Tiền bồi thường phải lớn hơn 0 khi có hư hỏng hoặc thất lạc.',
+            'settlement_description.required' => 'Vui lòng nhập nội dung khoản bồi thường.',
+            'checkout_damage_note.required' => 'Vui lòng mô tả hư hỏng hoặc tài sản thất lạc.',
+            'checkout_photos.required' => 'Vui lòng tải ít nhất một ảnh chứng minh hư hỏng hoặc thất lạc.',
+            'settlement_amount.prohibited' => 'Không được nhập tiền bồi thường khi đã chọn không có hư hỏng.',
         ]);
         $storedPaths = [];
         try {
@@ -470,17 +560,14 @@ class ContractController extends Controller
             ->with('success', 'Đã ghi nhận bàn giao và lập quyết toán. Tiếp tục xử lý các bước còn lại.');
     }
 
-    /** Route cũ được giữ tương thích nhưng thực hiện đúng nghiệp vụ checkout mới. */
+    /** Route POST cũ chỉ điều hướng; không còn thực hiện bàn giao bằng biểu mẫu thiếu dữ liệu. */
     public function end(Request $request, $id)
     {
-        $request->merge([
-            'actual_move_out_at' => $request->input('actual_move_out_at', $request->input('actual_end_date')),
-            'checkout_reason' => $request->input('checkout_reason', trim(($request->input('termination_reason') ?? '').' '.($request->input('termination_note') ?? ''))),
-            'checkout_key_count' => $request->input('checkout_key_count', 0),
-            'handover_confirmed' => $request->input('handover_confirmed', $request->boolean('confirm_end') ? '1' : null),
-        ]);
+        $contract = Contract::findOrFail($id);
+        Gate::authorize('manageLifecycle', $contract);
 
-        return $this->checkOut($request, Contract::findOrFail($id));
+        return redirect()->route('admin.contracts.check-out.form', $contract)
+            ->with('warning', 'Chức năng chấm dứt cũ đã được hợp nhất vào quy trình kết thúc hợp đồng. Vui lòng thực hiện lần lượt các bước trên trang này.');
     }
 
     public function completeSettlement(Request $request, Contract $contract)
@@ -760,11 +847,11 @@ class ContractController extends Controller
 
     public function endForm($id)
     {
-        $contract = Contract::with(['room', 'tenant'])->findOrFail($id);
+        $contract = Contract::findOrFail($id);
+        Gate::authorize('manageLifecycle', $contract);
         abort_unless(in_array($contract->status, Contract::OPEN_OCCUPANCY_STATUSES, true), 409);
-        $latestReading = $contract->utilityReadings()->latest('record_date')->latest('id')->first();
 
-        return view('admin.contracts.end-form', compact('contract', 'latestReading'));
+        return redirect()->route('admin.contracts.check-out.form', $contract);
     }
 
     public function extendList(Request $request)
@@ -843,16 +930,16 @@ class ContractController extends Controller
                 fn ($query) => $contract ? $query->where('contract_id', $contract->id) : $query->whereRaw('1 = 0')
             )],
             'members.*.full_name' => ['required', 'string', 'max:150'],
-            'members.*.date_of_birth' => ['required', 'date', new AdultDateOfBirth],
+            'members.*.date_of_birth' => ['nullable', 'date', new AdultDateOfBirth],
             'members.*.gender' => ['required', Rule::in(['male', 'female', 'other'])],
-            'members.*.identity_number' => ['required', 'digits:12', 'distinct'],
-            'members.*.cccd_issue_date' => ['required', 'date', 'before_or_equal:today'],
-            'members.*.cccd_issue_place' => ['required', 'string', 'max:255'],
+            'members.*.identity_number' => ['nullable', 'digits:12', 'distinct'],
+            'members.*.cccd_issue_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'members.*.cccd_issue_place' => ['nullable', 'string', 'max:255'],
             'members.*.identity_front' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'members.*.identity_back' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'members.*.phone' => ['required', 'regex:/^[0-9]{10,15}$/', 'distinct'],
+            'members.*.phone' => ['nullable', 'regex:/^[0-9]{10,15}$/', 'distinct'],
             'members.*.email' => ['nullable', 'email', 'max:255', 'distinct'],
-            'members.*.address' => ['required', 'string', 'max:500'],
+            'members.*.address' => ['nullable', 'string', 'max:500'],
             'service_enabled' => ['exclude'],
             'parking_enabled' => ['exclude'],
             'parking_vehicle_type' => ['exclude'],
@@ -948,8 +1035,7 @@ class ContractController extends Controller
                 && (string) $existing->identity_number !== (string) ($memberData['identity_number'] ?? '');
             $hasFront = isset($memberData['identity_front']);
             $hasBack = isset($memberData['identity_back']);
-            $requiresIdentityDocuments = true;
-            $requiresNewPair = $requiresIdentityDocuments && (! $hasStoredPair || $identityChanged || $hasFront || $hasBack);
+            $requiresNewPair = $hasFront || $hasBack || ($hasStoredPair && $identityChanged);
             $identityErrors = [];
             if (($hasFront || $hasBack) && ! $hasIdentityNumber) {
                 $identityErrors["members.{$index}.identity_number"] = 'Vui lòng nhập số CCCD trước khi tải ảnh căn cước.';

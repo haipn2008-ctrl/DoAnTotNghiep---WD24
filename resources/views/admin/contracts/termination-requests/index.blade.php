@@ -87,9 +87,6 @@
                     $approvedDepartureDate = $request->requested_end_date?->lt(today())
                         ? today()
                         : $request->requested_end_date;
-                    $defaultCheckout = $approvedDepartureDate?->isToday()
-                        ? now()
-                        : $approvedDepartureDate?->copy()->setTime(9, 0);
                 @endphp
 
                 <article id="request-{{ $request->id }}" class="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md target:ring-2 target:ring-indigo-300">
@@ -135,7 +132,7 @@
 
                         @if($request->status === 'approved' && $request->scheduled_checkout_at)
                             <div class="mt-3 border-t border-slate-100 pt-3 text-sm text-emerald-700">
-                                <span class="font-semibold">Lịch bàn giao:</span> {{ $request->scheduled_checkout_at->format('H:i d/m/Y') }}
+                                <span class="font-semibold">Ngày bàn giao:</span> {{ ($request->approved_end_date ?? $request->scheduled_checkout_at)->format('d/m/Y') }} · Trong giờ hành chính 08:00–17:00
                             </div>
                         @endif
 
@@ -148,25 +145,20 @@
 
                     @if($request->status === 'pending')
                         <div class="mt-4 space-y-3 border-t border-slate-100 pt-4">
-                            @if ($errors->hasAny(['approved_end_date', 'scheduled_checkout_at', 'request', 'contract']))
+                            @if ($errors->hasAny(['approved_end_date', 'request', 'contract']))
                                 <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                                    {{ $errors->first('approved_end_date') ?: $errors->first('scheduled_checkout_at') ?: $errors->first('request') ?: $errors->first('contract') }}
+                                    {{ $errors->first('approved_end_date') ?: $errors->first('request') ?: $errors->first('contract') }}
                                 </div>
                             @endif
                             <form method="POST" action="{{ route('admin.termination-requests.approve', $request) }}" onsubmit="return confirm('Bạn chắc chắn muốn duyệt yêu cầu trả phòng này?')" class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                                 @csrf
                                 <p class="mb-3 text-sm font-semibold text-emerald-800">Xác nhận lịch rời phòng và bàn giao</p>
 
-                                <div class="grid gap-3 sm:grid-cols-2">
-                                    <label class="block text-xs font-semibold text-slate-600">
-                                        Ngày rời phòng
-                                        <input type="date" name="approved_end_date" required value="{{ $approvedDepartureDate?->format('Y-m-d') }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100">
-                                    </label>
-                                    <label class="block text-xs font-semibold text-slate-600">
-                                        Thời gian bàn giao
-                                        <input type="datetime-local" name="scheduled_checkout_at" required value="{{ $defaultCheckout?->format('Y-m-d\TH:i') }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100">
-                                    </label>
-                                </div>
+                                <label class="block text-xs font-semibold text-slate-600">
+                                    Ngày rời phòng và bàn giao
+                                    <input type="date" name="approved_end_date" required value="{{ $approvedDepartureDate?->format('Y-m-d') }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100">
+                                    <span class="mt-1.5 block font-normal text-slate-500">Bàn giao trong giờ hành chính 08:00–17:00, không cần hẹn giờ cụ thể.</span>
+                                </label>
 
                                 <label class="mt-3 block text-xs font-semibold text-slate-600">
                                     Ghi chú lịch bàn giao <span class="font-normal text-slate-400">(không bắt buộc)</span>

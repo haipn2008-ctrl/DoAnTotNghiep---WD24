@@ -179,6 +179,42 @@
             @endif
         </section>
 
+        <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                <div>
+                    <h3 class="font-semibold text-slate-950">Phương tiện đang gửi</h3>
+                    <p class="text-sm text-slate-500">Chỉ hiển thị phương tiện đã được duyệt của người đang ở trong phòng.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700">{{ $approvedVehicles->count() }} xe</span>
+                    <a href="{{ route('admin.vehicles.index', ['status' => 'approved', 'room_id' => $room->id]) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Quản lý</a>
+                </div>
+            </div>
+
+            <div class="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
+                @forelse($approvedVehicles as $vehicle)
+                    <article class="flex gap-3 rounded-lg border border-slate-200 p-3">
+                        @if($vehicle->imageExists())
+                            <a href="{{ route('admin.vehicles.image', $vehicle) }}" data-image-modal data-image-title="Ảnh {{ $vehicle->vehicle_name ?: 'phương tiện' }}" class="shrink-0">
+                                <img src="{{ route('admin.vehicles.image', $vehicle) }}" alt="Ảnh phương tiện" class="h-16 w-24 rounded-lg object-cover ring-1 ring-slate-200">
+                            </a>
+                        @elseif($vehicle->vehicle_image)
+                            <span class="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg bg-amber-50 px-2 text-center text-xs font-semibold text-amber-700 ring-1 ring-amber-200">Ảnh không còn tồn tại</span>
+                        @else
+                            <span class="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><i class="bx bx-cycling text-2xl"></i></span>
+                        @endif
+                        <div class="min-w-0">
+                            <p class="font-bold text-slate-950">{{ $vehicle->display_license_plate ?: 'Không có biển số' }}</p>
+                            <p class="mt-1 truncate text-sm text-slate-600">{{ ['motorcycle' => 'Xe máy', 'electric_motorcycle' => 'Xe máy điện', 'bicycle' => 'Xe đạp'][$vehicle->vehicle_type] ?? 'Phương tiện' }} · {{ $vehicle->vehicle_name ?: 'Chưa ghi tên' }}</p>
+                            <a href="{{ route('admin.tenants.show', $vehicle->tenant) }}" class="mt-1 block truncate text-xs font-semibold text-indigo-700 hover:underline">{{ $vehicle->tenant?->full_name ?? 'Không xác định' }}</a>
+                        </div>
+                    </article>
+                @empty
+                    <div class="sm:col-span-2 xl:col-span-3 rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">Phòng chưa có phương tiện nào được duyệt.</div>
+                @endforelse
+            </div>
+        </section>
+
         @php
             $roomAssets = $room->amenities->where('category', \App\Models\Amenity::CATEGORY_ASSET);
         @endphp

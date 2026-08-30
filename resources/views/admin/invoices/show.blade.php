@@ -131,11 +131,13 @@
                                         <td class="px-5 py-4 text-slate-600">{{ $payment->note ?? '-' }}</td>
                                         <td class="px-5 py-4">
                                             <div class="flex min-w-52 flex-col gap-2">
-                                                @if($payment->proof_image)
+                                                @if($payment->proofImageExists())
                                                     <a href="{{ route('admin.invoices.payments.proof', $payment) }}" data-image-modal data-image-title="Biên lai thanh toán {{ $invoice->invoice_code }}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
                                                         <i class="bx bx-image-alt text-base"></i>
                                                         Xem biên lai
                                                     </a>
+                                                @elseif($payment->proof_image)
+                                                    <span class="text-xs font-semibold text-amber-700">Ảnh biên lai không còn tồn tại</span>
                                                 @endif
                                                 @if($payment->isPending())
                                                     <form method="POST" action="{{ route('admin.invoices.payments.approve', $payment) }}">
@@ -191,7 +193,7 @@
                 </div>
 
                 @if ($availableAmount > 0 && $invoice->canPay())
-                    <form method="POST" action="{{ route('admin.invoices.payments.store', $invoice) }}" class="mt-6 space-y-4 border-t border-slate-200 pt-5">
+                    <form method="POST" enctype="multipart/form-data" action="{{ route('admin.invoices.payments.store', $invoice) }}" class="mt-6 space-y-4 border-t border-slate-200 pt-5">
                         @csrf
                         <h4 class="font-semibold text-slate-950">Ghi nhận thanh toán</h4>
                         <div>
@@ -204,12 +206,16 @@
                         </div>
                         <div>
                             <label class="mb-1.5 block text-sm font-semibold text-slate-700">Phương thức</label>
-                            <select name="payment_method" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                                <option value="cash">Tiền mặt</option>
-                                <option value="bank_transfer">Chuyển khoản</option>
+                            <select name="payment_method" required onchange="this.form.querySelector('[name=proof_image]').required=this.value==='{{ \App\Models\Payment::METHOD_BANK_TRANSFER }}'" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                                <option value="cash" @selected(old('payment_method') === 'cash')>Tiền mặt</option>
+                                <option value="bank_transfer" @selected(old('payment_method') === 'bank_transfer')>Chuyển khoản</option>
                             </select>
                         </div>
-                        <input type="text" name="transaction_code" value="{{ old('transaction_code') }}" placeholder="Mã giao dịch — bắt buộc khi chuyển khoản" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                        <div>
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Ảnh minh chứng</label>
+                            <input type="file" name="proof_image" accept="image/jpeg,image/png,image/webp" @required(old('payment_method') === \App\Models\Payment::METHOD_BANK_TRANSFER) class="block w-full rounded-lg border border-slate-200 bg-white text-sm file:mr-3 file:border-0 file:bg-indigo-50 file:px-4 file:py-3 file:font-semibold file:text-indigo-700">
+                            <p class="mt-1 text-xs text-slate-500">Bắt buộc khi chuyển khoản · JPG, PNG, WEBP · tối đa 5 MB</p>
+                        </div>
                         <textarea name="note" rows="2" placeholder="Ghi chú" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('note') }}</textarea>
                         <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
                             <i class="bx bx-check-circle text-lg"></i>

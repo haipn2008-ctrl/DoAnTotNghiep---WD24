@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\TemporaryResidenceController;
 use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UtilityController;
+use App\Http\Controllers\Admin\VehicleController as AdminVehicleController;
 // =====================================================
 // AUTH CONTROLLERS
 // =====================================================
@@ -233,6 +234,9 @@ Route::middleware('auth')->group(function () {
                 Route::patch('tenants/{tenant}/restore', [TenantController::class, 'restore'])
                     ->name('tenants.restore');
 
+                Route::get('vehicles', [AdminVehicleController::class, 'index'])
+                    ->name('vehicles.index');
+
                 Route::put('vehicles/{vehicle}/review', [TenantController::class, 'reviewVehicle'])
                     ->name('vehicles.review');
 
@@ -393,6 +397,11 @@ Route::middleware('auth')->group(function () {
                 )->name('contracts.check-out.form');
 
                 Route::post(
+                    'contracts/{contract}/departure-schedule',
+                    [ContractController::class, 'scheduleDeparture']
+                )->name('contracts.departure-schedule');
+
+                Route::post(
                     'contracts/{contract}/check-out',
                     [ContractController::class, 'checkOut']
                 )->name('contracts.check-out');
@@ -420,6 +429,11 @@ Route::middleware('auth')->group(function () {
                     'contract-tenants/{member}/move-out',
                     [ContractTenantController::class, 'moveOut']
                 )->name('contract-tenants.move-out');
+
+                Route::post(
+                    'contract-tenants/{member}/restore-move-out',
+                    [ContractTenantController::class, 'restoreMoveOut']
+                )->name('contract-tenants.restore-move-out');
 
                 Route::post(
                     'contract-tenants/{member}/transfer-representative',
@@ -681,6 +695,16 @@ Route::middleware('auth')->group(function () {
                     'temporary-residences/{temporaryResidence}/sign',
                     [TemporaryResidenceController::class, 'sign']
                 )->name('temporary_residences.sign');
+
+                Route::get(
+                    'temporary-residences/{temporaryResidence}/evidence',
+                    [TemporaryResidenceController::class, 'evidence']
+                )->name('temporary_residences.evidence');
+
+                Route::patch(
+                    'temporary-residences/{temporaryResidence}/evidence',
+                    [TemporaryResidenceController::class, 'updateEvidence']
+                )->name('temporary_residences.evidence.update');
 
                 Route::get(
                     'temporary-residences/{temporaryResidence}/pdf',
@@ -1075,6 +1099,14 @@ Route::middleware('auth')->group(function () {
                     ->middleware('rental.active')
                     ->name('room.members.identity');
 
+                Route::get(
+                    '/room/members/{member}/temporary-residences/{temporaryResidence}/evidence',
+                    [ClientRoomController::class, 'memberTemporaryResidenceEvidence']
+                )
+                    ->whereNumber('member')
+                    ->middleware('rental.active')
+                    ->name('room.members.temporary-residences.evidence');
+
                 // =============================================
                 // HỢP ĐỒNG
                 // =============================================
@@ -1090,6 +1122,11 @@ Route::middleware('auth')->group(function () {
                     ->name('contract-appendices.accept');
                 Route::post('/contract-appendices/{appendix}/reject', [ClientContractAppendixController::class, 'reject'])
                     ->name('contract-appendices.reject');
+
+                Route::get(
+                    '/contracts/{contract}/appendices',
+                    [ClientContractController::class, 'appendices']
+                )->name('contracts.appendices.index');
 
                 Route::get(
                     '/contracts/{contract}',
@@ -1129,6 +1166,16 @@ Route::middleware('auth')->group(function () {
                     [ClientContractTenantController::class, 'store']
                 )->middleware('rental.active')->name('contracts.members.store');
 
+                Route::get(
+                    '/contracts/{contract}/members/{member}/edit',
+                    [ClientContractTenantController::class, 'edit']
+                )->middleware('rental.active')->name('contracts.members.edit');
+
+                Route::put(
+                    '/contracts/{contract}/members/{member}',
+                    [ClientContractTenantController::class, 'update']
+                )->middleware('rental.active')->name('contracts.members.update');
+
                 Route::post(
                     '/contracts/{contract}/members/{member}/withdraw',
                     [ClientContractTenantController::class, 'withdraw']
@@ -1147,6 +1194,16 @@ Route::middleware('auth')->group(function () {
                     '/contracts/{contract}/deposit-refund',
                     [ClientDepositRefundController::class, 'store']
                 )->name('deposit-refunds.store');
+
+                Route::patch(
+                    '/contracts/{contract}/deposit-refund',
+                    [ClientDepositRefundController::class, 'update']
+                )->name('deposit-refunds.update');
+
+                Route::post(
+                    '/contracts/{contract}/deposit-refund/confirm-receipt',
+                    [ClientDepositRefundController::class, 'confirmReceipt']
+                )->name('deposit-refunds.confirm-receipt');
 
                 Route::get(
                     '/contracts/{contract}/deposit-refund/qr',
@@ -1241,6 +1298,11 @@ Route::middleware('auth')->group(function () {
                     '/account/identity/{side}',
                     [ClientAccountController::class, 'identityDocument']
                 )->whereIn('side', ['front', 'back'])->name('account.identity-document');
+
+                Route::get(
+                    '/account/temporary-residences/{temporaryResidence}/evidence',
+                    [ClientAccountController::class, 'temporaryResidenceEvidence']
+                )->name('account.temporary-residences.evidence');
 
                 Route::put(
                     '/account/password',

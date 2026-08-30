@@ -48,6 +48,21 @@ class ContractTenantController extends Controller
         return back()->with('success', 'Đã ghi nhận người thuê rời phòng và cập nhật số người hiện tại.');
     }
 
+    public function restoreMoveOut(Request $request, ContractTenant $member)
+    {
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+        $this->members->restoreMoveOut($member, $request->user(), $data['reason']);
+        app(ClientNotificationService::class)->member(
+            $member,
+            'Đã khôi phục người thuê vào phòng',
+            $member->full_name.' đã được khôi phục do lần ghi nhận rời phòng trước đó bị nhầm.',
+        );
+
+        return back()->with('success', 'Đã hoàn tác lần rời phòng, khôi phục số người và dữ liệu tạm trú liên quan.');
+    }
+
     public function transferRepresentative(Request $request, ContractTenant $member)
     {
         $data = $request->validate([

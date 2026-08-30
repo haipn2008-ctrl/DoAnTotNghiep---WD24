@@ -14,11 +14,19 @@ use App\Models\User;
 use App\Models\UtilityReading;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class SettlementStatementTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('local');
+    }
 
     public function test_checkout_builds_itemized_final_statement_and_offsets_held_deposit(): void
     {
@@ -37,10 +45,13 @@ class SettlementStatementTest extends TestCase
                 'checkout_electricity' => 130,
                 'checkout_water' => 17,
                 'checkout_reason' => 'Bàn giao cuối hợp đồng.',
+                'has_damage' => 1,
                 'checkout_key_count' => 1,
                 'handover_confirmed' => '1',
                 'settlement_amount' => 200000,
                 'settlement_description' => 'Bồi thường tài sản hư hỏng',
+                'checkout_damage_note' => 'Tài sản bị hư hỏng khi bàn giao.',
+                'checkout_photos' => [UploadedFile::fake()->image('damage.jpg')],
             ])->assertSessionHas('success');
 
             $statement = SettlementStatement::query()->with(['items', 'invoice.details'])->sole();
@@ -89,10 +100,13 @@ class SettlementStatementTest extends TestCase
                 'checkout_electricity' => 130,
                 'checkout_water' => 17,
                 'checkout_reason' => 'Bàn giao và tự động bù tiền cọc.',
+                'has_damage' => 1,
                 'checkout_key_count' => 1,
                 'handover_confirmed' => '1',
                 'settlement_amount' => 200000,
                 'settlement_description' => 'Bồi thường tài sản hư hỏng',
+                'checkout_damage_note' => 'Tài sản bị hư hỏng khi bàn giao.',
+                'checkout_photos' => [UploadedFile::fake()->image('damage.jpg')],
             ])->assertSessionHas('success');
 
             $statement = SettlementStatement::query()->with('invoice')->sole();
@@ -139,6 +153,7 @@ class SettlementStatementTest extends TestCase
                 'checkout_electricity' => 130,
                 'checkout_water' => 17,
                 'checkout_reason' => 'Bàn giao sau khi tháng hiện tại đã xuất hóa đơn.',
+                'has_damage' => 0,
                 'checkout_key_count' => 1,
                 'handover_confirmed' => '1',
             ])->assertSessionHas('success');

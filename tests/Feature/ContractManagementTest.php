@@ -9,11 +9,13 @@ use App\Models\ContractLifecycleAlert;
 use App\Models\ContractStatusHistory;
 use App\Models\ContractTemplate;
 use App\Models\ContractTenant;
+use App\Models\ContractTerminationRequest;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Setting;
+use App\Models\TemporaryResidence;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
@@ -194,6 +196,83 @@ class ContractManagementTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_create_contract_with_only_name_and_gender_without_notifying_user_while_still_draft(): void
+    {
+        $room = $this->room('INCOMPLETE-CO-TENANT');
+        $representative = $this->tenant('incomplete-co-tenant');
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.store'), $this->payload($room, $representative, [
+            'members' => [[
+                'full_name' => 'Người ở cùng bổ sung sau',
+                'gender' => 'female',
+            ]],
+        ]))->assertRedirect()->assertSessionHasNoErrors();
+
+        $member = Contract::sole()->members()
+            ->where('role', ContractTenant::ROLE_TENANT)
+            ->with('tenant')
+            ->sole();
+
+        $this->assertNull($member->date_of_birth);
+        $this->assertNull($member->identity_number);
+        $this->assertNull($member->phone);
+        $this->assertNull($member->address);
+        $this->assertSame('female', $member->tenant->gender);
+        $this->assertNull($member->tenant->cccd);
+        $this->assertNull($member->tenant->phone);
+
+        $this->assertFalse($representative->user->notifications()
+            ->where('data->type', 'contract_members_profile_incomplete')
+            ->exists());
+    }
+
+    public function test_incomplete_member_is_notified_and_must_be_completed_before_move_in_confirmation(): void
+    {
+        $contract = $this->draft(0, [
+            'members' => [[
+                'full_name' => 'Người bổ sung trước nhận phòng',
+                'gender' => 'female',
+            ]],
+        ], 'complete-before-move-in');
+        $client = $contract->tenant->user;
+        $member = $contract->members()->where('role', ContractTenant::ROLE_TENANT)->sole();
+
+        $this->assertFalse($client->notifications()
+            ->where('data->type', 'contract_members_profile_incomplete')->exists());
+
+        $contract = $this->sign($contract);
+        $this->payDeposit($contract);
+        $contract = $contract->fresh();
+        $notification = $client->notifications()
+            ->where('data->type', 'contract_members_profile_incomplete')->sole();
+        $this->assertNull($notification->read_at);
+
+        try {
+            $this->lifecycle->confirmMoveInDetails($contract, $client);
+            $this->fail('Hồ sơ thiếu phải chặn xác nhận nhận phòng.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('members', $exception->errors());
+        }
+
+        $this->actingAs($client)
+            ->get(route('client.contracts.members.edit', [$contract, $member]))
+            ->assertOk()
+            ->assertSee('Hoàn thiện hồ sơ');
+
+        $this->put(route('client.contracts.members.update', [$contract, $member]), [
+            'full_name' => 'Người bổ sung trước nhận phòng',
+            'identity_number' => '012345678944',
+            ...$this->memberIdentityImages('complete-before-move-in-member'),
+        ])->assertRedirect(route('client.contracts.show', $contract))->assertSessionHasNoErrors();
+
+        $this->assertTrue($member->fresh('tenant')->hasCompleteMoveInProfile());
+        $this->assertNotNull($notification->fresh()->read_at);
+
+        $this->lifecycle->saveHandoverDraft($contract, $this->admin, 100, 10);
+        $this->lifecycle->confirmMoveInDetails($contract, $client);
+        $this->assertNotNull($contract->fresh()->move_in_details_confirmed_at);
+    }
+
     public function test_representative_under_eighteen_is_not_eligible_for_a_contract(): void
     {
         $room = $this->room('UNDERAGE-REPRESENTATIVE');
@@ -337,11 +416,30 @@ class ContractManagementTest extends TestCase
 
         $this->get(route('admin.contracts.check-out.form', $contract))
             ->assertOk()
-            ->assertSee('Kết thúc hợp đồng theo 3 bước')
-            ->assertSee('Bước 1/3')
-            ->assertSee('Bàn giao &amp; chốt quyết toán', false)
-            ->assertSee('Xử lý tiền cọc')
+            ->assertSee('Quy trình kết thúc hợp đồng')
+            ->assertSee('Bước 1/4')
+            ->assertSee('Lý do &amp; lịch bàn giao', false)
+            ->assertSee('action="'.route('admin.contracts.departure-schedule', $contract).'"', false)
+            ->assertDontSee('action="'.route('admin.contracts.check-out', $contract).'"', false);
+
+        $this->post(route('admin.contracts.departure-schedule', $contract), [
+            'approved_end_date' => today()->toDateString(),
+            'departure_reason' => 'Hai bên thống nhất kết thúc và bàn giao phòng.',
+        ])->assertRedirect(route('admin.contracts.check-out.form', $contract));
+
+        $this->get(route('admin.contracts.check-out.form', $contract))
+            ->assertOk()
+            ->assertSee('Bước 2/4')
+            ->assertSee('Bàn giao phòng')
+            ->assertSee('Quyết toán &amp; tiền cọc', false)
             ->assertSee('Hoàn tất hợp đồng')
+            ->assertSee('Phòng hoặc tài sản có hư hỏng/thất lạc không?')
+            ->assertSee('Tiền người thuê cần bồi thường')
+            ->assertSee('Ảnh đồ vật hư hỏng/thất lạc')
+            ->assertSee('data-damage-fields', false)
+            ->assertDontSee('name="checkout_key_count"', false)
+            ->assertDontSee('Số chìa khóa đã trả')
+            ->assertSee('Tạm tính sau đối trừ')
             ->assertSee('action="'.route('admin.contracts.check-out', $contract).'"', false);
     }
 
@@ -370,6 +468,9 @@ class ContractManagementTest extends TestCase
             ->assertSee('<option value="cash"', false)
             ->assertSee('<option value="bank_transfer"', false)
             ->assertDontSee('<option value="qr"', false)
+            ->assertSee('enctype="multipart/form-data"', false)
+            ->assertSee('name="proof_image"', false)
+            ->assertDontSee('name="transaction_code"', false)
             ->assertSee('id="cancel-contract-dialog"', false)
             ->assertDontSee('Phát hành hóa đơn cọc');
 
@@ -385,10 +486,23 @@ class ContractManagementTest extends TestCase
             'payment_date' => today()->toDateString(),
             'payment_method' => Payment::METHOD_BANK_TRANSFER,
             'return_to_contract' => 1,
-        ])->assertSessionHasErrors('transaction_code');
+        ])->assertSessionHasErrors('proof_image');
 
+        $proof = UploadedFile::fake()->image('deposit-transfer.png');
         $this->post(route('admin.invoices.payments.store', $invoice), [
             'amount_paid' => 1000000,
+            'payment_date' => today()->toDateString(),
+            'payment_method' => Payment::METHOD_BANK_TRANSFER,
+            'proof_image' => $proof,
+            'return_to_contract' => 1,
+        ])->assertRedirect(route('admin.contracts.show', $contract))->assertSessionHasNoErrors();
+
+        $bankPayment = $invoice->payments()->where('payment_method', Payment::METHOD_BANK_TRANSFER)->sole();
+        $this->assertNull($bankPayment->transaction_code);
+        $this->assertTrue($bankPayment->proofImageExists());
+
+        $this->post(route('admin.invoices.payments.store', $invoice), [
+            'amount_paid' => 500000,
             'payment_date' => today()->toDateString(),
             'payment_method' => Payment::METHOD_CASH,
             'return_to_contract' => 1,
@@ -397,8 +511,9 @@ class ContractManagementTest extends TestCase
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
         $this->get(route('admin.contracts.show', $contract))
             ->assertOk()
-            ->assertSee('1.000.000đ')
-            ->assertSee('2.000.000đ');
+            ->assertSee('1.500.000đ')
+            ->assertSee('1.500.000đ')
+            ->assertSee('Xem ảnh');
     }
 
     public function test_awaiting_move_in_detail_prioritizes_check_in_and_moves_secondary_actions_to_dialogs(): void
@@ -518,7 +633,7 @@ class ContractManagementTest extends TestCase
 
     public function test_client_can_view_and_confirm_own_services_and_handover_inventory_only(): void
     {
-        Setting::currentOrCreate(['internet_fee' => 100000]);
+        Setting::currentOrCreate(['internet_fee' => 100000, 'service_fee' => 50000]);
         $room = $this->room('CLIENT-HANDOVER');
         $tenant = $this->tenant('client-handover');
         $otherTenant = $this->tenant('client-handover-other');
@@ -577,10 +692,14 @@ class ContractManagementTest extends TestCase
             ->assertSee('action="'.route('client.contracts.move-in-details.confirm', $contract).'"', false)
             ->assertDontSee('Xác nhận biên bản nhận phòng')
             ->assertSee('Thông tin nhận phòng')
-            ->assertSee('Internet bắt buộc')
+            ->assertSee('Internet')
+            ->assertDontSee('Internet bắt buộc')
             ->assertSee('100.000đ/phòng/tháng')
             ->assertDontSee('Đã bao gồm, không tính phí riêng')
-            ->assertSee('Dịch vụ chung bắt buộc')
+            ->assertSee('Dịch vụ chung')
+            ->assertDontSee('Dịch vụ chung bắt buộc')
+            ->assertSee('50.000đ/tháng')
+            ->assertDontSee('Máy lạnh')
             ->assertSee('59A1-12345')
             ->assertSee('Quản lý phương tiện')
             ->assertSee('Bàn học bàn giao')
@@ -1107,6 +1226,7 @@ class ContractManagementTest extends TestCase
                 'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
                 'phone' => '0901234567',
                 'address' => 'Địa chỉ kiểm thử',
+                'identity_front' => UploadedFile::fake()->image('partial-front.jpg'),
             ]],
         ]);
 
@@ -1115,10 +1235,8 @@ class ContractManagementTest extends TestCase
             ->post(route('admin.contracts.store'), $payload);
         $response->assertUnprocessable()
             ->assertJsonValidationErrors([
-                'members.0.identity_front',
                 'members.0.identity_back',
             ]);
-        $this->assertSame('Vui lòng chọn ảnh mặt trước CCCD của người thuê.', $response->json('errors')['members.0.identity_front'][0]);
         $this->assertSame('Vui lòng chọn ảnh mặt sau CCCD của người thuê.', $response->json('errors')['members.0.identity_back'][0]);
 
         $this->assertDatabaseCount('contracts', 0);
@@ -1225,6 +1343,43 @@ class ContractManagementTest extends TestCase
         $this->assertSame(1, ContractTenant::query()->where('status', ContractTenant::STATUS_PENDING)->count());
     }
 
+    public function test_approved_member_can_withdraw_before_receiving_the_room(): void
+    {
+        $contract = $this->awaiting([], 'approved-withdrawal');
+        $memberTenant = $this->tenant('approved-member-withdrawal');
+        $member = ContractTenant::query()->create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $memberTenant->id,
+            'role' => ContractTenant::ROLE_TENANT,
+            'full_name' => $memberTenant->full_name,
+            'date_of_birth' => $memberTenant->date_of_birth,
+            'identity_number' => $memberTenant->cccd,
+            'phone' => $memberTenant->phone,
+            'status' => ContractTenant::STATUS_APPROVED,
+            'reviewed_by' => $this->admin->id,
+            'reviewed_at' => now(),
+        ]);
+        $contract->forceFill(['number_of_people' => 2])->save();
+
+        $this->actingAs($contract->tenant->user)
+            ->get(route('client.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Không nhận phòng');
+
+        $this->post(route('client.contracts.members.withdraw', [$contract, $member]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(ContractTenant::STATUS_WITHDRAWN, $member->fresh()->status);
+        $this->assertSame(1, $contract->fresh()->number_of_people);
+        $this->assertNull($member->actual_move_in_at);
+        $this->assertDatabaseHas('contract_tenant_histories', [
+            'contract_tenant_id' => $member->id,
+            'from_status' => ContractTenant::STATUS_APPROVED,
+            'to_status' => ContractTenant::STATUS_WITHDRAWN,
+            'action' => 'tenant_withdraw_approved',
+        ]);
+    }
+
     public function test_member_account_cannot_manage_the_representatives_contract(): void
     {
         $contract = $this->draft(0, [], 'primary-representative');
@@ -1296,6 +1451,64 @@ class ContractManagementTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_restore_an_individual_move_out_entered_by_mistake(): void
+    {
+        $contract = $this->active([], 'restore-move-out');
+        $memberTenant = $this->tenant('restored-member');
+        $member = ContractTenant::query()->create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $memberTenant->id,
+            'role' => ContractTenant::ROLE_TENANT,
+            'full_name' => $memberTenant->full_name,
+            'date_of_birth' => $memberTenant->date_of_birth,
+            'identity_number' => $memberTenant->cccd,
+            'phone' => $memberTenant->phone,
+            'status' => ContractTenant::STATUS_CHECKED_IN,
+            'actual_move_in_at' => now()->subDay(),
+        ]);
+        $contract->forceFill(['number_of_people' => 2])->save();
+        $contract->room->forceFill(['current_people' => 2])->save();
+        $residence = TemporaryResidence::query()->create([
+            'tenant_id' => $memberTenant->id,
+            'contract_id' => $contract->id,
+            'contract_tenant_id' => $member->id,
+            'start_date' => today()->subDay(),
+            'end_date' => today()->addMonths(6),
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->admin)->post(route('admin.contract-tenants.move-out', $member), [
+            'actual_move_out_at' => now()->format('Y-m-d H:i:s'),
+            'reason' => 'Nhập nhầm người rời phòng.',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(ContractTenant::STATUS_MOVED_OUT, $member->fresh()->status);
+        $this->assertSame('expired', $residence->fresh()->status);
+        $this->assertSame(1, $contract->room->fresh()->current_people);
+        $this->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Lịch sử rời phòng')
+            ->assertSee('departure-history-dialog')
+            ->assertSee('Khôi phục do nhập nhầm')
+            ->assertSee('action="'.route('admin.contract-tenants.restore-move-out', $member).'"', false);
+
+        $this->post(route('admin.contract-tenants.restore-move-out', $member), [
+            'reason' => 'Đối chiếu lại và xác nhận admin đã chọn nhầm thành viên.',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(ContractTenant::STATUS_CHECKED_IN, $member->fresh()->status);
+        $this->assertNull($member->actual_move_out_at);
+        $this->assertSame('active', $residence->fresh()->status);
+        $this->assertSame(2, $contract->fresh()->number_of_people);
+        $this->assertSame(2, $contract->room->fresh()->current_people);
+        $this->assertDatabaseHas('contract_tenant_histories', [
+            'contract_tenant_id' => $member->id,
+            'from_status' => ContractTenant::STATUS_MOVED_OUT,
+            'to_status' => ContractTenant::STATUS_CHECKED_IN,
+            'action' => 'tenant_move_out_reverted',
+        ]);
+    }
+
     public function test_admin_policy_routes_and_mass_assignment_prevent_forged_status_or_deletion(): void
     {
         $contract = $this->draft();
@@ -1328,14 +1541,32 @@ class ContractManagementTest extends TestCase
             ->assertSessionHasErrors('signed_at');
         $this->assertNull($contract->fresh()->signed_at);
 
-        $this->post(route('admin.contracts.mark-signed', $contract), ['signed_at' => now()->subHour()])
+        $this->post(route('admin.contracts.mark-signed', $contract), [
+            'signed_at' => now()->subHour(),
+            'signed_contract_file' => UploadedFile::fake()->image('signed-contract.jpg'),
+        ])
             ->assertSessionHasNoErrors();
         $contract->refresh();
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->status);
         $this->assertSame($this->admin->id, $contract->signed_confirmed_by);
+        Storage::disk('local')->assertExists($contract->contract_file);
+        $this->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Bản hợp đồng đã ký')
+            ->assertSee('data-image-modal', false)
+            ->assertSee('data-media-type="image"', false)
+            ->assertSee('href="'.route('admin.contracts.file', $contract).'"', false);
         $historyCount = ContractStatusHistory::count();
         $this->post(route('admin.contracts.mark-signed', $contract), ['signed_at' => now()->subHour()]);
         $this->assertSame($historyCount, ContractStatusHistory::count());
+
+        $this->actingAs($contract->tenant->user)->get(route('client.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Bản hợp đồng đã ký')
+            ->assertSee('data-image-modal', false)
+            ->assertSee('data-media-type="image"', false)
+            ->assertSee('href="'.route('client.contracts.file', $contract).'"', false)
+            ->assertDontSee('target="_blank"', false);
     }
 
     public function test_signed_contract_requires_only_deposit_before_move_in(): void
@@ -1517,6 +1748,33 @@ class ContractManagementTest extends TestCase
         $this->assertSame(Contract::STATUS_AWAITING_MOVE_IN, $third->fresh()->status);
     }
 
+    public function test_same_representative_can_hold_overlapping_contracts_for_different_rooms(): void
+    {
+        $first = $this->draft(0, [], 'multi-room-representative');
+        $secondRoom = $this->room('MULTI-ROOM-02');
+        $second = $this->lifecycle->createDraft([
+            'room_id' => $secondRoom->id,
+            'tenant_id' => $first->tenant_id,
+            'start_date' => $first->start_date->toDateString(),
+            'end_date' => $first->end_date->toDateString(),
+            'scheduled_move_in_date' => $first->scheduled_move_in_date->toDateString(),
+            'reservation_expires_at' => '2026-08-12 18:00:00',
+            'number_of_people' => 1,
+            'members' => [],
+        ], $this->admin);
+
+        $this->lifecycle->submitForSignature($first, $this->admin);
+        $this->lifecycle->submitForSignature($second, $this->admin);
+
+        $this->assertSame(Contract::STATUS_PENDING_SIGNATURE, $first->fresh()->status);
+        $this->assertSame(Contract::STATUS_PENDING_SIGNATURE, $second->fresh()->status);
+        $this->assertNotSame($first->room_id, $second->room_id);
+        $this->assertSame(2, Contract::query()
+            ->where('tenant_id', $first->tenant_id)
+            ->where('start_date', $first->start_date)
+            ->count());
+    }
+
     public function test_check_in_validates_all_guards_and_rolls_back_when_any_write_fails(): void
     {
         $contract = $this->awaiting();
@@ -1664,7 +1922,8 @@ class ContractManagementTest extends TestCase
         $payload = [
             'actual_move_out_at' => now(), 'checkout_electricity' => 130, 'checkout_water' => 20,
             'checkout_reason' => 'Khách chuyển nơi làm việc.', 'settlement_amount' => 500000,
-            'settlement_description' => 'Bồi thường cửa hỏng',
+            'has_damage' => 1, 'checkout_damage_note' => 'Cửa phòng bị hỏng bản lề.',
+            'settlement_description' => 'Bồi thường cửa hỏng', 'checkout_photos' => [UploadedFile::fake()->image('damage.jpg')],
             'checkout_key_count' => 1, 'handover_confirmed' => '1',
         ];
         $this->actingAs($this->admin)->post(route('admin.contracts.check-out', $contract), $payload)->assertSessionHasNoErrors();
@@ -1673,17 +1932,60 @@ class ContractManagementTest extends TestCase
         $this->assertNotNull($contract->actual_move_out_at);
         $this->assertSame(Room::STATUS_AVAILABLE, $contract->room->fresh()->status);
         $this->assertSame(0, $contract->room->fresh()->current_people);
+        $this->assertNotNull($contract->approved_termination_request_id);
+        $this->assertSame(
+            ContractTerminationRequest::STATUS_COMPLETED,
+            $contract->approvedTerminationRequest->status,
+        );
+        $this->assertSame(1, $contract->statusHistories()->where('action', 'schedule_departure')->count());
+        $this->assertTrue($contract->checkout_has_damage);
+        $this->assertSame(500000.0, (float) $contract->settlementStatement->items()->where('type', 'adjustment')->sole()->amount);
         $this->assertSame(1, $contract->utilityReadings()->where('reading_type', 'checkout')->count());
         $this->assertSame(1, $contract->invoices()->where('invoice_type', Invoice::TYPE_SETTLEMENT)->count());
         $this->get(route('admin.contracts.show', $contract))
             ->assertOk()
-            ->assertSee('Tiến độ trả phòng')
-            ->assertSee('Bàn giao &amp; chốt quyết toán', false)
+            ->assertSee('Tiến độ kết thúc hợp đồng')
+            ->assertSee('Quyết toán &amp; tiền cọc', false)
             ->assertSee('href="'.route('admin.contracts.check-out.form', $contract).'"', false);
         $history = $contract->statusHistories()->count();
+        $payload['checkout_photos'] = [UploadedFile::fake()->image('damage-again.jpg')];
         $this->post(route('admin.contracts.check-out', $contract), $payload)->assertSessionHasNoErrors();
         $this->assertSame(1, $contract->utilityReadings()->where('reading_type', 'checkout')->count());
         $this->assertSame($history, $contract->statusHistories()->count());
+    }
+
+    public function test_checkout_damage_requires_compensation_description_and_photo(): void
+    {
+        $contract = $this->active([], 'checkout-damage-validation');
+        $base = [
+            'actual_move_out_at' => now(), 'checkout_electricity' => 110, 'checkout_water' => 11,
+            'checkout_reason' => 'Bàn giao phòng.', 'checkout_key_count' => 1,
+            'handover_confirmed' => '1', 'has_damage' => 1,
+        ];
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.check-out', $contract), $base)
+            ->assertSessionHasErrors(['settlement_amount', 'settlement_description', 'checkout_damage_note', 'checkout_photos']);
+        $this->assertSame(Contract::STATUS_ACTIVE, $contract->fresh()->status);
+
+        $this->post(route('admin.contracts.check-out', $contract), $base + [
+            'settlement_amount' => 300000,
+            'settlement_description' => 'Bồi thường kính cửa sổ',
+            'checkout_damage_note' => 'Kính cửa sổ bị vỡ.',
+            'checkout_photos' => [UploadedFile::fake()->image('window-damage.jpg')],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue($contract->fresh()->checkout_has_damage);
+        $this->assertDatabaseHas('settlement_statement_items', [
+            'settlement_statement_id' => $contract->settlementStatement->id,
+            'type' => 'adjustment',
+            'amount' => 300000,
+        ]);
+        $this->get(route('admin.contracts.check-out.form', $contract))
+            ->assertOk()
+            ->assertSee('Ban quản lý cần hoàn người thuê')
+            ->assertSee('Có hư hỏng/thất lạc:')
+            ->assertSee('Bồi thường kính cửa sổ')
+            ->assertSee('Xem ảnh 1');
     }
 
     public function test_completion_requires_no_debt_and_explicit_deposit_resolution(): void
@@ -1959,6 +2261,7 @@ class ContractManagementTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.contracts.check-out', $awaiting), [
             'actual_move_out_at' => now(), 'checkout_electricity' => 110, 'checkout_water' => 11,
             'checkout_reason' => 'Request giả.',
+            'has_damage' => 0,
             'checkout_key_count' => 0, 'handover_confirmed' => '1',
         ])->assertSessionHasErrors('contract');
 
@@ -1966,11 +2269,13 @@ class ContractManagementTest extends TestCase
         $this->post(route('admin.contracts.check-out', $active), [
             'actual_move_out_at' => now()->addMinute(), 'checkout_electricity' => 110,
             'checkout_water' => 11, 'checkout_reason' => 'Tương lai.',
+            'has_damage' => 0,
             'checkout_key_count' => 0, 'handover_confirmed' => '1',
         ])->assertSessionHasErrors('actual_move_out_at');
         $this->post(route('admin.contracts.check-out', $active), [
             'actual_move_out_at' => now(), 'checkout_electricity' => 99,
             'checkout_water' => 9, 'checkout_reason' => 'Chỉ số sai.',
+            'has_damage' => 0,
             'checkout_key_count' => 0, 'handover_confirmed' => '1',
         ])->assertSessionHasErrors('checkout_electricity');
 

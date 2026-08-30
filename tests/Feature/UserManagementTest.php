@@ -567,9 +567,9 @@ class UserManagementTest extends TestCase
             'name' => $target->name,
             'email' => $target->email,
             'role_id' => $target->role_id,
-            'status' => User::STATUS_FORMER,
+            'status' => User::STATUS_ACTIVE,
         ])->assertRedirect('/admin/users');
-        $this->assertSame(User::STATUS_FORMER, $target->fresh()->status);
+        $this->assertSame(User::STATUS_ACTIVE, $target->fresh()->status);
     }
 
     private function createPayload(array $overrides = []): array

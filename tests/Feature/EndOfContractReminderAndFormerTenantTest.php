@@ -52,14 +52,65 @@ class EndOfContractReminderAndFormerTenantTest extends TestCase
         }
     }
 
-    public function test_completed_tenant_keeps_read_only_portal_access(): void
+    public function test_expiring_contract_moves_to_expired_waiting_for_extension_or_departure(): void
+    {
+        Carbon::setTestNow('2026-08-01 08:00:00');
+
+        try {
+            [$admin, $client, , , $contract] = $this->fixture(Contract::STATUS_ACTIVE);
+            $contract->forceFill(['end_date' => '2026-08-31'])->save();
+
+            app(ContractLifecycleService::class)->processDailyAlerts();
+
+            $this->actingAs($client)->get(route('client.contracts.show', $contract))
+                ->assertSuccessful()
+                ->assertSee('Hợp đồng sắp hết hạn')
+                ->assertSee('href="'.route('client.extension-requests.index').'"', false)
+                ->assertSee('href="'.route('client.termination-requests.index').'"', false);
+
+            Carbon::setTestNow('2026-09-01 08:00:00');
+            app(ContractLifecycleService::class)->processDailyAlerts();
+
+            $this->assertSame(Contract::STATUS_EXPIRED, $contract->fresh()->status);
+            $this->assertNotNull(ContractLifecycleAlert::query()
+                ->where('contract_id', $contract->id)
+                ->where('type', 'contract_expiring')
+                ->sole()->resolved_at);
+            $this->assertDatabaseHas('contract_lifecycle_alerts', [
+                'contract_id' => $contract->id,
+                'type' => 'contract_expired',
+                'title' => 'Hợp đồng hết hạn - chờ xử lý',
+                'resolved_at' => null,
+            ]);
+            $this->assertEqualsCanonicalizing(
+                ['contract_expiring', 'contract_expired'],
+                $client->notifications()->get()->pluck('data.type')->all(),
+            );
+
+            $this->actingAs($client)->get(route('client.contracts.show', $contract))
+                ->assertSuccessful()
+                ->assertSee('Hợp đồng đã hết hạn - chờ xử lý')
+                ->assertSee('Gia hạn hợp đồng')
+                ->assertSee('Trả phòng');
+            $this->actingAs($admin)->get(route('admin.contracts.show', $contract))
+                ->assertSuccessful()
+                ->assertSee('Hợp đồng hết hạn - chờ xử lý')
+                ->assertSee('href="'.route('admin.contracts.extend.form', $contract).'"', false)
+                ->assertSee('href="'.route('admin.contracts.check-out.form', $contract).'"', false);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_completed_tenant_returns_to_active_not_renting_status_and_can_rent_again(): void
     {
         [, $client, $tenant, , $contract] = $this->fixture(Contract::STATUS_COMPLETED);
 
         $status = app(TenantAccountLifecycle::class)->sync($tenant);
 
-        $this->assertSame(User::STATUS_FORMER, $status);
+        $this->assertSame(User::STATUS_ACTIVE, $status);
         $this->assertTrue($client->fresh()->canAccessPortal());
+        $this->assertTrue(Tenant::query()->eligibleForContract()->whereKey($tenant)->exists());
 
         $this->actingAs($client->fresh())
             ->get(route('client.contracts.index'))
@@ -71,7 +122,7 @@ class EndOfContractReminderAndFormerTenantTest extends TestCase
             'contract_id' => $contract->id,
             'requested_end_date' => today()->addYear()->toDateString(),
             'reason' => 'Thử thay đổi hợp đồng đã hoàn tất.',
-        ])->assertRedirect(route('client.invoices.index'));
+        ])->assertNotFound();
     }
 
     private function fixture(string $contractStatus): array
@@ -88,7 +139,11 @@ class EndOfContractReminderAndFormerTenantTest extends TestCase
         ]);
         $tenant = Tenant::create([
             'user_id' => $client->id, 'full_name' => 'Khách cuối hợp đồng',
-            'cccd' => '079000008888', 'phone' => '0900008888',
+            'date_of_birth' => '1995-01-01', 'gender' => 'male',
+            'cccd' => '079000008888', 'cccd_issue_date' => '2020-01-01',
+            'cccd_issue_place' => 'Cục Cảnh sát QLHC về TTXH',
+            'phone' => '0900008888', 'email' => 'end-cycle-client@example.test',
+            'address' => 'Thành phố Hồ Chí Minh',
         ]);
         $room = Room::create([
             'room_code' => 'END-01', 'floor' => 1, 'price' => 3000000,

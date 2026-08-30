@@ -24,10 +24,11 @@
         [
             'label' => 'Khách thuê',
             'icon' => 'bx bx-user',
-            'active' => request()->routeIs('admin.tenants*'),
+            'active' => request()->routeIs('admin.tenants*') || request()->routeIs('admin.vehicles*') || request()->routeIs('admin.temporary_residences*'),
             'items' => [
                 ['label' => 'Danh sách khách thuê', 'route' => 'admin.tenants.index', 'active' => request()->routeIs('admin.tenants.index')],
-
+                ['label' => 'Quản lý phương tiện', 'route' => 'admin.vehicles.index', 'active' => request()->routeIs('admin.vehicles*')],
+                ['label' => 'Giấy tạm trú', 'route' => 'admin.temporary_residences.index', 'active' => request()->routeIs('admin.temporary_residences*')],
             ],
         ],
         [

@@ -21,11 +21,13 @@ class DashboardController extends Controller
 
         $tenant = $request->user()->tenant;
 
-        $activeContract = $tenant?->contracts()
+        $activeContracts = $tenant?->contracts()
             ->with('room')
             ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->latest('start_date')
-            ->first();
+            ->latest('id')
+            ->get() ?? collect();
+        $activeContract = $activeContracts->first();
 
         $invoiceQuery = Invoice::with(['room', 'contract'])
             ->when(
@@ -48,6 +50,7 @@ class DashboardController extends Controller
 
         return view('layouts.client.home', compact(
             'tenant',
+            'activeContracts',
             'activeContract',
             'recentInvoice',
             'openInvoices',

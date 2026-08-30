@@ -198,6 +198,12 @@ class Contract extends Model
 
         'deposit_transfer_proof',
 
+        'deposit_receipt_confirmation_due_at',
+
+        'deposit_receipt_confirmed_at',
+
+        'deposit_receipt_confirmation_source',
+
         'deposit_damage_proof',
 
         'deposit_admin_note',
@@ -207,6 +213,8 @@ class Contract extends Model
         'checkout_key_count',
 
         'checkout_asset_report',
+
+        'checkout_has_damage',
 
         'checkout_damage_note',
 
@@ -284,6 +292,10 @@ class Contract extends Model
 
         'deposit_transferred_at' => 'datetime',
 
+        'deposit_receipt_confirmation_due_at' => 'datetime',
+
+        'deposit_receipt_confirmed_at' => 'datetime',
+
         'scheduled_move_in_date' => 'date',
 
         'reservation_expires_at' => 'datetime',
@@ -305,6 +317,8 @@ class Contract extends Model
         'actual_move_out_at' => 'datetime',
 
         'checkout_asset_report' => 'array',
+
+        'checkout_has_damage' => 'boolean',
 
         'checkout_photo_paths' => 'array',
 
@@ -793,10 +807,16 @@ class Contract extends Model
     public function isRefundApproved(): bool
     {
         return $this->status === self::STATUS_SETTLING
-            && in_array($this->deposit_status, [
-                self::DEPOSIT_REFUND_APPROVED,
-                self::DEPOSIT_REFUND_PROCESSING,
-            ], true);
+            && $this->deposit_status === self::DEPOSIT_REFUND_APPROVED;
+    }
+
+    public function isAwaitingRefundReceiptConfirmation(): bool
+    {
+        return $this->status === self::STATUS_SETTLING
+            && $this->deposit_status === self::DEPOSIT_REFUND_PROCESSING
+            && $this->deposit_transferred_at !== null
+            && filled($this->deposit_transfer_proof)
+            && $this->deposit_receipt_confirmed_at === null;
     }
 
     public function isRefundCompleted(): bool
@@ -804,6 +824,7 @@ class Contract extends Model
         return (float) $this->deposit_refund_amount > 0
             && $this->deposit_transferred_at !== null
             && filled($this->deposit_transfer_proof)
+            && $this->deposit_receipt_confirmed_at !== null
             && in_array($this->deposit_resolution, [
                 self::DEPOSIT_REFUNDED,
                 self::DEPOSIT_DEDUCTED,
@@ -854,6 +875,17 @@ class Contract extends Model
     {
         return $this->status === self::STATUS_PENDING_DEPOSIT
             && $this->deposit_due_at?->isPast();
+    }
+
+    public function isExpiringSoon(int $days = 30): bool
+    {
+        return $this->status === self::STATUS_ACTIVE
+            && $this->end_date !== null
+            && $this->end_date->copy()->startOfDay()->betweenIncluded(
+                today(),
+                today()->addDays($days),
+            )
+            && $this->scheduled_move_out_at === null;
     }
 
     public function canRecordUtility(): bool
@@ -1053,7 +1085,7 @@ class Contract extends Model
 
             self::STATUS_ACTIVE => 'Đang ở',
 
-            self::STATUS_EXPIRED => 'Quá hạn hợp đồng',
+            self::STATUS_EXPIRED => 'Hết hạn - chờ xử lý',
 
             self::STATUS_SETTLING => 'Đang quyết toán',
 
@@ -1080,7 +1112,7 @@ class Contract extends Model
 
             self::DEPOSIT_REFUND_REJECTED => 'Từ chối hoàn cọc',
 
-            self::DEPOSIT_REFUND_PROCESSING => 'Đang chuyển khoản',
+            self::DEPOSIT_REFUND_PROCESSING => 'Chờ khách xác nhận nhận tiền',
 
             self::DEPOSIT_RETURNED => 'Đã hoàn cọc',
 

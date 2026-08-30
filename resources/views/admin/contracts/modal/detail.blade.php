@@ -1431,18 +1431,10 @@ Thông tin hợp đồng
 
     @if($contract->canTerminate())
 
-    <button
-        type="button"
-        class="btn btn-danger terminateBtn"
-        data-id="{{ $contract->id }}"
-        data-action="{{ route('admin.contracts.terminate', $contract) }}"
-        data-start="{{ optional($contract->start_date)->format('Y-m-d') }}"
-        data-bs-toggle="modal"
-        data-bs-target="#terminateContractModal">
-
+    <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="btn btn-danger">
         <i class="bi bi-slash-circle me-1"></i>
-        Kết thúc
-    </button>
+        Mở quy trình kết thúc
+    </a>
 
     @endif
 

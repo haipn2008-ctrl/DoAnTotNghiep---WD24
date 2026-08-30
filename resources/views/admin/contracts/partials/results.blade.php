@@ -5,7 +5,7 @@
         'pending_deposit' => ['label' => 'Chờ tiền cọc', 'class' => 'bg-orange-50 text-orange-700 ring-orange-200', 'dot' => 'bg-orange-500'],
         'awaiting_move_in' => ['label' => 'Chờ nhận phòng', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200', 'dot' => 'bg-sky-500'],
         'active' => ['label' => 'Đang thuê', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
-        'expired' => ['label' => 'Quá hạn vẫn ở', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
+        'expired' => ['label' => 'Hết hạn - chờ xử lý', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
         'settling' => ['label' => 'Đang quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200', 'dot' => 'bg-violet-500'],
         'completed' => ['label' => 'Hoàn tất', 'class' => 'bg-green-50 text-green-700 ring-green-200', 'dot' => 'bg-green-500'],
         'cancelled' => ['label' => 'Đã hủy', 'class' => 'bg-gray-50 text-gray-700 ring-gray-200', 'dot' => 'bg-gray-500'],
@@ -35,7 +35,11 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse ($contracts as $contract)
-                    @php($status = $statusOptions[$contract->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'])
+                    @php
+                        $status = $contract->isExpiringSoon()
+                            ? ['label' => 'Sắp hết hạn', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500']
+                            : ($statusOptions[$contract->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400']);
+                    @endphp
                     <tr class="hover:bg-slate-50/70">
                         <td class="px-5 py-4">
                             <p class="font-semibold text-slate-950">{{ $contract->contract_code ?: 'HD' . str_pad($contract->id, 3, '0', STR_PAD_LEFT) }}</p>

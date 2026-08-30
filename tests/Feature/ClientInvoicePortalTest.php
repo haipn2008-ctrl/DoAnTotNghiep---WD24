@@ -175,6 +175,8 @@ class ClientInvoicePortalTest extends TestCase
 
     public function test_admin_payment_page_shows_newest_request_first(): void
     {
+        Storage::fake('local');
+        Storage::disk('local')->put('payment-proofs/newer.jpg', 'proof');
         [, $contract, $room] = $this->createClientContext('PAYMENTORDER');
         $invoice = $this->createInvoice($contract, $room, 'INV-PAYMENT-ORDER');
         $admin = $this->createAdmin('payment-order-admin@example.test');

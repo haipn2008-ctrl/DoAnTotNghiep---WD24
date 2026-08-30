@@ -18,7 +18,7 @@
         'pending_deposit' => ['label' => 'Chờ cọc', 'class' => 'bg-orange-50 text-orange-700 ring-orange-200'],
         'awaiting_move_in' => ['label' => 'Chờ nhận phòng', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200'],
         'active' => ['label' => 'Đang hiệu lực', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
-        'expired' => ['label' => 'Hết hạn', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200'],
+        'expired' => ['label' => 'Hết hạn - chờ xử lý', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
         'terminated' => ['label' => 'Đã kết thúc', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200'],
         'settling' => ['label' => 'Quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200'],
         'completed' => ['label' => 'Hoàn tất', 'class' => 'bg-green-50 text-green-700 ring-green-200'],

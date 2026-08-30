@@ -70,6 +70,22 @@ class ContractTenant extends Model
         return $this->hasMany(ContractTenantHistory::class)->orderBy('performed_at')->orderBy('id');
     }
 
+    public function temporaryResidences()
+    {
+        return $this->hasMany(TemporaryResidence::class);
+    }
+
+    public function activeTemporaryResidence()
+    {
+        return $this->hasOne(TemporaryResidence::class)
+            ->ofMany(['id' => 'max'], fn ($query) => $query->whereIn('status', ['pending', 'active']));
+    }
+
+    public function latestTemporaryResidence()
+    {
+        return $this->hasOne(TemporaryResidence::class)->latestOfMany();
+    }
+
     public function scopeCurrent($query)
     {
         return $query->whereIn('status', [self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_CHECKED_IN]);
@@ -78,6 +94,38 @@ class ContractTenant extends Model
     public function scopeApprovedForMoveIn($query)
     {
         return $query->whereIn('status', [self::STATUS_APPROVED, self::STATUS_CHECKED_IN]);
+    }
+
+    public function missingMoveInProfileFields(): array
+    {
+        $this->loadMissing('tenant');
+
+        $fields = [
+            'full_name' => ['value' => $this->full_name, 'label' => 'Họ và tên'],
+            'date_of_birth' => ['value' => $this->date_of_birth, 'label' => 'Ngày sinh'],
+            'gender' => ['value' => $this->tenant?->gender, 'label' => 'Giới tính'],
+            'identity_number' => ['value' => $this->identity_number, 'label' => 'Số CCCD'],
+            'cccd_issue_date' => ['value' => $this->tenant?->cccd_issue_date, 'label' => 'Ngày cấp CCCD'],
+            'cccd_issue_place' => ['value' => $this->tenant?->cccd_issue_place, 'label' => 'Nơi cấp CCCD'],
+            'phone' => ['value' => $this->phone, 'label' => 'Số điện thoại'],
+            'address' => ['value' => $this->address, 'label' => 'Địa chỉ thường trú'],
+        ];
+        if ($this->role !== self::ROLE_REPRESENTATIVE) {
+            $fields += [
+                'identity_front' => ['value' => $this->identity_front_path, 'label' => 'Ảnh CCCD mặt trước'],
+                'identity_back' => ['value' => $this->identity_back_path, 'label' => 'Ảnh CCCD mặt sau'],
+            ];
+        }
+
+        return collect($fields)
+            ->filter(fn (array $field): bool => blank($field['value']))
+            ->mapWithKeys(fn (array $field, string $key): array => [$key => $field['label']])
+            ->all();
+    }
+
+    public function hasCompleteMoveInProfile(): bool
+    {
+        return $this->missingMoveInProfileFields() === [];
     }
 
     public function getStatusLabelAttribute(): string

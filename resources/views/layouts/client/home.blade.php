@@ -41,21 +41,21 @@
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <a href="{{ auth()->user()->isActive() ? route('client.room.show') : route('client.contracts.index') }}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-indigo-200">
-                <p class="text-sm font-medium text-slate-500">Phòng hiện tại</p>
-                <p class="mt-3 text-2xl font-bold text-slate-950">{{ $activeContract?->room?->room_code ?? 'Chưa có' }}</p>
+                <p class="text-sm font-medium text-slate-500">Phòng đang thuê</p>
+                <p class="mt-3 text-2xl font-bold text-slate-950">{{ $activeContracts->isNotEmpty() ? $activeContracts->count().' phòng' : 'Chưa có' }}</p>
                 <p class="mt-1 text-xs text-slate-500">
-                    {{ $activeContract ? 'Đang thuê theo hợp đồng ' . $activeContract->contract_code : 'Chưa có hợp đồng đang hiệu lực.' }}
+                    {{ $activeContracts->isNotEmpty() ? $activeContracts->pluck('room.room_code')->filter()->map(fn ($code) => 'Phòng '.$code)->implode(' · ') : 'Chưa có hợp đồng đang hiệu lực.' }}
                 </p>
             </a>
 
             <a href="{{ route('client.contracts.index') }}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-indigo-200">
                 <p class="text-sm font-medium text-slate-500">Hợp đồng</p>
                 <p class="mt-3 text-2xl font-bold {{ $activeContract ? 'text-emerald-600' : 'text-slate-950' }}">
-                    {{ $activeContract ? 'Hiệu lực' : 'Chưa có' }}
+                    {{ $activeContracts->isNotEmpty() ? $activeContracts->count().' hiệu lực' : 'Chưa có' }}
                 </p>
                 <p class="mt-1 text-xs text-slate-500">
-                    @if ($activeContract)
-                        Đến ngày {{ \Carbon\Carbon::parse($activeContract->end_date)->format('d/m/Y') }}
+                    @if ($activeContracts->isNotEmpty())
+                        Xem chi tiết thời hạn của từng hợp đồng
                     @else
                         Thông tin hợp đồng sẽ hiển thị khi được ban quản lý tạo.
                     @endif

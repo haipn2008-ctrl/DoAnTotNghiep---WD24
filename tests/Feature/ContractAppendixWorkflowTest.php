@@ -63,6 +63,20 @@ class ContractAppendixWorkflowTest extends TestCase
             ->assertRedirect(route('client.contract-appendices.show', $appendix));
         $this->assertNotNull($clientNotification->fresh()->read_at);
 
+        $this->actingAs($client)->get(route('client.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('Lịch sử phụ lục')
+            ->assertSee('Thêm người thuê')
+            ->assertSee('href="'.route('client.contracts.appendices.index', $contract).'"', false)
+            ->assertSee('href="'.route('client.contracts.tenants.create', $contract).'"', false)
+            ->assertDontSee('Kiểm tra các nội dung bổ sung và phản hồi phụ lục đang chờ.');
+        $this->get(route('client.contracts.appendices.index', $contract))
+            ->assertOk()
+            ->assertSee('Lịch sử phụ lục')
+            ->assertSee($appendix->code)
+            ->assertSee('Kiểm tra và phản hồi');
+        $this->actingAs($otherClient)->get(route('client.contracts.appendices.index', $contract))->assertNotFound();
+
         $this->actingAs($otherClient)->get(route('client.contract-appendices.show', $appendix))->assertNotFound();
         $this->actingAs($client)->get(route('client.contract-appendices.show', $appendix))
             ->assertOk()->assertSee($appendix->code)->assertSee('Chấp nhận phụ lục')->assertSee('Gửi lý do từ chối');

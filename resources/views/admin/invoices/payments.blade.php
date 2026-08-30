@@ -40,11 +40,13 @@
                             <div><p class="text-xs font-semibold uppercase text-slate-500">Số tiền</p><p class="mt-1 text-xl font-bold text-emerald-700">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</p><span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span></div>
                         </div>
                         <div class="shrink-0 lg:w-28">
-                            @if($payment->proof_image)
+                            @if($payment->proofImageExists())
                                 <a href="{{ route('admin.invoices.payments.proof', $payment) }}" data-image-modal data-image-title="Biên lai thanh toán {{ $payment->invoice?->invoice_code }}" class="block w-28">
                                     <img src="{{ route('admin.invoices.payments.proof', $payment) }}" alt="Biên lai" class="h-28 w-28 rounded-lg object-cover ring-1 ring-slate-200">
                                     <span class="mt-1 block text-center text-xs font-semibold text-indigo-700">Xem ảnh lớn</span>
                                 </a>
+                            @elseif($payment->proof_image)
+                                <span class="block text-center text-xs font-semibold text-amber-700">Ảnh không còn tồn tại</span>
                             @endif
                         </div>
                     </div>

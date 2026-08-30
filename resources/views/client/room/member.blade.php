@@ -15,7 +15,7 @@
 
 @section('content')
     <div class="space-y-5">
-        <a href="{{ route('client.room.members.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+        <a href="{{ route('client.room.members.index', ['contract' => $contract->id]) }}" class="inline-flex items-center gap-2 text-sm font-semibold text-indigo-700 hover:text-indigo-900">
             <span aria-hidden="true">←</span> Quay lại danh sách thành viên
         </a>
 
@@ -34,7 +34,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('client.room.members.update', $member) }}" enctype="multipart/form-data" class="mt-5 grid gap-4 md:grid-cols-2">
+            <form method="POST" action="{{ route('client.room.members.update', ['member' => $member, 'contract' => $contract->id]) }}" enctype="multipart/form-data" class="mt-5 grid gap-4 md:grid-cols-2">
                 @csrf
                 @method('PUT')
                 <div class="md:col-span-2">
@@ -77,7 +77,7 @@
                     </div>
                     <div class="grid gap-4 sm:grid-cols-2">
                         @foreach($identitySides as $identitySide)
-                            @php($imageUrl = $identitySide['path'] ? route('client.room.members.identity', [$member, $identitySide['side']]) : null)
+                            @php($imageUrl = in_array($identitySide['side'], $availableIdentitySides, true) ? route('client.room.members.identity', ['member' => $member, 'side' => $identitySide['side'], 'contract' => $contract->id]) : null)
                             <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
                                 <div class="mb-2 flex items-center justify-between gap-2">
                                     <p class="text-sm font-semibold text-slate-700">{{ $identitySide['label'] }}</p>
@@ -118,6 +118,61 @@
                     <button class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">Lưu thay đổi</button>
                 </div>
             </form>
+
+            <div class="mt-6 border-t border-slate-200 pt-6">
+                <div>
+                    <h3 class="font-semibold text-slate-950">Giấy tạm trú</h3>
+                    <p class="mt-1 text-xs text-slate-500">Hồ sơ tạm trú do quản trị viên cập nhật cho thành viên này.</p>
+                </div>
+
+                @if($member->temporaryResidences->isNotEmpty())
+                    <div class="mt-4 overflow-x-auto rounded-lg border border-slate-200">
+                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <tr>
+                                    <th class="px-4 py-3">Mã hồ sơ</th>
+                                    <th class="px-4 py-3">Thời hạn</th>
+                                    <th class="px-4 py-3">Trạng thái</th>
+                                    <th class="px-4 py-3 text-right">Minh chứng</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @foreach($member->temporaryResidences as $temporaryResidence)
+                                    @php($statusClass = match($temporaryResidence->status) {
+                                        'active' => 'bg-emerald-50 text-emerald-700',
+                                        'pending' => 'bg-amber-50 text-amber-700',
+                                        'expired' => 'bg-slate-100 text-slate-700',
+                                        'cancelled' => 'bg-rose-50 text-rose-700',
+                                        default => 'bg-slate-100 text-slate-700',
+                                    })
+                                    <tr>
+                                        <td class="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">{{ $temporaryResidence->reference_number ?: '#'.$temporaryResidence->id }}</td>
+                                        <td class="whitespace-nowrap px-4 py-3 text-slate-700">
+                                            {{ $temporaryResidence->start_date?->format('d/m/Y') ?? '—' }}
+                                            → {{ $temporaryResidence->end_date?->format('d/m/Y') ?? 'Không thời hạn' }}
+                                        </td>
+                                        <td class="whitespace-nowrap px-4 py-3">
+                                            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $statusClass }}">{{ $temporaryResidence->status_label }}</span>
+                                        </td>
+                                        <td class="whitespace-nowrap px-4 py-3 text-right">
+                                            @if(in_array($temporaryResidence->id, $availableResidenceEvidenceIds, true))
+                                                @php($isPdfEvidence = $temporaryResidence->evidence_mime_type === 'application/pdf' || strtolower(pathinfo($temporaryResidence->evidence_original_name ?: $temporaryResidence->evidence_path, PATHINFO_EXTENSION)) === 'pdf')
+                                                <a href="{{ route('client.room.members.temporary-residences.evidence', ['member' => $member, 'temporaryResidence' => $temporaryResidence, 'contract' => $contract->id]) }}" data-image-modal data-media-type="{{ $isPdfEvidence ? 'pdf' : 'image' }}" data-image-title="Giấy tạm trú {{ $temporaryResidence->reference_number ?: '#'.$temporaryResidence->id }}" class="font-semibold text-indigo-700 hover:text-indigo-900">Xem giấy</a>
+                                            @elseif($temporaryResidence->evidence_path)
+                                                <span class="text-amber-700">Tệp không còn tồn tại</span>
+                                            @else
+                                                <span class="text-slate-400">Chưa có</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">Thành viên này chưa có giấy tạm trú trên hệ thống.</div>
+                @endif
+            </div>
         </section>
     </div>
 @endsection

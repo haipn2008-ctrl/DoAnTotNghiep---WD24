@@ -10,7 +10,7 @@
         'pending_deposit' => ['label' => 'Chờ tiền cọc', 'class' => 'bg-orange-50 text-orange-700 ring-orange-200', 'dot' => 'bg-orange-500'],
         'awaiting_move_in' => ['label' => 'Chờ nhận phòng', 'class' => 'bg-sky-50 text-sky-700 ring-sky-200', 'dot' => 'bg-sky-500'],
         'active' => ['label' => 'Đang hiệu lực', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
-        'expired' => ['label' => 'Đã hết hạn', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
+        'expired' => ['label' => 'Hết hạn - chờ xử lý', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
         'settling' => ['label' => 'Đang quyết toán', 'class' => 'bg-violet-50 text-violet-700 ring-violet-200', 'dot' => 'bg-violet-500'],
         'completed' => ['label' => 'Đã hoàn tất', 'class' => 'bg-green-50 text-green-700 ring-green-200', 'dot' => 'bg-green-500'],
         'cancelled' => ['label' => 'Đã hủy', 'class' => 'bg-gray-50 text-gray-700 ring-gray-200', 'dot' => 'bg-gray-400'],
@@ -52,6 +52,17 @@
         'normal' => 'Sử dụng bình thường', 'good' => 'Sử dụng bình thường',
         'worn' => 'Sử dụng bình thường', 'damaged' => 'Có hư hỏng',
     ];
+    $signedContractFileExists = $contract->contractFileExists();
+    $signedContractMediaType = strtolower(pathinfo((string) $contract->contract_file, PATHINFO_EXTENSION)) === 'pdf'
+        ? 'pdf'
+        : 'image';
+    $isExpiringSoon = $contract->isExpiringSoon();
+    $needsEndOfTermDecision = $isExpiringSoon || $contract->status === 'expired';
+    $openExtensionRequest = $contract->extensionRequests->first(fn ($request) => in_array($request->status, ['pending', 'awaiting_confirmation'], true));
+    $openTerminationRequest = $contract->terminationRequests->first(fn ($request) => in_array($request->status, ['pending', 'approved'], true));
+    if ($isExpiringSoon) {
+        $currentStatus = ['label' => 'Sắp hết hạn', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'];
+    }
 @endphp
 
 @section('content')
@@ -80,13 +91,19 @@
                     <i class="bx bx-calendar-plus text-lg"></i>Gia hạn
                 </a>
                 <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
-                    <i class="bx bx-log-out-circle text-lg"></i>Trả phòng
+                    <i class="bx bx-log-out-circle text-lg"></i>Kết thúc hợp đồng
                 </a>
             @endif
             <a data-contract-print href="{{ route('admin.contracts.print',$contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                 <i class="bx bx-printer text-lg"></i>
                 In hợp đồng
             </a>
+            @if($contract->signed_at && $signedContractFileExists)
+                <a href="{{ route('admin.contracts.file', $contract) }}" data-image-modal data-media-type="{{ $signedContractMediaType }}" data-image-title="Bản hợp đồng đã ký - {{ $contract->contract_code }}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50">
+                    <i class="bx bx-file-find text-lg"></i>
+                    Xem bản đã ký
+                </a>
+            @endif
             @if($contract->status === \App\Models\Contract::STATUS_PENDING_SIGNATURE)
                 <button type="button" onclick="document.getElementById('edit-contract-dialog').showModal()" class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50">
                     <i class="bx bx-edit text-lg"></i>
@@ -115,7 +132,7 @@
     @if($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><ul class="list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     @if($contract->approvedTerminationRequest && $contract->scheduled_move_out_at)
         <div class="rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
-            <p class="font-bold">Lịch bàn giao đã duyệt: {{ $contract->scheduled_move_out_at->format('H:i d/m/Y') }}</p>
+            <p class="font-bold">Ngày bàn giao đã duyệt: {{ ($contract->approvedTerminationRequest?->approved_end_date ?? $contract->scheduled_move_out_at)->format('d/m/Y') }} · Giờ hành chính 08:00–17:00</p>
             <p class="mt-1">{{ $contract->approvedTerminationRequest->type_label }} · Ngày kết thúc được duyệt {{ $contract->approvedTerminationRequest->approved_end_date?->format('d/m/Y') }}@if($contract->approvedTerminationRequest->admin_note) · {{ $contract->approvedTerminationRequest->admin_note }}@endif</p>
         </div>
     @endif
@@ -124,7 +141,63 @@
     @if($contract->isReservationOverdue())<div class="rounded-lg border border-rose-300 bg-rose-50 p-4 font-semibold text-rose-900">Quá hạn nhận phòng — hệ thống không tự hủy hợp đồng.</div>@endif
     @if($contract->status===\App\Models\Contract::STATUS_ACTIVE && $contract->end_date->isBetween(today(), today()->addMonthNoOverflow()) && $contract->lifecycleAlerts->isEmpty())<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-900">Hợp đồng đang ở tháng cuối — cần trao đổi gia hạn hoặc chuẩn bị trả phòng.</div>@endif
     @if($contract->status===\App\Models\Contract::STATUS_EXPIRED)<div class="rounded-lg border border-rose-300 bg-rose-50 p-4 font-semibold text-rose-900">Hợp đồng đã hết hạn nhưng khách vẫn đang ở; phòng vẫn được ghi nhận là đang có người thuê.</div>@endif
-    @foreach($contract->lifecycleAlerts as $alert)<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{{ $alert->title }}</strong>@if(filled($alert->message) && !str_contains($alert->message, 'EndOfContractTestSeeder'))<span>: {{ $alert->message }}</span>@endif</div>@endforeach
+    @foreach($contract->lifecycleAlerts as $alert)<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{{ $alert->title }}</strong>@if(filled($alert->message))<span>: {{ $alert->message }}</span>@endif</div>@endforeach
+
+    @if($needsEndOfTermDecision)
+        <section class="overflow-hidden rounded-xl border {{ $contract->status === \App\Models\Contract::STATUS_EXPIRED ? 'border-rose-200' : 'border-amber-200' }} bg-white shadow-sm">
+            <div class="border-b px-5 py-4 {{ $contract->status === \App\Models\Contract::STATUS_EXPIRED ? 'border-rose-100 bg-rose-50' : 'border-amber-100 bg-amber-50' }}">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h3 class="font-bold text-slate-950">{{ $contract->status === \App\Models\Contract::STATUS_EXPIRED ? 'Hợp đồng hết hạn - chờ xử lý' : 'Hợp đồng sắp hết hạn' }}</h3>
+                        <p class="mt-1 text-sm text-slate-600">Ngày kết thúc: <strong>{{ $contract->end_date?->format('d/m/Y') }}</strong>. {{ $contract->status === \App\Models\Contract::STATUS_EXPIRED ? 'Cần chốt gia hạn hoặc thực hiện trả phòng.' : 'Hệ thống đang nhắc khách chọn gia hạn hoặc đăng ký trả phòng.' }}</p>
+                    </div>
+                    <span class="rounded-full px-3 py-1 text-xs font-bold {{ $contract->status === \App\Models\Contract::STATUS_EXPIRED ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700' }}">{{ $contract->status === \App\Models\Contract::STATUS_EXPIRED ? 'Bước 2/3' : 'Bước 1/3' }}</span>
+                </div>
+            </div>
+            <div class="grid gap-4 p-5 md:grid-cols-2">
+                @if($openExtensionRequest)
+                    <a href="{{ route('admin.extension-requests.index') }}#request-{{ $openExtensionRequest->id }}" class="rounded-xl border border-sky-200 bg-sky-50 p-4 hover:bg-sky-100">
+                        <p class="font-bold text-sky-900">Đang chờ xử lý gia hạn</p>
+                        <p class="mt-1 text-sm text-sky-700">Khách đã chọn gia hạn hợp đồng.</p>
+                    </a>
+                @elseif($openTerminationRequest)
+                    <a href="{{ route('admin.termination-requests.index') }}#request-{{ $openTerminationRequest->id }}" class="rounded-xl border border-violet-200 bg-violet-50 p-4 hover:bg-violet-100">
+                        <p class="font-bold text-violet-900">{{ $openTerminationRequest->status === 'approved' ? 'Đã chốt trả phòng - chờ bàn giao' : 'Đang chờ duyệt trả phòng' }}</p>
+                        <p class="mt-1 text-sm text-violet-700">Mở yêu cầu để tiếp tục xử lý.</p>
+                    </a>
+                @else
+                    <a href="{{ route('admin.contracts.extend.form', $contract) }}" class="rounded-xl border border-sky-200 bg-sky-50 p-4 hover:bg-sky-100">
+                        <p class="font-bold text-sky-900">Gia hạn hợp đồng</p>
+                        <p class="mt-1 text-sm text-sky-700">Cập nhật thời hạn và giá thuê sau khi hai bên thống nhất.</p>
+                    </a>
+                    <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="rounded-xl border border-violet-200 bg-violet-50 p-4 hover:bg-violet-100">
+                        <p class="font-bold text-violet-900">Trả phòng</p>
+                        <p class="mt-1 text-sm text-violet-700">Lập lịch bàn giao, chốt chỉ số và quyết toán.</p>
+                    </a>
+                @endif
+            </div>
+        </section>
+    @endif
+
+    @if($contract->signed_at)
+        <section class="flex flex-col justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 sm:flex-row sm:items-center">
+            <div>
+                <h3 class="font-semibold text-emerald-950">Bản hợp đồng đã ký</h3>
+                <p class="mt-1 text-sm text-emerald-800">Xác nhận lúc {{ $contract->signed_at->format('H:i d/m/Y') }}{{ $contract->signedConfirmer ? ' · '.$contract->signedConfirmer->name : '' }}.</p>
+                @if($contract->contract_file && ! $signedContractFileExists)
+                    <p class="mt-1 text-sm font-semibold text-rose-700">File minh chứng đã lưu nhưng hiện không còn tồn tại.</p>
+                @elseif(! $contract->contract_file)
+                    <p class="mt-1 text-sm font-semibold text-amber-700">Chưa tải lên file minh chứng bản hợp đồng đã ký.</p>
+                @endif
+            </div>
+            @if($signedContractFileExists)
+                <a href="{{ route('admin.contracts.file', $contract) }}" data-image-modal data-media-type="{{ $signedContractMediaType }}" data-image-title="Bản hợp đồng đã ký - {{ $contract->contract_code }}" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">
+                    <i class="bx bx-show text-lg"></i>
+                    Xem ngay
+                </a>
+            @endif
+        </section>
+    @endif
 
     @include('admin.contracts.appendices._contract-section')
 
@@ -151,23 +224,12 @@
                 <form class="lifecycle-form rounded-xl border border-amber-200 bg-amber-50/40 p-4" method="POST" action="{{ route('admin.contracts.submit-for-signature',$contract) }}">@csrf<h4 class="font-semibold text-slate-950">Gửi chờ ký</h4><textarea name="reason" rows="2" placeholder="Ghi chú (không bắt buộc)" class="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"></textarea><button class="mt-3 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">Gửi chờ ký</button></form>
             @endif
             @if(in_array($contract->status,\App\Models\Contract::OPEN_OCCUPANCY_STATUSES,true))
-                <form class="lifecycle-form rounded-xl border border-violet-200 bg-violet-50/40 p-4 lg:col-span-2" method="POST" action="{{ route('admin.contracts.check-out',$contract) }}" enctype="multipart/form-data">
-                    @csrf
-                    <div><h4 class="font-semibold text-slate-950">Biên bản bàn giao và xác nhận trả phòng</h4><p class="mt-1 text-xs text-slate-500">Chốt chỉ số, chìa khóa, tài sản và ảnh hiện trạng trước khi chuyển sang quyết toán.</p></div>
-                    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <label class="text-xs font-semibold text-slate-600">Thời điểm trả phòng<input type="datetime-local" name="actual_move_out_at" required class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"></label>
-                        <label class="text-xs font-semibold text-slate-600">Chỉ số điện cuối<input type="number" min="0" name="checkout_electricity" value="{{ $latestReading?->electricity_new }}" required class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"></label>
-                        <label class="text-xs font-semibold text-slate-600">Chỉ số nước cuối<input type="number" min="0" name="checkout_water" value="{{ $latestReading?->water_new }}" required class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"></label>
-                        <label class="text-xs font-semibold text-slate-600">Số chìa khóa đã trả<input type="number" min="0" max="100" name="checkout_key_count" value="0" required class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"></label>
+                <div class="rounded-xl border border-violet-200 bg-violet-50/50 p-5 lg:col-span-2">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div><h4 class="font-bold text-slate-950">Bàn giao phòng và chốt quyết toán</h4><p class="mt-1 text-sm text-slate-600">Mở quy trình tập trung để ghi chỉ số, đối chiếu tài sản, khai báo hư hỏng và tính tiền cọc.</p></div>
+                        <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-bold text-white hover:bg-violet-800">Mở bước bàn giao <i class="bx bx-right-arrow-alt text-xl"></i></a>
                     </div>
-                    @if($contract->handoverItems->isNotEmpty())
-                        <div class="mt-4 overflow-hidden rounded-xl border border-violet-100 bg-white"><div class="border-b border-violet-100 px-4 py-3 text-sm font-semibold text-slate-800">Đối chiếu tài sản bàn giao</div><div class="divide-y divide-slate-100">@foreach($contract->handoverItems as $item)<div class="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_170px_1fr]"><div><p class="text-sm font-semibold text-slate-800">{{ $item->name }}</p><p class="text-xs text-slate-500">Số lượng: {{ $item->quantity }}</p></div><select name="asset_conditions[{{ $item->id }}][condition]" required class="h-10 rounded-lg border border-slate-200 px-2 text-sm"><option value="good">Tốt</option><option value="worn">Hao mòn</option><option value="damaged">Hư hỏng</option><option value="missing">Thất lạc</option></select><input name="asset_conditions[{{ $item->id }}][note]" maxlength="500" placeholder="Ghi chú tình trạng" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"></div>@endforeach</div></div>
-                    @endif
-                    <div class="mt-3 grid gap-3 md:grid-cols-2"><textarea name="checkout_reason" rows="2" required placeholder="Lý do trả phòng" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></textarea><textarea name="checkout_damage_note" rows="2" placeholder="Mô tả hư hỏng/thất lạc nếu có" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></textarea><input type="number" min="0" name="settlement_amount" placeholder="Khoản bồi thường/điều chỉnh" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm"><input name="settlement_description" placeholder="Nội dung khoản bồi thường/điều chỉnh" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm"></div>
-                    <label class="mt-3 block text-xs font-semibold text-slate-600">Ảnh hiện trạng khi bàn giao (tối đa 10 ảnh)<input type="file" name="checkout_photos[]" multiple accept="image/jpeg,image/png,image/webp" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></label>
-                    <label class="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" name="handover_confirmed" value="1" required class="mt-0.5 rounded border-slate-300 text-violet-600"><span>Xác nhận ban quản lý và người thuê đại diện đã cùng đối chiếu biên bản bàn giao.</span></label>
-                    <button class="mt-3 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">Xác nhận trả phòng và lập quyết toán</button>
-                </form>
+                </div>
                 <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><p class="mt-1 text-xs leading-5 text-slate-500">Cập nhật thời hạn và giá thuê sau khi hai bên đã thỏa thuận.</p><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Gia hạn hợp đồng</a></div>
             @endif
             @if($contract->status===\App\Models\Contract::STATUS_SETTLING)
@@ -189,7 +251,7 @@
     @if($contract->actual_move_out_at && $contract->checkout_handover_confirmed_at)
     @php($checkoutConditionLabels = ['good' => 'Tốt', 'worn' => 'Hao mòn', 'damaged' => 'Hư hỏng', 'missing' => 'Thất lạc'])
     <section class="overflow-hidden rounded-xl border border-violet-200 bg-white shadow-sm">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-violet-100 bg-violet-50/50 px-5 py-4"><div><h3 class="font-semibold text-slate-950">Biên bản bàn giao trả phòng</h3><p class="mt-1 text-xs text-slate-500">Đối chiếu lúc {{ $contract->checkout_handover_confirmed_at->format('H:i d/m/Y') }} · Đã trả {{ $contract->checkout_key_count }} chìa khóa</p></div><span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Hai bên đã đối chiếu</span></div>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-violet-100 bg-violet-50/50 px-5 py-4"><div><h3 class="font-semibold text-slate-950">Biên bản bàn giao trả phòng</h3><p class="mt-1 text-xs text-slate-500">Đối chiếu lúc {{ $contract->checkout_handover_confirmed_at->format('H:i d/m/Y') }}</p></div><span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Hai bên đã đối chiếu</span></div>
         @if(filled($contract->checkout_asset_report))<div class="divide-y divide-slate-100">@foreach($contract->checkout_asset_report as $asset)<div class="flex flex-wrap items-start justify-between gap-3 px-5 py-3 text-sm"><div><p class="font-semibold text-slate-900">{{ $asset['name'] }}</p><p class="text-xs text-slate-500">{{ $asset['note'] ?: 'Không có ghi chú' }}</p></div><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $checkoutConditionLabels[$asset['condition']] ?? $asset['condition'] }}</span></div>@endforeach</div>@endif
         @if($contract->checkout_damage_note)<p class="border-t border-slate-100 px-5 py-3 text-sm text-rose-700"><strong>Hư hỏng/thất lạc:</strong> {{ $contract->checkout_damage_note }}</p>@endif
         @if(filled($contract->checkout_photo_paths))<div class="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-4">@foreach($contract->checkout_photo_paths as $index => $path)<a href="{{ route('admin.contracts.checkout-photos.show', [$contract, $index]) }}" data-image-modal data-image-title="Ảnh bàn giao trả phòng {{ $index + 1 }}" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">Xem ảnh {{ $index + 1 }}</a>@endforeach</div>@endif

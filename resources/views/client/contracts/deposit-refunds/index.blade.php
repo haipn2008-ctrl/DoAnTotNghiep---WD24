@@ -47,6 +47,7 @@
         $deduction = (float) ($contract->deposit_deduction_amount ?? 0);
         $refund = (float) ($contract->deposit_refund_amount ?? 0);
         $expectedRefund = max(0, $deposit - $deduction);
+        $paymentProviders = config('vietnam-payment-providers', []);
     @endphp
 
     {{-- INTRO --}}
@@ -119,6 +120,8 @@
                         bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200
                     @elseif($contract->deposit_status === \App\Models\Contract::DEPOSIT_REFUND_APPROVED)
                         bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200
+                    @elseif($contract->isAwaitingRefundReceiptConfirmation())
+                        bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200
                     @elseif($contract->isRefundCompleted())
                         bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200
                     @else
@@ -191,8 +194,9 @@
         </div>
 
         {{-- EXISTING REQUEST --}}
-        @if($contract->isRefundRequested() || $contract->isRefundApproved())
-            <div class="mx-6 mb-6 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+        @if($contract->isRefundRequested() || $contract->isRefundApproved() || $contract->isAwaitingRefundReceiptConfirmation())
+            <div class="mx-6 mb-6 flex flex-col gap-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-start gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" class="mt-0.5 h-5 w-5 shrink-0" fill="none"
                      viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -206,11 +210,130 @@
                         {{ $contract->deposit_bank_account_name }}
                     </div>
                 </div>
+                </div>
+                @if($contract->isRefundRequested())
+                    <button type="button"
+                            onclick="document.getElementById('edit-refund-account-dialog').showModal()"
+                            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-300 bg-white px-4 text-sm font-bold text-blue-700 shadow-sm transition hover:bg-blue-100">
+                        <i class="bx bx-edit text-lg"></i>
+                        Chỉnh sửa thông tin nhận tiền
+                    </button>
+                @endif
             </div>
         @endif
 
+        @if($contract->isRefundRequested())
+            <dialog id="edit-refund-account-dialog" class="m-auto w-[calc(100%-2rem)] max-w-3xl overflow-hidden rounded-2xl bg-white p-0 text-slate-700 shadow-2xl backdrop:bg-slate-900/50">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                    <div>
+                        <h3 class="font-bold text-slate-950">Chỉnh sửa thông tin nhận tiền</h3>
+                        <p class="mt-1 text-sm text-slate-500">Thông tin mới sẽ thay thế thông tin đã gửi trước đó và được lưu vào lịch sử xử lý.</p>
+                    </div>
+                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Đóng" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><i class="bx bx-x text-xl"></i></button>
+                </div>
+
+                <form method="POST" action="{{ route('client.deposit-refunds.update', $contract) }}" enctype="multipart/form-data" class="p-5">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="form_context" value="edit_refund_account">
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <label class="text-sm font-semibold text-slate-700">Ngân hàng hoặc ví điện tử *
+                            <select name="bank_name" required class="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
+                                <option value="">Chọn đơn vị nhận tiền</option>
+                                @foreach($paymentProviders as $group => $providers)
+                                    <optgroup label="{{ $group }}">
+                                        @foreach($providers as $provider)
+                                            <option value="{{ $provider }}" @selected(old('bank_name', $contract->deposit_bank_name) === $provider)>{{ $provider }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="text-sm font-semibold text-slate-700">Số tài khoản / Số điện thoại ví *
+                            <input name="bank_account_number" required maxlength="50" value="{{ old('bank_account_number', $contract->deposit_bank_account_number) }}" class="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm font-normal outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
+                        </label>
+                        <label class="text-sm font-semibold text-slate-700 md:col-span-2">Tên chủ tài khoản *
+                            <input name="bank_account_name" required maxlength="150" value="{{ old('bank_account_name', $contract->deposit_bank_account_name) }}" class="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm font-normal uppercase outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
+                        </label>
+                        <label class="text-sm font-semibold text-slate-700 md:col-span-2">Thay ảnh QR <span class="font-normal text-slate-400">(không bắt buộc)</span>
+                            <input type="file" name="qr_image" accept="image/png,image/jpeg,image/webp" class="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal">
+                            @if($contract->deposit_qr_image)
+                                <span class="mt-1 block text-xs font-normal text-slate-500">Không chọn ảnh mới thì hệ thống giữ nguyên QR hiện tại.</span>
+                            @endif
+                        </label>
+                        <label class="text-sm font-semibold text-slate-700 md:col-span-2">Ghi chú
+                            <textarea name="note" rows="3" maxlength="1000" class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">{{ old('note', $contract->deposit_process_note) }}</textarea>
+                        </label>
+                    </div>
+
+                    <div class="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+                        <button type="button" onclick="this.closest('dialog').close()" class="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">Hủy</button>
+                        <button type="submit" class="h-11 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white hover:bg-indigo-700">Lưu thông tin mới</button>
+                    </div>
+                </form>
+            </dialog>
+        @endif
+
+        {{-- AWAITING TENANT RECEIPT CONFIRMATION --}}
+        @if($contract->isAwaitingRefundReceiptConfirmation())
+            <div class="mx-6 mb-6 overflow-hidden rounded-2xl border border-violet-200 bg-violet-50">
+                <div class="flex items-start gap-3 border-b border-violet-200 bg-violet-100/60 p-5">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
+                        <i class="bx bx-transfer-alt text-xl"></i>
+                    </span>
+                    <div>
+                        <h4 class="font-bold text-violet-950">Ban quản lý đã chuyển tiền — chờ bạn xác nhận</h4>
+                        <p class="mt-1 text-sm leading-6 text-violet-800">
+                            Vui lòng kiểm tra tài khoản nhận tiền. Nếu bạn không xác nhận trong vòng 24 giờ kể từ lúc chuyển, hệ thống sẽ tự động coi như bạn đã nhận đủ tiền.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid gap-4 p-5 md:grid-cols-2">
+                    <div class="rounded-xl border border-violet-200 bg-white p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Số tiền Admin đã chuyển</p>
+                        <p class="mt-2 text-2xl font-bold text-violet-700">
+                            {{ number_format((float) $contract->deposit_transfer_amount, 0, ',', '.') }} VNĐ
+                        </p>
+                        <p class="mt-2 text-xs text-slate-500">
+                            Chuyển lúc {{ $contract->deposit_transferred_at?->format('H:i d/m/Y') }}
+                        </p>
+                        <p class="mt-1 text-xs font-semibold text-amber-700">
+                            Hạn xác nhận: {{ $contract->deposit_receipt_confirmation_due_at?->format('H:i d/m/Y') }}
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl border border-violet-200 bg-white p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Minh chứng chuyển khoản</p>
+                        <a href="{{ route('client.deposit-refunds.proof', $contract) }}"
+                           data-image-modal data-image-title="Ảnh chuyển khoản hoàn cọc"
+                           class="mt-3 inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition hover:bg-violet-100">
+                            <i class="bx bx-image text-lg"></i>
+                            Xem ảnh chuyển khoản
+                        </a>
+                    </div>
+                </div>
+
+                <form method="POST"
+                      action="{{ route('client.deposit-refunds.confirm-receipt', $contract) }}"
+                      class="border-t border-violet-200 bg-white p-5">
+                    @csrf
+                    <label class="flex cursor-pointer items-start gap-3 text-sm text-slate-700">
+                        <input type="checkbox" name="confirm_received" value="1" required
+                               class="mt-0.5 h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                        <span>Tôi đã kiểm tra tài khoản và xác nhận đã nhận đủ <strong>{{ number_format((float) $contract->deposit_transfer_amount, 0, ',', '.') }} VNĐ</strong>.</span>
+                    </label>
+                    <button type="submit"
+                            class="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-violet-800">
+                        <i class="bx bx-check-circle text-xl"></i>
+                        Xác nhận đã nhận đủ tiền
+                    </button>
+                </form>
+            </div>
+
         {{-- REFUND COMPLETED --}}
-        @if($contract->isRefundCompleted())
+        @elseif($contract->isRefundCompleted())
             <div class="mx-6 mb-6 overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50">
                 <div class="flex items-start gap-3 border-b border-emerald-200 bg-emerald-100/60 p-5">
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
@@ -219,8 +342,14 @@
                         </svg>
                     </span>
                     <div>
-                        <h4 class="font-bold text-emerald-900">Tiền hoàn đã được chuyển</h4>
-                        <p class="mt-1 text-sm leading-6 text-emerald-800">Ban quản lý đã chuyển tiền. Bạn có thể xem minh chứng chuyển khoản ngay bên dưới.</p>
+                        <h4 class="font-bold text-emerald-900">Đã xác nhận nhận đủ tiền hoàn cọc</h4>
+                        <p class="mt-1 text-sm leading-6 text-emerald-800">
+                            @if($contract->deposit_receipt_confirmation_source === \App\Services\DepositRefundReceiptService::SOURCE_AUTOMATIC)
+                                Hệ thống đã tự động xác nhận sau 24 giờ không có phản hồi.
+                            @else
+                                Bạn đã xác nhận nhận đủ tiền do Ban quản lý chuyển.
+                            @endif
+                        </p>
                     </div>
                 </div>
 
@@ -302,6 +431,7 @@
                 class="border-t border-slate-100 p-6"
             >
                 @csrf
+                <input type="hidden" name="form_context" value="create_refund_request">
 
                 <div class="mb-6 flex items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
@@ -326,12 +456,19 @@
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                       d="M4 7h16M4 7l2-3h12l2 3M5 7v13h14V7"/>
                             </svg>
-                            Ngân hàng *
+                            Ngân hàng hoặc ví điện tử *
                         </label>
-                        <input name="bank_name" required
-                               value="{{ old('bank_name') }}"
-                               class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                               placeholder="VD: Vietcombank">
+                        <select name="bank_name" required
+                                class="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
+                            <option value="">Chọn đơn vị nhận tiền</option>
+                            @foreach($paymentProviders as $group => $providers)
+                                <optgroup label="{{ $group }}">
+                                    @foreach($providers as $provider)
+                                        <option value="{{ $provider }}" @selected(old('bank_name') === $provider)>{{ $provider }}</option>
+                                    @endforeach
+                                </optgroup>
+                            @endforeach
+                        </select>
                     </div>
 
                     <div>
@@ -341,7 +478,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                       d="M4 7h16M6 7v13h12V7M9 4h6"/>
                             </svg>
-                            Số tài khoản *
+                            Số tài khoản / Số điện thoại ví *
                         </label>
                         <input name="bank_account_number" required
                                value="{{ old('bank_account_number') }}"
@@ -461,5 +598,9 @@
         @endif
     </div>
 </div>
+
+@if(old('form_context') === 'edit_refund_account' && $contract->isRefundRequested())
+    <script>document.getElementById('edit-refund-account-dialog')?.showModal();</script>
+@endif
 
 @endsection

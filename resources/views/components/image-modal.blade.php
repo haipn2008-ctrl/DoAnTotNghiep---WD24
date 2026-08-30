@@ -13,10 +13,11 @@
         </div>
 
         <div class="relative flex min-h-64 flex-1 items-center justify-center overflow-auto bg-slate-100 p-3 sm:p-5">
-            <p data-image-modal-loading class="absolute text-sm font-semibold text-slate-500">Đang tải ảnh...</p>
+            <p data-image-modal-loading class="absolute text-sm font-semibold text-slate-500">Đang tải nội dung...</p>
             <img data-image-modal-image src="" alt="" class="relative hidden max-h-[calc(100vh-10rem)] max-w-full rounded-lg object-contain shadow-sm">
+            <iframe data-image-modal-document src="about:blank" title="Xem tài liệu" class="relative hidden h-[calc(100vh-10rem)] w-full rounded-lg border-0 bg-white shadow-sm"></iframe>
             <div data-image-modal-error class="relative hidden rounded-xl border border-rose-200 bg-white px-5 py-4 text-center text-sm font-semibold text-rose-700">
-                Không thể tải ảnh. Vui lòng thử lại.
+                Không thể tải nội dung. Vui lòng thử lại.
             </div>
         </div>
     </div>
@@ -29,6 +30,7 @@
             if (!modal) return;
 
             const image = modal.querySelector('[data-image-modal-image]');
+            const documentFrame = modal.querySelector('[data-image-modal-document]');
             const title = modal.querySelector('#imagePreviewModalTitle');
             const loading = modal.querySelector('[data-image-modal-loading]');
             const error = modal.querySelector('[data-image-modal-error]');
@@ -41,6 +43,8 @@
                 document.body.classList.remove('overflow-hidden');
                 image.removeAttribute('src');
                 image.classList.add('hidden');
+                documentFrame.src = 'about:blank';
+                documentFrame.classList.add('hidden');
                 trigger?.focus();
                 trigger = null;
             };
@@ -50,13 +54,19 @@
                 title.textContent = link.dataset.imageTitle || link.getAttribute('title') || link.textContent.trim() || 'Xem ảnh';
                 image.alt = title.textContent;
                 image.classList.add('hidden');
+                documentFrame.classList.add('hidden');
                 error.classList.add('hidden');
                 loading.classList.remove('hidden');
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
                 modal.setAttribute('aria-hidden', 'false');
                 document.body.classList.add('overflow-hidden');
-                image.src = link.href;
+                if (link.dataset.mediaType === 'pdf') {
+                    documentFrame.title = title.textContent;
+                    documentFrame.src = link.href;
+                } else {
+                    image.src = link.href;
+                }
             };
 
             image.addEventListener('load', () => {
@@ -67,6 +77,11 @@
                 loading.classList.add('hidden');
                 image.classList.add('hidden');
                 error.classList.remove('hidden');
+            });
+            documentFrame.addEventListener('load', () => {
+                if (documentFrame.src === 'about:blank') return;
+                loading.classList.add('hidden');
+                documentFrame.classList.remove('hidden');
             });
             document.addEventListener('click', (event) => {
                 const link = event.target.closest('a[data-image-modal]');

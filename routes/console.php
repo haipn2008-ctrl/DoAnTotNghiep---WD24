@@ -3,8 +3,11 @@
 use App\Models\Contract;
 use App\Models\Setting;
 use App\Models\SupportRequest;
+use App\Models\TemporaryResidence;
 use App\Models\UtilityReading;
+use App\Services\ClientNotificationService;
 use App\Services\ContractLifecycleService;
+use App\Services\DepositRefundReceiptService;
 use App\Services\OverdueInvoiceService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -136,6 +139,18 @@ Artisan::command('contracts:process-lifecycle', function () {
     return 0;
 })->purpose('Xử lý hết hạn hợp đồng và cảnh báo vòng đời theo cách idempotent');
 
+Artisan::command('temporary-residences:expire', function () {
+    $count = TemporaryResidence::query()
+        ->whereIn('status', ['pending', 'active'])
+        ->whereNotNull('end_date')
+        ->whereDate('end_date', '<', today())
+        ->update(['status' => 'expired']);
+
+    $this->info("Đã chuyển {$count} giấy tạm trú quá hạn sang trạng thái hết hiệu lực.");
+
+    return 0;
+})->purpose('Đánh dấu giấy tạm trú hết hiệu lực theo ngày kết thúc');
+
 Artisan::command('invoices:notify-overdue', function () {
     $count = app(OverdueInvoiceService::class)->notifyNewlyOverdue();
     $this->info("Đã gửi {$count} thông báo hóa đơn quá hạn.");
@@ -192,6 +207,48 @@ Artisan::command('contracts:audit-lifecycle', function () {
     return 1;
 })->purpose('Audit read-only dữ liệu vòng đời hợp đồng và dữ liệu cũ mâu thuẫn');
 
+Artisan::command('deposit-refunds:auto-confirm-receipts', function () {
+    $confirmed = 0;
+    $completed = 0;
+
+    Contract::query()
+        ->where('deposit_status', Contract::DEPOSIT_REFUND_PROCESSING)
+        ->whereNotNull('deposit_transferred_at')
+        ->whereNotNull('deposit_transfer_proof')
+        ->whereNull('deposit_receipt_confirmed_at')
+        ->where('deposit_receipt_confirmation_due_at', '<=', now())
+        ->eachById(function (Contract $contract) use (&$confirmed, &$completed): void {
+            $contract = app(DepositRefundReceiptService::class)->confirm(
+                $contract,
+                DepositRefundReceiptService::SOURCE_AUTOMATIC,
+            );
+
+            if ($contract->deposit_receipt_confirmation_source !== DepositRefundReceiptService::SOURCE_AUTOMATIC) {
+                return;
+            }
+
+            if ($contract->status === Contract::STATUS_SETTLING) {
+                $contract = app(ContractLifecycleService::class)
+                    ->completeSettlementAfterAutomaticRefundConfirmation($contract);
+                $completed++;
+            }
+
+            app(ClientNotificationService::class)->contract(
+                $contract,
+                'deposit_refund_receipt_auto_confirmed',
+                'Khoản hoàn cọc và hợp đồng đã được tự động hoàn tất',
+                'Đã quá 24 giờ kể từ khi Ban quản lý chuyển tiền và không có phản hồi. Hệ thống đã ghi nhận bạn nhận đủ '.number_format((float) $contract->deposit_transfer_amount, 0, ',', '.').' VNĐ và hoàn tất hợp đồng.'
+            );
+            $confirmed++;
+        });
+
+    $this->info("Đã tự động xác nhận {$confirmed} khoản hoàn cọc và hoàn tất {$completed} hợp đồng quá hạn 24 giờ.");
+
+    return 0;
+})->purpose('Tự động xác nhận khoản hoàn cọc và hoàn tất hợp đồng sau 24 giờ khách không phản hồi');
+
 Schedule::command('contracts:process-lifecycle')->dailyAt('01:15')->withoutOverlapping();
+Schedule::command('temporary-residences:expire')->dailyAt('01:20')->withoutOverlapping();
 Schedule::command('invoices:notify-due-today')->hourlyAt(5)->withoutOverlapping();
 Schedule::command('invoices:notify-overdue')->dailyAt('00:10')->withoutOverlapping();
+Schedule::command('deposit-refunds:auto-confirm-receipts')->everyMinute()->withoutOverlapping();

@@ -337,6 +337,7 @@
     @php
         $deposit = (float)($contract->deposit_amount ?? 0);
         $eligibleRefund = max(0, -(float) ($contract->settlementStatement?->net_amount ?? 0));
+        $settlementDeduction = max(0, $deposit - $eligibleRefund);
         $approvedRefund = (float)($contract->deposit_refund_amount ?? 0);
         $refundRequested = $contract->isRefundRequested();
         $refundApproved = $contract->isRefundApproved();
@@ -351,7 +352,7 @@
                 {{-- ================= DUYỆT HOÀN CỌC ================= --}}
                 <form method="POST"
                       enctype="multipart/form-data"
-                      action="{{ route('admin.deposit-refunds.approve', $contract) }}"
+                      action="{{ route('admin.deposit-refunds.complete', $contract) }}"
                       class="flex min-h-0 flex-1 flex-col">
                     @csrf
 
@@ -361,7 +362,7 @@
                                 <i class="bx bx-wallet text-xl"></i>
                             </div>
                             <div>
-                                <div class="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Duyệt hoàn cọc</div>
+                                <div class="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Duyệt và chuyển hoàn cọc</div>
                                 <div class="text-lg font-bold text-slate-900">{{ $contract->contract_code }}</div>
                             </div>
                         </div>
@@ -434,78 +435,73 @@
 
                             <div>
                                 <section class="refund-card h-full">
-                                    <h4 class="refund-heading">Phương án hoàn cọc</h4>
-                                    <p class="refund-desc">Xác định số tiền khấu trừ trước khi duyệt.</p>
-
-                                    <div class="refund-field">
-                                        <label>Phương thức xử lý <span>*</span></label>
-                                        <select name="deposit_process_type"
-                                                class="refund-type refund-select"
-                                                data-id="{{ $contract->id }}"
-                                                data-deposit="{{ $eligibleRefund }}">
-                                            <option value="full_refund">Hoàn toàn bộ</option>
-                                            <option value="partial_refund">Khấu trừ một phần</option>
-                                            <option value="no_refund">Không hoàn cọc</option>
-                                        </select>
-                                    </div>
-
-                                    <div class="refund-field deduction-box-{{ $contract->id }}" style="display:none">
-                                        <label>Số tiền khấu trừ</label>
-                                        <input type="number"
-                                               name="deduction_amount"
-                                               value="0"
-                                               min="0"
-                                               max="{{ $eligibleRefund }}"
-                                               step="1000"
-                                               data-id="{{ $contract->id }}"
-                                               class="deduction-input refund-input">
-                                    </div>
-
-                                    <div class="refund-field damage-proof-field-{{ $contract->id }}" style="display:none">
-                                        <label>Ảnh minh chứng hư hỏng / thiệt hại <span>*</span></label>
-                                        <input type="file"
-                                               name="damage_proof"
-                                               accept="image/png,image/jpeg,image/webp"
-                                               class="refund-upload damage-proof-input damage-proof-input-{{ $contract->id }}"
-                                               data-id="{{ $contract->id }}">
-                                        <div class="refund-upload-hint">
-                                            Chỉ bắt buộc khi có khấu trừ. Có thể tải ảnh phòng, thiết bị hoặc tài sản bị hư hỏng.
-                                        </div>
-                                        <img class="refund-upload-preview damage-proof-preview-{{ $contract->id }}"
-                                             alt="Ảnh minh chứng hư hỏng">
-                                    </div>
+                                    <h4 class="refund-heading">Xác nhận số tiền hoàn</h4>
+                                    <p class="refund-desc">Số tiền được khóa theo kết quả bàn giao và quyết toán ở bước 1.</p>
 
                                     <div class="refund-money-grid">
                                         <div class="refund-money deduction">
-                                            <span>Khấu trừ</span>
-                                            <strong class="deduction-preview-{{ $contract->id }}">0 VNĐ</strong>
+                                            <span>Đã khấu trừ khi quyết toán</span>
+                                            <strong>{{ number_format($settlementDeduction,0,',','.') }} VNĐ</strong>
                                         </div>
                                         <div class="refund-money transfer">
-                                            <span>Số tiền sẽ chuyển</span>
-                                            <strong class="refund-preview-{{ $contract->id }}">{{ number_format($eligibleRefund,0,',','.') }} VNĐ</strong>
+                                            <span>Số tiền phải chuyển</span>
+                                            <strong>{{ number_format($eligibleRefund,0,',','.') }} VNĐ</strong>
+                                        </div>
+                                    </div>
+
+                                    <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+                                        <div class="flex gap-2">
+                                            <i class="bx bx-lock-alt mt-0.5 text-base"></i>
+                                            <span>Không thể khấu trừ thêm tại bước này. Nếu phát hiện sai lệch, cần quay lại bước bàn giao và quyết toán để cập nhật.</span>
                                         </div>
                                     </div>
 
                                     <div class="refund-field">
-                                        <label>Lý do <span>*</span></label>
-                                        <input type="text"
-                                               name="return_reason"
-                                               maxlength="255"
+                                        <label>Số tiền thực chuyển <span>*</span></label>
+                                        <input type="number"
+                                               name="transfer_amount"
+                                               value="{{ $eligibleRefund }}"
+                                               min="1"
+                                               step="1"
+                                               inputmode="numeric"
                                                required
-                                               class="refund-input"
-                                               placeholder="Ví dụ: Trừ tiền điện nước còn thiếu...">
+                                               class="refund-input">
+                                    </div>
+
+                                    <div class="refund-field">
+                                        <label>Ảnh bằng chứng chuyển khoản <span>*</span></label>
+                                        <input type="file"
+                                               name="transfer_proof"
+                                               accept="image/png,image/jpeg,image/webp"
+                                               required
+                                               class="refund-upload transfer-proof-input transfer-proof-input-{{ $contract->id }}"
+                                               data-id="{{ $contract->id }}">
+                                        <div class="refund-upload-hint">
+                                            Tải ảnh biên lai hoặc ảnh giao dịch đã chuyển khoản thành công.
+                                        </div>
+                                        <img class="refund-upload-preview transfer-proof-preview-{{ $contract->id }}"
+                                             alt="Ảnh bằng chứng chuyển khoản">
                                     </div>
 
                                     <div class="refund-field">
                                         <label>Ghi chú</label>
-                                        <textarea name="return_note"
+                                        <textarea name="transfer_note"
                                                   class="refund-textarea"
-                                                  placeholder="Ghi chú thêm nếu cần..."></textarea>
+                                                  placeholder="Ghi chú giao dịch nếu cần..."></textarea>
                                     </div>
+
+                                    <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                        <input type="checkbox"
+                                               name="confirm_refund_amount"
+                                               value="1"
+                                               required
+                                               class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                                        <span>Tôi xác nhận số tiền cần hoàn cho khách là <strong>{{ number_format($eligibleRefund,0,',','.') }} VNĐ</strong>.</span>
+                                    </label>
 
                                     <div class="refund-note">
                                         <i class="bx bx-info-circle"></i>
-                                        <span>Bước này duyệt số tiền hoàn. Sau khi duyệt, hãy chuyển khoản và tải minh chứng tại bước “Xác nhận chuyển”.</span>
+                                        <span>Một lần xác nhận sẽ duyệt số tiền, lưu bằng chứng chuyển khoản và chuyển yêu cầu sang chờ khách xác nhận nhận tiền.</span>
                                     </div>
                                 </section>
                             </div>
@@ -519,7 +515,7 @@
                             <i class="bx bx-x"></i> Hủy
                         </button>
                         <button type="submit" class="refund-btn primary">
-                            <i class="bx bx-check-circle"></i> Duyệt số tiền hoàn
+                            <i class="bx bx-check-double"></i> Xác nhận đã chuyển khoản
                         </button>
                     </div>
                 </form>
@@ -914,80 +910,15 @@
         closeRefundModal(modal);
     });
 
-    function updateRefundPreview(id) {
-        const type = document.querySelector('.refund-type[data-id="' + id + '"]');
-        const input = document.querySelector('.deduction-input[data-id="' + id + '"]');
-        const deductionPreview = document.querySelector('.deduction-preview-' + id);
-        const refundPreview = document.querySelector('.refund-preview-' + id);
-        const deductionBox = document.querySelector('.deduction-box-' + id);
-
-        if (!type || !deductionPreview || !refundPreview) return;
-
-        const deposit = Number(type.dataset.deposit || 0);
-        let deduction = 0;
-
-        if (type.value === 'partial_refund') {
-            if (deductionBox) deductionBox.style.display = '';
-            deduction = Math.max(0, Number(input ? input.value : 0));
-            deduction = Math.min(deduction, deposit);
-        } else {
-            if (deductionBox) deductionBox.style.display = 'none';
-        }
-
-        if (type.value === 'no_refund') {
-            deduction = deposit;
-        }
-
-        if (input) input.value = Math.round(deduction);
-
-        const refund = Math.max(deposit - deduction, 0);
-        const format = new Intl.NumberFormat('vi-VN');
-
-        deductionPreview.textContent = format.format(deduction) + ' VNĐ';
-        refundPreview.textContent = format.format(refund) + ' VNĐ';
-    }
-
-
-    function updateDamageProof(id) {
-        const type = document.querySelector('.refund-type[data-id="' + id + '"]');
-        const box = document.querySelector('.damage-proof-field-' + id);
-        const input = document.querySelector('.damage-proof-input-' + id);
-        if (!type || !box || !input) return;
-
-        const needsProof = type.value === 'partial_refund' || type.value === 'no_refund';
-        box.style.display = needsProof ? '' : 'none';
-        input.required = needsProof;
-
-        if (!needsProof) {
-            input.value = '';
-            const preview = document.querySelector('.damage-proof-preview-' + id);
-            if (preview) {
-                preview.removeAttribute('src');
-                preview.style.display = 'none';
-            }
-        }
-    }
-
-    document.addEventListener('change', function (event) {
-        if (event.target.matches('.refund-type')) {
-            updateRefundPreview(event.target.dataset.id);
-            updateDamageProof(event.target.dataset.id);
-        }
-    });
-
-
     document.addEventListener('change', function (event) {
         const input = event.target;
 
-        const isDamage = input.classList.contains('damage-proof-input');
         const isTransfer = input.classList.contains('transfer-proof-input');
 
-        if (!isDamage && !isTransfer) return;
+        if (!isTransfer) return;
 
         const id = input.dataset.id;
-        const previewSelector = isDamage
-            ? '.damage-proof-preview-' + id
-            : '.transfer-proof-preview-' + id;
+        const previewSelector = '.transfer-proof-preview-' + id;
 
         const preview = document.querySelector(previewSelector);
         const file = input.files && input.files[0];
@@ -1017,15 +948,5 @@
         preview.style.display = 'block';
     });
 
-    document.addEventListener('input', function (event) {
-        if (event.target.matches('.deduction-input')) {
-            updateRefundPreview(event.target.dataset.id);
-        }
-    });
-
-    document.querySelectorAll('.refund-type').forEach(function (select) {
-        updateRefundPreview(select.dataset.id);
-        updateDamageProof(select.dataset.id);
-    });
 })();
 </script>

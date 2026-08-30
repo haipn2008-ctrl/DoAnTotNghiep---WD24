@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\TemporaryResidence;
 use App\Rules\AdultDateOfBirth;
 use App\Services\TenantIdentityDocumentService;
 use Illuminate\Contracts\View\View;
@@ -23,8 +24,21 @@ class AccountController extends Controller
 
     public function edit(Request $request): View
     {
+        $user = $request->user()->load([
+            'tenant.document',
+            'tenant.temporaryResidences' => fn ($query) => $query
+                ->with('contract.room')
+                ->latest('created_at')
+                ->latest('id'),
+        ]);
+        $availableResidenceEvidenceIds = $user->tenant?->temporaryResidences
+            ->filter(fn (TemporaryResidence $residence) => $residence->evidence_path
+                && Storage::disk('local')->exists($residence->evidence_path))
+            ->modelKeys() ?? [];
+
         return view('client.account.edit', [
-            'user' => $request->user()->load('tenant.document'),
+            'user' => $user,
+            'availableResidenceEvidenceIds' => $availableResidenceEvidenceIds,
         ]);
     }
 
@@ -118,6 +132,31 @@ class AccountController extends Controller
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    public function temporaryResidenceEvidence(
+        Request $request,
+        TemporaryResidence $temporaryResidence
+    ): StreamedResponse {
+        abort_unless(
+            $request->user()->tenant?->id === $temporaryResidence->tenant_id,
+            404
+        );
+        abort_unless(
+            $temporaryResidence->evidence_path
+                && Storage::disk('local')->exists($temporaryResidence->evidence_path),
+            404
+        );
+
+        return Storage::disk('local')->response(
+            $temporaryResidence->evidence_path,
+            $temporaryResidence->evidence_original_name,
+            [
+                'Content-Type' => $temporaryResidence->evidence_mime_type ?: 'application/octet-stream',
+                'Cache-Control' => 'private, no-store, max-age=0',
+                'X-Content-Type-Options' => 'nosniff',
+            ]
+        );
     }
 
     public function updatePassword(Request $request): RedirectResponse

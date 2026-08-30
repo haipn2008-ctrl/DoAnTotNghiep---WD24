@@ -9,6 +9,7 @@ use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\Room;
 use App\Models\UtilityReading;
+use App\Models\Vehicle;
 use App\Services\RoomEvidenceService;
 use App\Support\Csv;
 use Illuminate\Http\Request;
@@ -137,7 +138,12 @@ class RoomController extends Controller
     {
         $room->load(['amenities', 'images.uploader', 'images.contract', 'contracts']);
         $occupancyContract = Contract::query()
-            ->with(['representative.user', 'tenant.user', 'members.tenant'])
+            ->with([
+                'representative.user',
+                'tenant.user',
+                'tenant.vehicles' => fn ($query) => $query->where('status', Vehicle::STATUS_APPROVED),
+                'members.tenant.vehicles' => fn ($query) => $query->where('status', Vehicle::STATUS_APPROVED),
+            ])
             ->where('room_id', $room->id)
             ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->latest('actual_move_in_at')
@@ -149,8 +155,15 @@ class RoomController extends Controller
         $unidentifiedMembers = $occupancyContract
             ? max(0, (int) $room->current_people - $members->count())
             : 0;
+        $approvedVehicles = $members
+            ->flatMap(fn (ContractTenant $member) => $member->tenant?->vehicles ?? collect())
+            ->when($occupancyContract?->tenant, fn ($vehicles) => $vehicles->concat($occupancyContract->tenant->vehicles))
+            ->unique('id')
+            ->values();
 
-        return view('admin.rooms.show', compact('room', 'occupancyContract', 'members', 'unidentifiedMembers'));
+        return view('admin.rooms.show', compact(
+            'room', 'occupancyContract', 'members', 'unidentifiedMembers', 'approvedVehicles'
+        ));
     }
 
     public function edit(Room $room)

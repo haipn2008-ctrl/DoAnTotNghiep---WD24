@@ -51,7 +51,7 @@
             'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200',
         ],
         'expired' => [
-            'label' => 'Hết hạn',
+            'label' => 'Hết hạn - chờ xử lý',
             'class' => 'bg-amber-50 text-amber-700 ring-amber-200',
         ],
         'terminated' => [
@@ -359,10 +359,12 @@
                                     </td>
 
                                     <td class="px-5 py-4 text-sm text-slate-500">
-                                        @if($vehicle->vehicle_image)
+                                        @if($vehicle->imageExists())
                                             <a href="{{ route('admin.vehicles.image', $vehicle) }}" data-image-modal data-image-title="Ảnh phương tiện {{ $vehicle->vehicle_name ?: '' }}">
                                                 <img src="{{ route('admin.vehicles.image', $vehicle) }}" alt="Ảnh phương tiện" class="h-16 w-24 rounded-lg object-cover ring-1 ring-slate-200">
                                             </a>
+                                        @elseif($vehicle->vehicle_image)
+                                            <span class="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg bg-amber-50 px-2 text-center text-xs font-semibold text-amber-700 ring-1 ring-amber-200">Ảnh không còn tồn tại</span>
                                         @else
                                             ---
                                         @endif

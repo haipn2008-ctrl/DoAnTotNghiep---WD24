@@ -30,8 +30,7 @@ Tài khoản nhận tiền được giữ nguyên: MB — `6666200066789` — `N
 | QA-08 | Hết hạn nhưng khách vẫn đang ở; có hóa đơn xóa nợ |
 | QA-09 | Đã trả phòng, cần xử lý tiền cọc |
 | QA-10 | Khách đã yêu cầu hoàn cọc |
-| QA-11 | Quản trị viên đã duyệt hoàn cọc |
-| QA-12 | Đang chuyển khoản hoàn cọc |
+| QA-12 | Đã chuyển khoản, chờ khách xác nhận nhận tiền |
 | QA-13 | Hoàn tất và đã hoàn đủ cọc |
 | QA-14 | Hoàn tất và có khấu trừ cọc do tài sản hỏng |
 | QA-15 | Hoàn tất và giữ lại tiền cọc |

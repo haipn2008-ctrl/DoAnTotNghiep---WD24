@@ -73,7 +73,7 @@
                 <div>
                     <p class="text-sm font-medium text-emerald-700">Đã hoàn tất</p>
                     <p class="mt-2 text-3xl font-bold text-emerald-700">
-                        {{ $contracts->filter(fn($contract) => !empty($contract->deposit_refund_completed_at))->count() }}
+                        {{ $contracts->filter(fn($contract) => $contract->isRefundCompleted())->count() }}
                     </p>
                 </div>
                 <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-xl text-emerald-700">
@@ -210,6 +210,13 @@
                                     Đã duyệt
                                 </span>
 
+                            @elseif($contract->isAwaitingRefundReceiptConfirmation())
+
+                                <span class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                                    <i class="bx bx-user-check"></i>
+                                    Chờ khách xác nhận
+                                </span>
+
                             @elseif($contract->deposit_status === \App\Models\Contract::DEPOSIT_REFUND_REJECTED)
 
                                 <span class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
@@ -217,7 +224,7 @@
                                     Từ chối
                                 </span>
 
-                            @elseif(!empty($contract->deposit_refund_completed_at))
+                            @elseif($contract->isRefundCompleted())
 
                                 <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                                     <i class="bx bx-check-double"></i>
@@ -276,6 +283,28 @@
                                     <i class="bx bx-transfer text-lg"></i>
                                     Xác nhận chuyển
                                 </button>
+
+                            @elseif($contract->isAwaitingRefundReceiptConfirmation())
+
+                                @if($contract->deposit_receipt_confirmation_due_at?->lessThanOrEqualTo(now()))
+                                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
+                                        <i class="bx bx-error-circle text-lg"></i>
+                                        Quá hạn xác nhận
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700">
+                                        <i class="bx bx-time-five text-lg"></i>
+                                        Chờ đến {{ $contract->deposit_receipt_confirmation_due_at?->format('H:i d/m/Y') }}
+                                    </span>
+                                @endif
+
+                            @elseif($contract->isRefundCompleted()
+                                && $contract->deposit_receipt_confirmation_source === \App\Services\DepositRefundReceiptService::SOURCE_AUTOMATIC)
+
+                                <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
+                                    <i class="bx bx-error-circle text-lg"></i>
+                                    Quá hạn xác nhận
+                                </span>
 
                             @else
 

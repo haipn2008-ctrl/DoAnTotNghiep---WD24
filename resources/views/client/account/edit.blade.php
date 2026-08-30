@@ -13,6 +13,63 @@
             <p class="mt-2 text-sm text-slate-500">Bạn có thể chủ động cập nhật thông tin. Các thay đổi sẽ được dùng cho hồ sơ và hợp đồng lập sau thời điểm cập nhật.</p>
         </div>
 
+        <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h3 class="font-semibold text-slate-950">Giấy tạm trú của tôi</h3>
+                <p class="mt-1 text-sm text-slate-500">Các hồ sơ do quản trị viên cập nhật được lưu tại đây để bạn theo dõi.</p>
+            </div>
+
+            @if($tenant?->temporaryResidences->isNotEmpty())
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            <tr>
+                                <th class="px-5 py-3">Mã hồ sơ</th>
+                                <th class="px-5 py-3">Phòng</th>
+                                <th class="px-5 py-3">Thời hạn</th>
+                                <th class="px-5 py-3">Trạng thái</th>
+                                <th class="px-5 py-3 text-right">Minh chứng</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @foreach($tenant->temporaryResidences as $temporaryResidence)
+                                @php($statusClass = match($temporaryResidence->status) {
+                                    'active' => 'bg-emerald-50 text-emerald-700',
+                                    'pending' => 'bg-amber-50 text-amber-700',
+                                    'expired' => 'bg-slate-100 text-slate-700',
+                                    'cancelled' => 'bg-rose-50 text-rose-700',
+                                    default => 'bg-slate-100 text-slate-700',
+                                })
+                                <tr>
+                                    <td class="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">{{ $temporaryResidence->reference_number ?: '#'.$temporaryResidence->id }}</td>
+                                    <td class="whitespace-nowrap px-5 py-4 text-slate-700">{{ $temporaryResidence->contract?->room?->room_code ?? '—' }}</td>
+                                    <td class="whitespace-nowrap px-5 py-4 text-slate-700">
+                                        {{ $temporaryResidence->start_date?->format('d/m/Y') ?? '—' }}
+                                        → {{ $temporaryResidence->end_date?->format('d/m/Y') ?? 'Không thời hạn' }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-5 py-4">
+                                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $statusClass }}">{{ $temporaryResidence->status_label }}</span>
+                                    </td>
+                                    <td class="whitespace-nowrap px-5 py-4 text-right">
+                                        @if(in_array($temporaryResidence->id, $availableResidenceEvidenceIds, true))
+                                            @php($isPdfEvidence = $temporaryResidence->evidence_mime_type === 'application/pdf' || strtolower(pathinfo($temporaryResidence->evidence_original_name ?: $temporaryResidence->evidence_path, PATHINFO_EXTENSION)) === 'pdf')
+                                            <a href="{{ route('client.account.temporary-residences.evidence', $temporaryResidence) }}" data-image-modal data-media-type="{{ $isPdfEvidence ? 'pdf' : 'image' }}" data-image-title="Giấy tạm trú {{ $temporaryResidence->reference_number ?: '#'.$temporaryResidence->id }}" class="font-semibold text-indigo-700 hover:text-indigo-900">Xem giấy</a>
+                                        @elseif($temporaryResidence->evidence_path)
+                                            <span class="text-amber-700">Tệp không còn tồn tại</span>
+                                        @else
+                                            <span class="text-slate-400">Chưa có</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="px-5 py-8 text-center text-sm text-slate-500">Bạn chưa có giấy tạm trú được cập nhật trên hệ thống.</div>
+            @endif
+        </section>
+
         @if($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"><ul class="list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
         <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">

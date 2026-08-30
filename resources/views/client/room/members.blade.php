@@ -19,7 +19,7 @@
             </div>
 
             @if($room)
-                <a href="{{ route('client.room.show') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                <a href="{{ route('client.room.show', ['contract' => $contract->id]).'#room-'.$contract->id }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
                     <i class="bx bx-building-house text-lg"></i>
                     Xem phòng {{ $room->room_code }}
                 </a>
@@ -46,14 +46,18 @@
                 <div class="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3 sm:p-6">
                     @forelse($members as $member)
                         @php($isRepresentative = $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE)
-                        <a href="{{ route('client.room.members.show', $member) }}" class="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 transition duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-100/70 focus:outline-none focus:ring-4 focus:ring-indigo-100">
+                        @php($isCurrentUser = $member->tenant_id === auth()->user()?->tenant?->id)
+                        <a href="{{ route('client.room.members.show', ['member' => $member, 'contract' => $contract->id]) }}" class="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 transition duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-100/70 focus:outline-none focus:ring-4 focus:ring-indigo-100">
                             <span class="absolute inset-x-0 top-0 h-1 {{ $isRepresentative ? 'bg-indigo-500' : 'bg-slate-200 group-hover:bg-indigo-300' }}"></span>
                             <span class="flex items-start gap-4">
                                 <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-100 to-violet-100 text-lg font-bold uppercase text-indigo-700 ring-4 ring-indigo-50">
                                     {{ mb_substr(trim($member->full_name), 0, 1) }}
                                 </span>
                                 <span class="min-w-0 flex-1">
-                                    <span class="block truncate font-bold text-slate-950">{{ $member->full_name }}</span>
+                                    <span class="flex items-center gap-2">
+                                        <span class="block truncate font-bold text-slate-950">{{ $member->full_name }}</span>
+                                        @if($isCurrentUser)<span class="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Bạn</span>@endif
+                                    </span>
                                     <span class="mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $isRepresentative ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
                                         {{ $member->role_label }}
                                     </span>

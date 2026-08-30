@@ -9,6 +9,7 @@ use App\Models\Room;
 use App\Models\SettlementStatement;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\ClientPortalNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -61,10 +62,14 @@ class DepositRefundLifecycleTest extends TestCase
         $this->actingAs($client)
             ->get(route('client.deposit-refunds.index', $contract))
             ->assertSuccessful()
-            ->assertSee('Thông tin nhận tiền');
+            ->assertSee('Thông tin nhận tiền')
+            ->assertSee('name="bank_name"', false)
+            ->assertSee('<optgroup label="Ngân hàng Việt Nam">', false)
+            ->assertSee('Vietcombank (VCB)')
+            ->assertSee('MoMo');
 
         $this->actingAs($client)->post(route('client.deposit-refunds.store', $contract), [
-            'bank_name' => 'VCB',
+            'bank_name' => 'Vietcombank (VCB)',
             'bank_account_number' => '0123456789',
             'bank_account_name' => 'NGUYEN VAN A',
         ])->assertRedirect(route('client.deposit-refunds.index', $contract));
@@ -73,6 +78,75 @@ class DepositRefundLifecycleTest extends TestCase
         $this->get(route('client.deposit-refunds.index', $contract))
             ->assertSuccessful()
             ->assertSee('Thông tin nhận tiền đã gửi');
+    }
+
+    public function test_client_can_edit_receiving_account_only_before_admin_approval(): void
+    {
+        Storage::fake('public');
+        [$admin, $client, $contract] = $this->fixture([
+            'deposit_status' => Contract::DEPOSIT_REFUND_REQUESTED,
+            'deposit_bank_name' => 'Vietcombank (VCB)',
+            'deposit_bank_account_number' => '0123456789',
+            'deposit_bank_account_name' => 'NGUYEN VAN A',
+            'deposit_qr_image' => 'deposit-refunds/qr/old-qr.jpg',
+            'deposit_refund_requested_at' => now(),
+        ]);
+        Storage::disk('public')->put('deposit-refunds/qr/old-qr.jpg', 'old-qr');
+
+        $this->actingAs($client)->get(route('client.deposit-refunds.index', $contract))
+            ->assertSuccessful()
+            ->assertSee('Chỉnh sửa thông tin nhận tiền')
+            ->assertSee('action="'.route('client.deposit-refunds.update', $contract).'"', false)
+            ->assertSee('Lưu thông tin mới');
+
+        $this->patch(route('client.deposit-refunds.update', $contract), [
+            'bank_name' => 'MoMo',
+            'bank_account_number' => '0912345678',
+            'bank_account_name' => 'Nguyen Van B',
+            'qr_image' => UploadedFile::fake()->image('new-qr.png'),
+            'note' => 'Đã sửa lại ví nhận tiền.',
+        ])->assertSessionHas('success')->assertSessionHasNoErrors();
+
+        $contract->refresh();
+        $this->assertSame('MoMo', $contract->deposit_bank_name);
+        $this->assertSame('0912345678', $contract->deposit_bank_account_number);
+        $this->assertSame('NGUYEN VAN B', $contract->deposit_bank_account_name);
+        $this->assertNotSame('deposit-refunds/qr/old-qr.jpg', $contract->deposit_qr_image);
+        Storage::disk('public')->assertMissing('deposit-refunds/qr/old-qr.jpg');
+        Storage::disk('public')->assertExists($contract->deposit_qr_image);
+        $this->assertDatabaseHas('contract_histories', [
+            'contract_id' => $contract->id,
+            'action' => 'deposit_receiving_account_updated',
+            'description' => 'Khách thuê chỉnh sửa thông tin nhận tiền hoàn cọc.',
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.deposit-refunds.index'))
+            ->assertSuccessful()
+            ->assertSee('MoMo')
+            ->assertSee('0912345678')
+            ->assertDontSee('0123456789');
+
+        $contract->forceFill(['deposit_status' => Contract::DEPOSIT_REFUND_APPROVED])->save();
+        $this->actingAs($client)->patch(route('client.deposit-refunds.update', $contract), [
+            'bank_name' => 'ACB',
+            'bank_account_number' => '9999999999',
+            'bank_account_name' => 'NGUYEN VAN C',
+        ])->assertSessionHas('error');
+
+        $this->assertSame('0912345678', $contract->fresh()->deposit_bank_account_number);
+    }
+
+    public function test_refund_request_rejects_unknown_payment_provider(): void
+    {
+        [, $client, $contract] = $this->fixture();
+
+        $this->actingAs($client)->post(route('client.deposit-refunds.store', $contract), [
+            'bank_name' => 'Ngân hàng không tồn tại',
+            'bank_account_number' => '0123456789',
+            'bank_account_name' => 'NGUYEN VAN A',
+        ])->assertSessionHasErrors('bank_name');
+
+        $this->assertSame(Contract::DEPOSIT_PAID, $contract->fresh()->deposit_status);
     }
 
     public function test_admin_can_transfer_the_exact_refund_amount_without_rounding_to_thousands(): void
@@ -108,9 +182,16 @@ class DepositRefundLifecycleTest extends TestCase
             'deposit_status' => Contract::DEPOSIT_REFUND_REQUESTED,
         ]);
 
+        $this->actingAs($admin)->get(route('admin.deposit-refunds.index'))
+            ->assertSuccessful()
+            ->assertSee('Xác nhận số tiền hoàn')
+            ->assertSee('name="confirm_refund_amount"', false)
+            ->assertDontSee('name="deduction_amount"', false)
+            ->assertDontSee('Phương thức xử lý');
+
         $this->actingAs($admin)->post(route('admin.deposit-refunds.approve', $contract), [
-            'deposit_process_type' => 'full_refund',
-            'return_reason' => 'Phòng và tài sản được bàn giao đầy đủ.',
+            'confirm_refund_amount' => '1',
+            'return_note' => 'Phòng và tài sản được bàn giao đầy đủ.',
         ])->assertSessionHas('success');
 
         $this->post(route('admin.deposit-refunds.complete', $contract), [
@@ -120,43 +201,139 @@ class DepositRefundLifecycleTest extends TestCase
 
         $contract->refresh();
         $this->assertSame(Contract::STATUS_SETTLING, $contract->status);
-        $this->assertSame(Contract::DEPOSIT_REFUNDED, $contract->deposit_resolution);
-        $this->assertTrue($contract->isRefundCompleted());
+        $this->assertSame(Contract::DEPOSIT_REFUND_PROCESSING, $contract->deposit_status);
+        $this->assertNull($contract->deposit_resolution);
+        $this->assertFalse($contract->isRefundCompleted());
+        $this->assertTrue($contract->isAwaitingRefundReceiptConfirmation());
+        $this->assertTrue($contract->deposit_receipt_confirmation_due_at->equalTo(
+            $contract->deposit_transferred_at->copy()->addHours(24)
+        ));
         $this->assertSame(User::STATUS_SETTLING, $client->fresh()->status);
+        $transferNotification = $client->notifications()
+            ->where('data->type', 'deposit_refund_transferred')
+            ->firstOrFail();
+        $this->assertStringContainsString('24 giờ', $transferNotification->data['message']);
 
         $this->actingAs($client)
             ->get(route('client.deposit-refunds.index', $contract))
             ->assertSuccessful()
-            ->assertSee('Tiền hoàn đã được chuyển')
+            ->assertSee('Xác nhận đã nhận đủ tiền')
+            ->assertSee('24 giờ')
             ->assertSee(route('client.deposit-refunds.proof', $contract), false);
         $this->get(route('client.deposit-refunds.proof', $contract))->assertSuccessful();
+
+        $this->actingAs($admin)->post(route('admin.contracts.complete-settlement', $contract), [
+            'confirm_complete' => '1',
+        ])->assertSessionHasErrors('deposit_resolution');
+
+        $this->actingAs($client)->post(route('client.deposit-refunds.confirm-receipt', $contract), [
+            'confirm_received' => '1',
+        ])->assertSessionHas('success');
+
+        $contract->refresh();
+        $this->assertSame(Contract::DEPOSIT_REFUNDED, $contract->deposit_resolution);
+        $this->assertTrue($contract->isRefundCompleted());
+        $this->assertSame('tenant', $contract->deposit_receipt_confirmation_source);
+        $this->assertNotNull($contract->deposit_receipt_confirmed_at);
 
         $this->actingAs($admin)->post(route('admin.contracts.complete-settlement', $contract), [
             'confirm_complete' => '1',
         ])->assertSessionHas('success');
 
         $this->assertSame(Contract::STATUS_COMPLETED, $contract->fresh()->status);
-        $this->assertSame(User::STATUS_FORMER, $client->fresh()->status);
+        $this->assertSame(User::STATUS_ACTIVE, $client->fresh()->status);
     }
 
-    public function test_forfeiting_deposit_records_resolution_without_completing_contract(): void
+    public function test_admin_can_approve_and_transfer_a_requested_refund_in_one_submission(): void
     {
         Storage::fake('public');
         [$admin, , $contract] = $this->fixture([
             'deposit_status' => Contract::DEPOSIT_REFUND_REQUESTED,
         ]);
 
-        $this->actingAs($admin)->post(route('admin.deposit-refunds.approve', $contract), [
-            'deposit_process_type' => 'no_refund',
-            'return_reason' => 'Khấu trừ theo biên bản hư hỏng.',
-            'damage_proof' => UploadedFile::fake()->image('damage.jpg'),
+        $this->actingAs($admin)->get(route('admin.deposit-refunds.index'))
+            ->assertSuccessful()
+            ->assertSee(route('admin.deposit-refunds.complete', $contract), false)
+            ->assertSee('name="confirm_refund_amount"', false)
+            ->assertSee('name="transfer_amount"', false)
+            ->assertSee('name="transfer_proof"', false);
+
+        $this->post(route('admin.deposit-refunds.complete', $contract), [
+            'confirm_refund_amount' => '1',
+            'transfer_amount' => 2000000,
+            'transfer_proof' => UploadedFile::fake()->image('refund-one-step.jpg'),
+            'transfer_note' => 'Đã chuyển đủ theo quyết toán.',
         ])->assertSessionHas('success');
 
         $contract->refresh();
+        $this->assertSame(Contract::DEPOSIT_REFUND_PROCESSING, $contract->deposit_status);
+        $this->assertSame(2000000.0, (float) $contract->deposit_refund_amount);
+        $this->assertSame(2000000.0, (float) $contract->deposit_transfer_amount);
+        $this->assertNotNull($contract->deposit_refund_approved_at);
+        $this->assertNotNull($contract->deposit_transfer_proof);
+        $this->assertTrue($contract->isAwaitingRefundReceiptConfirmation());
+    }
+
+    public function test_admin_cannot_apply_an_additional_deduction_after_settlement_is_locked(): void
+    {
+        [$admin, , $contract] = $this->fixture([
+            'deposit_status' => Contract::DEPOSIT_REFUND_REQUESTED,
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.deposit-refunds.approve', $contract), [
+            'confirm_refund_amount' => '1',
+            'deposit_process_type' => 'partial_refund',
+            'deduction_amount' => 500000,
+        ])->assertSessionHasErrors(['deposit_process_type', 'deduction_amount']);
+
+        $contract->refresh();
         $this->assertSame(Contract::STATUS_SETTLING, $contract->status);
-        $this->assertSame(Contract::DEPOSIT_RETAINED, $contract->deposit_resolution);
-        $this->assertSame(Contract::DEPOSIT_FORFEITED, $contract->deposit_status);
-        $this->assertSame(0.0, (float) $contract->settlementStatement->fresh()->net_amount);
+        $this->assertSame(Contract::DEPOSIT_REFUND_REQUESTED, $contract->deposit_status);
+        $this->assertSame(-2000000.0, (float) $contract->settlementStatement->fresh()->net_amount);
+
+        $this->actingAs($admin)->post(route('admin.deposit-refunds.approve', $contract), [
+            'confirm_refund_amount' => '1',
+        ])->assertSessionHas('success');
+
+        $contract->refresh();
+        $this->assertSame(Contract::DEPOSIT_REFUND_APPROVED, $contract->deposit_status);
+        $this->assertSame(2000000.0, (float) $contract->deposit_refund_amount);
+        $this->assertSame(0.0, (float) $contract->deposit_deduction_amount);
+    }
+
+    public function test_refund_receipt_is_automatically_confirmed_after_24_hours_without_response(): void
+    {
+        Storage::fake('public');
+        [$admin, $client, $contract] = $this->fixture([
+            'deposit_status' => Contract::DEPOSIT_REFUND_APPROVED,
+            'deposit_refund_amount' => 2000000,
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.deposit-refunds.complete', $contract), [
+            'transfer_amount' => 2000000,
+            'transfer_proof' => UploadedFile::fake()->image('refund-auto.jpg'),
+        ])->assertSessionHas('success');
+
+        $this->artisan('deposit-refunds:auto-confirm-receipts')->assertSuccessful();
+        $this->assertTrue($contract->fresh()->isAwaitingRefundReceiptConfirmation());
+
+        $this->travel(24)->hours();
+        $this->artisan('deposit-refunds:auto-confirm-receipts')->assertSuccessful();
+
+        $contract->refresh();
+        $this->assertTrue($contract->isRefundCompleted());
+        $this->assertSame(Contract::STATUS_COMPLETED, $contract->status);
+        $this->assertNotNull($contract->completed_at);
+        $this->assertNull($contract->completed_by);
+        $this->assertSame('automatic', $contract->deposit_receipt_confirmation_source);
+        $this->assertSame(SettlementStatement::STATUS_SETTLED, $contract->settlementStatement->fresh()->status);
+        $this->actingAs($admin)->get(route('admin.deposit-refunds.index'))
+            ->assertSuccessful()
+            ->assertSee('Quá hạn xác nhận');
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_id' => $client->id,
+            'type' => ClientPortalNotification::class,
+        ]);
     }
 
     public function test_full_refund_is_capped_by_the_balance_after_all_debts_are_offset(): void
@@ -179,8 +356,8 @@ class DepositRefundLifecycleTest extends TestCase
         ]);
 
         $this->actingAs($admin)->post(route('admin.deposit-refunds.approve', $contract), [
-            'deposit_process_type' => 'full_refund',
-            'return_reason' => 'Hoàn phần cọc còn lại sau khi bù trừ công nợ.',
+            'confirm_refund_amount' => '1',
+            'return_note' => 'Hoàn phần cọc còn lại sau khi bù trừ công nợ.',
         ])->assertSessionHas('success');
 
         $contract->refresh();

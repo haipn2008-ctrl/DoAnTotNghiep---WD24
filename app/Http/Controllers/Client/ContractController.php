@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\ContractAppendix;
 use App\Models\Setting;
 use App\Services\AdminNotificationService;
 use App\Services\ContractLifecycleService;
@@ -29,7 +30,13 @@ class ContractController extends Controller
 
     public function show(Request $request, int $contract): View
     {
-        $contract = Contract::with(['room', 'tenant', 'currentMembers.histories', 'currentMembers.tenant.vehicles.tenant', 'handoverItems', 'moveInDetailsConfirmer', 'settlementStatement.items', 'settlementStatement.invoice', 'approvedTerminationRequest', 'appendices'])
+        $contract = Contract::with([
+            'room', 'tenant', 'currentMembers.histories', 'currentMembers.tenant.vehicles.tenant',
+            'handoverItems', 'moveInDetailsConfirmer', 'settlementStatement.items',
+            'settlementStatement.invoice', 'approvedTerminationRequest',
+            'extensionRequests' => fn ($query) => $query->latest('id'),
+            'terminationRequests' => fn ($query) => $query->latest('id'),
+        ])
             ->managedBy($request->user())
             ->findOrFail($contract);
         $handoverReading = $contract->utilityReadings()
@@ -38,6 +45,16 @@ class ContractController extends Controller
         $setting = Setting::currentOrCreate();
 
         return view('client.contracts.show', compact('contract', 'setting', 'handoverReading'));
+    }
+
+    public function appendices(Request $request, int $contract): View
+    {
+        $contract = Contract::query()
+            ->managedBy($request->user())
+            ->with(['appendices' => fn ($query) => $query->where('status', '!=', ContractAppendix::STATUS_DRAFT)])
+            ->findOrFail($contract);
+
+        return view('client.contracts.appendices.index', compact('contract'));
     }
 
     public function confirmMoveInDetails(Request $request, int $contract)

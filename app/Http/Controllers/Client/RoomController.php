@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\ContractTenantHistory;
+use App\Models\TemporaryResidence;
 use App\Rules\AdultDateOfBirth;
 use App\Services\ContractIdentityDocumentService;
 use App\Services\TenantIdentityDocumentService;
@@ -28,21 +29,22 @@ class RoomController extends Controller
 
     public function show(Request $request): View
     {
-        $contract = $this->currentContract($request, ['room.amenities']);
-        $room = $contract?->room;
-
-        $room?->load([
-            'images' => fn ($query) => $query
-                ->with('uploader')
-                ->where('disk', 'public')
-                ->where(fn ($query) => $query
-                    ->whereNull('contract_id')
-                    ->orWhere('contract_id', $contract->id)),
-        ]);
+        $contracts = $request->user()->tenant?->contracts()
+            ->with([
+                'room.amenities',
+                'room.images' => fn ($query) => $query
+                    ->with('uploader')
+                    ->where('disk', 'public')
+                    ->latest('taken_at')
+                    ->latest('id'),
+            ])
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+            ->latest('start_date')
+            ->latest('id')
+            ->get() ?? collect();
 
         return view('client.room.show', [
-            'contract' => $contract,
-            'room' => $room,
+            'contracts' => $contracts,
         ]);
     }
 
@@ -70,11 +72,26 @@ class RoomController extends Controller
         abort_unless($contract, 404);
 
         $member = $this->findCurrentMember($contract, $member);
+        $member->load([
+            'temporaryResidences' => fn ($query) => $query
+                ->latest('created_at')
+                ->latest('id'),
+        ]);
+        $availableResidenceEvidenceIds = $member->temporaryResidences
+            ->filter(fn (TemporaryResidence $residence) => $residence->evidence_path
+                && Storage::disk('local')->exists($residence->evidence_path))
+            ->modelKeys();
+        $availableIdentitySides = collect([
+            'front' => $member->identity_front_path,
+            'back' => $member->identity_back_path,
+        ])->filter(fn (?string $path) => $path && Storage::disk('local')->exists($path))->keys()->all();
 
         return view('client.room.member', [
             'contract' => $contract,
             'room' => $contract->room,
             'member' => $member,
+            'availableResidenceEvidenceIds' => $availableResidenceEvidenceIds,
+            'availableIdentitySides' => $availableIdentitySides,
         ]);
     }
 
@@ -94,6 +111,34 @@ class RoomController extends Controller
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    public function memberTemporaryResidenceEvidence(
+        Request $request,
+        int $member,
+        TemporaryResidence $temporaryResidence
+    ): StreamedResponse {
+        $contract = $this->currentContract($request);
+        abort_unless($contract, 404);
+
+        $member = $this->findCurrentMember($contract, $member);
+        $residence = $member->temporaryResidences()->findOrFail($temporaryResidence->id);
+
+        abort_unless(
+            $residence->evidence_path
+                && Storage::disk('local')->exists($residence->evidence_path),
+            404
+        );
+
+        return Storage::disk('local')->response(
+            $residence->evidence_path,
+            $residence->evidence_original_name,
+            [
+                'Content-Type' => $residence->evidence_mime_type ?: 'application/octet-stream',
+                'Cache-Control' => 'private, no-store, max-age=0',
+                'X-Content-Type-Options' => 'nosniff',
+            ]
+        );
     }
 
     public function updateMember(Request $request, int $member): RedirectResponse
@@ -218,11 +263,18 @@ class RoomController extends Controller
 
     private function currentContract(Request $request, array $with = ['room']): ?Contract
     {
-        return $request->user()->tenant?->contracts()
+        $query = $request->user()->tenant?->contracts()
             ->with($with)
-            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
-            ->latest('start_date')
-            ->first();
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES);
+        if (! $query) {
+            return null;
+        }
+
+        if ($contractId = $request->integer('contract')) {
+            return $query->whereKey($contractId)->firstOrFail();
+        }
+
+        return $query->latest('start_date')->latest('id')->first();
     }
 
     private function findCurrentMember(Contract $contract, int $member): ContractTenant

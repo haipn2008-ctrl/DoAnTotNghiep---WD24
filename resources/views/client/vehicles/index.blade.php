@@ -76,10 +76,12 @@
                         <p class="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700"><strong>Phản hồi:</strong> {{ $vehicle->review_note }}</p>
                     @endif
 
-                    @if($vehicle->vehicle_image)
+                    @if($vehicle->imageExists())
                         <a href="{{ route('client.vehicles.image', $vehicle) }}" data-image-modal data-image-title="Ảnh phương tiện {{ $vehicle->vehicle_name ?: '' }}" class="mt-4 inline-block">
                             <img src="{{ route('client.vehicles.image', $vehicle) }}" alt="Ảnh {{ $vehicle->vehicle_name ?: 'phương tiện' }}" class="h-36 w-52 rounded-lg object-cover ring-1 ring-slate-200">
                         </a>
+                    @elseif($vehicle->vehicle_image)
+                        <p class="mt-4 text-xs font-semibold text-amber-700">Ảnh phương tiện không còn tồn tại.</p>
                     @endif
 
                     @if($vehicle->status === \App\Models\Vehicle::STATUS_APPROVED)

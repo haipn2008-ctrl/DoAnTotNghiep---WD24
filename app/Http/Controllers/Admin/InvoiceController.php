@@ -929,12 +929,13 @@ class InvoiceController extends Controller
             'payment_method' => 'required|in:'
                 .Payment::METHOD_CASH.','
                 .Payment::METHOD_BANK_TRANSFER,
-            'transaction_code' => [
+            'proof_image' => [
                 'nullable',
                 'required_if:payment_method,'.Payment::METHOD_BANK_TRANSFER,
-                'string',
-                'max:255',
-                Rule::unique('payments', 'transaction_code'),
+                'file',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:5120',
             ],
             'note' => 'nullable|string|max:1000',
         ], [
@@ -946,47 +947,58 @@ class InvoiceController extends Controller
             'payment_date.before_or_equal' => 'Ngày thu tiền không được ở tương lai.',
             'payment_method.required' => 'Vui lòng chọn hình thức thanh toán.',
             'payment_method.in' => 'Hình thức thanh toán không hợp lệ.',
-            'transaction_code.required_if' => 'Vui lòng nhập mã giao dịch khi thu bằng chuyển khoản.',
-            'transaction_code.unique' => 'Mã giao dịch này đã được sử dụng.',
+            'proof_image.required_if' => 'Vui lòng tải ảnh minh chứng khi thu bằng chuyển khoản.',
+            'proof_image.image' => 'Minh chứng thanh toán phải là hình ảnh hợp lệ.',
+            'proof_image.mimes' => 'Minh chứng chỉ chấp nhận JPG, PNG hoặc WEBP.',
+            'proof_image.max' => 'Ảnh minh chứng không được vượt quá 5 MB.',
         ]);
 
-        DB::transaction(function () use ($data, $invoice) {
-            $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
-            if (! $lockedInvoice->canPay()) {
-                throw ValidationException::withMessages([
-                    'amount_paid' => 'Hóa đơn không còn nhận thanh toán.',
+        $proofPath = $request->file('proof_image')?->store('payment-proofs/admin', 'local');
+        try {
+            DB::transaction(function () use ($data, $invoice, $proofPath) {
+                $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
+                if (! $lockedInvoice->canPay()) {
+                    throw ValidationException::withMessages([
+                        'amount_paid' => 'Hóa đơn không còn nhận thanh toán.',
+                    ]);
+                }
+                $reservedAmount = (float) $lockedInvoice->payments()
+                    ->whereIn('status', [Payment::STATUS_SUCCESS, Payment::STATUS_PENDING])
+                    ->sum('amount_paid');
+                $availableAmount = max(0, $lockedInvoice->payable_amount - $reservedAmount);
+
+                if ($availableAmount <= 0 || (float) $data['amount_paid'] > $availableAmount) {
+                    throw ValidationException::withMessages([
+                        'amount_paid' => 'Số tiền thanh toán vượt quá số dư chưa được thanh toán hoặc giữ chỗ.',
+                    ]);
+                }
+
+                Payment::create([
+                    'invoice_id' => $lockedInvoice->id,
+                    'amount_paid' => $data['amount_paid'],
+                    'payment_date' => $data['payment_date'],
+                    'payment_method' => $data['payment_method'],
+                    'transaction_code' => null,
+                    'proof_image' => $proofPath,
+                    'status' => Payment::STATUS_SUCCESS,
+                    'submitted_by' => auth()->id(),
+                    'confirmed_by' => auth()->id(),
+                    'reviewed_at' => now(),
+                    'note' => $data['note'] ?? null,
                 ]);
-            }
-            $reservedAmount = (float) $lockedInvoice->payments()
-                ->whereIn('status', [Payment::STATUS_SUCCESS, Payment::STATUS_PENDING])
-                ->sum('amount_paid');
-            $availableAmount = max(0, $lockedInvoice->payable_amount - $reservedAmount);
 
-            if ($availableAmount <= 0 || (float) $data['amount_paid'] > $availableAmount) {
-                throw ValidationException::withMessages([
-                    'amount_paid' => 'Số tiền thanh toán vượt quá số dư chưa được thanh toán hoặc giữ chỗ.',
-                ]);
+                $lockedInvoice->refreshStatus();
+                if (in_array($lockedInvoice->invoice_type, [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT], true)) {
+                    app(ContractLifecycleService::class)->syncDepositState($lockedInvoice->contract, auth()->user());
+                }
+                $this->syncTenantAccountAfterPayment($lockedInvoice);
+            });
+        } catch (\Throwable $exception) {
+            if ($proofPath) {
+                Storage::disk('local')->delete($proofPath);
             }
-
-            Payment::create([
-                'invoice_id' => $lockedInvoice->id,
-                'amount_paid' => $data['amount_paid'],
-                'payment_date' => $data['payment_date'],
-                'payment_method' => $data['payment_method'],
-                'transaction_code' => $data['transaction_code'] ?? null,
-                'status' => Payment::STATUS_SUCCESS,
-                'submitted_by' => auth()->id(),
-                'confirmed_by' => auth()->id(),
-                'reviewed_at' => now(),
-                'note' => $data['note'] ?? null,
-            ]);
-
-            $lockedInvoice->refreshStatus();
-            if (in_array($lockedInvoice->invoice_type, [Invoice::TYPE_FIRST_MONTH_RENT, Invoice::TYPE_DEPOSIT], true)) {
-                app(ContractLifecycleService::class)->syncDepositState($lockedInvoice->contract, auth()->user());
-            }
-            $this->syncTenantAccountAfterPayment($lockedInvoice);
-        });
+            throw $exception;
+        }
 
         if ($request->boolean('return_to_contract')) {
             return redirect()

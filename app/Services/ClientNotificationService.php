@@ -36,6 +36,30 @@ class ClientNotificationService
         ]);
     }
 
+    public function contractOnce(Contract $contract, string $type, string $title, string $message): void
+    {
+        $contract->loadMissing('tenant.user');
+        $recipient = $contract->tenant?->user;
+        if (! $recipient || $recipient->notifications()
+            ->where('data->type', $type)
+            ->where('data->contract_id', $contract->id)
+            ->exists()) {
+            return;
+        }
+
+        $this->contract($contract, $type, $title, $message);
+    }
+
+    public function resolveContract(Contract $contract, string $type): void
+    {
+        $contract->loadMissing('tenant.user');
+        $contract->tenant?->user?->notifications()
+            ->whereNull('read_at')
+            ->where('data->type', $type)
+            ->where('data->contract_id', $contract->id)
+            ->update(['read_at' => now()]);
+    }
+
     public function payment(Payment $payment, string $type, string $title, string $message): void
     {
         $payment->loadMissing('invoice.contract.tenant.user');

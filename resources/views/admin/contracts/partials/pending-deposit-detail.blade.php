@@ -89,13 +89,20 @@
                     <div class="mt-4 overflow-x-auto rounded-lg border border-slate-200">
                         <table class="min-w-full divide-y divide-slate-200 text-sm">
                             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
-                                <tr><th class="px-3 py-2">Ngày thu</th><th class="px-3 py-2">Hình thức</th><th class="px-3 py-2 text-right">Số tiền</th></tr>
+                                <tr><th class="px-3 py-2">Ngày thu</th><th class="px-3 py-2">Hình thức</th><th class="px-3 py-2">Minh chứng</th><th class="px-3 py-2 text-right">Số tiền</th></tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 @foreach($successfulPayments as $payment)
                                     <tr>
                                         <td class="whitespace-nowrap px-3 py-2 text-slate-600">{{ $payment->payment_date?->format('d/m/Y') }}</td>
                                         <td class="px-3 py-2 text-slate-600">{{ $paymentMethodLabels[$payment->payment_method] ?? 'Không xác định' }}</td>
+                                        <td class="px-3 py-2">
+                                            @if($payment->proofImageExists())
+                                                <a href="{{ route('admin.invoices.payments.proof', $payment) }}" data-image-modal data-image-title="Ảnh minh chứng thanh toán {{ $depositInvoice->invoice_code }}" class="font-semibold text-indigo-700">Xem ảnh</a>
+                                            @else
+                                                <span class="text-slate-400">—</span>
+                                            @endif
+                                        </td>
                                         <td class="whitespace-nowrap px-3 py-2 text-right font-semibold text-slate-950">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</td>
                                     </tr>
                                 @endforeach
@@ -107,7 +114,7 @@
 
             <div class="p-4">
                 <h4 class="font-semibold text-slate-950">Ghi nhận thanh toán</h4>
-                <form class="lifecycle-form mt-3 grid gap-3 sm:grid-cols-2" method="POST" action="{{ route('admin.invoices.payments.store', $depositInvoice) }}">
+                <form class="lifecycle-form mt-3 grid gap-3 sm:grid-cols-2" method="POST" enctype="multipart/form-data" action="{{ route('admin.invoices.payments.store', $depositInvoice) }}">
                     @csrf
                     <input type="hidden" name="return_to_contract" value="1">
                     <label class="block text-sm font-medium text-slate-700">
@@ -120,15 +127,16 @@
                     </label>
                     <label class="block text-sm font-medium text-slate-700">
                         Hình thức
-                        <select name="payment_method" required class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100">
+                        <select name="payment_method" required onchange="this.form.querySelector('[name=proof_image]').required=this.value==='{{ \App\Models\Payment::METHOD_BANK_TRANSFER }}'" class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100">
                             @foreach($adminPaymentMethods as $value => $label)
                                 <option value="{{ $value }}" @selected(old('payment_method') === $value)>{{ $label }}</option>
                             @endforeach
                         </select>
                     </label>
                     <label class="block text-sm font-medium text-slate-700">
-                        Mã giao dịch
-                        <input name="transaction_code" maxlength="255" value="{{ old('transaction_code') }}" placeholder="Bắt buộc khi chuyển khoản" class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100">
+                        Ảnh minh chứng
+                        <input type="file" name="proof_image" accept="image/jpeg,image/png,image/webp" @required(old('payment_method') === \App\Models\Payment::METHOD_BANK_TRANSFER) class="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-orange-50 file:px-3 file:py-2.5 file:font-semibold file:text-orange-700">
+                        <span class="mt-1 block text-xs text-slate-500">Bắt buộc khi chuyển khoản · JPG, PNG, WEBP · tối đa 5 MB</span>
                     </label>
                     <button class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 sm:col-span-2">
                         <i class="bx bx-check-circle text-lg"></i>

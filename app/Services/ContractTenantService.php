@@ -7,6 +7,7 @@ use App\Models\ContractRepresentativeTransfer;
 use App\Models\ContractTenant;
 use App\Models\ContractTenantHistory;
 use App\Models\Role;
+use App\Models\TemporaryResidence;
 use App\Models\Tenant;
 use App\Models\User;
 use Carbon\Carbon;
@@ -45,8 +46,8 @@ class ContractTenantService
         foreach ($members as $payload) {
             $profile = $this->profileData($payload);
             $data = $this->membershipData($profile);
-            $data['tenant_id'] = $this->resolveTenantProfile($profile)->id;
             $old = filled($payload['id'] ?? null) ? $existing->get((int) $payload['id']) : null;
+            $data['tenant_id'] = $this->resolveTenantProfile($profile, $old?->tenant)->id;
 
             if ($old) {
                 $retainedIds[] = $old->id;
@@ -132,14 +133,114 @@ class ContractTenantService
         return DB::transaction(function () use ($member, $actor): ContractTenant {
             $member = ContractTenant::query()->with('contract')->lockForUpdate()->findOrFail($member->id);
             $this->ensureContractOwner($member->contract, $actor);
-            if ($member->role === ContractTenant::ROLE_REPRESENTATIVE || $member->status !== ContractTenant::STATUS_PENDING) {
-                $this->fail('member', 'Chỉ có thể rút khai báo người thuê đang chờ duyệt.');
+            if ($member->role === ContractTenant::ROLE_REPRESENTATIVE
+                || ! in_array($member->status, [ContractTenant::STATUS_PENDING, ContractTenant::STATUS_APPROVED], true)
+                || $member->actual_move_in_at) {
+                $this->fail('member', 'Chỉ có thể rút người thuê đang chờ duyệt hoặc đã duyệt nhưng chưa nhận phòng.');
             }
-            $this->transition($member, ContractTenant::STATUS_WITHDRAWN, 'tenant_withdraw', 'Người thuê đại diện rút hồ sơ đang chờ duyệt.', $actor);
+
+            $wasApproved = $member->status === ContractTenant::STATUS_APPROVED;
+            $this->transition(
+                $member,
+                ContractTenant::STATUS_WITHDRAWN,
+                $wasApproved ? 'tenant_withdraw_approved' : 'tenant_withdraw',
+                $wasApproved
+                    ? 'Người thuê đã được duyệt đổi ý trước khi nhận phòng.'
+                    : 'Người thuê đại diện rút hồ sơ đang chờ duyệt.',
+                $actor,
+            );
             $this->syncPlannedCount($member->contract);
 
             return $member->fresh();
         }, 3);
+    }
+
+    public function updateBeforeMoveIn(ContractTenant $member, User $actor, array $data): ContractTenant
+    {
+        return DB::transaction(function () use ($member, $actor, $data): ContractTenant {
+            $member = ContractTenant::query()->with(['contract', 'tenant'])->lockForUpdate()->findOrFail($member->id);
+            $this->ensureContractOwner($member->contract, $actor);
+            if ($member->role === ContractTenant::ROLE_REPRESENTATIVE
+                || ! in_array($member->status, [ContractTenant::STATUS_PENDING, ContractTenant::STATUS_APPROVED], true)
+                || ! in_array($member->contract->status, [
+                    Contract::STATUS_PENDING_SIGNATURE,
+                    Contract::STATUS_PENDING_DEPOSIT,
+                    Contract::STATUS_AWAITING_MOVE_IN,
+                ], true)) {
+                $this->fail('member', 'Chỉ được bổ sung hồ sơ người ở cùng trước khi nhận phòng.');
+            }
+
+            $profile = $this->profileData($data);
+            $duplicateMember = ContractTenant::query()
+                ->where('contract_id', $member->contract_id)
+                ->whereKeyNot($member->id)
+                ->current()
+                ->where('identity_number', $profile['identity_number'])
+                ->lockForUpdate()
+                ->exists();
+            if ($duplicateMember) {
+                $this->fail('identity_number', 'CCCD này đã có trong danh sách người thuê của hợp đồng.');
+            }
+            if (Tenant::query()->where('cccd', $profile['identity_number'])->whereKeyNot($member->tenant_id)->exists()) {
+                $this->fail('identity_number', 'CCCD này đang thuộc một hồ sơ khách thuê khác.');
+            }
+
+            $wasComplete = $member->hasCompleteMoveInProfile();
+            $member->tenant->forceFill([
+                'full_name' => $profile['full_name'],
+                'date_of_birth' => $profile['date_of_birth'],
+                'gender' => $profile['gender'],
+                'cccd' => $profile['identity_number'],
+                'cccd_issue_date' => $profile['cccd_issue_date'],
+                'cccd_issue_place' => $profile['cccd_issue_place'],
+                'phone' => $profile['phone'],
+                'email' => $profile['email'],
+                'address' => $profile['address'],
+            ])->save();
+            $member->forceFill($this->membershipData($profile))->save();
+            $this->history(
+                $member,
+                $member->status,
+                $member->status,
+                $wasComplete ? 'tenant_update_profile_before_move_in' : 'tenant_complete_profile_before_move_in',
+                'Người thuê đại diện cập nhật hồ sơ trước khi nhận phòng.',
+                $actor,
+            );
+
+            return $member->fresh(['tenant']);
+        }, 3);
+    }
+
+    public function incompleteMoveInProfiles(Contract $contract)
+    {
+        return ContractTenant::query()
+            ->where('contract_id', $contract->id)
+            ->current()
+            ->with('tenant')
+            ->get()
+            ->filter(fn (ContractTenant $member): bool => ! $member->hasCompleteMoveInProfile())
+            ->values();
+    }
+
+    public function ensureReadyForMoveIn(Contract $contract): void
+    {
+        $members = ContractTenant::query()
+            ->where('contract_id', $contract->id)
+            ->current()
+            ->with('tenant')
+            ->lockForUpdate()
+            ->get();
+        if ($members->contains('status', ContractTenant::STATUS_PENDING)) {
+            $this->fail('members', 'Còn người thuê đang chờ duyệt. Hãy duyệt hoặc từ chối trước khi nhận phòng.');
+        }
+
+        $incomplete = $members->filter(fn (ContractTenant $member): bool => ! $member->hasCompleteMoveInProfile());
+        if ($incomplete->isNotEmpty()) {
+            $details = $incomplete->map(function (ContractTenant $member): string {
+                return $member->full_name.' (thiếu '.implode(', ', $member->missingMoveInProfileFields()).')';
+            })->implode('; ');
+            $this->fail('members', 'Chưa thể nhận phòng vì hồ sơ người thuê chưa đầy đủ: '.$details.'.');
+        }
     }
 
     public function approve(ContractTenant $member, User $actor): ContractTenant
@@ -197,6 +298,7 @@ class ContractTenantService
         if ($approved->isEmpty()) {
             $this->fail('members', 'Phải có ít nhất một người thuê được duyệt trước khi nhận phòng.');
         }
+        $this->ensureReadyForMoveIn($contract);
         foreach ($approved as $member) {
             $member->forceFill(['actual_move_in_at' => $moveInAt])->save();
             $this->transition($member, ContractTenant::STATUS_CHECKED_IN, 'contract_check_in', null, $actor, [
@@ -217,6 +319,8 @@ class ContractTenantService
             $this->transition($member, ContractTenant::STATUS_MOVED_OUT, 'contract_check_out', $reason, $actor, [
                 'actual_move_out_at' => $moveOutAt->toIso8601String(),
             ]);
+            TemporaryResidence::query()->where('contract_tenant_id', $member->id)
+                ->whereIn('status', ['pending', 'active'])->update(['status' => 'expired']);
         }
     }
 
@@ -242,9 +346,93 @@ class ContractTenantService
             if ($moveOutAt->isFuture() || ($member->actual_move_in_at && $moveOutAt->lt($member->actual_move_in_at))) {
                 $this->fail('actual_move_out_at', 'Thời điểm rời phòng không hợp lệ.');
             }
+
+            $temporaryResidences = TemporaryResidence::query()
+                ->where('contract_tenant_id', $member->id)
+                ->whereIn('status', ['pending', 'active'])
+                ->lockForUpdate()
+                ->get(['id', 'status'])
+                ->map(fn (TemporaryResidence $residence): array => [
+                    'id' => $residence->id,
+                    'status' => $residence->status,
+                ])->values()->all();
+
             $member->forceFill(['actual_move_out_at' => $moveOutAt])->save();
-            $this->transition($member, ContractTenant::STATUS_MOVED_OUT, 'tenant_move_out', $reason, $actor);
+            $this->transition($member, ContractTenant::STATUS_MOVED_OUT, 'tenant_move_out', $reason, $actor, [
+                'actual_move_out_at' => $moveOutAt->toIso8601String(),
+                'temporary_residences' => $temporaryResidences,
+            ]);
+            TemporaryResidence::query()->where('contract_tenant_id', $member->id)
+                ->whereIn('status', ['pending', 'active'])->update(['status' => 'expired']);
             $this->syncCounts($member->contract()->with('room')->firstOrFail());
+
+            return $member->fresh();
+        }, 3);
+    }
+
+    public function restoreMoveOut(ContractTenant $member, User $actor, string $reason): ContractTenant
+    {
+        return DB::transaction(function () use ($member, $actor, $reason): ContractTenant {
+            $member = ContractTenant::query()->lockForUpdate()->findOrFail($member->id);
+            $contract = Contract::query()->with('room')->lockForUpdate()->findOrFail($member->contract_id);
+
+            if (! in_array($contract->status, Contract::OPEN_OCCUPANCY_STATUSES, true)) {
+                $this->fail('member', 'Chỉ có thể khôi phục thành viên khi hợp đồng vẫn đang thuê hoặc quá hạn chưa trả phòng.');
+            }
+            if ($member->role !== ContractTenant::ROLE_TENANT
+                || $member->status !== ContractTenant::STATUS_MOVED_OUT
+                || ! $member->actual_move_in_at) {
+                $this->fail('member', 'Hồ sơ này không phải thành viên đã rời phòng riêng lẻ.');
+            }
+
+            $moveOutHistory = ContractTenantHistory::query()
+                ->where('contract_tenant_id', $member->id)
+                ->where('to_status', ContractTenant::STATUS_MOVED_OUT)
+                ->latest('performed_at')
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+            if (! $moveOutHistory || $moveOutHistory->action !== 'tenant_move_out') {
+                $this->fail('member', 'Không thể hoàn tác trường hợp trả phòng toàn hợp đồng hoặc chuyển người đại diện.');
+            }
+
+            $this->ensureCapacity($contract, 1);
+            $restoredResidences = [];
+            foreach ((array) data_get($moveOutHistory->metadata, 'temporary_residences', []) as $snapshot) {
+                $previousStatus = data_get($snapshot, 'status');
+                if (! in_array($previousStatus, ['pending', 'active'], true)) {
+                    continue;
+                }
+
+                $residence = TemporaryResidence::query()
+                    ->whereKey(data_get($snapshot, 'id'))
+                    ->where('contract_tenant_id', $member->id)
+                    ->where('status', 'expired')
+                    ->lockForUpdate()
+                    ->first();
+                if (! $residence) {
+                    continue;
+                }
+
+                $restoredStatus = $previousStatus === 'active'
+                    && $residence->end_date
+                    && $residence->end_date->lt(today())
+                        ? 'expired'
+                        : $previousStatus;
+                if ($restoredStatus !== 'expired') {
+                    $residence->forceFill(['status' => $restoredStatus])->save();
+                    $restoredResidences[] = $residence->id;
+                }
+            }
+
+            $incorrectMoveOutAt = $member->actual_move_out_at?->toIso8601String();
+            $member->forceFill(['actual_move_out_at' => null])->save();
+            $this->transition($member, ContractTenant::STATUS_CHECKED_IN, 'tenant_move_out_reverted', $reason, $actor, [
+                'reverted_history_id' => $moveOutHistory->id,
+                'incorrect_actual_move_out_at' => $incorrectMoveOutAt,
+                'restored_temporary_residence_ids' => $restoredResidences,
+            ]);
+            $this->syncCounts($contract);
 
             return $member->fresh();
         }, 3);
@@ -484,21 +672,29 @@ class ContractTenantService
         ];
     }
 
-    private function resolveTenantProfile(array $profile): Tenant
+    private function resolveTenantProfile(array $profile, ?Tenant $existingTenant = null): Tenant
     {
         $identityNumber = $profile['identity_number'] ?? null;
         $phone = $profile['phone'] ?? null;
-        if (! filled($identityNumber) || ! filled($phone)) {
-            $this->fail('members', 'Mỗi người thuê phải có đầy đủ CCCD và số điện thoại.');
+        $tenant = $existingTenant;
+        $identityOwner = filled($identityNumber)
+            ? Tenant::query()->where('cccd', $identityNumber)->lockForUpdate()->first()
+            : null;
+        if ($tenant && $identityOwner && ! $identityOwner->is($tenant)) {
+            $this->fail('identity_number', 'CCCD đã thuộc hồ sơ khách thuê khác.');
+        }
+        $tenant ??= $identityOwner;
+        if (! $tenant && filled($phone)) {
+            $tenant = Tenant::query()->where('phone', $phone)->lockForUpdate()->first();
         }
 
-        $tenant = Tenant::query()->where('cccd', $identityNumber)->lockForUpdate()->first();
         if ($tenant) {
-            if ($tenant->date_of_birth?->toDateString() !== $profile['date_of_birth']) {
+            if (filled($profile['date_of_birth']) && filled($tenant->date_of_birth)
+                && $tenant->date_of_birth->toDateString() !== $profile['date_of_birth']) {
                 $this->fail('identity_number', 'Ngày sinh không khớp với hồ sơ khách thuê có cùng CCCD.');
             }
 
-            $phoneOwner = Tenant::query()
+            $phoneOwner = filled($phone) && Tenant::query()
                 ->where('phone', $phone)
                 ->whereKeyNot($tenant->id)
                 ->lockForUpdate()
@@ -516,14 +712,16 @@ class ContractTenantService
                 $this->fail('email', 'Email đã thuộc hồ sơ khách thuê khác.');
             }
 
-            if ($tenant->user_id && $tenant->phone !== $phone) {
+            if ($tenant->user_id && filled($phone) && $tenant->phone !== $phone) {
                 $this->fail('phone', 'Số điện thoại không khớp với hồ sơ khách thuê đã có tài khoản.');
             }
 
             if (! $tenant->user_id) {
                 $tenant->forceFill([
                     'full_name' => $profile['full_name'],
+                    'date_of_birth' => $profile['date_of_birth'],
                     'gender' => $profile['gender'],
+                    'cccd' => $identityNumber,
                     'cccd_issue_date' => $profile['cccd_issue_date'],
                     'cccd_issue_place' => $profile['cccd_issue_place'],
                     'phone' => $phone,
@@ -535,7 +733,7 @@ class ContractTenantService
             return $tenant;
         }
 
-        if (Tenant::query()->where('phone', $phone)->lockForUpdate()->exists()) {
+        if (filled($phone) && Tenant::query()->where('phone', $phone)->lockForUpdate()->exists()) {
             $this->fail('phone', 'Số điện thoại đã thuộc hồ sơ khách thuê khác.');
         }
         if (filled($profile['email']) && Tenant::query()->where('email', $profile['email'])->lockForUpdate()->exists()) {

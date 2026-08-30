@@ -41,16 +41,13 @@ class ContractTerminationRequestController extends Controller
     {
         $data = $request->validate([
             'approved_end_date' => ['required', 'date', 'after_or_equal:today'],
-            // A same-day handover can be approved after its scheduled time has passed.
-            // The lifecycle service still enforces that it belongs to approved_end_date.
-            'scheduled_checkout_at' => ['required', 'date'],
             'admin_note' => ['nullable', 'string', 'max:1000'],
         ]);
         $terminationRequest = $this->lifecycle->scheduleDeparture(
             $terminationRequest,
             $request->user(),
             $data['approved_end_date'],
-            $data['scheduled_checkout_at'],
+            \Carbon\Carbon::parse($data['approved_end_date'])->setTime(8, 0),
             $data['admin_note'] ?? null,
         );
         $contract = $terminationRequest->contract;
@@ -60,7 +57,7 @@ class ContractTerminationRequestController extends Controller
             $contract,
             'termination_request_approved',
             'Yêu cầu trả phòng đã được duyệt',
-            'Lịch bàn giao hợp đồng '.$contract->contract_code.' là '.$terminationRequest->scheduled_checkout_at?->format('H:i d/m/Y').'.'
+            'Ngày bàn giao hợp đồng '.$contract->contract_code.' là '.$terminationRequest->approved_end_date?->format('d/m/Y').' trong giờ hành chính.'
         );
 
         return back()->with(

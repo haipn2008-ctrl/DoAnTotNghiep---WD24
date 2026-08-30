@@ -4,541 +4,231 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\ContractTenant;
 use App\Models\TemporaryResidence;
-use App\Models\Tenant;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class TemporaryResidenceController extends Controller
 {
-    /**
-     * Danh sách đăng ký tạm trú.
-     */
     public function index(Request $request)
     {
-        $query = TemporaryResidence::with([
-            'tenant',
-            'contract.room',
+        $baseQuery = ContractTenant::query()
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)
+            ->whereHas('contract', fn ($query) => $query->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES));
+        $query = (clone $baseQuery)->with([
+            'tenant', 'contract.room', 'activeTemporaryResidence.verifiedBy', 'latestTemporaryResidence.verifiedBy',
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Tìm kiếm
-        |--------------------------------------------------------------------------
-        */
         if ($request->filled('search')) {
-            $search = trim($request->input('search'));
-
-            $query->whereHas('tenant', function ($q) use ($search) {
-                $q->where(function ($query) use ($search) {
-                    $query->where(
-                        'full_name',
-                        'like',
-                        "%{$search}%"
-                    )
-                        ->orWhere(
-                            'phone',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'cccd',
-                            'like',
-                            "%{$search}%"
-                        );
-                });
+            $search = trim((string) $request->input('search'));
+            $query->where(function ($query) use ($search): void {
+                $query->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('identity_number', 'like', "%{$search}%")
+                    ->orWhereHas('contract.room', fn ($room) => $room->where('room_code', 'like', "%{$search}%"))
+                    ->orWhereHas('temporaryResidences', fn ($residence) => $residence
+                        ->where('reference_number', 'like', "%{$search}%"));
             });
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Lọc trạng thái
-        |--------------------------------------------------------------------------
-        */
         if ($request->filled('status')) {
-            $query->where(
-                'status',
-                $request->input('status')
-            );
+            $status = $request->input('status');
+            if ($status === 'missing') {
+                $query->whereDoesntHave('temporaryResidences', fn ($residence) => $residence
+                    ->where('status', 'active')->whereNotNull('evidence_path'));
+            } elseif (in_array($status, ['pending', 'active'], true)) {
+                $query->whereHas('temporaryResidences', fn ($residence) => $residence
+                    ->where('status', $status)
+                    ->when($status === 'active', fn ($query) => $query->whereNotNull('evidence_path')));
+            } elseif (in_array($status, ['expired', 'cancelled'], true)) {
+                $query->whereDoesntHave('temporaryResidences', fn ($residence) => $residence->whereIn('status', ['pending', 'active']))
+                    ->whereHas('temporaryResidences', fn ($residence) => $residence->where('status', $status));
+            }
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Lọc ngày bắt đầu từ
-        |--------------------------------------------------------------------------
-        */
-        if ($request->filled('start_date')) {
-            $query->whereDate(
-                'start_date',
-                '>=',
-                $request->input('start_date')
-            );
-        }
+        $members = $query->orderBy('full_name')->orderBy('id')->paginate(15)->withQueryString();
+        $summary = [
+            'total' => (clone $baseQuery)->count(),
+            'documented' => (clone $baseQuery)->whereHas('temporaryResidences', fn ($query) => $query
+                ->where('status', 'active')->whereNotNull('evidence_path'))->count(),
+            'missing' => (clone $baseQuery)->whereDoesntHave('temporaryResidences', fn ($query) => $query
+                ->where('status', 'active')->whereNotNull('evidence_path'))->count(),
+        ];
 
-        /*
-        |--------------------------------------------------------------------------
-        | Lọc ngày bắt đầu đến
-        |--------------------------------------------------------------------------
-        */
-        if ($request->filled('end_date')) {
-            $query->whereDate(
-                'start_date',
-                '<=',
-                $request->input('end_date')
-            );
-        }
-
-        $temporaryResidences = $query
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
-
-        return view(
-            'admin.temporary_residences.index',
-            compact('temporaryResidences')
-        );
+        return view('admin.temporary_residences.index', compact('members', 'summary'));
     }
 
-    /**
-     * Hiển thị form đăng ký tạm trú.
-     */
     public function create()
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Danh sách khách thuê
-        |--------------------------------------------------------------------------
-        */
-        $tenants = Tenant::orderBy('full_name')->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Danh sách hợp đồng có thể đăng ký tạm trú
-        |--------------------------------------------------------------------------
-        */
-        $contracts = Contract::with([
-            'tenant',
-            'room',
-        ])
-            ->whereIn(
-                'status',
-                ['active', 'pending']
-            )
-            ->latest()
+        $members = ContractTenant::query()
+            ->with(['tenant', 'contract.room'])
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)
+            ->whereHas('contract', fn ($query) => $query->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES))
+            ->whereDoesntHave('temporaryResidences', fn ($query) => $query->whereIn('status', ['pending', 'active']))
+            ->orderBy('full_name')
             ->get();
 
-        return view(
-            'admin.temporary_residences.create',
-            compact(
-                'tenants',
-                'contracts'
-            )
-        );
+        return view('admin.temporary_residences.create', compact('members'));
     }
 
-    /**
-     * Lưu đăng ký tạm trú.
-     */
-    /**
-     * Lưu đăng ký tạm trú.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'tenant_id' => [
+            'contract_tenant_id' => [
                 'required',
-                'exists:tenants,id',
+                Rule::exists('contract_tenants', 'id')->where('status', ContractTenant::STATUS_CHECKED_IN),
             ],
-
-            'contract_id' => [
-                'required',
-                'exists:contracts,id',
-            ],
-
-            'status' => [
-                'required',
-                'in:pending,active,expired,cancelled',
-            ],
-
-            'note' => [
-                'nullable',
-                'string',
-                'max:1000',
-            ],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'reference_number' => ['nullable', 'string', 'max:100'],
+            'evidence' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            'note' => ['nullable', 'string', 'max:1000'],
         ], [
-            'tenant_id.required' => 'Vui lòng chọn khách thuê.',
-
-            'tenant_id.exists' => 'Khách thuê không tồn tại.',
-
-            'contract_id.required' => 'Vui lòng chọn hợp đồng.',
-
-            'contract_id.exists' => 'Hợp đồng không tồn tại.',
-
-            'status.required' => 'Vui lòng chọn trạng thái.',
-
-            'status.in' => 'Trạng thái không hợp lệ.',
-
-            'note.max' => 'Ghi chú không được vượt quá 1000 ký tự.',
+            'contract_tenant_id.required' => 'Vui lòng chọn người thuê cần cập nhật giấy tạm trú.',
+            'contract_tenant_id.exists' => 'Người được chọn không còn ở trong hợp đồng.',
+            'evidence.required' => 'Vui lòng tải ảnh hoặc PDF minh chứng giấy tạm trú.',
+            'evidence.mimes' => 'Minh chứng chỉ chấp nhận JPG, PNG, WEBP hoặc PDF.',
+            'evidence.max' => 'Minh chứng không được vượt quá 5 MB.',
         ]);
 
-        /*
-    |--------------------------------------------------------------------------
-    | Lấy hợp đồng
-    |--------------------------------------------------------------------------
-    */
-        $contract = Contract::with([
-            'tenant',
-            'room',
-        ])->findOrFail(
-            $validated['contract_id']
-        );
+        $member = ContractTenant::query()->with(['tenant', 'contract'])->findOrFail($validated['contract_tenant_id']);
+        if (! in_array($member->contract->status, Contract::OPEN_OCCUPANCY_STATUSES, true)) {
+            throw ValidationException::withMessages(['contract_tenant_id' => 'Hợp đồng của người thuê không còn hiệu lực cư trú.']);
+        }
+        $file = $request->file('evidence');
+        $path = $file->store("temporary-residences/{$member->id}", 'local');
 
-        /*
-    |--------------------------------------------------------------------------
-    | Kiểm tra hợp đồng thuộc đúng khách thuê
-    |--------------------------------------------------------------------------
-    */
-        if (
-            (int) $contract->tenant_id
-            !==
-            (int) $validated['tenant_id']
-        ) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'contract_id' => 'Hợp đồng không thuộc về khách thuê đã chọn.',
+        try {
+            $temporaryResidence = DB::transaction(function () use ($member, $validated, $path, $file, $request): TemporaryResidence {
+                $lockedMember = ContractTenant::query()->lockForUpdate()->findOrFail($member->id);
+                if ($lockedMember->status !== ContractTenant::STATUS_CHECKED_IN) {
+                    throw ValidationException::withMessages(['contract_tenant_id' => 'Người được chọn không còn ở trong hợp đồng.']);
+                }
+                if (TemporaryResidence::query()->where('contract_tenant_id', $lockedMember->id)
+                    ->whereIn('status', ['pending', 'active'])->exists()) {
+                    throw ValidationException::withMessages(['contract_tenant_id' => 'Người thuê này đã có giấy tạm trú đang hiệu lực.']);
+                }
+
+                return TemporaryResidence::query()->create([
+                    'tenant_id' => $lockedMember->tenant_id,
+                    'contract_id' => $lockedMember->contract_id,
+                    'contract_tenant_id' => $lockedMember->id,
+                    'start_date' => $validated['start_date'],
+                    'end_date' => $validated['end_date'] ?? null,
+                    'reference_number' => $validated['reference_number'] ?? null,
+                    'status' => filled($validated['end_date'] ?? null) && Carbon::parse($validated['end_date'])->lt(today())
+                        ? 'expired'
+                        : 'active',
+                    'note' => $validated['note'] ?? null,
+                    'evidence_path' => $path,
+                    'evidence_original_name' => $file->getClientOriginalName(),
+                    'evidence_mime_type' => $file->getMimeType(),
+                    'verified_by' => $request->user()->id,
+                    'verified_at' => now(),
                 ]);
+            }, 3);
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
         }
 
-        /*
-    |--------------------------------------------------------------------------
-    | Kiểm tra trạng thái hợp đồng
-    |--------------------------------------------------------------------------
-    */
-        if (
-            ! in_array(
-                $contract->status,
-                ['active', 'pending'],
-                true
-            )
-        ) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'contract_id' => 'Hợp đồng không ở trạng thái phù hợp để đăng ký tạm trú.',
-                ]);
-        }
-
-        /*
-    |--------------------------------------------------------------------------
-    | Kiểm tra hợp đồng đã có đăng ký tạm trú hay chưa
-    |--------------------------------------------------------------------------
-    */
-        $exists = TemporaryResidence::where(
-            'contract_id',
-            $validated['contract_id']
-        )
-            ->whereIn(
-                'status',
-                ['pending', 'active']
-            )
-            ->exists();
-
-        if ($exists) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'contract_id' => 'Hợp đồng này đã có đăng ký tạm trú đang chờ hoặc đang hoạt động.',
-                ]);
-        }
-
-        /*
-    |--------------------------------------------------------------------------
-    | THỜI GIAN TẠM TRÚ LẤY TRỰC TIẾP TỪ HỢP ĐỒNG
-    |--------------------------------------------------------------------------
-    */
-        if (! $contract->start_date) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'contract_id' => 'Hợp đồng chưa có ngày bắt đầu nên không thể đăng ký tạm trú.',
-                ]);
-        }
-
-        /*
-    |--------------------------------------------------------------------------
-    | Gán thời gian tạm trú theo thời gian thuê trong hợp đồng
-    |--------------------------------------------------------------------------
-    */
-        $validated['start_date'] = $contract->start_date;
-        $validated['end_date'] = $contract->end_date;
-
-        /*
-    |--------------------------------------------------------------------------
-    | Tạo đăng ký tạm trú
-    |--------------------------------------------------------------------------
-    */
-        TemporaryResidence::create($validated);
-
-        return redirect()
-            ->route('admin.temporary_residences.index')
-            ->with(
-                'success',
-                'Đăng ký tạm trú đã được tạo thành công. Thời gian tạm trú được lấy theo thời gian thuê trong hợp đồng.'
-            );
+        return redirect()->route('admin.temporary_residences.show', $temporaryResidence)
+            ->with('success', 'Đã cập nhật và xác minh minh chứng giấy tạm trú cho người thuê.');
     }
 
-    /**
-     * Xem chi tiết đăng ký tạm trú.
-     */
-    public function show(
-        TemporaryResidence $temporaryResidence
-    ) {
+    public function show(TemporaryResidence $temporaryResidence)
+    {
         $temporaryResidence->load([
-            'tenant.document',
-            'tenant.vehicles',
-            'contract.room',
+            'tenant.document', 'contract.room', 'contractTenant', 'verifiedBy', 'cancelledBy',
         ]);
-
-        return view(
-            'admin.temporary_residences.show',
-            compact('temporaryResidence')
-        );
-    }
-
-    /**
-     * Hiển thị form chỉnh sửa.
-     */
-    public function edit(
-        TemporaryResidence $temporaryResidence
-    ) {
-        $this->ensureMutable($temporaryResidence);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Lưu ý:
-        | tenants dùng full_name, không phải name
-        |--------------------------------------------------------------------------
-        */
-        $tenants = Tenant::orderBy('full_name')->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Lấy hợp đồng đang active/pending
-        | và giữ lại hợp đồng hiện tại nếu nó đã đổi trạng thái
-        |--------------------------------------------------------------------------
-        */
-        $contracts = Contract::with([
-            'tenant',
-            'room',
-        ])
-            ->where(function ($query) use ($temporaryResidence) {
-                $query
-                    ->whereIn(
-                        'status',
-                        ['active', 'pending']
-                    )
-                    ->orWhere(
-                        'id',
-                        $temporaryResidence->contract_id
-                    );
-            })
+        $residenceHistory = TemporaryResidence::query()
+            ->where('contract_tenant_id', $temporaryResidence->contract_tenant_id)
+            ->when(! $temporaryResidence->contract_tenant_id, fn ($query) => $query
+                ->where('contract_id', $temporaryResidence->contract_id)
+                ->where('tenant_id', $temporaryResidence->tenant_id))
             ->latest()
             ->get();
 
-        return view(
-            'admin.temporary_residences.edit',
-            compact(
-                'temporaryResidence',
-                'tenants',
-                'contracts'
-            )
-        );
+        return view('admin.temporary_residences.show', compact('temporaryResidence', 'residenceHistory'));
     }
 
-    /**
-     * Cập nhật đăng ký tạm trú.
-     */
-    public function update(
-        Request $request,
-        TemporaryResidence $temporaryResidence
-    ) {
+    public function edit(TemporaryResidence $temporaryResidence)
+    {
         $this->ensureMutable($temporaryResidence);
+        $temporaryResidence->load(['tenant', 'contract.room', 'contractTenant']);
 
+        return view('admin.temporary_residences.edit', compact('temporaryResidence'));
+    }
+
+    public function update(Request $request, TemporaryResidence $temporaryResidence)
+    {
+        $this->ensureMutable($temporaryResidence);
         $validated = $request->validate([
-            'tenant_id' => [
-                'required',
-                'exists:tenants,id',
-            ],
-
-            'contract_id' => [
-                'required',
-                'exists:contracts,id',
-            ],
-
-            'status' => [
-                'required',
-                'in:pending,active,expired,cancelled',
-            ],
-
-            'note' => [
-                'nullable',
-                'string',
-                'max:1000',
-            ],
-        ], [
-            'tenant_id.required' => 'Vui lòng chọn khách thuê.',
-
-            'tenant_id.exists' => 'Khách thuê không tồn tại.',
-
-            'contract_id.required' => 'Vui lòng chọn hợp đồng.',
-
-            'contract_id.exists' => 'Hợp đồng không tồn tại.',
-
-            'start_date.required' => 'Vui lòng nhập ngày bắt đầu.',
-
-            'start_date.date' => 'Ngày bắt đầu không hợp lệ.',
-
-            'end_date.date' => 'Ngày kết thúc không hợp lệ.',
-
-            'end_date.after_or_equal' => 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.',
-
-            'status.required' => 'Vui lòng chọn trạng thái.',
-
-            'status.in' => 'Trạng thái không hợp lệ.',
-
-            'note.max' => 'Ghi chú không được vượt quá 1000 ký tự.',
+            'start_date' => ['required', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'reference_number' => ['nullable', 'string', 'max:100'],
+            'evidence' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Kiểm tra hợp đồng
-        |--------------------------------------------------------------------------
-        */
-        $contract = Contract::findOrFail(
-            $validated['contract_id']
-        );
+        $file = $request->file('evidence');
+        $newPath = $file?->store("temporary-residences/{$temporaryResidence->contract_tenant_id}", 'local');
+        $oldPath = $temporaryResidence->evidence_path;
 
-        if (
-            (int) $contract->tenant_id
-            !==
-            (int) $validated['tenant_id']
-        ) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'contract_id' => 'Hợp đồng không thuộc về khách thuê đã chọn.',
-                ]);
+        try {
+            DB::transaction(function () use ($temporaryResidence, $validated, $request, $file, $newPath): void {
+                $lockedResidence = TemporaryResidence::query()->lockForUpdate()->findOrFail($temporaryResidence->id);
+                $this->ensureMutable($lockedResidence);
+                $changes = [
+                    'start_date' => $validated['start_date'],
+                    'end_date' => $validated['end_date'] ?? null,
+                    'reference_number' => $validated['reference_number'] ?? null,
+                    'note' => $validated['note'] ?? null,
+                    'status' => filled($validated['end_date'] ?? null) && Carbon::parse($validated['end_date'])->lt(today())
+                        ? 'expired'
+                        : 'active',
+                    'verified_by' => $request->user()->id,
+                    'verified_at' => now(),
+                ];
+                if ($file && $newPath) {
+                    $changes += [
+                        'evidence_path' => $newPath,
+                        'evidence_original_name' => $file->getClientOriginalName(),
+                        'evidence_mime_type' => $file->getMimeType(),
+                    ];
+                }
+                $lockedResidence->update($changes);
+            });
+        } catch (Throwable $exception) {
+            if ($newPath) {
+                Storage::disk('local')->delete($newPath);
+            }
+            throw $exception;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Không cho phép trùng đăng ký active/pending
-        |--------------------------------------------------------------------------
-        */
-        $exists = TemporaryResidence::where(
-            'contract_id',
-            $validated['contract_id']
-        )
-            ->whereIn(
-                'status',
-                ['pending', 'active']
-            )
-            ->where(
-                'id',
-                '!=',
-                $temporaryResidence->id
-            )
-            ->exists();
-
-        if ($exists) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'contract_id' => 'Hợp đồng này đã có đăng ký tạm trú đang hoạt động.',
-                ]);
+        if ($newPath && $oldPath && $oldPath !== $newPath) {
+            Storage::disk('local')->delete($oldPath);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Kiểm tra trạng thái hợp đồng
-        |--------------------------------------------------------------------------
-        */
-        if (
-            ! in_array(
-                $contract->status,
-                ['active', 'pending'],
-                true
-            )
-            &&
-            $contract->id != $temporaryResidence->contract_id
-        ) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'contract_id' => 'Chỉ được đăng ký tạm trú cho hợp đồng đang chờ hoặc đang hoạt động.',
-                ]);
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Cập nhật
-        |--------------------------------------------------------------------------
-        */
-        if (! $contract->start_date) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'contract_id' => 'Hợp đồng chưa có ngày bắt đầu nên không thể cập nhật tạm trú.',
-                ]);
-        }
-
-        $validated['start_date'] = $contract->start_date;
-        $validated['end_date'] = $contract->end_date;
-
-        DB::transaction(function () use ($temporaryResidence, $validated): void {
-            $lockedResidence = TemporaryResidence::query()
-                ->lockForUpdate()
-                ->findOrFail($temporaryResidence->id);
-            $this->ensureMutable($lockedResidence);
-            $lockedResidence->update($validated);
-        });
-
-        return redirect()
-            ->route('admin.temporary_residences.index')
-            ->with(
-                'success',
-                'Thông tin tạm trú đã được cập nhật thành công.'
-            );
+        return redirect()->route('admin.temporary_residences.show', $temporaryResidence)
+            ->with('success', 'Giấy tạm trú đã được cập nhật.');
     }
 
-    /**
-     * Xóa đăng ký tạm trú.
-     */
-    public function cancel(
-        Request $request,
-        TemporaryResidence $temporaryResidence
-    ) {
+    public function cancel(Request $request, TemporaryResidence $temporaryResidence)
+    {
         $this->ensureMutable($temporaryResidence);
-
         $validated = $request->validate([
             'cancellation_reason' => ['required', 'string', 'min:10', 'max:2000'],
         ]);
 
         DB::transaction(function () use ($temporaryResidence, $validated, $request): void {
-            $lockedResidence = TemporaryResidence::query()
-                ->lockForUpdate()
-                ->findOrFail($temporaryResidence->id);
-
+            $lockedResidence = TemporaryResidence::query()->lockForUpdate()->findOrFail($temporaryResidence->id);
             $this->ensureMutable($lockedResidence);
-
-            if ($lockedResidence->status === 'cancelled') {
-                throw ValidationException::withMessages([
-                    'temporary_residence' => 'Hồ sơ tạm trú đã được hủy trước đó.',
-                ]);
-            }
-
             $lockedResidence->update([
                 'status' => 'cancelled',
                 'cancelled_at' => now(),
@@ -547,33 +237,83 @@ class TemporaryResidenceController extends Controller
             ]);
         });
 
-        return redirect()
-            ->route('admin.temporary_residences.index')
-            ->with(
-                'success',
-                'Hồ sơ tạm trú đã được hủy và lưu lại để truy vết.'
-            );
+        return redirect()->route('admin.temporary_residences.index')
+            ->with('success', 'Giấy tạm trú đã được hủy và vẫn được lưu để truy vết.');
     }
 
-    public function sign(
-        Request $request,
-        TemporaryResidence $temporaryResidence
-    ) {
-        $this->ensureMutable($temporaryResidence);
+    public function evidence(TemporaryResidence $temporaryResidence)
+    {
+        abort_unless(
+            $temporaryResidence->evidence_path
+                && Storage::disk('local')->exists($temporaryResidence->evidence_path),
+            404
+        );
 
+        return Storage::disk('local')->response(
+            $temporaryResidence->evidence_path,
+            $temporaryResidence->evidence_original_name,
+            ['Content-Type' => $temporaryResidence->evidence_mime_type ?: 'application/octet-stream']
+        );
+    }
+
+    public function updateEvidence(Request $request, TemporaryResidence $temporaryResidence)
+    {
+        if ($temporaryResidence->status === 'cancelled') {
+            throw ValidationException::withMessages([
+                'temporary_residence' => 'Giấy tạm trú đã hủy không thể bổ sung minh chứng.',
+            ]);
+        }
+        $request->validate([
+            'evidence' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+        ], [
+            'evidence.required' => 'Vui lòng chọn ảnh hoặc PDF minh chứng.',
+            'evidence.mimes' => 'Minh chứng chỉ chấp nhận JPG, PNG, WEBP hoặc PDF.',
+            'evidence.max' => 'Minh chứng không được vượt quá 5 MB.',
+        ]);
+
+        $file = $request->file('evidence');
+        $newPath = $file->store("temporary-residences/{$temporaryResidence->contract_tenant_id}", 'local');
+        $oldPath = $temporaryResidence->evidence_path;
+
+        try {
+            DB::transaction(function () use ($temporaryResidence, $request, $file, $newPath): void {
+                $lockedResidence = TemporaryResidence::query()->lockForUpdate()->findOrFail($temporaryResidence->id);
+                if ($lockedResidence->status === 'cancelled') {
+                    throw ValidationException::withMessages([
+                        'temporary_residence' => 'Giấy tạm trú đã hủy không thể bổ sung minh chứng.',
+                    ]);
+                }
+                $lockedResidence->forceFill([
+                    'evidence_path' => $newPath,
+                    'evidence_original_name' => $file->getClientOriginalName(),
+                    'evidence_mime_type' => $file->getMimeType(),
+                    'verified_by' => $request->user()->id,
+                    'verified_at' => now(),
+                ])->save();
+            });
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($newPath);
+            throw $exception;
+        }
+
+        if ($oldPath && $oldPath !== $newPath) {
+            Storage::disk('local')->delete($oldPath);
+        }
+
+        return back()->with('success', 'Đã cập nhật minh chứng giấy tạm trú.');
+    }
+
+    public function sign(Request $request, TemporaryResidence $temporaryResidence)
+    {
+        $this->ensureMutable($temporaryResidence);
         $validated = $request->validate([
             'signature' => [
-                'bail',
-                'required',
-                'string',
-                'max:1500000',
+                'bail', 'required', 'string', 'max:1500000',
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if (! preg_match('/^data:image\/png;base64,([A-Za-z0-9+\/=\r\n]+)$/', $value, $matches)) {
                         $fail('Chữ ký phải là ảnh PNG hợp lệ.');
-
                         return;
                     }
-
                     $decoded = base64_decode($matches[1], true);
                     $imageInfo = $decoded === false ? false : @getimagesizefromstring($decoded);
                     if ($decoded === false || $imageInfo === false || ($imageInfo[2] ?? null) !== IMAGETYPE_PNG) {
@@ -581,52 +321,34 @@ class TemporaryResidenceController extends Controller
                     }
                 },
             ],
-        ], [
-            'signature.required' => 'Vui lòng ký tên trước khi lưu.',
         ]);
 
         DB::transaction(function () use ($temporaryResidence, $validated): void {
-            $lockedResidence = TemporaryResidence::query()
-                ->lockForUpdate()
-                ->findOrFail($temporaryResidence->id);
+            $lockedResidence = TemporaryResidence::query()->lockForUpdate()->findOrFail($temporaryResidence->id);
             $this->ensureMutable($lockedResidence);
-            $lockedResidence->update([
-                'signature' => $validated['signature'],
-                'signed_at' => now(),
-            ]);
+            $lockedResidence->update(['signature' => $validated['signature'], 'signed_at' => now()]);
         });
 
-        return back()->with(
-            'success',
-            'Chữ ký đã được lưu thành công.'
-        );
+        return back()->with('success', 'Chữ ký đã được lưu thành công.');
     }
 
     public function pdf(TemporaryResidence $temporaryResidence)
     {
-        $temporaryResidence->load([
-            'tenant.document',
-            'tenant.vehicles',
-            'contract.room',
-        ]);
+        $temporaryResidence->load(['tenant.document', 'tenant.vehicles', 'contract.room']);
 
-        return view(
-            'admin.temporary_residences.pdf',
-            compact('temporaryResidence')
-        );
+        return view('admin.temporary_residences.pdf', compact('temporaryResidence'));
     }
 
     private function ensureMutable(TemporaryResidence $temporaryResidence): void
     {
         if ($temporaryResidence->status === 'cancelled') {
             throw ValidationException::withMessages([
-                'temporary_residence' => 'Hồ sơ tạm trú đã hủy không thể thay đổi.',
+                'temporary_residence' => 'Giấy tạm trú đã hủy không thể thay đổi.',
             ]);
         }
-
         if ($temporaryResidence->signature || $temporaryResidence->signed_at) {
             throw ValidationException::withMessages([
-                'temporary_residence' => 'Hồ sơ tạm trú đã ký không thể sửa, ký đè hoặc xóa.',
+                'temporary_residence' => 'Hồ sơ đã ký không thể sửa, ký đè hoặc hủy.',
             ]);
         }
     }

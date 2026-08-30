@@ -6,6 +6,10 @@
     $collectionProgress = $totalInvoiced > 0 ? min(100, (int) round(($totalPaid / $totalInvoiced) * 100)) : 0;
     $representative = $contract->currentMembers->firstWhere('role', \App\Models\ContractTenant::ROLE_REPRESENTATIVE);
     $otherMembers = $contract->currentMembers->where('role', '!=', \App\Models\ContractTenant::ROLE_REPRESENTATIVE);
+    $departedMembers = $contract->members
+        ->where('role', \App\Models\ContractTenant::ROLE_TENANT)
+        ->where('status', \App\Models\ContractTenant::STATUS_MOVED_OUT)
+        ->sortByDesc('actual_move_out_at');
 @endphp
 
 <section class="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
@@ -49,7 +53,15 @@
         <section id="contract-tenants" class="scroll-mt-24 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <h3 class="font-bold text-slate-950">Người thuê trong phòng</h3>
-                <span class="w-fit rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ $contract->currentMembers->count() }}/{{ $contract->room?->max_people }} người</span>
+                <div class="flex flex-wrap items-center gap-2">
+                    @if($departedMembers->isNotEmpty())
+                        <button type="button" onclick="document.getElementById('departure-history-dialog').showModal()" class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                            <i class="bx bx-history text-base"></i>
+                            Lịch sử rời phòng
+                        </button>
+                    @endif
+                    <span class="w-fit rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ $contract->currentMembers->count() }}/{{ $contract->room?->max_people }} người</span>
+                </div>
             </div>
 
             @if($representative)
@@ -131,7 +143,60 @@
                 @empty
                 @endforelse
             </div>
+
         </section>
+
+        @if($departedMembers->isNotEmpty())
+            <dialog id="departure-history-dialog" class="m-auto w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-2xl bg-white p-0 text-slate-700 shadow-2xl backdrop:bg-slate-900/50">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                    <div>
+                        <h3 class="font-bold text-slate-950">Lịch sử rời phòng</h3>
+                        <p class="mt-1 text-xs leading-5 text-slate-500">Các lần rời phòng vẫn được lưu để đối chiếu. Chỉ khôi phục khi admin đã nhập nhầm người hoặc ngày rời.</p>
+                    </div>
+                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Đóng" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
+                        <i class="bx bx-x text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="max-h-[70vh] divide-y divide-slate-100 overflow-y-auto">
+                    @foreach($departedMembers as $member)
+                        @php
+                            $moveOutHistory = $member->histories
+                                ->where('to_status', \App\Models\ContractTenant::STATUS_MOVED_OUT)
+                                ->last();
+                            $canRestoreMoveOut = $moveOutHistory?->action === 'tenant_move_out';
+                        @endphp
+                        <article class="px-5 py-4">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <p class="font-semibold text-slate-950">{{ $member->full_name }}</p>
+                                    <p class="mt-1 text-xs text-slate-500">Rời phòng {{ $member->actual_move_out_at?->format('d/m/Y H:i') ?: 'chưa rõ thời điểm' }}</p>
+                                </div>
+                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Đã rời phòng</span>
+                            </div>
+                            @if($moveOutHistory?->reason)
+                                <p class="mt-2 text-sm text-slate-600"><span class="font-medium text-slate-700">Lý do:</span> {{ $moveOutHistory->reason }}</p>
+                            @endif
+
+                            @if($canRestoreMoveOut)
+                                <details class="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                                    <summary class="cursor-pointer text-sm font-semibold text-amber-800">Khôi phục do nhập nhầm</summary>
+                                    <form method="POST" action="{{ route('admin.contract-tenants.restore-move-out', $member) }}" class="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]" onsubmit="return confirm('Xác nhận khôi phục người này vào danh sách đang ở?')">
+                                        @csrf
+                                        <input name="reason" required maxlength="1000" placeholder="Lý do hoàn tác (nhập nhầm người/ngày...)" class="h-10 min-w-0 rounded-lg border border-amber-200 bg-white px-3 text-sm">
+                                        <button class="h-10 rounded-lg bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700">Khôi phục</button>
+                                    </form>
+                                </details>
+                            @endif
+                        </article>
+                    @endforeach
+                </div>
+
+                <div class="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-3">
+                    <button type="button" onclick="this.closest('dialog').close()" class="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100">Đóng</button>
+                </div>
+            </dialog>
+        @endif
 
         <section id="contract-utilities" class="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3"><h3 class="font-bold text-slate-950">Điện nước gần nhất</h3><span class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">{{ $latestReading?->record_date?->format('d/m/Y') ?? 'Chưa ghi chỉ số' }}</span></div>
@@ -173,27 +238,3 @@
     <div class="px-5 py-4"><h3 class="font-bold text-slate-950">Lịch sử hợp đồng</h3></div>
     <div class="overflow-x-auto border-t border-slate-200"><table class="min-w-full text-sm"><thead class="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th class="px-5 py-3">Thời điểm</th><th class="px-5 py-3">Trạng thái</th><th class="px-5 py-3">Thao tác</th><th class="px-5 py-3">Người thực hiện</th><th class="px-5 py-3">Lý do</th></tr></thead><tbody class="divide-y divide-slate-100">@forelse($contract->statusHistories as $history)<tr><td class="whitespace-nowrap px-5 py-3 text-slate-500">{{ $history->performed_at?->format('d/m/Y H:i') }}</td><td class="whitespace-nowrap px-5 py-3">{{ $history->from_status ? ($statusLabels[$history->from_status] ?? 'Không xác định') : 'Khởi tạo' }} → <strong>{{ $statusLabels[$history->to_status] ?? 'Không xác định' }}</strong></td><td class="px-5 py-3 font-semibold">{{ $actionLabels[$history->action] ?? 'Cập nhật hợp đồng' }}</td><td class="px-5 py-3 text-slate-500">{{ $history->performer?->name ?? 'Hệ thống' }}</td><td class="px-5 py-3 text-slate-500">{{ $history->reason ?: '—' }}</td></tr>@empty<tr><td colspan="5" class="px-5 py-6 text-center text-slate-500">Chưa có lịch sử.</td></tr>@endforelse</tbody></table></div>
 </section>
-
-<dialog id="checkout-contract-dialog" class="m-auto max-h-[92vh] w-[min(1120px,calc(100%-2rem))] overflow-hidden rounded-2xl bg-white p-0 shadow-2xl backdrop:bg-slate-950/60">
-    <form class="lifecycle-form flex max-h-[92vh] flex-col" method="POST" action="{{ route('admin.contracts.check-out', $contract) }}" enctype="multipart/form-data">
-        @csrf
-        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6"><div><p class="text-xs font-semibold uppercase tracking-wide text-violet-600">Phòng {{ $contract->room?->room_code }}</p><h3 class="mt-1 text-lg font-bold text-slate-950">Biên bản bàn giao trả phòng</h3><p class="mt-1 text-sm text-slate-500">Chốt chỉ số, chìa khóa và toàn bộ tài sản trước khi lập quyết toán.</p></div><button type="button" onclick="this.closest('dialog').close()" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-500 hover:bg-slate-200" aria-label="Đóng">×</button></div>
-        <div class="overflow-y-auto p-5 sm:p-6">
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <label class="text-xs font-semibold text-slate-600">Thời điểm trả phòng<input type="datetime-local" name="actual_move_out_at" max="{{ now()->format('Y-m-d\TH:i') }}" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal"></label>
-                <label class="text-xs font-semibold text-slate-600">Chỉ số điện cuối<input type="number" min="{{ $latestReading?->electricity_new ?? 0 }}" name="checkout_electricity" value="{{ $latestReading?->electricity_new }}" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal"></label>
-                <label class="text-xs font-semibold text-slate-600">Chỉ số nước cuối<input type="number" min="{{ $latestReading?->water_new ?? 0 }}" name="checkout_water" value="{{ $latestReading?->water_new }}" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal"></label>
-                <label class="text-xs font-semibold text-slate-600">Số chìa khóa đã trả<input type="number" min="0" max="100" name="checkout_key_count" value="0" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal"></label>
-            </div>
-
-            @if($contract->handoverItems->isNotEmpty())
-                <div class="mt-5 overflow-hidden rounded-xl border border-slate-200"><div class="border-b border-slate-200 bg-slate-50 px-4 py-3"><h4 class="text-sm font-bold text-slate-900">Đối chiếu tài sản bàn giao</h4><p class="mt-0.5 text-xs text-slate-500">Phải ghi nhận tình trạng của tất cả tài sản.</p></div><div class="divide-y divide-slate-100">@foreach($contract->handoverItems as $item)<div class="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_180px_1fr] sm:items-center"><div><p class="text-sm font-semibold text-slate-800">{{ $item->name }}</p><p class="text-xs text-slate-500">Số lượng: {{ $item->quantity }}</p></div><select name="asset_conditions[{{ $item->id }}][condition]" required class="h-10 rounded-lg border border-slate-200 px-2 text-sm"><option value="good">Tốt</option><option value="worn">Hao mòn</option><option value="damaged">Hư hỏng</option><option value="missing">Thất lạc</option></select><input name="asset_conditions[{{ $item->id }}][note]" maxlength="500" placeholder="Ghi chú tình trạng" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"></div>@endforeach</div></div>
-            @endif
-
-            <div class="mt-5 grid gap-4 md:grid-cols-2"><label class="text-xs font-semibold text-slate-600">Lý do trả phòng<textarea name="checkout_reason" rows="3" required placeholder="Ví dụ: Kết thúc hợp đồng đúng hạn" class="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal"></textarea></label><label class="text-xs font-semibold text-slate-600">Hư hỏng hoặc thất lạc<textarea name="checkout_damage_note" rows="3" placeholder="Chỉ nhập khi có hư hỏng/thất lạc" class="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal"></textarea></label><label class="text-xs font-semibold text-slate-600">Khoản bồi thường/điều chỉnh<input type="number" min="0" name="settlement_amount" placeholder="0" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal"></label><label class="text-xs font-semibold text-slate-600">Nội dung khoản điều chỉnh<input name="settlement_description" placeholder="Bắt buộc nếu có khoản điều chỉnh" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal"></label></div>
-            <label class="mt-4 block text-xs font-semibold text-slate-600">Ảnh hiện trạng (tối đa 10 ảnh)<input type="file" name="checkout_photos[]" multiple accept="image/jpeg,image/png,image/webp" class="mt-1.5 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal"></label>
-            <label class="mt-5 flex items-start gap-3 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950"><input type="checkbox" name="handover_confirmed" value="1" required class="mt-0.5 rounded border-violet-300 text-violet-600"><span><strong>Xác nhận biên bản:</strong> Ban quản lý và người thuê đại diện đã cùng đối chiếu chỉ số, chìa khóa và tài sản.</span></label>
-        </div>
-        <div class="flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:px-6"><button type="button" onclick="this.closest('dialog').close()" class="h-11 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700">Đóng</button><button type="submit" class="h-11 rounded-lg border border-violet-700 bg-violet-600 px-5 text-sm font-semibold text-white hover:bg-violet-700">Xác nhận trả phòng và lập quyết toán</button></div>
-    </form>
-</dialog>

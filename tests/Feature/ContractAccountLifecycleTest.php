@@ -35,13 +35,10 @@ class ContractAccountLifecycleTest extends TestCase
             'status' => Invoice::STATUS_UNPAID,
         ]);
 
-        $this->actingAs($admin)->post(route('admin.contracts.end', $contract->id), [
-            'actual_end_date' => '2026-08-10',
-            'termination_reason' => 'expired',
-            'confirm_end' => '1',
-            'checkout_electricity' => 120,
-            'checkout_water' => 55,
-        ])->assertRedirect(route('admin.contracts.show', $contract));
+        $this->actingAs($admin)->post(
+            route('admin.contracts.check-out', $contract),
+            $this->checkoutPayload('2026-08-10 12:00:00')
+        )->assertRedirect(route('admin.contracts.check-out.form', $contract));
 
         $this->assertSame(User::STATUS_SETTLING, $client->fresh()->status);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
@@ -104,13 +101,10 @@ class ContractAccountLifecycleTest extends TestCase
     {
         [$admin, $client, $tenant, $room, $contract] = $this->rentalFixture();
 
-        $this->actingAs($admin)->post(route('admin.contracts.end', $contract), [
-            'actual_end_date' => '2026-08-10',
-            'termination_reason' => 'expired',
-            'confirm_end' => '1',
-            'checkout_electricity' => 120,
-            'checkout_water' => 55,
-        ])->assertRedirect(route('admin.contracts.show', $contract));
+        $this->actingAs($admin)->post(
+            route('admin.contracts.check-out', $contract),
+            $this->checkoutPayload('2026-08-10 12:00:00')
+        )->assertRedirect(route('admin.contracts.check-out.form', $contract));
 
         $this->assertSame(User::STATUS_SETTLING, $client->fresh()->status);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
@@ -137,13 +131,10 @@ class ContractAccountLifecycleTest extends TestCase
             'status' => Contract::STATUS_ACTIVE,
         ]);
 
-        $this->actingAs($admin)->post(route('admin.contracts.end', $contract), [
-            'actual_end_date' => '2026-08-10',
-            'termination_reason' => 'other',
-            'confirm_end' => '1',
-            'checkout_electricity' => 120,
-            'checkout_water' => 55,
-        ])->assertRedirect(route('admin.contracts.show', $contract));
+        $this->actingAs($admin)->post(
+            route('admin.contracts.check-out', $contract),
+            $this->checkoutPayload('2026-08-10 12:00:00')
+        )->assertRedirect(route('admin.contracts.check-out.form', $contract));
 
         $this->assertSame(User::STATUS_ACTIVE, $client->fresh()->status);
         $this->assertSame(Room::STATUS_AVAILABLE, $room->fresh()->status);
@@ -206,16 +197,10 @@ class ContractAccountLifecycleTest extends TestCase
         [$admin, $client, , $room, $contract] = $this->rentalFixture();
 
         foreach (['2025-08-09', now()->addDay()->toDateString()] as $actualEndDate) {
-            $this->actingAs($admin)->from(route('admin.contracts.end.form', $contract))->post(
-                route('admin.contracts.end', $contract),
-                [
-                    'actual_end_date' => $actualEndDate,
-                    'termination_reason' => 'expired',
-                    'confirm_end' => '1',
-                    'checkout_electricity' => 120,
-                    'checkout_water' => 55,
-                ]
-            )->assertRedirect(route('admin.contracts.end.form', $contract))
+            $this->actingAs($admin)->from(route('admin.contracts.check-out.form', $contract))->post(
+                route('admin.contracts.check-out', $contract),
+                $this->checkoutPayload($actualEndDate)
+            )->assertRedirect(route('admin.contracts.check-out.form', $contract))
                 ->assertSessionHasErrors('actual_move_out_at');
 
             $this->assertSame(Contract::STATUS_ACTIVE, $contract->fresh()->status);
@@ -277,5 +262,17 @@ class ContractAccountLifecycleTest extends TestCase
         ]);
 
         return [$admin, $client, $tenant, $room, $contract];
+    }
+
+    private function checkoutPayload(string $actualMoveOutAt): array
+    {
+        return [
+            'actual_move_out_at' => $actualMoveOutAt,
+            'checkout_reason' => 'Kết thúc hợp đồng và bàn giao phòng.',
+            'checkout_electricity' => 120,
+            'checkout_water' => 55,
+            'has_damage' => 0,
+            'handover_confirmed' => '1',
+        ];
     }
 }

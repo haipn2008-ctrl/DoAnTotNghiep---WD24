@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Contract;
+use App\Models\ContractTenant;
 use App\Models\Invoice;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Setting;
 use App\Models\SupportRequest;
+use App\Models\TemporaryResidence;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
@@ -49,11 +51,50 @@ class TenantPortalManagementTest extends TestCase
         $this->actingAs($client)->get('/client')
             ->assertSuccessful()
             ->assertViewHas('activeContract', fn ($value) => $value->is($contract))
+            ->assertViewHas('activeContracts', fn ($value) => $value->count() === 1 && $value->first()->is($contract))
             ->assertViewHas('recentInvoice', fn ($value) => $value->contract_id === $contract->id)
             ->assertViewHas('openInvoices', fn ($value) => $value->count() === 5
                 && $value->every(fn ($invoice) => $invoice->contract_id === $contract->id))
             ->assertViewHas('supportRequests', 1)
             ->assertDontSee('OTHER-PRIVATE');
+    }
+
+    public function test_my_rooms_lists_every_active_room_and_selects_the_requested_contract(): void
+    {
+        [$client, $tenant, $firstContract, $firstRoom] = $this->createClientContext('MULTIROOM');
+        $secondRoom = $this->createRoom('PORTAL-MULTIROOM-02');
+        $secondContract = $this->createContract(
+            $tenant,
+            $secondRoom,
+            'HD-PORTAL-MULTIROOM-02',
+            Contract::STATUS_ACTIVE,
+        );
+        [, , $otherContract] = $this->createClientContext('MULTIROOMOTHER');
+
+        $this->actingAs($client)->get(route('client.room.show'))
+            ->assertSuccessful()
+            ->assertViewHas('contracts', fn ($contracts) => $contracts->count() === 2
+                && $contracts->pluck('id')->contains($firstContract->id)
+                && $contracts->pluck('id')->contains($secondContract->id))
+            ->assertSee('2 phòng đang thuê')
+            ->assertSee($firstRoom->room_code)
+            ->assertSee($secondRoom->room_code)
+            ->assertSee(route('client.room.members.index', ['contract' => $firstContract->id]), false)
+            ->assertSee(route('client.room.members.index', ['contract' => $secondContract->id]), false)
+            ->assertDontSee($otherContract->room->room_code);
+
+        $this->get(route('client.room.members.index', ['contract' => $secondContract->id]))
+            ->assertSuccessful()
+            ->assertViewHas('contract', fn ($contract) => $contract->is($secondContract))
+            ->assertSee($secondRoom->room_code);
+        $this->get(route('client.room.members.index', ['contract' => $otherContract->id]))
+            ->assertNotFound();
+
+        $this->get('/client')
+            ->assertSuccessful()
+            ->assertSee('2 phòng')
+            ->assertSee($firstRoom->room_code)
+            ->assertSee($secondRoom->room_code);
     }
 
     public function test_settling_account_keeps_history_invoice_and_account_access_without_dead_navigation(): void
@@ -84,6 +125,111 @@ class TenantPortalManagementTest extends TestCase
         $this->actingAs($client)->get('/client/room')->assertRedirect('/client/invoices');
         $this->actingAs($client)->get('/client/utilities')->assertRedirect('/client/invoices');
         $this->actingAs($client)->get('/client/support')->assertSuccessful();
+    }
+
+    public function test_client_can_view_only_their_own_temporary_residence_evidence_from_account(): void
+    {
+        [$client, $tenant, $contract] = $this->createClientContext('RESIDENCE');
+        [, $otherTenant, $otherContract] = $this->createClientContext('OTHERRESIDENCE');
+
+        $member = ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $tenant->id,
+            'role' => ContractTenant::ROLE_REPRESENTATIVE,
+            'full_name' => $tenant->full_name,
+            'date_of_birth' => $tenant->date_of_birth,
+            'identity_number' => $tenant->cccd,
+            'phone' => $tenant->phone,
+            'status' => ContractTenant::STATUS_CHECKED_IN,
+            'actual_move_in_at' => '2026-01-01 09:00:00',
+        ]);
+        $otherMember = ContractTenant::create([
+            'contract_id' => $otherContract->id,
+            'tenant_id' => $otherTenant->id,
+            'role' => ContractTenant::ROLE_REPRESENTATIVE,
+            'full_name' => $otherTenant->full_name,
+            'date_of_birth' => $otherTenant->date_of_birth,
+            'identity_number' => $otherTenant->cccd,
+            'phone' => $otherTenant->phone,
+            'status' => ContractTenant::STATUS_CHECKED_IN,
+            'actual_move_in_at' => '2026-01-01 09:00:00',
+        ]);
+
+        Storage::disk('local')->put('temporary-residences/own.pdf', 'own residence');
+        Storage::disk('local')->put('temporary-residences/own.jpg', 'own residence image');
+        Storage::disk('local')->put('temporary-residences/other.pdf', 'other residence');
+
+        $residence = TemporaryResidence::create([
+            'tenant_id' => $tenant->id,
+            'contract_id' => $contract->id,
+            'contract_tenant_id' => $member->id,
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-12-31',
+            'reference_number' => 'TT-OWN-001',
+            'status' => 'active',
+            'evidence_path' => 'temporary-residences/own.pdf',
+            'evidence_original_name' => 'giay-tam-tru.pdf',
+            'evidence_mime_type' => 'application/pdf',
+        ]);
+        $otherResidence = TemporaryResidence::create([
+            'tenant_id' => $otherTenant->id,
+            'contract_id' => $otherContract->id,
+            'contract_tenant_id' => $otherMember->id,
+            'start_date' => '2026-01-01',
+            'status' => 'active',
+            'evidence_path' => 'temporary-residences/other.pdf',
+            'evidence_original_name' => 'private.pdf',
+            'evidence_mime_type' => 'application/pdf',
+        ]);
+        $imageResidence = TemporaryResidence::create([
+            'tenant_id' => $tenant->id,
+            'contract_id' => $contract->id,
+            'contract_tenant_id' => $member->id,
+            'start_date' => '2025-01-01',
+            'end_date' => '2025-12-31',
+            'reference_number' => 'TT-IMAGE-001',
+            'status' => 'expired',
+            'evidence_path' => 'temporary-residences/own.jpg',
+            'evidence_original_name' => 'giay-tam-tru.jpg',
+            'evidence_mime_type' => 'image/jpeg',
+        ]);
+
+        $this->actingAs($client)->get(route('client.account.edit'))
+            ->assertSuccessful()
+            ->assertSee('Giấy tạm trú của tôi')
+            ->assertSee('TT-OWN-001')
+            ->assertSee('data-media-type="pdf"', false)
+            ->assertSee('data-media-type="image"', false)
+            ->assertSee('data-image-modal-document', false)
+            ->assertDontSee('target="_blank"', false)
+            ->assertSee(route('client.account.temporary-residences.evidence', $residence))
+            ->assertDontSee('private.pdf');
+
+        $this->get(route('client.account.temporary-residences.evidence', $residence))
+            ->assertSuccessful()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->get(route('client.account.temporary-residences.evidence', $imageResidence))
+            ->assertSuccessful()
+            ->assertHeader('content-type', 'image/jpeg');
+        $this->get(route('client.account.temporary-residences.evidence', $otherResidence))
+            ->assertNotFound();
+
+        $this->get(route('client.room.members.index'))
+            ->assertSuccessful()
+            ->assertSee('Bạn');
+        $this->get(route('client.room.members.show', $member))
+            ->assertSuccessful()
+            ->assertSee('Giấy tạm trú')
+            ->assertSee('TT-OWN-001')
+            ->assertSee('data-media-type="pdf"', false)
+            ->assertSee('data-media-type="image"', false)
+            ->assertDontSee('target="_blank"', false)
+            ->assertSee(route('client.room.members.temporary-residences.evidence', [$member, $residence]));
+        $this->get(route('client.room.members.temporary-residences.evidence', [$member, $residence]))
+            ->assertSuccessful()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->get(route('client.room.members.temporary-residences.evidence', [$member, $otherResidence]))
+            ->assertNotFound();
     }
 
     public function test_support_menu_links_to_requests_and_public_landlord_information(): void

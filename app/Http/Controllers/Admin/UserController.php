@@ -350,21 +350,9 @@ class UserController extends Controller
             ->exists();
 
         $hasSettlement = $tenant->contracts()->where('status', Contract::STATUS_SETTLING)->exists();
-        $hasRentalHistory = $tenant->contracts()
-            ->where(function ($query): void {
-                $query->whereNotNull('actual_move_in_at')
-                    ->orWhereIn('status', [Contract::STATUS_SETTLING, Contract::STATUS_COMPLETED]);
-            })
-            ->exists()
-            || $tenant->memberContracts()
-                ->wherePivotIn('status', [
-                    ContractTenant::STATUS_CHECKED_IN,
-                    ContractTenant::STATUS_MOVED_OUT,
-                ])->exists();
-
         return $hasOutstandingInvoice || $hasSettlement
             ? User::STATUS_SETTLING
-            : ($hasRentalHistory ? User::STATUS_FORMER : User::STATUS_ACTIVE);
+            : User::STATUS_ACTIVE;
     }
 
     private function throwEmailConflictOrRethrow(QueryException $exception): never

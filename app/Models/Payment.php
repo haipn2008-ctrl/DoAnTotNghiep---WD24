@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Payment extends Model
 {
@@ -104,5 +105,11 @@ class Payment extends Model
     public function isQr()
     {
         return $this->payment_method === self::METHOD_QR;
+    }
+
+    public function proofImageExists(): bool
+    {
+        return filled($this->proof_image)
+            && Storage::disk('local')->exists($this->proof_image);
     }
 }

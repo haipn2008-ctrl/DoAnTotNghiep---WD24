@@ -45,7 +45,7 @@
                         <option value="pending_deposit" @selected(request('status') === 'pending_deposit')>Chờ tiền cọc</option>
                         <option value="awaiting_move_in" @selected(request('status') === 'awaiting_move_in')>Chờ nhận phòng</option>
                         <option value="active" @selected(request('status') === 'active')>Đang thuê</option>
-                        <option value="expired" @selected(request('status') === 'expired')>Quá hạn vẫn ở</option>
+                        <option value="expired" @selected(request('status') === 'expired')>Hết hạn - chờ xử lý</option>
                         <option value="settling" @selected(request('status') === 'settling')>Đang quyết toán</option>
                         <option value="completed" @selected(request('status') === 'completed')>Hoàn tất</option>
                         <option value="cancelled" @selected(request('status') === 'cancelled')>Đã hủy</option>

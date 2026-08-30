@@ -106,6 +106,65 @@ class VehicleManagementTest extends TestCase
         $this->assertDatabaseCount('vehicles', 0);
     }
 
+    public function test_admin_vehicle_registry_lists_filters_and_searches_current_vehicles(): void
+    {
+        $approved = $this->tenant->vehicles()->create($this->payload() + [
+            'status' => Vehicle::STATUS_APPROVED,
+            'reviewed_by' => $this->admin->id,
+            'reviewed_at' => now(),
+        ]);
+        $pending = $this->tenant->vehicles()->create($this->payload([
+            'vehicle_name' => 'Yamaha Grande',
+            'license_plate' => '30Z-98765',
+        ]) + ['status' => Vehicle::STATUS_PENDING]);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.vehicles.index'));
+        $response->assertOk()
+            ->assertSee('Danh sách phương tiện')
+            ->assertSee('30A-12345')
+            ->assertSee('30Z-98765')
+            ->assertSee('Phòng XE-1')
+            ->assertSee(route('admin.vehicles.review', $pending), false);
+
+        $this->get(route('admin.vehicles.index', ['status' => 'approved']))
+            ->assertOk()
+            ->assertSee('30A-12345')
+            ->assertDontSee('30Z-98765');
+
+        $this->get(route('admin.vehicles.index', ['search' => '30Z-98765']))
+            ->assertOk()
+            ->assertSee('30Z-98765')
+            ->assertDontSee('30A-12345');
+    }
+
+    public function test_client_cannot_access_admin_vehicle_registry(): void
+    {
+        $this->actingAs($this->client)
+            ->get(route('admin.vehicles.index'))
+            ->assertForbidden();
+    }
+
+    public function test_room_detail_shows_only_approved_vehicles_of_current_residents(): void
+    {
+        $approved = $this->tenant->vehicles()->create($this->payload() + [
+            'status' => Vehicle::STATUS_APPROVED,
+            'reviewed_by' => $this->admin->id,
+            'reviewed_at' => now(),
+        ]);
+        $this->tenant->vehicles()->create($this->payload([
+            'vehicle_name' => 'Xe chưa duyệt',
+            'license_plate' => '30P-00001',
+        ]) + ['status' => Vehicle::STATUS_PENDING]);
+        $room = Contract::query()->where('tenant_id', $this->tenant->id)->firstOrFail()->room;
+
+        $this->actingAs($this->admin)->get(route('admin.rooms.show', $room))
+            ->assertOk()
+            ->assertSee('Phương tiện đang gửi')
+            ->assertSee($approved->license_plate)
+            ->assertDontSee('30P-00001')
+            ->assertSee(route('admin.vehicles.index', ['status' => 'approved', 'room_id' => $room->id]));
+    }
+
     public function test_client_editing_approved_vehicle_sends_it_back_to_pending(): void
     {
         $vehicle = $this->tenant->vehicles()->create($this->payload() + ['status' => Vehicle::STATUS_APPROVED, 'reviewed_by' => $this->admin->id, 'reviewed_at' => now()]);
@@ -222,7 +281,7 @@ class VehicleManagementTest extends TestCase
         $this->assertSame($this->tenant->id, $removedAlert->tenant_id);
         $this->assertNull($removedAlert->resolved_at);
         $this->actingAs($this->admin)->get(route('admin.notifications.open', $removedAlert))
-            ->assertRedirect(route('admin.tenants.show', $this->tenant));
+            ->assertRedirect(route('admin.vehicles.index', ['status' => 'removed']).'#vehicle-'.$vehicle->id);
         $this->assertNotNull($removedAlert->fresh()->resolved_at);
     }
 

@@ -78,9 +78,9 @@
                                 </td>
                                 <td class="px-5 py-4">
                                     <div class="flex justify-end">
-                                        <a href="{{ route('admin.contracts.end.form', $contract->id) }}" class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">
-                                            <i class="bx bx-x-circle text-lg"></i>
-                                            Kết thúc
+                                        <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+                                            <i class="bx bx-list-check text-lg"></i>
+                                            Mở quy trình
                                         </a>
                                     </div>
                                 </td>

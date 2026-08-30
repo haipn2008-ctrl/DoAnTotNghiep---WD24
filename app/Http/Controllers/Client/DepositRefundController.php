@@ -4,12 +4,16 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
-use App\Services\ContractHistoryService;
 use App\Services\AdminNotificationService;
+use App\Services\ClientNotificationService;
+use App\Services\ContractHistoryService;
+use App\Services\DepositRefundReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class DepositRefundController extends Controller
 {
@@ -71,14 +75,15 @@ class DepositRefundController extends Controller
         }
 
         $validated = $request->validate([
-            'bank_name' => 'required|string|max:100',
+            'bank_name' => ['required', 'string', 'max:100', Rule::in($this->paymentProviderNames())],
             'bank_account_number' => 'required|string|max:50',
             'bank_account_name' => 'required|string|max:150',
             'qr_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'note' => 'nullable|string|max:1000',
         ], [
-            'bank_name.required' => 'Vui lòng nhập tên ngân hàng.',
-            'bank_account_number.required' => 'Vui lòng nhập số tài khoản.',
+            'bank_name.required' => 'Vui lòng chọn ngân hàng hoặc ví điện tử.',
+            'bank_name.in' => 'Ngân hàng hoặc ví điện tử đã chọn không hợp lệ.',
+            'bank_account_number.required' => 'Vui lòng nhập số tài khoản hoặc số điện thoại ví.',
             'bank_account_name.required' => 'Vui lòng nhập tên chủ tài khoản.',
             'qr_image.image' => 'Ảnh QR không hợp lệ.',
         ]);
@@ -132,6 +137,128 @@ class DepositRefundController extends Controller
             ->with('success', 'Đã gửi yêu cầu hoàn cọc. Vui lòng chờ Admin xử lý.');
     }
 
+    public function update(Request $request, Contract $contract)
+    {
+        $user = $request->user();
+        abort_unless($contract->isManagedBy($user), 403, 'Bạn không có quyền sửa thông tin hoàn cọc này.');
+
+        if (! $contract->isRefundRequested()) {
+            return back()->with('error', 'Chỉ được sửa thông tin nhận tiền khi yêu cầu còn chờ Admin duyệt.');
+        }
+
+        $validated = $request->validate([
+            'bank_name' => ['required', 'string', 'max:100', Rule::in($this->paymentProviderNames())],
+            'bank_account_number' => ['required', 'string', 'max:50'],
+            'bank_account_name' => ['required', 'string', 'max:150'],
+            'qr_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'bank_name.required' => 'Vui lòng chọn ngân hàng hoặc ví điện tử.',
+            'bank_name.in' => 'Ngân hàng hoặc ví điện tử đã chọn không hợp lệ.',
+            'bank_account_number.required' => 'Vui lòng nhập số tài khoản hoặc số điện thoại ví.',
+            'bank_account_name.required' => 'Vui lòng nhập tên chủ tài khoản.',
+            'qr_image.image' => 'Ảnh QR không hợp lệ.',
+        ]);
+
+        $newQrPath = $request->hasFile('qr_image')
+            ? $request->file('qr_image')->store('deposit-refunds/qr', 'public')
+            : null;
+        $oldQrPath = null;
+
+        try {
+            $contract = DB::transaction(function () use ($contract, $validated, $newQrPath, &$oldQrPath): Contract {
+                $lockedContract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+                if (! $lockedContract->isRefundRequested()) {
+                    throw ValidationException::withMessages([
+                        'refund' => 'Admin đã bắt đầu xử lý; thông tin nhận tiền không thể thay đổi nữa.',
+                    ]);
+                }
+
+                $oldData = [
+                    'bank_name' => $lockedContract->deposit_bank_name,
+                    'bank_account_number' => $lockedContract->deposit_bank_account_number,
+                    'bank_account_name' => $lockedContract->deposit_bank_account_name,
+                    'deposit_process_note' => $lockedContract->deposit_process_note,
+                    'deposit_qr_image' => $lockedContract->deposit_qr_image,
+                ];
+                $oldQrPath = $lockedContract->deposit_qr_image;
+                $qrPath = $newQrPath ?: $oldQrPath;
+
+                $lockedContract->forceFill([
+                    'deposit_bank_name' => $validated['bank_name'],
+                    'deposit_bank_account_number' => trim($validated['bank_account_number']),
+                    'deposit_bank_account_name' => mb_strtoupper(trim($validated['bank_account_name'])),
+                    'deposit_qr_image' => $qrPath,
+                    'deposit_process_note' => $validated['note'] ?? null,
+                ])->save();
+
+                ContractHistoryService::log(
+                    $lockedContract,
+                    'deposit_receiving_account_updated',
+                    'Khách thuê chỉnh sửa thông tin nhận tiền hoàn cọc.',
+                    $validated['note'] ?? null,
+                    $oldData,
+                    [
+                        'bank_name' => $lockedContract->deposit_bank_name,
+                        'bank_account_number' => $lockedContract->deposit_bank_account_number,
+                        'bank_account_name' => $lockedContract->deposit_bank_account_name,
+                        'deposit_process_note' => $lockedContract->deposit_process_note,
+                        'deposit_qr_image' => $lockedContract->deposit_qr_image,
+                    ],
+                );
+
+                return $lockedContract;
+            }, 3);
+        } catch (\Throwable $exception) {
+            if ($newQrPath) {
+                Storage::disk('public')->delete($newQrPath);
+            }
+
+            throw $exception;
+        }
+
+        if ($newQrPath && $oldQrPath && $oldQrPath !== $newQrPath) {
+            Storage::disk('public')->delete($oldQrPath);
+        }
+
+        app(AdminNotificationService::class)->depositRefundRequested($contract->fresh());
+
+        return back()->with('success', 'Đã cập nhật thông tin nhận tiền. Admin sẽ sử dụng thông tin mới nhất.');
+    }
+
+    public function confirmReceipt(
+        Request $request,
+        Contract $contract,
+        DepositRefundReceiptService $receiptService,
+    ) {
+        $user = $request->user();
+
+        abort_unless($contract->isManagedBy($user), 403, 'Bạn không có quyền xác nhận khoản hoàn cọc này.');
+
+        $request->validate([
+            'confirm_received' => ['accepted'],
+        ], [
+            'confirm_received.accepted' => 'Vui lòng xác nhận bạn đã kiểm tra và nhận đủ tiền hoàn cọc.',
+        ]);
+
+        $contract = $receiptService->confirm(
+            $contract,
+            DepositRefundReceiptService::SOURCE_TENANT,
+            $user,
+        );
+
+        if ($contract->deposit_receipt_confirmation_source === DepositRefundReceiptService::SOURCE_TENANT) {
+            app(ClientNotificationService::class)->contract(
+                $contract,
+                'deposit_refund_receipt_confirmed',
+                'Đã xác nhận nhận đủ tiền hoàn cọc',
+                'Bạn đã xác nhận nhận đủ '.number_format((float) $contract->deposit_transfer_amount, 0, ',', '.').' VNĐ tiền hoàn cọc.'
+            );
+        }
+
+        return back()->with('success', 'Đã xác nhận bạn nhận đủ tiền hoàn cọc.');
+    }
+
     /**
      * Hiển thị bằng chứng Admin đã chuyển tiền hoàn cọc.
      * Chỉ chủ hợp đồng mới được xem file này.
@@ -172,5 +299,10 @@ class DepositRefundController extends Controller
         );
 
         return response()->file(Storage::disk('public')->path($contract->deposit_qr_image));
+    }
+
+    private function paymentProviderNames(): array
+    {
+        return collect(config('vietnam-payment-providers', []))->flatten()->values()->all();
     }
 }

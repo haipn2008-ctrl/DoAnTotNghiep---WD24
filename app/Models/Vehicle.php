@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Vehicle extends Model
 {
@@ -86,5 +87,11 @@ class Vehicle extends Model
     public function getDisplayLicensePlateAttribute(): ?string
     {
         return $this->license_plate ?: $this->archived_license_plate;
+    }
+
+    public function imageExists(): bool
+    {
+        return filled($this->vehicle_image)
+            && Storage::disk('local')->exists($this->vehicle_image);
     }
 }

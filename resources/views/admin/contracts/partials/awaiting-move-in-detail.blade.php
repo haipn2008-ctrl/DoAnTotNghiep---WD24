@@ -1,8 +1,9 @@
 @php
     $representative = $contract->currentMembers->firstWhere('role', \App\Models\ContractTenant::ROLE_REPRESENTATIVE);
     $pendingMembers = $contract->currentMembers->where('status', \App\Models\ContractTenant::STATUS_PENDING);
+    $incompleteMoveInMembers = $contract->currentMembers->filter(fn ($member) => ! $member->hasCompleteMoveInProfile());
     $clientConfirmed = filled($contract->move_in_details_confirmed_at) && filled($contract->move_in_inventory_snapshotted_at) && filled($handoverReading);
-    $canCheckIn = $clientConfirmed && $pendingMembers->isEmpty();
+    $canCheckIn = $clientConfirmed && $pendingMembers->isEmpty() && $incompleteMoveInMembers->isEmpty();
     $requiresVarianceReason = ! $contract->scheduled_move_in_date?->isSameDay(now());
     $minimumExtension = now()->addMinute();
     if ($contract->reservation_expires_at && $contract->reservation_expires_at->gte($minimumExtension)) {
@@ -10,6 +11,17 @@
     }
     $maximumExtension = $contract->start_date?->copy()->addMonthNoOverflow()->endOfDay();
 @endphp
+
+@if($incompleteMoveInMembers->isNotEmpty())
+    <div class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        <p class="font-bold">Chưa thể bàn giao phòng: hồ sơ người thuê chưa đầy đủ.</p>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+            @foreach($incompleteMoveInMembers as $member)
+                <li><strong>{{ $member->full_name }}</strong>: thiếu {{ implode(', ', $member->missingMoveInProfileFields()) }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
 
 <div class="grid overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm sm:grid-cols-2 lg:grid-cols-4">
     <div class="border-b border-slate-100 px-4 py-3 sm:border-r lg:border-b-0">
