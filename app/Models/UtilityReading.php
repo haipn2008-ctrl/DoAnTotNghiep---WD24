@@ -7,6 +7,15 @@ use Illuminate\Support\Facades\Storage;
 
 class UtilityReading extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (self $reading): void {
+            if ($reading->status !== self::STATUS_DRAFT || $reading->invoices()->exists()) {
+                throw new \LogicException('Chỉ được xóa chỉ số điện nước bản nháp chưa lập hóa đơn.');
+            }
+        });
+    }
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_CONFIRMED = 'confirmed';

@@ -4,22 +4,27 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Rules\AdultDateOfBirth;
+use App\Services\TenantIdentityDocumentService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AccountController extends Controller
 {
+    public function __construct(private readonly TenantIdentityDocumentService $identityDocuments) {}
+
     public function edit(Request $request): View
     {
         return view('client.account.edit', [
-            'user' => $request->user()->load('tenant'),
+            'user' => $request->user()->load('tenant.document'),
         ]);
     }
 
@@ -46,10 +51,22 @@ class AccountController extends Controller
                 Rule::unique('tenants', 'phone')->ignore($tenant->id),
             ],
             'address' => ['required', 'string', 'max:500'],
+            'identity_front' => ['nullable', 'required_with:identity_back', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'identity_back' => ['nullable', 'required_with:identity_front', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ], [
+            'identity_front.required_with' => 'Vui lòng tải đủ ảnh mặt trước CCCD.',
+            'identity_back.required_with' => 'Vui lòng tải đủ ảnh mặt sau CCCD.',
+            'identity_front.image' => 'Mặt trước CCCD phải là tệp ảnh.',
+            'identity_back.image' => 'Mặt sau CCCD phải là tệp ảnh.',
+            'identity_front.mimes' => 'Ảnh CCCD chỉ chấp nhận JPG, PNG hoặc WEBP.',
+            'identity_back.mimes' => 'Ảnh CCCD chỉ chấp nhận JPG, PNG hoặc WEBP.',
+            'identity_front.max' => 'Ảnh CCCD không được lớn hơn 5 MB.',
+            'identity_back.max' => 'Ảnh CCCD không được lớn hơn 5 MB.',
         ]);
 
+        $storedPaths = [];
         try {
-            DB::transaction(function () use ($user, $data) {
+            DB::transaction(function () use ($user, $data, &$storedPaths): void {
                 $lockedUser = $user->newQuery()->lockForUpdate()->findOrFail($user->id);
                 $tenant = $lockedUser->tenant()->lockForUpdate()->first();
                 $lockedUser->update([
@@ -68,17 +85,39 @@ class AccountController extends Controller
                     'phone' => $data['phone'],
                     'address' => $data['address'],
                 ]);
+                if ($tenant) {
+                    isset($data['identity_front'], $data['identity_back'])
+                        ? $this->identityDocuments->storePair($tenant->fresh(), $data['identity_front'], $data['identity_back'], $storedPaths)
+                        : $this->identityDocuments->syncMetadata($tenant->fresh());
+                }
             });
         } catch (QueryException $exception) {
+            Storage::disk('local')->delete($storedPaths);
             report($exception);
 
             throw ValidationException::withMessages([
                 'email' => 'Email hoặc số điện thoại đã được sử dụng.',
                 'phone' => 'Email hoặc số điện thoại đã được sử dụng.',
             ]);
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($storedPaths);
+            throw $exception;
         }
 
         return back()->with('success', 'Đã cập nhật hồ sơ cá nhân và thông tin tài khoản.');
+    }
+
+    public function identityDocument(Request $request, string $side): StreamedResponse
+    {
+        abort_unless(in_array($side, ['front', 'back'], true), 404);
+        $document = $request->user()->tenant?->document;
+        $path = $document?->imagePath($side);
+        abort_unless($path && $document->hasImage($side), 404);
+
+        return Storage::disk('local')->response($path, null, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function updatePassword(Request $request): RedirectResponse

@@ -7,6 +7,7 @@ use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\InvoiceAdjustment;
 use App\Models\Payment;
+use App\Models\Setting;
 use App\Models\UtilityReading;
 use App\Services\AdminNotificationService;
 use App\Services\ClientNotificationService;
@@ -234,6 +235,12 @@ class InvoiceController extends Controller
             ->pluck('contract_id')
             ->toArray();
 
+        $setting = Setting::currentOrCreate();
+        $scheduledInvoiceDate = $periodStart->copy()->day(
+            max(1, min((int) $setting->invoice_day, $periodStart->daysInMonth))
+        );
+        $canIssue = ! today()->lt($scheduledInvoiceDate->copy()->startOfDay());
+
         return view(
             'admin.invoices.generate',
             compact(
@@ -241,7 +248,9 @@ class InvoiceController extends Controller
                 'month',
                 'year',
                 'years',
-                'issuedContractIds'
+                'issuedContractIds',
+                'scheduledInvoiceDate',
+                'canIssue'
             )
         );
     }
@@ -584,19 +593,6 @@ class InvoiceController extends Controller
         return redirect()
             ->route('admin.invoices.show', $invoice)
             ->with('success', 'Đã tạo phiếu điều chỉnh và cập nhật số tiền phải thu.');
-    }
-
-    /**
-     * Hóa đơn đã phát hành là dữ liệu bất biến và không còn hỗ trợ xóa cứng.
-     */
-    public function destroy(Invoice $invoice)
-    {
-        return redirect()
-            ->route('admin.invoices.show', $invoice)
-            ->with(
-                'error',
-                'Không thể xóa hóa đơn đã phát hành. Hãy hủy hóa đơn hoặc tạo phiếu điều chỉnh.'
-            );
     }
 
     /**

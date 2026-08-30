@@ -7,6 +7,7 @@ use App\Models\Contract;
 use App\Models\ContractExtensionRequest;
 use App\Models\ContractLifecycleAlert;
 use App\Models\ContractStatusHistory;
+use App\Models\ContractTemplate;
 use App\Models\ContractTenant;
 use App\Models\Invoice;
 use App\Models\Payment;
@@ -295,6 +296,7 @@ class ContractManagementTest extends TestCase
             ->assertSee('action="'.route('admin.contracts.return-to-draft', $contract).'"', false)
             ->assertDontSee('Trả lại bản nháp')
             ->assertSee('In hợp đồng')
+            ->assertSee('data-contract-print', false)
             ->assertSeeInOrder(['Bản nháp', 'Chờ ký'])
             ->assertSee('Tạo bản nháp')
             ->assertSee('Gửi chờ ký')
@@ -543,13 +545,33 @@ class ContractManagementTest extends TestCase
         $this->lifecycle->submitForSignature($contract, $this->admin);
         $this->lifecycle->markAsSigned($contract, $this->admin, now());
         $this->payDeposit($contract);
-        $this->lifecycle->saveHandoverDraft($contract, $this->admin, 135, 24);
+        $this->actingAs($this->admin)->post(route('admin.contracts.handover-reading.store', $contract), [
+            'handover_electricity' => 135,
+            'handover_water' => 24,
+        ])->assertSessionHasErrors(['handover_electricity_image', 'handover_water_image']);
+        $this->assertDatabaseMissing('utility_readings', [
+            'contract_id' => $contract->id,
+            'reading_type' => 'handover',
+        ]);
+        $this->actingAs($this->admin)->post(route('admin.contracts.handover-reading.store', $contract), [
+            'handover_electricity' => 135,
+            'handover_water' => 24,
+            'handover_electricity_image' => UploadedFile::fake()->image('electricity-meter.jpg'),
+            'handover_water_image' => UploadedFile::fake()->image('water-meter.jpg'),
+        ])->assertSessionHasNoErrors();
+        $handoverReading = $contract->utilityReadings()->where('reading_type', 'handover')->sole();
+        Storage::disk('local')->assertExists([
+            $handoverReading->electricity_image,
+            $handoverReading->water_image,
+        ]);
 
         $this->actingAs($tenant->user)->get(route('client.contracts.show', $contract))
             ->assertOk()
             ->assertSee('Xác nhận thông tin nhận phòng')
-            ->assertSee('Tôi đã kiểm tra chỉ số điện')
+            ->assertSee('Tôi đã đối chiếu ảnh đồng hồ với chỉ số điện')
             ->assertSee('135 kWh')
+            ->assertSee(route('client.contracts.handover-meter-image', [$contract, 'electricity']), false)
+            ->assertSee(route('client.contracts.handover-meter-image', [$contract, 'water']), false)
             ->assertSee('24 m³')
             ->assertSee('Xác nhận thông tin')
             ->assertSee('action="'.route('client.contracts.move-in-details.confirm', $contract).'"', false)
@@ -568,11 +590,16 @@ class ContractManagementTest extends TestCase
         $this->actingAs($otherTenant->user)->post(route('client.contracts.move-in-details.confirm', $contract), [
             'confirmation' => 1,
         ])->assertNotFound();
+        $this->get(route('client.contracts.handover-meter-image', [$contract, 'electricity']))
+            ->assertNotFound();
         $this->assertNull($contract->fresh()->move_in_details_confirmed_at);
 
         $this->actingAs($tenant->user)->post(route('client.contracts.move-in-details.confirm', $contract), [
             'confirmation' => 1,
         ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->get(route('client.contracts.handover-meter-image', [$contract, 'electricity']))
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'max-age=0, no-store, private');
         $this->assertSame($tenant->user_id, $contract->fresh()->move_in_details_confirmed_by);
         $this->assertDatabaseHas('contract_status_histories', [
             'contract_id' => $contract->id, 'action' => 'confirm_move_in_details',
@@ -605,6 +632,8 @@ class ContractManagementTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.contracts.handover-reading.store', $contract), [
             'handover_electricity' => 999,
             'handover_water' => 99,
+            'handover_electricity_image' => UploadedFile::fake()->image('tampered-electricity.jpg'),
+            'handover_water_image' => UploadedFile::fake()->image('tampered-water.jpg'),
         ])->assertSessionHasErrors('handover_reading');
 
         $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload([
@@ -649,6 +678,8 @@ class ContractManagementTest extends TestCase
         $this->post(route('admin.contracts.handover-reading.store', $contract), [
             'handover_electricity' => 120,
             'handover_water' => 12,
+            'handover_electricity_image' => UploadedFile::fake()->image('electricity-updated.jpg'),
+            'handover_water_image' => UploadedFile::fake()->image('water-updated.jpg'),
         ])->assertSessionHasNoErrors();
         $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload())
             ->assertSessionHasErrors('move_in_details_confirmed');
@@ -919,6 +950,33 @@ class ContractManagementTest extends TestCase
         $this->get(route('admin.contracts.edit', $contract))->assertOk()->assertSee('value="18"', false);
     }
 
+    public function test_contract_automatically_uses_identity_images_from_tenant_profile(): void
+    {
+        $room = $this->room('PROFILE-IDENTITY');
+        $tenant = $this->tenant('profile-identity');
+        Storage::disk('local')->put('tenant-identities/front.jpg', 'front-image');
+        Storage::disk('local')->put('tenant-identities/back.jpg', 'back-image');
+        $tenant->document()->create([
+            'cccd' => $tenant->cccd,
+            'cccd_issue_date' => $tenant->cccd_issue_date,
+            'cccd_issue_place' => $tenant->cccd_issue_place,
+            'cccd_front_image' => 'tenant-identities/front.jpg',
+            'cccd_back_image' => 'tenant-identities/back.jpg',
+        ]);
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.create'))
+            ->assertOk()
+            ->assertSee(route('admin.tenants.identity-document', [$tenant, 'front']));
+
+        $payload = $this->payload($room, $tenant);
+        unset($payload['representative']['identity_front'], $payload['representative']['identity_back']);
+        $this->post(route('admin.contracts.store'), $payload)->assertSessionHasNoErrors();
+
+        $representative = Contract::sole()->representativeMember;
+        $this->assertSame('tenant-identities/front.jpg', $representative->identity_front_path);
+        $this->assertSame('tenant-identities/back.jpg', $representative->identity_back_path);
+    }
+
     public function test_representative_always_occupies_a_slot_and_two_identity_sides_are_private(): void
     {
         $room = $this->room('RENT-FOR-OTHER');
@@ -940,6 +998,10 @@ class ContractManagementTest extends TestCase
         $this->assertSame(ContractTenant::STATUS_APPROVED, $representative->status);
         $this->assertSame(ContractTenant::STATUS_APPROVED, $resident->status);
         Storage::disk('local')->assertExists([$representative->identity_front_path, $representative->identity_back_path]);
+        $profileDocument = $tenant->fresh()->document;
+        $this->assertSame($representative->identity_front_path, $profileDocument->cccd_front_image);
+        $this->assertSame($representative->identity_back_path, $profileDocument->cccd_back_image);
+        $this->actingAs($tenant->user)->get(route('client.account.identity-document', 'front'))->assertOk();
 
         $this->actingAs($tenant->user)->get(route('admin.contract-tenants.identity-document', [$representative, 'front']))
             ->assertForbidden();
@@ -1111,7 +1173,8 @@ class ContractManagementTest extends TestCase
     public function test_client_cannot_request_another_member_when_room_is_already_full(): void
     {
         $contract = $this->active([], 'full-room-member-request');
-        $contract->room->forceFill(['max_people' => 2, 'current_people' => 2])->save();
+        $contract->forceFill(['number_of_people' => 2])->save();
+        $contract->room->forceFill(['max_people' => 2, 'current_people' => 1])->save();
         $client = $contract->tenant->user;
         $memberCount = ContractTenant::query()->count();
         $tenantCount = Tenant::query()->count();
@@ -1133,6 +1196,33 @@ class ContractManagementTest extends TestCase
 
         $this->assertDatabaseCount('contract_tenants', $memberCount);
         $this->assertDatabaseCount('tenants', $tenantCount);
+    }
+
+    public function test_pending_member_request_reserves_the_last_room_slot(): void
+    {
+        $contract = $this->active([], 'pending-reserves-last-slot');
+        $contract->room->forceFill(['max_people' => 2, 'current_people' => 1])->save();
+        $client = $contract->tenant->user;
+
+        $this->actingAs($client)->post(route('client.contracts.members.store', $contract), [
+            'full_name' => 'Người giữ slot cuối',
+            'identity_number' => '012345678913',
+            ...$this->memberIdentityImages('pending-last-slot'),
+        ])->assertSessionHasNoErrors();
+
+        $this->get(route('client.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee('2/2')
+            ->assertDontSee('+ Thêm người thuê');
+        $this->get(route('client.contracts.tenants.create', $contract))->assertStatus(409);
+
+        $this->post(route('client.contracts.members.store', $contract), [
+            'full_name' => 'Người vượt slot',
+            'identity_number' => '012345678914',
+            ...$this->memberIdentityImages('over-pending-slot'),
+        ])->assertSessionHasErrors('members');
+
+        $this->assertSame(1, ContractTenant::query()->where('status', ContractTenant::STATUS_PENDING)->count());
     }
 
     public function test_member_account_cannot_manage_the_representatives_contract(): void
@@ -1328,7 +1418,7 @@ class ContractManagementTest extends TestCase
         $this->lifecycle->submitForSignature($normal, $this->admin);
         $this->lifecycle->markAsSigned($normal, $this->admin, now());
         $this->assertSame(
-            now()->addDays(10)->toDateTimeString(),
+            now()->addDays(5)->toDateTimeString(),
             $normal->fresh()->deposit_due_at->toDateTimeString()
         );
 
@@ -1380,6 +1470,10 @@ class ContractManagementTest extends TestCase
         $pendingPayment = Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_PENDING]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
+        $this->actingAs($this->admin)
+            ->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertDontSee('Thanh toán chờ xác nhận');
         Payment::query()->forceCreate(['invoice_id' => $depositInvoice->id, 'amount_paid' => 500000, 'payment_date' => today(), 'payment_method' => 'cash', 'status' => Payment::STATUS_FAILED]);
         $this->lifecycle->syncDepositState($contract, $this->admin);
         $this->assertSame(Contract::STATUS_PENDING_DEPOSIT, $contract->fresh()->status);
@@ -1498,6 +1592,8 @@ class ContractManagementTest extends TestCase
         $this->post(route('admin.contracts.handover-reading.store', $contract), [
             'handover_electricity' => 321,
             'handover_water' => 45,
+            'handover_electricity_image' => UploadedFile::fake()->image('electricity-baseline.jpg'),
+            'handover_water_image' => UploadedFile::fake()->image('water-baseline.jpg'),
         ])->assertSessionHasNoErrors();
         $this->lifecycle->confirmMoveInDetails($contract, $contract->tenant->user);
         $this->post(route('admin.contracts.check-in', $contract), $this->checkInPayload([
@@ -1893,7 +1989,7 @@ class ContractManagementTest extends TestCase
             'internet_fee' => 100000,
             'service_fee' => 50000,
         ]);
-        $this->actingAs($this->admin)->get(route('admin.contracts.template'))
+        $this->actingAs($this->admin)->get(route('admin.contracts.template.print'))
             ->assertOk()
             ->assertSee('HỢP ĐỒNG THUÊ PHÒNG TRỌ')
             ->assertSee('100.000đ/phòng/tháng')
@@ -1919,6 +2015,78 @@ class ContractManagementTest extends TestCase
         $this->sign($contract);
         $this->get(route('admin.contracts.print', $contract))->assertOk()
             ->assertDontSee('BẢN DỰ THẢO – CHƯA CÓ HIỆU LỰC')->assertSee('11/08/2026');
+    }
+
+    public function test_publishing_contract_template_creates_a_new_version_without_overwriting_the_old_one(): void
+    {
+        $current = ContractTemplate::activeOrCreate();
+        $clauses = ContractTemplate::DEFAULT_CLAUSES;
+        $clauses['early_termination'] = 'Điều khoản chính sách mới chỉ áp dụng cho hợp đồng phát hành sau thời điểm này.';
+
+        $this->actingAs($this->admin)->post(route('admin.contracts.template.store'), [
+            'name' => 'Mẫu chính sách mới',
+            'clauses' => $clauses,
+        ])->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertFalse($current->fresh()->is_active);
+        $this->assertDatabaseHas('contract_templates', [
+            'version' => $current->version + 1,
+            'name' => 'Mẫu chính sách mới',
+            'is_active' => true,
+        ]);
+
+        $newTemplate = ContractTemplate::query()->where('is_active', true)->sole();
+        $this->get(route('admin.contracts.template'))
+            ->assertOk()
+            ->assertSee('Lịch sử phiên bản')
+            ->assertSee('href="'.route('admin.contracts.template.show', $newTemplate).'"', false)
+            ->assertDontSee('name="clauses[early_termination]"', false)
+            ->assertDontSee('Xem trước mẫu hiện hành')
+            ->assertDontSee('Nguyên tắc an toàn');
+        $this->get(route('admin.contracts.template.show', $current))
+            ->assertOk()
+            ->assertSee('Phiên bản '.$current->version)
+            ->assertSee('id="template-editor" class="hidden', false)
+            ->assertSee('Sửa phiên bản này')
+            ->assertSee('template-mini-preview', false)
+            ->assertSee('name="clauses[early_termination]"', false)
+            ->assertSee('Lưu thành phiên bản mới');
+    }
+
+    public function test_signed_contract_document_is_snapshotted_and_immutable_across_template_versions(): void
+    {
+        $contract = $this->draft();
+        $this->lifecycle->submitForSignature($contract, $this->admin);
+        $lockedTemplateId = $contract->fresh()->contract_template_id;
+
+        $this->lifecycle->markAsSigned($contract, $this->admin, now());
+        $signed = $contract->fresh();
+        $originalContent = $signed->contract_content;
+        $originalHash = $signed->contract_content_sha256;
+
+        $this->assertNotNull($signed->contract_content_snapshotted_at);
+        $this->assertSame(hash('sha256', $originalContent), $originalHash);
+        $this->assertSame($lockedTemplateId, $signed->contract_template_id);
+
+        ContractTemplate::query()->where('is_active', true)->update(['is_active' => false]);
+        ContractTemplate::query()->create([
+            'name' => 'Mẫu tương lai',
+            'version' => ContractTemplate::query()->max('version') + 1,
+            'clauses' => array_replace(ContractTemplate::DEFAULT_CLAUSES, [
+                'early_termination' => 'Nội dung hoàn toàn mới không được xuất hiện trong hợp đồng đã ký.',
+            ]),
+            'is_active' => true,
+            'effective_from' => now(),
+        ]);
+
+        $this->actingAs($this->admin)->get(route('admin.contracts.print', $contract))->assertOk()
+            ->assertDontSee('Nội dung hoàn toàn mới không được xuất hiện trong hợp đồng đã ký.');
+        $this->assertSame($originalContent, $contract->fresh()->contract_content);
+        $this->assertSame($originalHash, $contract->fresh()->contract_content_sha256);
+
+        $this->expectException(\LogicException::class);
+        $signed->forceFill(['contract_content' => $originalContent.' bị sửa'])->save();
     }
 
     private function draft(float $deposit = 0, array $overrides = [], ?string $tenantKey = null): Contract

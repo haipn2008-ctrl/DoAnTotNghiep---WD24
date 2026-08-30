@@ -55,6 +55,7 @@ class ContractLifecycleAlert extends Model
             'termination_request' => 'Yêu cầu trả phòng',
             'deposit_refund_request' => 'Yêu cầu hoàn cọc',
             'payment_review' => 'Thanh toán chờ duyệt',
+            'payment_delay_request' => 'Lý do chậm thanh toán',
             'support_request' => 'Yêu cầu hỗ trợ',
             'member_review' => 'Người thuê chờ duyệt',
             'move_in_confirmation' => 'Sẵn sàng nhận phòng',

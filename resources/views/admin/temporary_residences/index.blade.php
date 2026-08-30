@@ -774,7 +774,7 @@
                                                 {{-- HỦY HỒ SƠ --}}
 
                                                 <form action="{{ route(
-                                                    'admin.temporary_residences.destroy',
+                                                    'admin.temporary_residences.cancel',
                                                     $temporaryResidence
                                                 ) }}"
                                                     method="POST"
@@ -783,7 +783,7 @@
 
                                                     @csrf
 
-                                                    @method('DELETE')
+                                                    @method('PATCH')
 
                                                     <input type="hidden" name="cancellation_reason">
 

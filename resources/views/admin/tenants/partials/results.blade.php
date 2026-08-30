@@ -53,7 +53,9 @@
                         <td class="px-5 py-4 text-slate-600">{{ $tenant->cccd }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $tenant->phone }}</td>
                         <td class="px-5 py-4">
-                            @if ($activeContract)
+                            @if ($tenant->status === \App\Models\Tenant::STATUS_ARCHIVED)
+                                <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-300"><span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>Đã lưu trữ</span>
+                            @elseif ($activeContract)
                                 <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Phòng {{ $activeContract->room->room_code ?? 'Không có' }}</span>
                             @elseif($hasRentalHistory)
                                 <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>Đã rời phòng</span>
@@ -65,9 +67,13 @@
                         <td class="px-5 py-4">
                             <div class="flex justify-end gap-2">
                                 <a href="{{ route('admin.tenants.show', $tenant) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" title="Xem chi tiết"><i class="bx bx-show text-lg"></i></a>
-                                <a href="{{ route('admin.tenants.edit', $tenant) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa"><i class="bx bx-edit text-lg"></i></a>
-                                @if ($tenant->contracts->isEmpty() && $tenant->memberContracts->isEmpty())
-                                    <form action="{{ route('admin.tenants.destroy', $tenant) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa khách thuê này?')">@csrf @method('DELETE')<button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Xóa"><i class="bx bx-trash text-lg"></i></button></form>
+                                @if ($tenant->status !== \App\Models\Tenant::STATUS_ARCHIVED)
+                                    <a href="{{ route('admin.tenants.edit', $tenant) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa"><i class="bx bx-edit text-lg"></i></a>
+                                @endif
+                                @if ($tenant->status === \App\Models\Tenant::STATUS_ARCHIVED)
+                                    <form action="{{ route('admin.tenants.restore', $tenant) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do khôi phục khách thuê (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.restoration_reason.value = reason.trim(); return confirm('Xác nhận khôi phục hồ sơ và tài khoản liên kết?');">@csrf @method('PATCH')<input type="hidden" name="restoration_reason"><button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Khôi phục"><i class="bx bx-revision text-lg"></i></button></form>
+                                @elseif (! $activeContract)
+                                    <form action="{{ route('admin.tenants.destroy', $tenant) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do lưu trữ khách thuê (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.archive_reason.value = reason.trim(); return confirm('Xác nhận lưu trữ hồ sơ? Dữ liệu và giấy tờ sẽ được giữ lại.');">@csrf @method('DELETE')<input type="hidden" name="archive_reason"><button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Lưu trữ"><i class="bx bx-archive text-lg"></i></button></form>
                                 @endif
                             </div>
                         </td>

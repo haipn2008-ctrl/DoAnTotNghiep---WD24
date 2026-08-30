@@ -5,6 +5,7 @@
 
 @section('content')
     @php($tenant = $user->tenant)
+    @php($identityDocument = $tenant?->document)
     <div class="space-y-5">
         <div>
             <p class="text-sm font-medium text-slate-500">Hồ sơ khách thuê</p>
@@ -17,7 +18,7 @@
         <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
             <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="font-semibold text-slate-950">Thông tin hồ sơ</h3>
-                <form method="POST" action="{{ route('client.account.update') }}" class="mt-5 space-y-5">@csrf @method('PUT')
+                <form method="POST" action="{{ route('client.account.update') }}" enctype="multipart/form-data" class="mt-5 space-y-5">@csrf @method('PUT')
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="md:col-span-2"><label class="mb-1.5 block text-sm font-semibold text-slate-700">Họ và tên</label><input name="name" value="{{ old('name', $tenant?->full_name ?: $user->name) }}" required maxlength="255" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                         <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày sinh</label><input type="date" name="date_of_birth" value="{{ old('date_of_birth', $tenant?->date_of_birth?->format('Y-m-d')) }}" max="{{ now()->subYears(18)->toDateString() }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
@@ -25,6 +26,36 @@
                         <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Số CCCD</label><input name="cccd" inputmode="numeric" value="{{ old('cccd', $tenant?->cccd) }}" required minlength="12" maxlength="12" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                         <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày cấp CCCD</label><input type="date" name="cccd_issue_date" value="{{ old('cccd_issue_date', $tenant?->cccd_issue_date?->format('Y-m-d')) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                         <div class="md:col-span-2"><label class="mb-1.5 block text-sm font-semibold text-slate-700">Nơi cấp CCCD</label><input name="cccd_issue_place" value="{{ old('cccd_issue_place', $tenant?->cccd_issue_place) }}" required maxlength="255" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
+                        <div class="md:col-span-2">
+                            <div class="mb-3">
+                                <p class="text-sm font-semibold text-slate-700">Ảnh căn cước công dân</p>
+                                <p class="mt-1 text-xs text-slate-500">Ảnh đã lưu sẽ được tự động sử dụng khi quản trị viên lập hợp đồng mới.</p>
+                            </div>
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                @php($frontImageUrl = ($identityDocument?->hasImage('front') ?? false) ? route('client.account.identity-document', 'front') : null)
+                                @php($backImageUrl = ($identityDocument?->hasImage('back') ?? false) ? route('client.account.identity-document', 'back') : null)
+                                @foreach([
+                                    ['side' => 'front', 'label' => 'Mặt trước CCCD', 'url' => $frontImageUrl],
+                                    ['side' => 'back', 'label' => 'Mặt sau CCCD', 'url' => $backImageUrl],
+                                ] as $identitySide)
+                                    @php($side = $identitySide['side'])
+                                    @php($label = $identitySide['label'])
+                                    @php($imageUrl = $identitySide['url'])
+                                    @php($previewId = 'account-identity-'.$side.'-preview')
+                                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                        <div class="mb-2 flex items-center justify-between gap-2">
+                                            <label class="text-sm font-semibold text-slate-700">{{ $label }}</label>
+                                            @if($imageUrl)<a href="{{ $imageUrl }}" data-image-modal data-image-title="{{ $label }}" class="text-xs font-semibold text-indigo-700">Xem ảnh</a>@endif
+                                        </div>
+                                        <div class="mb-3 flex h-36 items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-white">
+                                            <img id="{{ $previewId }}" @if($imageUrl) src="{{ $imageUrl }}" data-original-src="{{ $imageUrl }}" @endif alt="{{ $label }}" class="{{ $imageUrl ? '' : 'hidden' }} h-full w-full object-contain">
+                                            <div data-identity-preview-empty class="{{ $imageUrl ? 'hidden' : '' }} px-4 text-center text-xs text-slate-400">Chưa tải ảnh</div>
+                                        </div>
+                                        <input data-identity-preview-input data-preview-target="{{ $previewId }}" type="file" name="identity_{{ $side }}" accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 bg-white text-xs file:mr-2 file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:font-semibold file:text-indigo-700">
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                         <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Email đăng nhập</label><input type="email" name="email" value="{{ old('email', $user->email) }}" required maxlength="255" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                         <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Số điện thoại</label><input name="phone" inputmode="tel" value="{{ old('phone', $user->phone ?: $tenant?->phone) }}" required maxlength="15" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                         <div class="md:col-span-2"><label class="mb-1.5 block text-sm font-semibold text-slate-700">Địa chỉ thường trú</label><textarea name="address" required maxlength="500" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2">{{ old('address', $tenant?->address) }}</textarea></div>

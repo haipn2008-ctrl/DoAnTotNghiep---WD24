@@ -560,9 +560,9 @@ class ContractTenantService
     {
         $room = $contract->room()->lockForUpdate()->firstOrFail();
         $planned = ContractTenant::query()->where('contract_id', $contract->id)->current()->lockForUpdate()->count();
-        $currentOccupancy = max($planned, (int) $room->current_people);
+        $currentOccupancy = max($planned, (int) $contract->number_of_people, (int) $room->current_people);
         if ($currentOccupancy + $additional > (int) $room->max_people) {
-            $this->fail('members', 'Danh sách người thuê vượt quá sức chứa tối đa của phòng.');
+            $this->fail('members', "Phòng {$room->room_code} đã đủ {$room->max_people} người, không thể gửi thêm yêu cầu.");
         }
     }
 

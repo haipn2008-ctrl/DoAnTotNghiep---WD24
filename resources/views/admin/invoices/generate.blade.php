@@ -35,6 +35,12 @@
 
         <div id="invoiceAlert" class="hidden rounded-lg border px-4 py-3 text-sm font-medium"></div>
 
+        @unless ($canIssue)
+            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Có thể xem trước để kiểm tra, nhưng hóa đơn kỳ {{ $month }}/{{ $year }} chỉ được phát hành từ ngày <strong>{{ $scheduledInvoiceDate->format('d/m/Y') }}</strong>.
+            </div>
+        @endunless
+
         <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
                 <div>
@@ -98,7 +104,7 @@
                                             data-issue-url="{{ route('admin.invoices.issue', $contract) }}"
                                             {{ $hasInvoice ? 'disabled' : '' }}>
                                             <i class="bx bx-file-find text-lg"></i>
-                                            Tạo hóa đơn tháng {{ $month }}
+                                            Xem trước hóa đơn tháng {{ $month }}
                                         </button>
                                     </div>
                                 </td>
@@ -169,10 +175,10 @@
 
                 <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
                     <button type="button" class="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-close-preview>Đóng</button>
-                    <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300" id="issueInvoiceBtn">
+                    <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300" id="issueInvoiceBtn" @disabled(!$canIssue)>
                         <span class="default-label inline-flex items-center gap-2">
                             <i class="bx bx-check-circle text-lg"></i>
-                            Xác nhận và phát hành
+                            {{ $canIssue ? 'Xác nhận và phát hành' : 'Chưa đến ngày phát hành' }}
                         </span>
                         <span class="loading-label hidden">Đang phát hành...</span>
                     </button>
@@ -191,6 +197,7 @@
             const modalElement = document.getElementById('invoicePreviewModal');
             const alertBox = document.getElementById('invoiceAlert');
             const issueButton = document.getElementById('issueInvoiceBtn');
+            const canIssue = @json($canIssue);
             let currentIssueUrl = null;
             let currentContractId = null;
 
@@ -250,7 +257,7 @@
             }
 
             function setIssueLoading(isLoading) {
-                issueButton.disabled = isLoading;
+                issueButton.disabled = isLoading || !canIssue;
                 issueButton.querySelector('.default-label').classList.toggle('hidden', isLoading);
                 issueButton.querySelector('.loading-label').classList.toggle('hidden', !isLoading);
             }

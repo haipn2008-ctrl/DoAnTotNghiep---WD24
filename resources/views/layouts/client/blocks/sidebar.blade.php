@@ -8,12 +8,6 @@
             'active' => request()->routeIs('client.home', 'client.settlement.*'),
             'icon' => '⌂'
         ],
-        [
-            'label' => 'Phòng của tôi',
-            'href' => route('client.room.show'),
-            'active' => request()->routeIs('client.room.*'),
-            'icon' => '□'
-        ],
     ];
     $restrictedRentalPaths = ['/client/room', '/client/utilities', '/client/support'];
     $menuItems = array_filter($menuItems, fn ($item) => $isRentalActive
@@ -87,6 +81,45 @@
             </a>
 
         @endforeach
+
+
+        @if($isRentalActive)
+        <div>
+            <button type="button"
+                    id="roomMenuButton"
+                    class="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.room.*', 'client.vehicles.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}"
+                    aria-controls="roomSubmenu"
+                    aria-expanded="false">
+                <span class="flex items-center gap-3">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.room.*', 'client.vehicles.*') ? 'bg-indigo-100' : 'bg-slate-100' }}">
+                        <i class="bx bx-building-house text-lg"></i>
+                    </span>
+                    <span>Phòng của tôi</span>
+                </span>
+                <svg id="roomMenuArrow"
+                     class="h-4 w-4 transition-transform duration-200"
+                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 9-7 7-7-7" />
+                </svg>
+            </button>
+
+            <div id="roomSubmenu"
+                 class="ml-4 mt-1 hidden space-y-1 border-l-2 border-indigo-100 pl-2">
+                <a href="{{ route('client.room.show') }}"
+                   class="block rounded-lg px-3 py-2 text-sm font-medium transition {{ request()->routeIs('client.room.show') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
+                    Phòng
+                </a>
+                <a href="{{ route('client.room.members.index') }}"
+                   class="block rounded-lg px-3 py-2 text-sm font-medium transition {{ request()->routeIs('client.room.members.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
+                    Thành viên
+                </a>
+                <a href="{{ route('client.vehicles.index') }}"
+                   class="block rounded-lg px-3 py-2 text-sm font-medium transition {{ request()->routeIs('client.vehicles.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-700' }}">
+                    Phương tiện
+                </a>
+            </div>
+        </div>
+        @endif
 
         {{-- =====================================================
             HỢP ĐỒNG
@@ -200,15 +233,6 @@
         </a>
         @endif
 
-        @if($isRentalActive)
-            <a href="{{ route('client.vehicles.index') }}"
-               class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.vehicles.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
-                <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.vehicles.*') ? 'bg-indigo-100' : 'bg-slate-100' }}">⌁</span>
-                <span>Phương tiện của tôi</span>
-            </a>
-        @endif
-
-
         {{-- HÓA ĐƠN --}}
         <a href="{{ route('client.invoices.index') }}"
         class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition
@@ -258,12 +282,6 @@
             </div>
         </div>
 
-        <a href="{{ route('client.account.edit') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition {{ request()->routeIs('client.account.*') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950' }}">
-            <span class="flex h-7 w-7 items-center justify-center rounded-md {{ request()->routeIs('client.account.*') ? 'bg-indigo-100' : 'bg-slate-100' }}"><i class="bx bx-user-circle text-lg"></i></span>
-            <span>Tài khoản của tôi</span>
-        </a>
-
     </nav>
 
 
@@ -310,6 +328,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const contractButton = document.getElementById('contractMenuButton');
     const contractSubmenu = document.getElementById('contractSubmenu');
     const contractArrow = document.getElementById('contractMenuArrow');
+    const roomButton = document.getElementById('roomMenuButton');
+    const roomSubmenu = document.getElementById('roomSubmenu');
+    const roomArrow = document.getElementById('roomMenuArrow');
     const supportButton = document.getElementById('supportMenuButton');
     const supportSubmenu = document.getElementById('supportSubmenu');
     const supportArrow = document.getElementById('supportMenuArrow');
@@ -328,6 +349,12 @@ document.addEventListener('DOMContentLoaded', function () {
             contractArrow.classList.toggle('rotate-180');
         }
 
+    });
+
+    roomButton?.addEventListener('click', function () {
+        const isHidden = roomSubmenu?.classList.toggle('hidden');
+        roomArrow?.classList.toggle('rotate-180', !isHidden);
+        roomButton.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
     });
 
     supportButton?.addEventListener('click', function () {

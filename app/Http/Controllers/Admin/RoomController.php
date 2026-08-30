@@ -13,7 +13,6 @@ use App\Services\RoomEvidenceService;
 use App\Support\Csv;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class RoomController extends Controller
@@ -156,6 +155,7 @@ class RoomController extends Controller
 
     public function edit(Room $room)
     {
+        abort_if($room->status === Room::STATUS_RETIRED, 409, 'Phòng đã ngừng khai thác không thể chỉnh sửa.');
         $room->load(['amenities', 'images']);
         $amenities = Amenity::query()->active()->orderBy('category')->orderBy('name')->get();
 
@@ -164,6 +164,7 @@ class RoomController extends Controller
 
     public function update(RoomRequest $request, Room $room)
     {
+        abort_if($room->status === Room::STATUS_RETIRED, 409, 'Phòng đã ngừng khai thác không thể chỉnh sửa.');
         $data = $request->validated();
         $files = $request->file('images', []);
         if ($request->hasFile('image')) {
@@ -197,38 +198,77 @@ class RoomController extends Controller
         return redirect()->route('admin.rooms.show', $room)->with('success', 'Cập nhật phòng thành công. Ảnh cũ vẫn được giữ trong nhật ký bằng chứng.');
     }
 
-    public function destroy(Room $room)
+    public function destroy(Request $request, Room $room)
     {
-        $legacyThumbnail = $room->thumbnail;
-        $images = $room->images()->get();
-        $cannotDelete = DB::transaction(function () use ($room): bool {
+        return $this->retire($request, $room);
+    }
+
+    public function retire(Request $request, Room $room)
+    {
+        $data = $request->validate([
+            'retirement_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        $result = DB::transaction(function () use ($room, $request, $data): string {
             $lockedRoom = Room::query()->lockForUpdate()->findOrFail($room->id);
 
-            $hasOperationalReadings = $lockedRoom->utilityReadings()
-                ->where(fn ($query) => $query
-                    ->whereNull('reading_type')
-                    ->orWhere('reading_type', '!=', 'baseline'))
-                ->exists();
-
-            if ($lockedRoom->contracts()->exists() || $hasOperationalReadings) {
-                return true;
+            if ($lockedRoom->status === Room::STATUS_RETIRED) {
+                return 'already_retired';
             }
 
-            $lockedRoom->delete();
+            if ($lockedRoom->reservingContract()->exists() || (int) $lockedRoom->current_people > 0) {
+                return 'reserved';
+            }
 
-            return false;
-        });
+            $lockedRoom->forceFill([
+                'status' => Room::STATUS_RETIRED,
+                'retired_at' => now(),
+                'retired_by' => $request->user()->id,
+                'retirement_reason' => $data['retirement_reason'],
+            ])->save();
 
-        if ($cannotDelete) {
-            return redirect()->route('admin.rooms.index')->with('error', 'Không thể xóa phòng đã có dữ liệu thuê hoặc chỉ số điện nước.');
-        }
+            return 'retired';
+        }, 3);
 
-        $this->evidenceService->deleteFiles($images);
-        if ($legacyThumbnail && ! $images->contains('path', $legacyThumbnail)) {
-            Storage::disk('public')->delete($legacyThumbnail);
-        }
+        return match ($result) {
+            'retired' => redirect()->route('admin.rooms.index')->with('success', 'Đã ngừng khai thác phòng và giữ nguyên toàn bộ lịch sử.'),
+            'reserved' => back()->with('error', 'Không thể ngừng khai thác phòng đang được giữ chỗ, chờ ký, chờ cọc, chờ nhận phòng hoặc đang có người thuê.'),
+            default => back()->with('error', 'Phòng đã ngừng khai thác trước đó.'),
+        };
+    }
 
-        return redirect()->route('admin.rooms.index')->with('success', 'Xóa phòng thành công.');
+    public function restore(Request $request, Room $room)
+    {
+        $data = $request->validate([
+            'restoration_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        $result = DB::transaction(function () use ($room, $request, $data): string {
+            $lockedRoom = Room::query()->lockForUpdate()->findOrFail($room->id);
+
+            if ($lockedRoom->status !== Room::STATUS_RETIRED) {
+                return 'not_retired';
+            }
+
+            if ($lockedRoom->reservingContract()->exists() || (int) $lockedRoom->current_people > 0) {
+                return 'reserved';
+            }
+
+            $lockedRoom->forceFill([
+                'status' => Room::STATUS_AVAILABLE,
+                'restored_at' => now(),
+                'restored_by' => $request->user()->id,
+                'restoration_reason' => $data['restoration_reason'],
+            ])->save();
+
+            return 'restored';
+        }, 3);
+
+        return match ($result) {
+            'restored' => back()->with('success', 'Đã đưa phòng trở lại trạng thái sẵn sàng khai thác.'),
+            'reserved' => back()->with('error', 'Không thể khôi phục phòng đang được giữ chỗ hoặc có hợp đồng hoạt động.'),
+            default => back()->with('error', 'Chỉ có thể khôi phục phòng đã ngừng khai thác.'),
+        };
     }
 
     private function inventoryPayload(RoomRequest $request): array
@@ -270,9 +310,14 @@ class RoomController extends Controller
     {
         $filters = $request->validate([
             'room_code' => ['nullable', 'string', 'max:50'],
-            'status' => ['nullable', Rule::in([Room::STATUS_AVAILABLE, Room::STATUS_OCCUPIED, Room::STATUS_MAINTENANCE])],
+            'status' => ['nullable', Rule::in([Room::STATUS_AVAILABLE, Room::STATUS_OCCUPIED, Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED])],
         ]);
-        $query = Room::with('amenities')->withCount(['contracts', 'utilityReadings']);
+        $query = Room::with('amenities')->withCount([
+            'contracts',
+            'reservingContract as reserving_contracts_count',
+            'utilityReadings as operational_utility_readings_count' => fn ($query) => $query
+                ->where(fn ($query) => $query->whereNull('reading_type')->orWhere('reading_type', '!=', 'baseline')),
+        ]);
 
         if (! empty($filters['room_code'])) {
             $query->where('room_code', 'like', '%'.$filters['room_code'].'%');

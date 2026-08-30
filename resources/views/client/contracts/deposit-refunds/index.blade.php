@@ -240,7 +240,7 @@
                     <div class="rounded-xl border border-emerald-200 bg-white p-4">
                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Bằng chứng chuyển khoản</p>
                         <a href="{{ route('client.deposit-refunds.proof', $contract) }}"
-                           target="_blank"
+                           data-image-modal data-image-title="Ảnh chuyển khoản hoàn cọc"
                            class="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>

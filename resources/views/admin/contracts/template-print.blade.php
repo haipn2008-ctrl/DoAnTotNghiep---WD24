@@ -448,8 +448,7 @@
             }
 
             .print-toolbar,
-            .preview-heading,
-            .paper-stage {
+            .preview-heading {
                 display: none !important;
             }
 
@@ -462,6 +461,17 @@
                 width: auto;
                 max-width: none;
                 margin: 0;
+            }
+
+            .paper-stage {
+                display: block !important;
+                margin: 0;
+                padding: 0;
+                overflow: visible;
+                border: 0;
+                border-radius: 0;
+                background: #fff;
+                box-shadow: none;
             }
 
             .print-contract {
@@ -570,10 +580,12 @@
         window.addEventListener('load', function () {
 
             // Tự động mở hộp thoại in sau khi trang tải xong
-            setTimeout(function () {
-                window.focus();
-                window.print();
-            }, 500);
+            if (window.self === window.top) {
+                setTimeout(function () {
+                    window.focus();
+                    window.print();
+                }, 300);
+            }
 
         });
     </script>

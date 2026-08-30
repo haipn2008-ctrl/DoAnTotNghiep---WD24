@@ -163,7 +163,7 @@ return new class extends Migration
             $table->decimal('service_fee', 10, 2)->default(0);
             $table->decimal('parking_fee', 10, 2)->default(0);
             $table->unsignedTinyInteger('invoice_day')->default(5);
-            $table->unsignedTinyInteger('payment_due_days')->default(10);
+            $table->unsignedTinyInteger('payment_due_days')->default(5);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

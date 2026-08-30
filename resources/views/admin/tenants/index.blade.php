@@ -35,6 +35,7 @@
                         <option value="renting" @selected($status === 'renting')>Đang thuê</option>
                         <option value="moved_out" @selected($status === 'moved_out')>Đã rời phòng</option>
                         <option value="not_renting" @selected($status === 'not_renting')>Chưa thuê</option>
+                        <option value="archived" @selected($status === 'archived')>Đã lưu trữ</option>
                     </select>
                 </div>
             </form>

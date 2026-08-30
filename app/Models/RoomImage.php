@@ -6,6 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class RoomImage extends Model
 {
+    protected static function booted(): void
+    {
+        static::updating(function (): never {
+            throw new \LogicException('Ảnh hiện trạng là bằng chứng bất biến.');
+        });
+
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa ảnh hiện trạng đã ghi nhận.');
+        });
+    }
+
     public const TYPE_BASELINE = 'baseline';
 
     public const TYPE_HANDOVER = 'handover';

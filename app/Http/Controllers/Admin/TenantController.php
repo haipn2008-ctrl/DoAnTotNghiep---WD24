@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\TenantRequest;
 use App\Models\Contract;
 use App\Models\ContractTenant;
+use App\Models\Invoice;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\AdminNotificationService;
 use App\Services\ClientNotificationService;
+use App\Services\TenantAccountLifecycle;
 use App\Services\VehicleCapacityService;
 use App\Support\Csv;
 use Illuminate\Database\QueryException;
@@ -33,7 +35,7 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting'])],
+            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting', 'archived'])],
         ]);
 
         $search = trim($validated['search'] ?? '');
@@ -97,7 +99,7 @@ class TenantController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting'])],
+            'status' => ['nullable', Rule::in(['renting', 'moved_out', 'not_renting', 'archived'])],
         ]);
 
         $search = trim($validated['search'] ?? '');
@@ -171,7 +173,9 @@ class TenantController extends Controller
                     $tenant->email,
                     $tenant->address,
                     $activeRoom ?? '-',
-                    $activeRoom ? 'Đang thuê' : ($hasRentalHistory ? 'Đã rời phòng' : 'Chưa thuê'),
+                    $tenant->status === Tenant::STATUS_ARCHIVED
+                        ? 'Đã lưu trữ'
+                        : ($activeRoom ? 'Đang thuê' : ($hasRentalHistory ? 'Đã rời phòng' : 'Chưa thuê')),
                     $tenant->vehicles->count(),
                     $tenant->created_at->format('d/m/Y'),
                 ]);
@@ -280,7 +284,7 @@ class TenantController extends Controller
             });
         } catch (QueryException $exception) {
             if ($tenant?->exists) {
-                $tenant->delete();
+                Tenant::query()->whereKey($tenant->id)->delete();
             }
 
             $this->throwConflictOrRethrow($exception);
@@ -348,6 +352,8 @@ class TenantController extends Controller
         TenantRequest $request,
         Tenant $tenant
     ) {
+        abort_if($tenant->status === Tenant::STATUS_ARCHIVED, 409, 'Hồ sơ khách thuê đã lưu trữ không thể chỉnh sửa.');
+
         try {
             DB::transaction(function () use (
                 $request,
@@ -382,6 +388,8 @@ class TenantController extends Controller
         AdminNotificationService $notifications,
         VehicleCapacityService $capacity,
     ) {
+        abort_if(in_array($vehicle->status, [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED], true), 409, 'Phương tiện đã được lưu vào lịch sử và không thể duyệt lại.');
+
         $data = $request->validate([
             'status' => ['required', Rule::in([Vehicle::STATUS_APPROVED, Vehicle::STATUS_REJECTED])],
             'review_note' => ['nullable', 'required_if:status,'.Vehicle::STATUS_REJECTED, 'string', 'max:500'],
@@ -435,51 +443,100 @@ class TenantController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function destroy(Tenant $tenant)
+    public function destroy(Request $request, Tenant $tenant)
     {
-        try {
-            $deleted = DB::transaction(
-                function () use ($tenant): bool {
-                    $tenant = Tenant::lockForUpdate()
-                        ->findOrFail($tenant->id);
+        $data = $request->validate([
+            'archive_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
 
-                    if (
-                        $tenant->contracts()->exists()
-                        || $tenant->memberContracts()->exists()
-                    ) {
-                        return false;
-                    }
+        $hasOpenContract = $tenant->contracts()
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)->exists()
+            || $tenant->memberContracts()
+                ->whereIn('contracts.status', Contract::OPEN_OCCUPANCY_STATUSES)
+                ->where('contract_tenants.status', ContractTenant::STATUS_CHECKED_IN)
+                ->exists();
+        $hasOutstandingInvoice = Invoice::query()
+            ->whereHas('contract', fn ($query) => $query->where('tenant_id', $tenant->id))
+            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+            ->exists();
 
-                    $tenant->delete();
-
-                    return true;
-                }
-            );
-        } catch (QueryException $exception) {
-            if (
-                ! in_array(
-                    (string) $exception->getCode(),
-                    ['19', '23000'],
-                    true
-                )
-            ) {
-                throw $exception;
-            }
-
-            $deleted = false;
-        }
-
-        if (! $deleted) {
+        if ($hasOpenContract || $hasOutstandingInvoice) {
             return back()->with(
                 'error',
-                'Không thể xóa khách thuê vì khách đã có hợp đồng.'
+                'Không thể lưu trữ khách thuê đang có hợp đồng hoặc công nợ chưa hoàn tất.'
             );
         }
+
+        if ($tenant->status === Tenant::STATUS_ARCHIVED) {
+            return back()->with('error', 'Hồ sơ khách thuê đã được lưu trữ trước đó.');
+        }
+
+        DB::transaction(function () use ($tenant, $request, $data): void {
+            $lockedTenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($tenant->id);
+            $lockedTenant->forceFill([
+                'status' => Tenant::STATUS_ARCHIVED,
+                'archived_at' => now(),
+                'archived_by' => $request->user()->id,
+                'archive_reason' => $data['archive_reason'],
+            ])->save();
+
+            if ($lockedTenant->user && $lockedTenant->user->status !== User::STATUS_INACTIVE) {
+                $lockedTenant->user->forceFill([
+                    'status' => User::STATUS_INACTIVE,
+                    'deactivated_at' => now(),
+                    'deactivated_by' => $request->user()->id,
+                    'deactivation_reason' => 'Hồ sơ khách thuê đã được lưu trữ: '.$data['archive_reason'],
+                    'remember_token' => null,
+                ])->save();
+                DB::table('sessions')->where('user_id', $lockedTenant->user->id)->delete();
+            }
+        }, 3);
 
         return back()->with(
             'success',
-            'Xóa khách thuê thành công.'
+            'Đã lưu trữ khách thuê và giữ nguyên hồ sơ, giấy tờ cùng lịch sử liên quan.'
         );
+    }
+
+    public function restore(Request $request, Tenant $tenant, TenantAccountLifecycle $accountLifecycle)
+    {
+        $data = $request->validate([
+            'restoration_reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        if ($tenant->status !== Tenant::STATUS_ARCHIVED) {
+            return back()->with('error', 'Chỉ có thể khôi phục hồ sơ khách thuê đang được lưu trữ.');
+        }
+
+        DB::transaction(function () use ($tenant, $request, $data, $accountLifecycle): void {
+            $lockedTenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($tenant->id);
+
+            if ($lockedTenant->status !== Tenant::STATUS_ARCHIVED) {
+                throw ValidationException::withMessages([
+                    'tenant' => 'Trạng thái hồ sơ đã thay đổi. Vui lòng tải lại trang.',
+                ]);
+            }
+
+            $lockedTenant->forceFill([
+                'status' => Tenant::STATUS_ACTIVE,
+                'restored_at' => now(),
+                'restored_by' => $request->user()->id,
+                'restoration_reason' => $data['restoration_reason'],
+            ])->save();
+
+            if ($lockedTenant->user && $lockedTenant->user->status === User::STATUS_INACTIVE) {
+                $lockedTenant->user->forceFill([
+                    'reactivated_at' => now(),
+                    'reactivated_by' => $request->user()->id,
+                    'reactivation_reason' => 'Khôi phục cùng hồ sơ khách thuê: '.$data['restoration_reason'],
+                    'activated_at' => $lockedTenant->user->activated_at ?? now(),
+                    'must_change_password' => false,
+                ])->save();
+                $accountLifecycle->sync($lockedTenant);
+            }
+        }, 3);
+
+        return back()->with('success', 'Đã khôi phục hồ sơ khách thuê và tài khoản liên kết.');
     }
 
     /*
@@ -583,6 +640,18 @@ class TenantController extends Controller
                 });
             }
         );
+
+        if ($status === 'archived') {
+            $query->where('status', Tenant::STATUS_ARCHIVED);
+
+            return;
+        }
+
+        if ($status === '') {
+            return;
+        }
+
+        $query->where('status', Tenant::STATUS_ACTIVE);
 
         $representing = fn ($query) => $query->whereIn(
             'contracts.status',

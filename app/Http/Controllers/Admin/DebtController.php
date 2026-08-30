@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Models\InvoicePaymentDelayRequest;
 use App\Models\InvoiceReminder;
 use App\Models\Payment;
 use App\Notifications\InvoicePaymentReminderNotification;
+use App\Notifications\PaymentDelayDecisionNotification;
+use App\Services\AdminNotificationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -46,8 +49,8 @@ class DebtController extends Controller
         $invoices = $query
             ->with(['contract.tenant', 'room', 'reminders.remindedBy'])
             ->withCount('reminders')
-            ->orderByRaw('CASE WHEN due_date < ? THEN 0 WHEN due_date = ? THEN 1 ELSE 2 END', [today()->toDateString(), today()->toDateString()])
-            ->orderBy('due_date')
+            ->orderByRaw('CASE WHEN DATE(COALESCE(payment_extension_until, due_date)) < ? THEN 0 WHEN DATE(COALESCE(payment_extension_until, due_date)) = ? THEN 1 ELSE 2 END', [today()->toDateString(), today()->toDateString()])
+            ->orderByRaw('COALESCE(payment_extension_until, due_date)')
             ->orderBy('id')
             ->paginate(20)
             ->withQueryString();
@@ -68,6 +71,7 @@ class DebtController extends Controller
             'room',
             'payments',
             'reminders.remindedBy',
+            'paymentDelayRequests.reviewer',
         ]);
         $paidAmount = (float) $invoice->payments
             ->where('status', Payment::STATUS_SUCCESS)
@@ -79,6 +83,8 @@ class DebtController extends Controller
         $remindedToday = $invoice->reminders
             ->contains(fn (InvoiceReminder $reminder) => $reminder->reminder_date->isToday());
         $canRemind = $invoice->canPay() && $remainingAmount > 0 && ! $remindedToday;
+        $pendingDelayRequest = $invoice->paymentDelayRequests
+            ->first(fn (InvoicePaymentDelayRequest $delayRequest) => $delayRequest->isPending());
 
         return view('admin.debts.show', compact(
             'invoice',
@@ -86,8 +92,84 @@ class DebtController extends Controller
             'pendingAmount',
             'remainingAmount',
             'remindedToday',
-            'canRemind'
+            'canRemind',
+            'pendingDelayRequest'
         ));
+    }
+
+    public function approveDelayRequest(Request $request, InvoicePaymentDelayRequest $delayRequest)
+    {
+        $data = $request->validate([
+            'approved_until' => ['required', 'date', 'after:today'],
+            'review_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $delayRequest = DB::transaction(function () use ($request, $delayRequest, $data): InvoicePaymentDelayRequest {
+            $delayRequest = InvoicePaymentDelayRequest::query()
+                ->with(['invoice.contract.tenant.user'])
+                ->lockForUpdate()
+                ->findOrFail($delayRequest->id);
+            $invoice = Invoice::query()->with('payments')->lockForUpdate()->findOrFail($delayRequest->invoice_id);
+
+            if (! $delayRequest->isPending()) {
+                throw ValidationException::withMessages(['delay_request' => 'Yêu cầu chậm thanh toán đã được xử lý.']);
+            }
+            if (! $invoice->canPay() || $invoice->remaining_amount <= 0) {
+                throw ValidationException::withMessages(['delay_request' => 'Hóa đơn không còn công nợ để gia hạn.']);
+            }
+
+            $delayRequest->update([
+                'status' => InvoicePaymentDelayRequest::STATUS_APPROVED,
+                'approved_until' => $data['approved_until'],
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+                'review_note' => $data['review_note'] ?? null,
+            ]);
+            $invoice->update([
+                'payment_extension_until' => $data['approved_until'],
+                'due_notified_at' => null,
+                'overdue_notified_at' => null,
+            ]);
+
+            return $delayRequest->fresh(['invoice.contract.tenant.user']);
+        }, 3);
+
+        app(AdminNotificationService::class)->resolve('payment_delay_request', $delayRequest);
+        $delayRequest->invoice->contract?->tenant?->user?->notify(new PaymentDelayDecisionNotification($delayRequest));
+
+        return back()->with('success', 'Đã chấp nhận chậm thanh toán và cập nhật thời hạn mới.');
+    }
+
+    public function rejectDelayRequest(Request $request, InvoicePaymentDelayRequest $delayRequest)
+    {
+        $data = $request->validate([
+            'review_note' => ['required', 'string', 'min:10', 'max:1000'],
+        ]);
+
+        $delayRequest = DB::transaction(function () use ($request, $delayRequest, $data): InvoicePaymentDelayRequest {
+            $delayRequest = InvoicePaymentDelayRequest::query()
+                ->with(['invoice.contract.tenant.user'])
+                ->lockForUpdate()
+                ->findOrFail($delayRequest->id);
+
+            if (! $delayRequest->isPending()) {
+                throw ValidationException::withMessages(['delay_request' => 'Yêu cầu chậm thanh toán đã được xử lý.']);
+            }
+
+            $delayRequest->update([
+                'status' => InvoicePaymentDelayRequest::STATUS_REJECTED,
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+                'review_note' => $data['review_note'],
+            ]);
+
+            return $delayRequest->fresh(['invoice.contract.tenant.user']);
+        }, 3);
+
+        app(AdminNotificationService::class)->resolve('payment_delay_request', $delayRequest);
+        $delayRequest->invoice->contract?->tenant?->user?->notify(new PaymentDelayDecisionNotification($delayRequest));
+
+        return back()->with('success', 'Đã từ chối lý do chậm thanh toán. Hóa đơn được chuyển sang cảnh báo cuối.');
     }
 
     public function storeReminder(Request $request, Invoice $invoice)
@@ -184,12 +266,12 @@ class DebtController extends Controller
         $today = today();
 
         match ($bucket) {
-            'upcoming' => $query->whereDate('due_date', '>', $today),
-            'due_today' => $query->whereDate('due_date', $today),
-            'overdue_1_3' => $query->whereBetween('due_date', [$today->copy()->subDays(3), $today->copy()->subDay()]),
-            'overdue_4_7' => $query->whereBetween('due_date', [$today->copy()->subDays(7), $today->copy()->subDays(4)]),
-            'overdue_8_14' => $query->whereBetween('due_date', [$today->copy()->subDays(14), $today->copy()->subDays(8)]),
-            'overdue_15_plus' => $query->whereDate('due_date', '<=', $today->copy()->subDays(15)),
+            'upcoming' => $query->whereRaw('DATE(COALESCE(payment_extension_until, due_date)) > ?', [$today->toDateString()]),
+            'due_today' => $query->whereRaw('DATE(COALESCE(payment_extension_until, due_date)) = ?', [$today->toDateString()]),
+            'overdue_1_3' => $query->whereRaw('DATE(COALESCE(payment_extension_until, due_date)) BETWEEN ? AND ?', [$today->copy()->subDays(3)->toDateString(), $today->copy()->subDay()->toDateString()]),
+            'overdue_4_7' => $query->whereRaw('DATE(COALESCE(payment_extension_until, due_date)) BETWEEN ? AND ?', [$today->copy()->subDays(7)->toDateString(), $today->copy()->subDays(4)->toDateString()]),
+            'overdue_8_14' => $query->whereRaw('DATE(COALESCE(payment_extension_until, due_date)) BETWEEN ? AND ?', [$today->copy()->subDays(14)->toDateString(), $today->copy()->subDays(8)->toDateString()]),
+            'overdue_15_plus' => $query->whereRaw('DATE(COALESCE(payment_extension_until, due_date)) <= ?', [$today->copy()->subDays(15)->toDateString()]),
             default => null,
         };
     }

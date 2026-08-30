@@ -7,12 +7,7 @@
     $statuses = ['draft'=>'Bản nháp','pending_signature'=>'Chờ ký','pending_deposit'=>'Chờ tiền cọc','awaiting_move_in'=>'Chờ nhận phòng','active'=>'Đang ở','expired'=>'Quá hạn vẫn ở','settling'=>'Đang quyết toán','completed'=>'Đã hoàn tất','cancelled'=>'Đã hủy'];
     $depositStatuses = ['pending'=>'Chưa thu đủ','paid'=>'Đã thu','refunded'=>'Đã hoàn','deducted'=>'Đã khấu trừ','retained'=>'Đã giữ lại','not_required'=>'Không yêu cầu'];
     $effectiveEnd = $contract->extend_end_date ?? $contract->end_date;
-    $plannedResidentCount = $contract->currentMembers->whereIn('status', [
-        \App\Models\ContractTenant::STATUS_PENDING,
-        \App\Models\ContractTenant::STATUS_APPROVED,
-        \App\Models\ContractTenant::STATUS_CHECKED_IN,
-    ])->count();
-    $currentOccupancy = max($plannedResidentCount, (int) $contract->room->current_people);
+    $currentOccupancy = $contract->capacityOccupancyCount();
     $occupancyLimitReached = $currentOccupancy >= (int) $contract->room->max_people;
     $vehicleTypeLabels = ['motorcycle' => 'Xe máy', 'electric_motorcycle' => 'Xe máy điện', 'bicycle' => 'Xe đạp'];
     $approvedVehicles = $contract->currentMembers
@@ -25,6 +20,8 @@
         'worn' => 'Sử dụng bình thường', 'damaged' => 'Có hư hỏng',
     ];
     $canConfirmMoveInDetails = $contract->status === \App\Models\Contract::STATUS_AWAITING_MOVE_IN;
+    $handoverImagesReady = $handoverReading?->meterImageExists('electricity')
+        && $handoverReading?->meterImageExists('water');
 @endphp
 
 @section('content')
@@ -47,7 +44,9 @@
         @endif
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><a href="{{ route('client.contracts.index') }}" class="text-sm font-semibold text-indigo-700">← Hợp đồng của tôi</a><h2 class="mt-2 text-2xl font-bold text-slate-950">{{ $contract->contract_code }}</h2><p class="mt-1 text-sm text-slate-500">{{ $statuses[$contract->status] ?? 'Không xác định' }}</p></div>@if($contract->contractFileExists())<a href="{{ route('client.contracts.file', $contract) }}" target="_blank" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white">Xem file hợp đồng</a>@elseif($contract->contract_file)<span class="text-sm font-medium text-amber-700">File hợp đồng không còn tồn tại</span>@endif</div>
 
-        @if($canConfirmMoveInDetails && $contract->move_in_inventory_snapshotted_at && ! $contract->move_in_details_confirmed_at && $handoverReading)
+        @include('client.contracts.appendices._contract-section')
+
+        @if($canConfirmMoveInDetails && $contract->move_in_inventory_snapshotted_at && ! $contract->move_in_details_confirmed_at && $handoverReading && $handoverImagesReady)
             <section class="overflow-hidden rounded-lg border border-indigo-200 bg-white shadow-sm">
                 <div class="border-b border-indigo-100 bg-indigo-50 px-5 py-4">
                     <h3 class="font-semibold text-indigo-950">Xác nhận thông tin nhận phòng</h3>
@@ -56,14 +55,14 @@
                     @csrf
                     <label class="flex items-start gap-3 text-sm font-medium text-slate-800">
                         <input type="checkbox" name="confirmation" value="1" required class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600">
-                        <span>Tôi đã kiểm tra chỉ số điện <strong>{{ $handoverReading->electricity_new }} kWh</strong>, chỉ số nước <strong>{{ $handoverReading->water_new }} m³</strong>, dịch vụ và tài sản trong phòng.</span>
+                        <span>Tôi đã đối chiếu ảnh đồng hồ với chỉ số điện <strong>{{ $handoverReading->electricity_new }} kWh</strong>, chỉ số nước <strong>{{ $handoverReading->water_new }} m³</strong>, dịch vụ và tài sản trong phòng.</span>
                     </label>
                     <button class="shrink-0 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Xác nhận thông tin</button>
                 </form>
                 @error('confirmation')<p class="px-5 pb-4 text-sm text-rose-700">{{ $message }}</p>@enderror
             </section>
-        @elseif($canConfirmMoveInDetails && ! $contract->move_in_details_confirmed_at && ! $handoverReading)
-            <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">Ban quản lý chưa lập chỉ số điện nước bàn giao. Bạn sẽ có nút xác nhận sau khi chỉ số được cập nhật.</div>
+        @elseif($canConfirmMoveInDetails && ! $contract->move_in_details_confirmed_at && (! $handoverReading || ! $handoverImagesReady))
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">Ban quản lý chưa cung cấp đầy đủ chỉ số và ảnh đồng hồ điện nước bàn giao. Bạn sẽ có nút xác nhận sau khi thông tin được cập nhật.</div>
         @endif
 
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -93,8 +92,22 @@
                 <h4 class="text-sm font-semibold text-slate-900">Chỉ số điện nước bàn giao</h4>
                 @if($handoverReading)
                     <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4"><p class="text-xs font-medium text-amber-700">Điện</p><p class="mt-1 text-xl font-bold text-amber-950">{{ $handoverReading->electricity_new }} kWh</p></div>
-                        <div class="rounded-lg border border-sky-200 bg-sky-50 p-4"><p class="text-xs font-medium text-sky-700">Nước</p><p class="mt-1 text-xl font-bold text-sky-950">{{ $handoverReading->water_new }} m³</p></div>
+                        <div class="overflow-hidden rounded-lg border border-amber-200 bg-amber-50">
+                            @if($handoverReading->meterImageExists('electricity'))
+                                <a href="{{ route('client.contracts.handover-meter-image', [$contract, 'electricity']) }}" data-image-modal data-image-title="Ảnh đồng hồ điện bàn giao">
+                                    <img src="{{ route('client.contracts.handover-meter-image', [$contract, 'electricity']) }}" alt="Ảnh đồng hồ điện bàn giao" class="h-48 w-full bg-white object-contain">
+                                </a>
+                            @endif
+                            <div class="p-4"><p class="text-xs font-medium text-amber-700">Điện</p><p class="mt-1 text-xl font-bold text-amber-950">{{ $handoverReading->electricity_new }} kWh</p></div>
+                        </div>
+                        <div class="overflow-hidden rounded-lg border border-sky-200 bg-sky-50">
+                            @if($handoverReading->meterImageExists('water'))
+                                <a href="{{ route('client.contracts.handover-meter-image', [$contract, 'water']) }}" data-image-modal data-image-title="Ảnh đồng hồ nước bàn giao">
+                                    <img src="{{ route('client.contracts.handover-meter-image', [$contract, 'water']) }}" alt="Ảnh đồng hồ nước bàn giao" class="h-48 w-full bg-white object-contain">
+                                </a>
+                            @endif
+                            <div class="p-4"><p class="text-xs font-medium text-sky-700">Nước</p><p class="mt-1 text-xl font-bold text-sky-950">{{ $handoverReading->water_new }} m³</p></div>
+                        </div>
                     </div>
                 @else
                     <p class="mt-2 text-sm text-amber-700">Chưa có chỉ số bàn giao từ ban quản lý.</p>
@@ -172,7 +185,7 @@
 
         @if($contract->actual_move_out_at && $contract->checkout_handover_confirmed_at)
             @php($checkoutConditionLabels = ['good' => 'Tốt', 'worn' => 'Hao mòn', 'damaged' => 'Hư hỏng', 'missing' => 'Thất lạc'])
-            <section class="overflow-hidden rounded-xl border border-violet-200 bg-white shadow-sm"><div class="border-b border-violet-100 bg-violet-50/60 px-5 py-4"><h3 class="font-semibold text-slate-950">Biên bản bàn giao trả phòng</h3><p class="mt-1 text-xs text-slate-500">Đã đối chiếu lúc {{ $contract->checkout_handover_confirmed_at->format('H:i d/m/Y') }} · {{ $contract->checkout_key_count }} chìa khóa</p></div>@if(filled($contract->checkout_asset_report))<div class="divide-y divide-slate-100">@foreach($contract->checkout_asset_report as $asset)<div class="flex justify-between gap-3 px-5 py-3 text-sm"><div><p class="font-semibold">{{ $asset['name'] }}</p><p class="text-xs text-slate-500">{{ $asset['note'] ?: 'Không có ghi chú' }}</p></div><span class="shrink-0 font-semibold text-slate-700">{{ $checkoutConditionLabels[$asset['condition']] ?? $asset['condition'] }}</span></div>@endforeach</div>@endif @if($contract->checkout_damage_note)<p class="border-t border-slate-100 px-5 py-3 text-sm text-rose-700"><strong>Ghi nhận hiện trạng:</strong> {{ $contract->checkout_damage_note }}</p>@endif @if(filled($contract->checkout_photo_paths))<div class="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-4">@foreach($contract->checkout_photo_paths as $index => $path)<a target="_blank" href="{{ route('client.contracts.checkout-photos.show', [$contract, $index]) }}" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">Xem ảnh {{ $index + 1 }}</a>@endforeach</div>@endif</section>
+            <section class="overflow-hidden rounded-xl border border-violet-200 bg-white shadow-sm"><div class="border-b border-violet-100 bg-violet-50/60 px-5 py-4"><h3 class="font-semibold text-slate-950">Biên bản bàn giao trả phòng</h3><p class="mt-1 text-xs text-slate-500">Đã đối chiếu lúc {{ $contract->checkout_handover_confirmed_at->format('H:i d/m/Y') }} · {{ $contract->checkout_key_count }} chìa khóa</p></div>@if(filled($contract->checkout_asset_report))<div class="divide-y divide-slate-100">@foreach($contract->checkout_asset_report as $asset)<div class="flex justify-between gap-3 px-5 py-3 text-sm"><div><p class="font-semibold">{{ $asset['name'] }}</p><p class="text-xs text-slate-500">{{ $asset['note'] ?: 'Không có ghi chú' }}</p></div><span class="shrink-0 font-semibold text-slate-700">{{ $checkoutConditionLabels[$asset['condition']] ?? $asset['condition'] }}</span></div>@endforeach</div>@endif @if($contract->checkout_damage_note)<p class="border-t border-slate-100 px-5 py-3 text-sm text-rose-700"><strong>Ghi nhận hiện trạng:</strong> {{ $contract->checkout_damage_note }}</p>@endif @if(filled($contract->checkout_photo_paths))<div class="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-4">@foreach($contract->checkout_photo_paths as $index => $path)<a href="{{ route('client.contracts.checkout-photos.show', [$contract, $index]) }}" data-image-modal data-image-title="Ảnh bàn giao trả phòng {{ $index + 1 }}" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700">Xem ảnh {{ $index + 1 }}</a>@endforeach</div>@endif</section>
         @endif
 
         @if($contract->settlementStatement)

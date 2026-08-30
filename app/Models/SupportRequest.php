@@ -7,6 +7,13 @@ use Illuminate\Support\Facades\Storage;
 
 class SupportRequest extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa yêu cầu hỗ trợ. Hãy chuyển trạng thái xử lý.');
+        });
+    }
+
     public const STATUS_NEW = 'new';
 
     public const STATUS_IN_PROGRESS = 'in_progress';

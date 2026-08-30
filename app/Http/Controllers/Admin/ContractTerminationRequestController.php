@@ -41,7 +41,9 @@ class ContractTerminationRequestController extends Controller
     {
         $data = $request->validate([
             'approved_end_date' => ['required', 'date', 'after_or_equal:today'],
-            'scheduled_checkout_at' => ['required', 'date', 'after_or_equal:now'],
+            // A same-day handover can be approved after its scheduled time has passed.
+            // The lifecycle service still enforces that it belongs to approved_end_date.
+            'scheduled_checkout_at' => ['required', 'date'],
             'admin_note' => ['nullable', 'string', 'max:1000'],
         ]);
         $terminationRequest = $this->lifecycle->scheduleDeparture(

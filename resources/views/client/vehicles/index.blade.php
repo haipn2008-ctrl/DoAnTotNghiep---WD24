@@ -77,7 +77,7 @@
                     @endif
 
                     @if($vehicle->vehicle_image)
-                        <a href="{{ route('client.vehicles.image', $vehicle) }}" target="_blank" rel="noopener" class="mt-4 inline-block">
+                        <a href="{{ route('client.vehicles.image', $vehicle) }}" data-image-modal data-image-title="Ảnh phương tiện {{ $vehicle->vehicle_name ?: '' }}" class="mt-4 inline-block">
                             <img src="{{ route('client.vehicles.image', $vehicle) }}" alt="Ảnh {{ $vehicle->vehicle_name ?: 'phương tiện' }}" class="h-36 w-52 rounded-lg object-cover ring-1 ring-slate-200">
                         </a>
                     @endif
@@ -109,13 +109,14 @@
                             </div>
                         </form>
                     @endif
-                    <form method="POST" action="{{ route('client.vehicles.destroy', $vehicle) }}" class="mt-3 text-right">
+                    <form method="POST" action="{{ route('client.vehicles.destroy', $vehicle) }}" class="mt-3 text-right" onsubmit="const reason = prompt('Nhập lý do hủy/gỡ phương tiện (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.removal_reason.value = reason.trim(); return true;">
                         @csrf
                         @method('DELETE')
+                        <input type="hidden" name="removal_reason">
                         @if($vehicle->status === \App\Models\Vehicle::STATUS_PENDING)
-                            <button class="rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50" onclick="return confirm('Hủy yêu cầu đăng ký phương tiện này?')">Hủy yêu cầu</button>
+                            <button class="rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50">Hủy yêu cầu</button>
                         @else
-                            <button class="text-sm font-semibold text-rose-600" onclick="return confirm('Gỡ phương tiện này?')">{{ $vehicle->status === \App\Models\Vehicle::STATUS_APPROVED ? 'Gỡ phương tiện' : 'Xóa yêu cầu' }}</button>
+                            <button class="text-sm font-semibold text-rose-600">{{ $vehicle->status === \App\Models\Vehicle::STATUS_APPROVED ? 'Gỡ phương tiện' : 'Hủy yêu cầu' }}</button>
                         @endif
                     </form>
                 </article>
@@ -123,6 +124,30 @@
                 <div class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Bạn chưa đăng ký phương tiện nào.</div>
             @endforelse
         </section>
+
+        @if($archivedVehicles->isNotEmpty())
+            <section class="space-y-3">
+                <div>
+                    <h3 class="font-semibold text-slate-950">Phương tiện đã hủy hoặc đã gỡ</h3>
+                    <p class="mt-1 text-sm text-slate-500">Đăng ký lại sẽ chuyển phương tiện về trạng thái chờ quản trị viên duyệt.</p>
+                </div>
+                @foreach($archivedVehicles as $vehicle)
+                    <article class="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div>
+                            <p class="font-semibold text-slate-900">{{ $vehicle->display_license_plate ?: 'Xe đạp không có biển số' }}</p>
+                            <p class="text-sm text-slate-500">{{ $typeLabels[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }} · Chủ xe: {{ $vehicle->tenant->full_name }}</p>
+                            @if($vehicle->removal_reason)<p class="mt-1 text-xs text-slate-500">Lý do: {{ $vehicle->removal_reason }}</p>@endif
+                        </div>
+                        <form method="POST" action="{{ route('client.vehicles.restore', $vehicle) }}" onsubmit="const reason = prompt('Nhập lý do đăng ký lại phương tiện (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.restoration_reason.value = reason.trim(); return confirm('Xác nhận gửi lại phương tiện để duyệt?');">
+                            @csrf
+                            @method('PATCH')
+                            <input type="hidden" name="restoration_reason">
+                            <button class="rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">Đăng ký lại</button>
+                        </form>
+                    </article>
+                @endforeach
+            </section>
+        @endif
     </div>
 @endsection
 

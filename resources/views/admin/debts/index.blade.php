@@ -37,7 +37,7 @@
                             @endphp
                             <tr class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4"><a href="{{ route('admin.invoices.show', $invoice) }}" class="font-bold text-indigo-700">{{ $invoice->invoice_code }}</a><p class="mt-1 font-medium text-slate-900">{{ $invoice->contract->tenant->full_name ?? '-' }}</p><p class="mt-1 text-xs text-slate-500">Phòng {{ $invoice->room->room_code ?? '-' }} · {{ $invoice->contract->contract_code ?? '-' }}</p></td>
-                                <td class="px-5 py-4"><p class="font-semibold text-slate-900">{{ $invoice->due_date?->format('d/m/Y') }}</p><span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $bucketClass }}">{{ $invoice->debt_bucket_label }}</span></td>
+                                <td class="px-5 py-4"><p class="font-semibold text-slate-900">{{ $invoice->effective_due_date?->format('d/m/Y') }}</p>@if($invoice->payment_extension_until)<p class="mt-1 text-xs text-slate-500">Hạn gốc {{ $invoice->due_date?->format('d/m/Y') }}</p>@endif<span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $bucketClass }}">{{ $invoice->debt_bucket_label }}</span></td>
                                 <td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</td>
                                 <td class="px-5 py-4 text-right font-semibold text-emerald-700">{{ number_format($paid, 0, ',', '.') }}đ</td>
                                 <td class="px-5 py-4 text-right font-semibold text-amber-700">{{ number_format($pending, 0, ',', '.') }}đ</td>

@@ -25,6 +25,7 @@ class ContractLifecycleService
     public function __construct(
         private readonly ContractTenantService $memberService,
         private readonly SettlementService $settlements,
+        private readonly ContractDocumentService $documents,
     ) {}
 
     public function createDraft(array $data, User $actor): Contract
@@ -36,8 +37,8 @@ class ContractLifecycleService
             $tenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($data['tenant_id']);
             $numberOfPeople = count($data['members'] ?? []) + 1;
 
-            if ($room->status === Room::STATUS_MAINTENANCE) {
-                $this->fail('room_id', 'Phòng đang bảo trì, chưa thể lập hợp đồng cho phòng này.');
+            if (in_array($room->status, [Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED], true)) {
+                $this->fail('room_id', 'Phòng đang bảo trì hoặc đã ngừng khai thác, chưa thể lập hợp đồng.');
             }
             if (! $tenant->hasCompleteRentalProfile()) {
                 $this->fail('tenant_id', 'Khách thuê phải kích hoạt tài khoản và hoàn thiện hồ sơ trước khi lập hợp đồng.');
@@ -101,12 +102,13 @@ class ContractLifecycleService
             }
             $this->requireStatus($contract, [Contract::STATUS_DRAFT], 'Chỉ bản nháp mới được gửi chờ ký.');
             $room = $this->lockRoom($contract);
-            if ($room->status === Room::STATUS_MAINTENANCE) {
-                $this->fail('room_id', 'Phòng đang bảo trì. Không thể gửi hợp đồng chờ ký.');
+            if (in_array($room->status, [Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED], true)) {
+                $this->fail('room_id', 'Phòng đang bảo trì hoặc đã ngừng khai thác. Không thể gửi hợp đồng chờ ký.');
             }
             $this->ensureScheduleIsComplete($contract);
             $this->ensureNoReservationConflict($contract);
             $this->snapshotMoveInDetails($contract, $room);
+            $this->documents->assignActiveTemplate($contract);
             $contract->forceFill([
                 'signature_due_at' => now()->addDays(Contract::SIGNATURE_DEADLINE_DAYS),
             ])->save();
@@ -126,8 +128,8 @@ class ContractLifecycleService
             $this->ensureRoomCanAcceptDraftSchedule($room, $data);
             $tenant = Tenant::query()->with('user')->lockForUpdate()->findOrFail($data['tenant_id']);
             $numberOfPeople = count($data['members'] ?? []) + 1;
-            if ($room->status === Room::STATUS_MAINTENANCE) {
-                $this->fail('room_id', 'Phòng đang bảo trì, không thể chọn cho hợp đồng.');
+            if (in_array($room->status, [Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED], true)) {
+                $this->fail('room_id', 'Phòng đang bảo trì hoặc đã ngừng khai thác, không thể chọn cho hợp đồng.');
             }
             if (! $tenant->hasCompleteRentalProfile()) {
                 $this->fail('tenant_id', 'Khách thuê phải kích hoạt tài khoản và hoàn thiện hồ sơ trước khi cập nhật hợp đồng.');
@@ -186,6 +188,10 @@ class ContractLifecycleService
                 'move_in_inventory_snapshotted_at' => null,
                 'move_in_details_confirmed_at' => null,
                 'move_in_details_confirmed_by' => null,
+                'contract_template_id' => null,
+                'contract_content' => null,
+                'contract_content_snapshotted_at' => null,
+                'contract_content_sha256' => null,
             ])->save();
             $this->transition($contract, Contract::STATUS_DRAFT, 'return_to_draft', $reason, $actor);
             $this->resolveAlerts($contract, ['signature_overdue']);
@@ -208,8 +214,8 @@ class ContractLifecycleService
                 $this->fail('signed_at', 'Ngày ký không được ở tương lai.');
             }
             $room = $this->lockRoom($contract);
-            if ($room->status === Room::STATUS_MAINTENANCE) {
-                $this->fail('room_id', 'Phòng đang bảo trì. Không thể xác nhận ký và giữ lịch.');
+            if (in_array($room->status, [Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED], true)) {
+                $this->fail('room_id', 'Phòng đang bảo trì hoặc đã ngừng khai thác. Không thể xác nhận ký và giữ lịch.');
             }
             $this->ensureScheduleIsComplete($contract);
             $this->ensureNoReservationConflict($contract);
@@ -227,6 +233,7 @@ class ContractLifecycleService
                 'signed_confirmed_by' => $actor->id,
                 'deposit_due_at' => $depositDueAt,
             ])->save();
+            $this->documents->snapshotSignedDocument($contract);
 
             $target = (float) $contract->deposit_amount > 0
                 ? Contract::STATUS_PENDING_DEPOSIT
@@ -377,9 +384,15 @@ class ContractLifecycleService
         }, 3);
     }
 
-    public function saveHandoverDraft(Contract $contract, User $actor, int $electricity, int $water): UtilityReading
-    {
-        return DB::transaction(function () use ($contract, $actor, $electricity, $water): UtilityReading {
+    public function saveHandoverDraft(
+        Contract $contract,
+        User $actor,
+        int $electricity,
+        int $water,
+        ?string $electricityImage = null,
+        ?string $waterImage = null,
+    ): UtilityReading {
+        return DB::transaction(function () use ($contract, $actor, $electricity, $water, $electricityImage, $waterImage): UtilityReading {
             $contract = $this->lockContract($contract);
             $this->requireStatus($contract, [Contract::STATUS_AWAITING_MOVE_IN], 'Chỉ được lập chỉ số bàn giao khi hợp đồng đang chờ nhận phòng.');
             if ($contract->move_in_details_confirmed_at) {
@@ -415,8 +428,10 @@ class ContractLifecycleService
                 'lifecycle_event_key' => $key,
                 'electricity_old' => $electricity,
                 'electricity_new' => $electricity,
+                'electricity_image' => $electricityImage ?? $reading->electricity_image,
                 'water_old' => $water,
                 'water_new' => $water,
+                'water_image' => $waterImage ?? $reading->water_image,
                 'status' => UtilityReading::STATUS_DRAFT,
                 'note' => 'Chỉ số bàn giao chờ khách thuê xác nhận.',
             ])->save();
@@ -493,8 +508,8 @@ class ContractLifecycleService
             if (! $contract->move_in_inventory_snapshotted_at || ! $contract->move_in_details_confirmed_at) {
                 $this->fail('move_in_details_confirmed', 'Khách thuê phải xác nhận thông tin nhận phòng trước khi nhận phòng.');
             }
-            if ($room->status === Room::STATUS_MAINTENANCE) {
-                $this->fail('room_id', 'Phòng đang bảo trì, không thể nhận phòng.');
+            if (in_array($room->status, [Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED], true)) {
+                $this->fail('room_id', 'Phòng đang bảo trì hoặc đã ngừng khai thác, không thể nhận phòng.');
             }
             if ($room->status === Room::STATUS_OCCUPIED) {
                 $this->fail('room_id', 'Phòng đang có người thuê, không thể nhận phòng.');

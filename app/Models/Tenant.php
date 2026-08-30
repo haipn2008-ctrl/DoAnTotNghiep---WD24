@@ -7,8 +7,26 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tenant extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa hồ sơ khách thuê. Hãy lưu trữ hồ sơ để giữ lịch sử.');
+        });
+    }
+
+    public const STATUS_ACTIVE = 'active';
+
+    public const STATUS_ARCHIVED = 'archived';
+
     protected $fillable = [
         'user_id',
+        'status',
+        'archived_at',
+        'archived_by',
+        'archive_reason',
+        'restored_at',
+        'restored_by',
+        'restoration_reason',
 
         'full_name',
         'date_of_birth',
@@ -27,6 +45,8 @@ class Tenant extends Model
     protected $casts = [
         'date_of_birth' => 'date',
         'cccd_issue_date' => 'date',
+        'archived_at' => 'datetime',
+        'restored_at' => 'datetime',
     ];
 
     /*
@@ -38,6 +58,21 @@ class Tenant extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function archivedBy()
+    {
+        return $this->belongsTo(User::class, 'archived_by');
+    }
+
+    public function restoredBy()
+    {
+        return $this->belongsTo(User::class, 'restored_by');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('status', self::STATUS_ACTIVE);
     }
 
     public function contracts()
@@ -143,6 +178,7 @@ class Tenant extends Model
     public function scopeEligibleForContract($query)
     {
         return $query
+            ->where('status', self::STATUS_ACTIVE)
             ->whereNotNull('full_name')
             ->whereNotNull('date_of_birth')
             ->whereDate('date_of_birth', '<=', now()->subYears(18)->toDateString())
@@ -160,7 +196,8 @@ class Tenant extends Model
     {
         $this->loadMissing('user');
 
-        return $this->user?->status === User::STATUS_ACTIVE
+        return $this->status === self::STATUS_ACTIVE
+            && $this->user?->status === User::STATUS_ACTIVE
             && filled($this->full_name)
             && filled($this->date_of_birth)
             && $this->date_of_birth->lte(now()->subYears(18))

@@ -94,7 +94,7 @@
             </div>
         @else
             <div class="md:col-span-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700">
-                Tài khoản khách thuê sẽ chờ kích hoạt và phải đổi mật khẩu trong lần đăng nhập đầu tiên; tài khoản quản trị sẽ hoạt động ngay.
+                Khi tạo tài khoản khách thuê, email và mật khẩu ban đầu sẽ được gửi đến địa chỉ email đã nhập. Khách thuê phải đổi mật khẩu trong lần đăng nhập đầu tiên; tài khoản quản trị sẽ hoạt động ngay.
             </div>
         @endif
     </div>

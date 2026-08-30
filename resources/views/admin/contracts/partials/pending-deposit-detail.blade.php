@@ -4,9 +4,6 @@
     $successfulPayments = $depositInvoice
         ? $depositInvoice->payments->where('status', \App\Models\Payment::STATUS_SUCCESS)->sortByDesc('payment_date')
         : collect();
-    $pendingPayments = $depositInvoice
-        ? $depositInvoice->payments->where('status', \App\Models\Payment::STATUS_PENDING)->sortByDesc('payment_date')
-        : collect();
     $paymentMethodLabels = [
         \App\Models\Payment::METHOD_CASH => 'Tiền mặt',
         \App\Models\Payment::METHOD_BANK_TRANSFER => 'Chuyển khoản',
@@ -142,32 +139,6 @@
         </div>
     @endif
 </section>
-
-@if($pendingPayments->isNotEmpty())
-    <section class="overflow-hidden rounded-lg border border-amber-200 bg-white shadow-sm">
-        <div class="border-b border-amber-100 bg-amber-50 px-4 py-3 font-semibold text-amber-950">Thanh toán chờ xác nhận</div>
-        <div class="divide-y divide-slate-100">
-            @foreach($pendingPayments as $payment)
-                <div class="grid gap-3 p-4 lg:grid-cols-[1fr_auto] lg:items-center">
-                    <div class="text-sm text-slate-600">
-                        <strong class="text-slate-950">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</strong>
-                        <span class="mx-1">·</span>{{ $paymentMethodLabels[$payment->payment_method] ?? 'Không xác định' }}
-                        <span class="mx-1">·</span>{{ $payment->payment_date?->format('d/m/Y') }}
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                        <form method="POST" action="{{ route('admin.invoices.payments.approve', $payment) }}">@csrf
-                            <button class="h-9 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700">Xác nhận</button>
-                        </form>
-                        <form method="POST" action="{{ route('admin.invoices.payments.reject', $payment) }}" class="flex min-w-0 gap-2">@csrf
-                            <input name="review_note" required maxlength="1000" placeholder="Lý do từ chối" class="h-9 min-w-0 rounded-lg border border-slate-200 px-3 text-sm">
-                            <button class="h-9 rounded-lg border border-rose-200 px-4 text-sm font-semibold text-rose-700 hover:bg-rose-50">Từ chối</button>
-                        </form>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-    </section>
-@endif
 
 <div class="grid gap-4 lg:grid-cols-2">
     <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

@@ -1035,28 +1035,16 @@ Thông tin hợp đồng
             <div class="card-body">
 
                 @php
-                    $contractImage = $contract->contract_file ?? null;
-
-                    if ($contractImage) {
-                        if (filter_var($contractImage, FILTER_VALIDATE_URL)) {
-                            $contractImageUrl = $contractImage;
-                        } elseif (str_starts_with($contractImage, 'storage/')) {
-                            $contractImageUrl = asset($contractImage);
-                        } elseif (str_starts_with($contractImage, '/storage/')) {
-                            $contractImageUrl = asset(ltrim($contractImage, '/'));
-                        } elseif (str_starts_with($contractImage, 'public/')) {
-                            $contractImageUrl = asset('storage/' . substr($contractImage, 7));
-                        } else {
-                            $contractImageUrl = asset('storage/' . ltrim($contractImage, '/'));
-                        }
-                    } else {
-                        $contractImageUrl = null;
-                    }
+                    $contractImageUrl = $contract->contractFileExists()
+                        ? route('admin.contracts.file', $contract)
+                        : null;
+                    $contractFileIsImage = $contractImageUrl
+                        && in_array(strtolower(pathinfo($contract->contract_file, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'webp'], true);
                 @endphp
 
-                @if($contractImageUrl)
+                @if($contractImageUrl && $contractFileIsImage)
                     <div class="contract-image text-center">
-                        <a href="{{ $contractImageUrl }}" target="_blank" rel="noopener">
+                        <a href="{{ $contractImageUrl }}" data-image-modal data-image-title="Hình ảnh hợp đồng">
                             <img
                                 src="{{ $contractImageUrl }}"
                                 alt="Hình ảnh hợp đồng"
@@ -1068,6 +1056,15 @@ Thông tin hợp đồng
                             <small class="text-muted">
                                 Nhấn vào ảnh để xem kích thước đầy đủ
                             </small>
+                        </div>
+                    </div>
+                @elseif($contractImageUrl)
+                    <div class="border rounded bg-light p-4 text-center">
+                        <i class="bi bi-file-earmark-pdf display-1 text-danger"></i>
+                        <div class="mt-3">
+                            <a href="{{ $contractImageUrl }}" target="_blank" rel="noopener" class="btn btn-outline-primary">
+                                Xem file hợp đồng
+                            </a>
                         </div>
                     </div>
                 @else
@@ -1349,7 +1346,7 @@ Thông tin hợp đồng
 
         href="{{ route('admin.contracts.print',$contract) }}"
 
-        target="_blank"
+        data-contract-print
 
         class="btn btn-success">
 
@@ -1375,7 +1372,7 @@ Thông tin hợp đồng
         data-status="{{ $contract->status_text }}"
         data-content="{{ e($contract->contract_content) }}"
         data-note="{{ $contract->note }}"
-        data-image="{{ $contract->contract_file ? asset($contract->contract_file) : '' }}"
+        data-image="{{ $contract->contractFileExists() ? route('admin.contracts.file', $contract) : '' }}"
 
         data-bs-toggle="modal"
         data-bs-target="#editContractModal">

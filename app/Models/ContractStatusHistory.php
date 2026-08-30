@@ -6,6 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class ContractStatusHistory extends Model
 {
+    protected static function booted(): void
+    {
+        static::updating(function (): never {
+            throw new \LogicException('Lịch sử trạng thái hợp đồng là dữ liệu bất biến.');
+        });
+
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa lịch sử trạng thái hợp đồng.');
+        });
+    }
+
     protected $guarded = [];
 
     protected $casts = [

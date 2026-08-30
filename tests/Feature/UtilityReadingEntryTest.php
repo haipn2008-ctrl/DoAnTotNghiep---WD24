@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
 use App\Services\InvoiceGenerator;
+use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -29,6 +30,7 @@ class UtilityReadingEntryTest extends TestCase
     {
         parent::setUp();
         $this->withoutVite();
+        Carbon::setTestNow('2026-10-31 12:00:00');
 
         $role = Role::create(['role_name' => 'Admin']);
         $this->admin = User::create([
@@ -50,6 +52,12 @@ class UtilityReadingEntryTest extends TestCase
             'email' => 'utility-tenant@example.com',
             'address' => 'Hà Nội',
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     public function test_entry_screen_uses_latest_reading_even_when_previous_month_is_missing(): void
@@ -115,7 +123,7 @@ class UtilityReadingEntryTest extends TestCase
             });
     }
 
-    public function test_periodic_reading_can_start_from_handover_on_the_same_day(): void
+    public function test_periodic_reading_uses_handover_in_the_same_period_and_closes_on_month_end(): void
     {
         $room = $this->createOccupiedRoom('SAME-DAY-HANDOVER');
         $contract = $this->createActiveContract($room, 'HD-SAME-DAY');
@@ -129,6 +137,7 @@ class UtilityReadingEntryTest extends TestCase
         $this->actingAs($this->admin)
             ->get('/admin/utilities/create?month=8&year=2026&record_date=2026-08-11')
             ->assertOk()
+            ->assertSee('31/08/2026')
             ->assertViewHas('readings', function ($readings) use ($room) {
                 $reading = collect($readings)->firstWhere('room_id', $room->id);
 
@@ -152,12 +161,66 @@ class UtilityReadingEntryTest extends TestCase
         $this->assertDatabaseHas('utility_readings', [
             'contract_id' => $contract->id,
             'reading_type' => 'periodic',
-            'record_date' => '2026-08-11 00:00:00',
+            'record_date' => '2026-08-31 00:00:00',
             'electricity_old' => 1200,
             'electricity_new' => 1215,
             'water_old' => 150,
             'water_new' => 153,
         ]);
+    }
+
+    public function test_current_period_can_only_be_saved_as_draft_before_month_end(): void
+    {
+        Carbon::setTestNow('2026-08-27 10:00:00');
+        $room = $this->createOccupiedRoom('P-CLOSING-DATE');
+        $contract = $this->createActiveContract($room, 'HD-CLOSING-DATE');
+        $this->createHandover($room, $contract, 100, 20);
+
+        $payload = [
+            'month' => 8,
+            'year' => 2026,
+            'record_date' => '2026-08-27',
+            'readings' => [[
+                'selected' => 1, 'room_id' => $room->id,
+                'electricity_new' => 110, 'water_new' => 22,
+            ]],
+        ];
+
+        $this->actingAs($this->admin)
+            ->get('/admin/utilities/create?month=8&year=2026&record_date=2026-08-27')
+            ->assertOk()
+            ->assertSee('31/08/2026')
+            ->assertSee('Chưa đến ngày chốt');
+
+        $this->post('/admin/utilities/store', $payload)
+            ->assertSessionHasErrors('record_date');
+        $this->assertDatabaseMissing('utility_readings', [
+            'contract_id' => $contract->id,
+            'reading_type' => 'periodic',
+        ]);
+
+        $payload['intent'] = 'draft';
+        $this->post('/admin/utilities/store', $payload)
+            ->assertSessionHasNoErrors();
+        $reading = UtilityReading::query()
+            ->where('contract_id', $contract->id)
+            ->where('reading_type', 'periodic')
+            ->firstOrFail();
+        $this->assertTrue($reading->isDraft());
+        $this->assertSame('2026-08-31', $reading->record_date->toDateString());
+
+        $this->post(route('admin.utilities.confirm', $reading))
+            ->assertSessionHasErrors('reading');
+        $this->assertTrue($reading->fresh()->isDraft());
+
+        Carbon::setTestNow('2026-08-31 00:01:00');
+        $this->get('/admin/utilities/create?month=8&year=2026')
+            ->assertOk()
+            ->assertSee('Lưu và xác nhận')
+            ->assertDontSee('Chưa đến ngày chốt');
+        $this->post(route('admin.utilities.confirm', $reading))
+            ->assertSessionHasNoErrors();
+        $this->assertTrue($reading->fresh()->isConfirmed());
     }
 
     public function test_only_admin_can_access_entry_pages_and_direct_store(): void
@@ -314,6 +377,69 @@ class UtilityReadingEntryTest extends TestCase
         $this->assertTrue($reading->fresh()->isDraft());
     }
 
+    public function test_periods_must_be_confirmed_month_by_month_and_reopened_in_reverse_order(): void
+    {
+        $room = $this->createOccupiedRoom('P-SEQUENTIAL');
+        $contract = $this->createActiveContract($room, 'HD-SEQUENTIAL');
+        $this->createHandover($room, $contract, 100, 20);
+        UtilityReading::create([
+            'room_id' => $room->id, 'contract_id' => $contract->id,
+            'month' => 7, 'year' => 2026, 'record_date' => '2026-07-31', 'reading_type' => 'periodic',
+            'electricity_old' => 100, 'electricity_new' => 110,
+            'water_old' => 20, 'water_new' => 21, 'status' => UtilityReading::STATUS_CONFIRMED,
+        ]);
+
+        $this->actingAs($this->admin)->post('/admin/utilities/store', [
+            'month' => 9,
+            'year' => 2026,
+            'intent' => 'draft',
+            'readings' => [[
+                'selected' => 1, 'room_id' => $room->id,
+                'electricity_new' => 120, 'water_new' => 25,
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $september = UtilityReading::query()
+            ->where('contract_id', $contract->id)
+            ->where('month', 9)
+            ->where('year', 2026)
+            ->firstOrFail();
+
+        $this->post(route('admin.utilities.confirm', $september))
+            ->assertSessionHasErrors('reading');
+        $this->assertTrue($september->fresh()->isDraft());
+
+        $this->post('/admin/utilities/store', [
+            'month' => 8,
+            'year' => 2026,
+            'readings' => [[
+                'selected' => 1, 'room_id' => $room->id,
+                'electricity_new' => 110, 'water_new' => 21,
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $august = UtilityReading::query()
+            ->where('contract_id', $contract->id)
+            ->where('month', 8)
+            ->where('year', 2026)
+            ->firstOrFail();
+        $this->assertTrue($august->isConfirmed());
+
+        $this->post(route('admin.utilities.confirm', $september))
+            ->assertSessionHasNoErrors();
+        $this->assertTrue($september->fresh()->isConfirmed());
+
+        $this->post(route('admin.utilities.reopen', $august))
+            ->assertSessionHasErrors('reading');
+        $this->assertTrue($august->fresh()->isConfirmed());
+
+        $this->post(route('admin.utilities.reopen', $september))
+            ->assertSessionHasNoErrors();
+        $this->post(route('admin.utilities.reopen', $august))
+            ->assertSessionHasNoErrors();
+        $this->assertTrue($august->fresh()->isDraft());
+    }
+
     public function test_reading_linked_to_an_invoice_cannot_be_changed(): void
     {
         $room = $this->createOccupiedRoom('P301');
@@ -409,8 +535,9 @@ class UtilityReadingEntryTest extends TestCase
         Storage::fake('local');
         $first = $this->createOccupiedRoom('P601');
         $second = $this->createOccupiedRoom('P602');
-        $this->createActiveContract($first, 'HD-601');
+        $firstContract = $this->createActiveContract($first, 'HD-601');
         $this->createActiveContract($second, 'HD-602');
+        $this->createHandover($first, $firstContract);
         Storage::disk('local')->put('utility-readings/electricity/old.jpg', 'old');
         UtilityReading::create(['room_id' => $first->id, 'month' => 8, 'year' => 2026,
             'record_date' => '2026-08-31', 'electricity_old' => 0, 'electricity_new' => 10,

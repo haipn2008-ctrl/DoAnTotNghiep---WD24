@@ -3,14 +3,17 @@
 namespace Tests\Feature;
 
 use App\Models\Contract;
+use App\Models\ContractHistory;
 use App\Models\Invoice;
 use App\Models\Role;
 use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\AccountCreatedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class UserManagementTest extends TestCase
@@ -138,6 +141,34 @@ class UserManagementTest extends TestCase
         $this->assertTrue($newClient->must_change_password);
         $this->assertNull($newClient->activated_at);
         $this->assertTrue(Hash::check('strong-password', $newClient->password));
+    }
+
+    public function test_creating_a_client_emails_the_initial_login_credentials(): void
+    {
+        Notification::fake();
+
+        $this->actingAs($this->admin)->post('/admin/users', $this->createPayload([
+            'name' => 'Khách nhận email',
+            'email' => 'emailed-client@example.com',
+            'role_id' => $this->clientRole->id,
+            'password' => 'Initial@123',
+            'password_confirmation' => 'Initial@123',
+        ]))->assertRedirect('/admin/users')->assertSessionHas('success');
+
+        $client = User::where('email', 'emailed-client@example.com')->sole();
+
+        Notification::assertSentTo(
+            $client,
+            AccountCreatedNotification::class,
+            function (AccountCreatedNotification $notification) use ($client): bool {
+                $mail = $notification->toMail($client);
+
+                return $notification->initialPassword === 'Initial@123'
+                    && in_array('Email đăng nhập: '.$client->email, $mail->introLines, true)
+                    && in_array('Mật khẩu ban đầu: Initial@123', $mail->introLines, true)
+                    && $mail->actionUrl === route('login');
+            }
+        );
     }
 
     public function test_create_validation_rejects_missing_duplicate_weak_or_unsupported_data(): void
@@ -318,17 +349,58 @@ class UserManagementTest extends TestCase
         $this->assertAuthenticatedAs($this->admin);
     }
 
-    public function test_admin_can_delete_another_account_and_repeated_delete_is_not_found(): void
+    public function test_admin_deactivates_another_account_without_deleting_it(): void
     {
         $target = $this->user($this->clientRole, 'delete@example.com', 'Cần xóa');
 
-        $this->actingAs($this->admin)->delete("/admin/users/{$target->id}")
+        $this->actingAs($this->admin)->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Tài khoản không còn được sử dụng.',
+        ])
             ->assertRedirect('/admin/users')
             ->assertSessionHas('success');
-        $this->assertDatabaseMissing('users', ['id' => $target->id]);
+        $this->assertDatabaseHas('users', [
+            'id' => $target->id,
+            'status' => User::STATUS_INACTIVE,
+            'deactivated_by' => $this->admin->id,
+        ]);
+        $this->assertNotNull($target->fresh()->deactivated_at);
 
-        $this->delete("/admin/users/{$target->id}")->assertNotFound();
+        $this->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Thử ngừng sử dụng thêm lần nữa.',
+        ])->assertSessionHas('error');
         $this->assertAuthenticatedAs($this->admin);
+    }
+
+    public function test_admin_can_restore_an_inactive_standalone_account_with_audit_data(): void
+    {
+        $target = $this->user($this->clientRole, 'restore@example.com', 'Cần khôi phục');
+        $target->forceFill([
+            'status' => User::STATUS_INACTIVE,
+            'deactivated_at' => now()->subDay(),
+            'deactivated_by' => $this->admin->id,
+            'deactivation_reason' => 'Tài khoản đã ngừng sử dụng trước đó.',
+        ])->save();
+
+        $this->actingAs($this->admin)->put(route('admin.users.update', $target), [
+            'name' => $target->name,
+            'email' => $target->email,
+            'phone' => $target->phone,
+            'role_id' => $target->role_id,
+            'status' => User::STATUS_ACTIVE,
+        ])->assertSessionHasErrors('status');
+        $this->assertSame(User::STATUS_INACTIVE, $target->fresh()->status);
+
+        $this->patch(route('admin.users.restore', $target), [
+            'reactivation_reason' => 'Người dùng có nhu cầu sử dụng lại tài khoản.',
+        ])->assertSessionHas('success');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $target->id,
+            'status' => User::STATUS_ACTIVE,
+            'reactivated_by' => $this->admin->id,
+        ]);
+        $this->assertNotNull($target->fresh()->reactivated_at);
+        $this->assertNotNull($target->fresh()->deactivated_at);
     }
 
     public function test_account_with_open_contract_cannot_be_deleted_or_orphan_related_data(): void
@@ -357,7 +429,9 @@ class UserManagementTest extends TestCase
             'status' => Contract::STATUS_ACTIVE,
         ]);
 
-        $this->actingAs($this->admin)->delete("/admin/users/{$target->id}")
+        $this->actingAs($this->admin)->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Yêu cầu ngừng tài khoản đang thuê.',
+        ])
             ->assertRedirect('/admin/users')
             ->assertSessionHas('error');
 
@@ -381,25 +455,38 @@ class UserManagementTest extends TestCase
             'status' => Invoice::STATUS_UNPAID,
         ]);
 
-        $this->delete("/admin/users/{$target->id}")
+        $this->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Yêu cầu ngừng khi còn công nợ.',
+        ])
             ->assertRedirect('/admin/users')
             ->assertSessionHas('error');
         $this->assertDatabaseHas('users', ['id' => $target->id]);
         $this->assertDatabaseHas('invoices', ['id' => $invoice->id, 'status' => Invoice::STATUS_UNPAID]);
 
         $invoice->update(['status' => Invoice::STATUS_PAID]);
-        $this->delete("/admin/users/{$target->id}")->assertSessionHas('error');
+        $this->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Hợp đồng vẫn đang quyết toán.',
+        ])->assertSessionHas('error');
         $contract->forceFill([
             'status' => Contract::STATUS_COMPLETED,
             'actual_move_out_at' => now(),
             'completed_at' => now(),
             'deposit_resolution' => Contract::DEPOSIT_NOT_REQUIRED,
         ])->save();
-        $this->delete("/admin/users/{$target->id}")->assertRedirect('/admin/users')->assertSessionHas('success');
-        $this->assertDatabaseMissing('users', ['id' => $target->id]);
-        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'user_id' => null]);
+        $history = ContractHistory::create([
+            'contract_id' => $contract->id,
+            'user_id' => $target->id,
+            'action' => 'completed',
+            'description' => 'Dữ liệu audit phải được giữ lại.',
+        ]);
+        $this->delete("/admin/users/{$target->id}", [
+            'deactivation_reason' => 'Khách đã hoàn tất toàn bộ nghĩa vụ.',
+        ])->assertRedirect('/admin/users')->assertSessionHas('success');
+        $this->assertDatabaseHas('users', ['id' => $target->id, 'status' => User::STATUS_INACTIVE]);
+        $this->assertDatabaseHas('tenants', ['id' => $tenant->id, 'user_id' => $target->id]);
         $this->assertDatabaseHas('contracts', ['id' => $contract->id]);
         $this->assertDatabaseHas('invoices', ['id' => $invoice->id]);
+        $this->assertDatabaseHas('contract_histories', ['id' => $history->id, 'user_id' => $target->id]);
     }
 
     public function test_manual_client_status_must_match_contract_and_debt_state(): void

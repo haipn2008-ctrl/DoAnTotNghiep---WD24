@@ -3,6 +3,7 @@
         'available' => ['label' => 'Trống', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
         'occupied' => ['label' => 'Đang thuê', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
         'maintenance' => ['label' => 'Bảo trì', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
+        'retired' => ['label' => 'Ngừng khai thác', 'class' => 'bg-slate-100 text-slate-600 ring-slate-200', 'dot' => 'bg-slate-400'],
     ];
 @endphp
 
@@ -54,12 +55,22 @@
                         <td class="px-5 py-4">
                             <div class="flex justify-end gap-2">
                                 <a href="{{ route('admin.rooms.show', $room) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" title="Xem chi tiết"><i class="bx bx-show text-lg"></i></a>
-                                <a href="{{ route('admin.rooms.edit', $room) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa"><i class="bx bx-edit text-lg"></i></a>
-                                @if ($room->contracts_count === 0 && $room->utility_readings_count === 0)
-                                    <form action="{{ route('admin.rooms.destroy', $room) }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa phòng này?')">
+                                @if ($room->status !== \App\Models\Room::STATUS_RETIRED)
+                                    <a href="{{ route('admin.rooms.edit', $room) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa"><i class="bx bx-edit text-lg"></i></a>
+                                @endif
+                                @if ($room->status === \App\Models\Room::STATUS_RETIRED)
+                                    <form action="{{ route('admin.rooms.restore', $room) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do đưa phòng vào khai thác lại (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.restoration_reason.value = reason.trim(); return confirm('Xác nhận đưa phòng trở lại trạng thái sẵn sàng?');">
                                         @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" title="Xóa"><i class="bx bx-trash text-lg"></i></button>
+                                        @method('PATCH')
+                                        <input type="hidden" name="restoration_reason">
+                                        <button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Khôi phục"><i class="bx bx-revision text-lg"></i></button>
+                                    </form>
+                                @elseif ($room->reserving_contracts_count === 0 && (int) $room->current_people === 0)
+                                    <form action="{{ $room->contracts_count === 0 && $room->operational_utility_readings_count === 0 ? route('admin.rooms.destroy', $room) : route('admin.rooms.retire', $room) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do ngừng khai thác phòng (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.retirement_reason.value = reason.trim(); return confirm('Xác nhận ngừng khai thác? Phòng và toàn bộ dữ liệu sẽ được giữ lại.');">
+                                        @csrf
+                                        @method($room->contracts_count === 0 && $room->operational_utility_readings_count === 0 ? 'DELETE' : 'PATCH')
+                                        <input type="hidden" name="retirement_reason">
+                                        <button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100" title="Ngừng khai thác"><i class="bx bx-archive text-lg"></i></button>
                                     </form>
                                 @endif
                             </div>

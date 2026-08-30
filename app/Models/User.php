@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -10,19 +11,32 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa tài khoản. Hãy chuyển trạng thái sang ngừng sử dụng.');
+        });
+    }
+
     protected $attributes = [
         'status' => 'active',
         'must_change_password' => false,
     ];
 
     public const ROLE_ADMIN = 1;
+
     public const ROLE_USER = 2;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_SETTLING = 'settling';
+
     public const STATUS_FORMER = 'former';
+
     public const STATUS_LOCKED = 'locked';
+
     public const STATUS_INACTIVE = 'inactive';
 
     protected $fillable = [
@@ -35,6 +49,12 @@ class User extends Authenticatable
         'activated_at',
         'terms_accepted_at',
         'last_login_at',
+        'deactivated_at',
+        'deactivated_by',
+        'deactivation_reason',
+        'reactivated_at',
+        'reactivated_by',
+        'reactivation_reason',
         'must_change_password',
     ];
 
@@ -51,6 +71,8 @@ class User extends Authenticatable
             'activated_at' => 'datetime',
             'terms_accepted_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'deactivated_at' => 'datetime',
+            'reactivated_at' => 'datetime',
             'must_change_password' => 'boolean',
         ];
     }
@@ -68,6 +90,16 @@ class User extends Authenticatable
     public function contractHistories()
     {
         return $this->hasMany(ContractHistory::class);
+    }
+
+    public function deactivatedBy()
+    {
+        return $this->belongsTo(self::class, 'deactivated_by');
+    }
+
+    public function reactivatedBy()
+    {
+        return $this->belongsTo(self::class, 'reactivated_by');
     }
 
     public function hasRole(string ...$roles): bool
@@ -100,5 +132,10 @@ class User extends Authenticatable
             [self::STATUS_ACTIVE, self::STATUS_SETTLING, self::STATUS_FORMER],
             true
         );
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
     }
 }

@@ -771,6 +771,7 @@ class ClientInvoicePortalTest extends TestCase
 
     public function test_client_can_update_contact_information_and_password(): void
     {
+        Storage::fake('local');
         [$client] = $this->createClientContext('ACCOUNT');
 
         $this->actingAs($client)
@@ -784,6 +785,8 @@ class ClientInvoicePortalTest extends TestCase
                 'email' => 'new-account@example.com',
                 'phone' => '0912345678',
                 'address' => 'Địa chỉ mới',
+                'identity_front' => UploadedFile::fake()->image('cccd-front.jpg'),
+                'identity_back' => UploadedFile::fake()->image('cccd-back.jpg'),
             ])
             ->assertRedirect()
             ->assertSessionHasNoErrors();
@@ -795,6 +798,14 @@ class ClientInvoicePortalTest extends TestCase
         $this->assertSame('0912345678', $client->tenant->phone);
         $this->assertSame('079000009876', $client->tenant->cccd);
         $this->assertSame('Địa chỉ mới', $client->tenant->address);
+        $document = $client->tenant->document;
+        $this->assertNotNull($document);
+        Storage::disk('local')->assertExists([$document->cccd_front_image, $document->cccd_back_image]);
+        $this->actingAs($client)->get(route('client.account.identity-document', 'front'))->assertOk();
+        $this->get(route('client.account.edit'))
+            ->assertOk()
+            ->assertSee('data-image-modal', false)
+            ->assertSee(route('client.account.identity-document', 'front'));
 
         $this->actingAs($client)
             ->put('/client/account/password', [

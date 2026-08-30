@@ -9,6 +9,8 @@ use Illuminate\Http\UploadedFile;
 
 class ContractIdentityDocumentService
 {
+    public function __construct(private readonly TenantIdentityDocumentService $tenantIdentityDocuments) {}
+
     public function storePair(
         ContractTenant $member,
         UploadedFile $front,
@@ -34,6 +36,10 @@ class ContractIdentityDocumentService
             'identity_front_path' => $frontPath,
             'identity_back_path' => $backPath,
         ])->save();
+        $member->loadMissing('tenant');
+        if ($member->tenant) {
+            $this->tenantIdentityDocuments->syncPaths($member->tenant, $frontPath, $backPath);
+        }
         ContractTenantHistory::query()->create([
             'contract_tenant_id' => $member->id,
             'from_status' => $member->status,
@@ -46,5 +52,37 @@ class ContractIdentityDocumentService
         ]);
 
         return $member->fresh();
+    }
+
+    public function useTenantProfile(ContractTenant $member, User $actor): bool
+    {
+        $member->loadMissing('tenant.document');
+        $document = $member->tenant?->document;
+        if (! $document?->hasCompleteImagePair()) {
+            return false;
+        }
+
+        $frontPath = $document->cccd_front_image;
+        $backPath = $document->cccd_back_image;
+        if ($member->identity_front_path === $frontPath && $member->identity_back_path === $backPath) {
+            return true;
+        }
+
+        $member->forceFill([
+            'identity_front_path' => $frontPath,
+            'identity_back_path' => $backPath,
+        ])->save();
+        ContractTenantHistory::query()->create([
+            'contract_tenant_id' => $member->id,
+            'from_status' => $member->status,
+            'to_status' => $member->status,
+            'action' => 'identity_documents_imported_from_profile',
+            'reason' => null,
+            'performed_by' => $actor->id,
+            'performed_at' => now(),
+            'metadata' => ['current_paths' => [$frontPath, $backPath]],
+        ]);
+
+        return true;
     }
 }

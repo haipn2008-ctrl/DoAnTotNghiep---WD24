@@ -4,9 +4,11 @@ namespace Database\Seeders;
 
 use App\Models\Amenity;
 use App\Models\Contract;
+use App\Models\ContractAppendix;
 use App\Models\ContractExtensionRequest;
 use App\Models\ContractLifecycleAlert;
 use App\Models\ContractStatusHistory;
+use App\Models\ContractTemplate;
 use App\Models\ContractTenant;
 use App\Models\ContractTenantHistory;
 use App\Models\ContractTerminationRequest;
@@ -20,6 +22,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UtilityReading;
 use App\Models\Vehicle;
+use App\Services\ContractDocumentService;
 use App\Services\InvoiceGenerator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -39,7 +42,15 @@ class BusinessScenarioSeeder extends Seeder
         DB::transaction(function (): void {
             $this->admin = User::query()->where('email', 'admin@nhatroanphuc.test')->sole();
             $this->setting = Setting::query()->where('is_active', true)->sole();
-            if (Contract::query()->where('contract_code', 'QA-01-DRAFT')->exists()) {
+            // Some demo databases intentionally omit draft contracts. QA-07 is the
+            // stable scenario used by the request screens, so use it to detect an
+            // existing scenario set and avoid inserting every fixture again.
+            if (Contract::query()->where('contract_code', 'QA-07-ACTIVE-PAID')->exists()
+                || SupportRequest::query()->where('submission_token', '20000000-0000-4000-8000-000000000001')->exists()) {
+                $this->loadExistingContracts();
+                $this->syncRequestScenarios();
+                $this->syncNewWorkflowScenarios();
+
                 return;
             }
 
@@ -50,6 +61,7 @@ class BusinessScenarioSeeder extends Seeder
             $this->seedTemporaryResidenceScenarios();
             $this->seedLifecycleAlerts();
             $this->seedStandaloneRooms();
+            $this->syncNewWorkflowScenarios();
         });
     }
 
@@ -61,7 +73,8 @@ class BusinessScenarioSeeder extends Seeder
             ['pending_signature', 'QA-02', 'qa.client.b@example.test', Contract::STATUS_PENDING_SIGNATURE, Contract::DEPOSIT_PENDING, 2],
             ['pending_deposit', 'QA-03', 'qa.client.c@example.test', Contract::STATUS_PENDING_DEPOSIT, Contract::DEPOSIT_PENDING, 1],
             ['awaiting_move_in', 'QA-04', 'giahuy@example.test', Contract::STATUS_AWAITING_MOVE_IN, Contract::DEPOSIT_PAID, 2],
-            ['active_unpaid', 'QA-05', 'ngocmai@example.test', Contract::STATUS_ACTIVE, Contract::DEPOSIT_PAID, 3],
+            // Hai người đã nhận phòng, một yêu cầu pending bên dưới sẽ giữ slot cuối cùng.
+            ['active_unpaid', 'QA-05', 'ngocmai@example.test', Contract::STATUS_ACTIVE, Contract::DEPOSIT_PAID, 2],
             ['active_partial', 'QA-06', 'ducanh@example.test', Contract::STATUS_ACTIVE, Contract::DEPOSIT_PAID, 2],
             ['active_paid', 'QA-07', 'khanhlinh@example.test', Contract::STATUS_ACTIVE, Contract::DEPOSIT_PAID, 2],
             ['expired', 'QA-08', 'quangnam@example.test', Contract::STATUS_EXPIRED, Contract::DEPOSIT_PAID, 2],
@@ -225,6 +238,10 @@ class BusinessScenarioSeeder extends Seeder
             'landlord_phone_snapshot' => $this->setting->landlord_phone,
             'landlord_identity_snapshot' => $this->setting->landlord_identity_number,
             'property_address_snapshot' => $this->setting->property_address,
+            'electric_price_snapshot' => $signed ? $this->setting->electric_price : null,
+            'water_price_snapshot' => $signed ? $this->setting->water_price : null,
+            'internet_fee_snapshot' => $signed ? $this->setting->internet_fee : null,
+            'service_fee_snapshot' => $signed ? $this->setting->service_fee : null,
         ])->save();
 
         ContractStatusHistory::query()->create([
@@ -558,23 +575,54 @@ class BusinessScenarioSeeder extends Seeder
         }
     }
 
+    /** Rebuild only rows explicitly marked as demo requests when refreshing QA data. */
+    private function syncRequestScenarios(): void
+    {
+        ContractExtensionRequest::query()
+            ->where('reason', 'like', 'Yêu cầu gia hạn mẫu %')
+            ->delete();
+
+        $terminationIds = ContractTerminationRequest::query()
+            ->where('reason', 'like', 'Yêu cầu trả phòng mẫu:%')
+            ->pluck('id');
+
+        if ($terminationIds->isNotEmpty()) {
+            Contract::query()
+                ->whereIn('approved_termination_request_id', $terminationIds)
+                ->update([
+                    'approved_termination_request_id' => null,
+                    'scheduled_move_out_at' => null,
+                ]);
+            ContractTerminationRequest::query()->whereIn('id', $terminationIds)->delete();
+        }
+
+        $this->seedRequestScenarios();
+    }
+
     private function seedRequestScenarios(): void
     {
-        $contract = $this->contracts['active_paid'];
-        foreach ([
-            ContractExtensionRequest::STATUS_PENDING,
-            ContractExtensionRequest::STATUS_APPROVED,
-            ContractExtensionRequest::STATUS_REJECTED,
-        ] as $index => $status) {
+        // One contract must represent one coherent workflow. Do not mix an open
+        // departure request with an open extension request on the same contract.
+        $extensionCases = [
+            ['active_paid', ContractExtensionRequest::STATUS_PENDING],
+            ['active_partial', ContractExtensionRequest::STATUS_APPROVED],
+            ['active_unpaid', ContractExtensionRequest::STATUS_REJECTED],
+        ];
+
+        foreach ($extensionCases as $index => [$contractKey, $status]) {
+            $contract = $this->contracts[$contractKey];
+            $requestedEndDate = $contract->end_date->copy()->addMonths(6 + $index);
             $statusLabel = match ($status) {
                 ContractExtensionRequest::STATUS_APPROVED => 'đã được duyệt',
                 ContractExtensionRequest::STATUS_REJECTED => 'đã bị từ chối',
                 default => 'đang chờ duyệt',
             };
+
             ContractExtensionRequest::query()->create([
                 'contract_id' => $contract->id,
                 'current_end_date' => $contract->end_date,
-                'requested_end_date' => $contract->end_date->copy()->addMonths(6 + $index),
+                'requested_end_date' => $requestedEndDate,
+                'approved_end_date' => $status === ContractExtensionRequest::STATUS_APPROVED ? $requestedEndDate : null,
                 'reason' => 'Yêu cầu gia hạn mẫu '.$statusLabel.'.',
                 'status' => $status,
                 'admin_note' => $status === ContractExtensionRequest::STATUS_REJECTED ? 'Phòng đã có lịch bảo trì.' : null,
@@ -582,20 +630,41 @@ class BusinessScenarioSeeder extends Seeder
             ]);
         }
 
-        foreach ([
-            ContractTerminationRequest::STATUS_PENDING,
-            ContractTerminationRequest::STATUS_APPROVED,
-            ContractTerminationRequest::STATUS_REJECTED,
-        ] as $index => $status) {
-            ContractTerminationRequest::query()->create([
+        $departureCases = [
+            ['expired', ContractTerminationRequest::STATUS_PENDING],
+            ['active_unpaid', ContractTerminationRequest::STATUS_APPROVED],
+            ['active_partial', ContractTerminationRequest::STATUS_REJECTED],
+        ];
+
+        foreach ($departureCases as $index => [$contractKey, $status]) {
+            $contract = $this->contracts[$contractKey];
+            $requestedEndDate = $status === ContractTerminationRequest::STATUS_PENDING
+                ? today()
+                : now()->addMonths(1 + $index)->startOfDay();
+            $isApproved = $status === ContractTerminationRequest::STATUS_APPROVED;
+
+            $request = ContractTerminationRequest::query()->create([
                 'contract_id' => $contract->id,
                 'tenant_id' => $contract->tenant_id,
-                'requested_end_date' => now()->addMonths(1 + $index),
+                'requested_end_date' => $requestedEndDate,
                 'reason' => 'Yêu cầu trả phòng mẫu: '.$status,
+                'request_type' => $contract->status === Contract::STATUS_EXPIRED
+                    ? ContractTerminationRequest::TYPE_OVERDUE_DEPARTURE
+                    : ContractTerminationRequest::TYPE_EARLY_TERMINATION,
                 'status' => $status,
                 'admin_note' => $status === ContractTerminationRequest::STATUS_REJECTED ? 'Ngày trả phòng không hợp lệ.' : null,
+                'approved_end_date' => $isApproved ? $requestedEndDate : null,
+                'scheduled_checkout_at' => $isApproved ? $requestedEndDate->copy()->setTime(9, 0) : null,
+                'processed_by' => $isApproved ? $this->admin->id : null,
                 'processed_at' => $status === ContractTerminationRequest::STATUS_PENDING ? null : now(),
             ]);
+
+            if ($isApproved) {
+                $contract->forceFill([
+                    'scheduled_move_out_at' => $request->scheduled_checkout_at,
+                    'approved_termination_request_id' => $request->id,
+                ])->save();
+            }
         }
 
         $supportCases = [
@@ -693,6 +762,172 @@ class BusinessScenarioSeeder extends Seeder
                 'note' => 'Chỉ số nền của phòng mới.',
             ]);
         }
+    }
+
+    /** Nạp lại các hợp đồng QA khi chạy seeder lần hai trên database demo hiện có. */
+    private function loadExistingContracts(): void
+    {
+        $codes = [
+            'draft' => 'QA-01-DRAFT',
+            'pending_signature' => 'QA-02-PENDING-SIGNATURE',
+            'pending_deposit' => 'QA-03-PENDING-DEPOSIT',
+            'awaiting_move_in' => 'QA-04-AWAITING-MOVE-IN',
+            'active_unpaid' => 'QA-05-ACTIVE-UNPAID',
+            'active_partial' => 'QA-06-ACTIVE-PARTIAL',
+            'active_paid' => 'QA-07-ACTIVE-PAID',
+            'expired' => 'QA-08-EXPIRED',
+            'settling' => 'QA-09-SETTLING',
+            'refund_requested' => 'QA-10-REFUND-REQUESTED',
+            'refund_approved' => 'QA-11-REFUND-APPROVED',
+            'refund_processing' => 'QA-12-REFUND-PROCESSING',
+            'completed_refunded' => 'QA-13-COMPLETED-REFUNDED',
+            'completed_deducted' => 'QA-14-COMPLETED-DEDUCTED',
+            'completed_retained' => 'QA-15-COMPLETED-RETAINED',
+            'cancelled' => 'QA-16-CANCELLED',
+        ];
+
+        $contracts = Contract::query()->whereIn('contract_code', array_values($codes))->get()->keyBy('contract_code');
+        foreach ($codes as $key => $code) {
+            if ($contract = $contracts->get($code)) {
+                $this->contracts[$key] = $contract;
+            }
+        }
+    }
+
+    /** Đồng bộ dữ liệu mẫu cho snapshot hợp đồng, phụ lục giá và giới hạn số người. */
+    private function syncNewWorkflowScenarios(): void
+    {
+        $this->syncCapacityScenario();
+        $this->seedAppendixScenarios();
+
+        $documents = app(ContractDocumentService::class);
+        $template = ContractTemplate::activeOrCreate();
+        foreach ($this->contracts as $contract) {
+            if (! $contract->contract_template_id) {
+                $contract->forceFill(['contract_template_id' => $template->id])->save();
+            }
+
+            if ($contract->signed_at && ! $contract->contract_content_snapshotted_at) {
+                $documents->snapshotSignedDocument($contract->fresh());
+            }
+        }
+    }
+
+    /** Yêu cầu thêm người đang chờ duyệt cũng giữ một chỗ trong sức chứa phòng. */
+    private function syncCapacityScenario(): void
+    {
+        $contract = $this->contracts['active_unpaid'] ?? null;
+        if (! $contract) {
+            return;
+        }
+
+        $reservedPeople = $contract->members()->current()->count();
+        $checkedInPeople = $contract->members()
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)
+            ->count();
+
+        $contract->forceFill(['number_of_people' => $reservedPeople])->save();
+        $contract->room->forceFill([
+            'current_people' => $checkedInPeople,
+            'max_people' => $reservedPeople,
+        ])->save();
+    }
+
+    /** Tạo đủ ba trạng thái tiêu biểu và một phụ lục giá đã có hiệu lực. */
+    private function seedAppendixScenarios(): void
+    {
+        if ($contract = $this->contracts['active_paid'] ?? null) {
+            $adjustments = [
+                'electric_price' => [
+                    'old' => (float) $contract->electric_price_snapshot,
+                    'new' => (float) $contract->electric_price_snapshot + 500,
+                ],
+                'water_price' => [
+                    'old' => (float) $contract->water_price_snapshot,
+                    'new' => (float) $contract->water_price_snapshot + 1000,
+                ],
+                'internet_fee' => [
+                    'old' => (float) $contract->internet_fee_snapshot,
+                    'new' => (float) $contract->internet_fee_snapshot + 20000,
+                ],
+                'service_fee' => [
+                    'old' => (float) $contract->service_fee_snapshot,
+                    'new' => (float) $contract->service_fee_snapshot + 10000,
+                ],
+            ];
+
+            $this->createSeededAppendix(
+                $contract,
+                'Điều chỉnh nhiều đơn giá dịch vụ',
+                'Hai bên thống nhất điều chỉnh giá điện, nước, Internet và phí dịch vụ chung cho các kỳ dịch vụ tiếp theo.',
+                ContractAppendix::STATUS_ACCEPTED,
+                now()->addMonthNoOverflow()->startOfMonth(),
+                $adjustments,
+            );
+        }
+
+        if ($contract = $this->contracts['active_partial'] ?? null) {
+            $this->createSeededAppendix(
+                $contract,
+                ContractTemplate::CLAUSE_LABELS['monthly_payment'],
+                'Bên B thanh toán hóa đơn chậm nhất vào hết ngày 10 hằng tháng theo thông báo trên hệ thống.',
+                ContractAppendix::STATUS_PENDING_TENANT,
+                now()->addWeek(),
+            );
+        }
+
+        if ($contract = $this->contracts['active_unpaid'] ?? null) {
+            $this->createSeededAppendix(
+                $contract,
+                ContractTemplate::CLAUSE_LABELS['tenant_obligations'],
+                'Bên B có trách nhiệm cập nhật đầy đủ thông tin người ở và phương tiện phát sinh trong thời gian thuê.',
+                ContractAppendix::STATUS_REJECTED,
+                now()->addWeek(),
+            );
+        }
+    }
+
+    private function createSeededAppendix(
+        Contract $contract,
+        string $title,
+        string $content,
+        string $status,
+        Carbon $effectiveFrom,
+        ?array $priceAdjustments = null,
+    ): ContractAppendix {
+        $code = "PL-{$contract->contract_code}-01-R1";
+        if ($existing = ContractAppendix::query()->where('code', $code)->first()) {
+            return $existing;
+        }
+
+        $sentAt = now()->subDays(2);
+        $respondedAt = $status === ContractAppendix::STATUS_PENDING_TENANT ? null : now()->subDay();
+        $appendix = new ContractAppendix([
+            'contract_id' => $contract->id,
+            'appendix_number' => 1,
+            'revision' => 1,
+            'code' => $code,
+            'title' => $title,
+            'legal_basis' => 'Thỏa thuận bổ sung giữa Bên A và Bên B trong quá trình thực hiện hợp đồng.',
+            'content' => $content,
+            'price_adjustments' => $priceAdjustments,
+            'effective_from' => $effectiveFrom->toDateString(),
+            'status' => $status,
+            'created_by' => $this->admin->id,
+            'sent_at' => $sentAt,
+            'sent_by' => $this->admin->id,
+            'responded_at' => $respondedAt,
+            'responded_by' => $respondedAt ? $contract->tenant->user_id : null,
+            'accepted_at' => $status === ContractAppendix::STATUS_ACCEPTED ? $respondedAt : null,
+            'rejected_at' => $status === ContractAppendix::STATUS_REJECTED ? $respondedAt : null,
+            'rejection_reason' => $status === ContractAppendix::STATUS_REJECTED
+                ? 'Khách đề nghị làm rõ phạm vi thông tin cần cập nhật trước khi chấp nhận.'
+                : null,
+        ]);
+        $appendix->content_sha256 = hash('sha256', $appendix->hashPayload());
+        $appendix->save();
+
+        return $appendix;
     }
 
     private function scenarioLabel(string $status): string

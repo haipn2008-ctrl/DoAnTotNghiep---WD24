@@ -6,17 +6,26 @@ use Illuminate\Database\Eloquent\Model;
 
 class Room extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa phòng. Hãy ngừng khai thác để có thể khôi phục khi cần.');
+        });
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Room Status
     |--------------------------------------------------------------------------
     */
 
-    const STATUS_AVAILABLE   = 'available';
+    const STATUS_AVAILABLE = 'available';
 
-    const STATUS_OCCUPIED    = 'occupied';
+    const STATUS_OCCUPIED = 'occupied';
 
     const STATUS_MAINTENANCE = 'maintenance';
+
+    const STATUS_RETIRED = 'retired';
 
     /**
      * Các trường được phép gán dữ liệu.
@@ -41,6 +50,23 @@ class Room extends Model
         'description',
 
         'status',
+
+        'retired_at',
+
+        'retired_by',
+
+        'retirement_reason',
+
+        'restored_at',
+
+        'restored_by',
+
+        'restoration_reason',
+    ];
+
+    protected $casts = [
+        'retired_at' => 'datetime',
+        'restored_at' => 'datetime',
     ];
 
     /*
@@ -62,14 +88,16 @@ class Room extends Model
      */
     public function currentContract()
     {
+        return $this->reservingContract();
+    }
+
+    /**
+     * Hợp đồng đang giữ chỗ hoặc đang sử dụng phòng.
+     */
+    public function reservingContract()
+    {
         return $this->hasOne(Contract::class)
-            ->whereIn('status', [
-                Contract::STATUS_DRAFT,
-                Contract::STATUS_PENDING_SIGNATURE,
-                Contract::STATUS_SIGNED,
-                Contract::STATUS_DEPOSIT_PAID,
-                Contract::STATUS_ACTIVE
-            ]);
+            ->whereIn('status', Contract::RESERVING_STATUSES);
     }
 
     /**
@@ -110,6 +138,16 @@ class Room extends Model
         return $this->hasMany(RoomImage::class)->latest('taken_at')->latest('id');
     }
 
+    public function retiredBy()
+    {
+        return $this->belongsTo(User::class, 'retired_by');
+    }
+
+    public function restoredBy()
+    {
+        return $this->belongsTo(User::class, 'restored_by');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Query Scope
@@ -129,6 +167,11 @@ class Room extends Model
     public function scopeMaintenance($query)
     {
         return $query->where('status', self::STATUS_MAINTENANCE);
+    }
+
+    public function scopeRetired($query)
+    {
+        return $query->where('status', self::STATUS_RETIRED);
     }
 
     /*
@@ -151,16 +194,17 @@ class Room extends Model
     {
         return $this->status === self::STATUS_MAINTENANCE;
     }
+
     public function getStatusTextAttribute()
     {
         return match ($this->status) {
             self::STATUS_AVAILABLE => 'Còn trống',
             self::STATUS_OCCUPIED => 'Đang thuê',
             self::STATUS_MAINTENANCE => 'Đang bảo trì',
+            self::STATUS_RETIRED => 'Ngừng khai thác',
             default => 'Không xác định',
         };
     }
-
     public function expenses()
     {
         return $this->hasMany(Expense::class);

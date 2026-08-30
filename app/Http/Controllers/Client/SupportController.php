@@ -70,7 +70,7 @@ class SupportController extends Controller
                         $data['contract_id'] ?? null,
                         fn ($query, $contractId) => $query->whereKey($contractId)
                     )
-                    ->orderByRaw("CASE WHEN status IN (?, ?) THEN 0 ELSE 1 END", Contract::OPEN_OCCUPANCY_STATUSES)
+                    ->orderByRaw('CASE WHEN status IN (?, ?) THEN 0 ELSE 1 END', Contract::OPEN_OCCUPANCY_STATUSES)
                     ->latest('start_date')
                     ->lockForUpdate()
                     ->first();
@@ -110,6 +110,9 @@ class SupportController extends Controller
 
         abort_unless($supportRequest->attachment && Storage::disk('local')->exists($supportRequest->attachment), 404);
 
-        return Storage::disk('local')->download($supportRequest->attachment);
+        return Storage::disk('local')->response($supportRequest->attachment, null, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 }

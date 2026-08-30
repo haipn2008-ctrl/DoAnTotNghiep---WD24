@@ -31,6 +31,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 const datasetKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
                 field.value = option?.dataset[datasetKey] || '';
             });
+
+            profile.querySelectorAll('[data-representative-identity]').forEach((card) => {
+                const side = card.dataset.representativeIdentity;
+                const datasetKey = side === 'front' ? 'identityFrontUrl' : 'identityBackUrl';
+                const url = option?.dataset[datasetKey] || '';
+                const preview = card.querySelector('img');
+                const emptyState = card.querySelector('[data-identity-preview-empty]');
+                const input = card.querySelector('[data-identity-preview-input]');
+                const link = card.querySelector('[data-profile-image-link]');
+                const badge = card.querySelector('[data-profile-image-badge]');
+                const requiredMark = card.querySelector('[data-identity-required-mark]');
+
+                if (input) {
+                    input.value = '';
+                    input.required = !url;
+                }
+                if (preview) {
+                    if (url) {
+                        preview.src = url;
+                        preview.dataset.originalSrc = url;
+                        preview.classList.remove('hidden');
+                    } else {
+                        preview.removeAttribute('src');
+                        delete preview.dataset.originalSrc;
+                        preview.classList.add('hidden');
+                    }
+                }
+                if (link) {
+                    link.href = url || '#';
+                    link.classList.toggle('hidden', !url);
+                }
+                badge?.classList.toggle('hidden', !url);
+                requiredMark?.classList.toggle('hidden', Boolean(url));
+                emptyState?.classList.toggle('hidden', Boolean(url));
+            });
         });
     });
 

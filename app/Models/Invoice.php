@@ -6,6 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
+    protected static function booted(): void
+    {
+        static::deleting(function (): never {
+            throw new \LogicException('Không được xóa hóa đơn đã phát hành. Hãy hủy hoặc lập phiếu điều chỉnh.');
+        });
+    }
+
     const TYPE_RENTAL = 'rental';
 
     const TYPE_DEPOSIT = 'deposit';
@@ -60,6 +67,12 @@ class Invoice extends Model
 
         'due_date',
 
+        'due_notified_at',
+
+        'overdue_notified_at',
+
+        'payment_extension_until',
+
         'room_fee',
 
         'electricity_fee',
@@ -96,6 +109,12 @@ class Invoice extends Model
         'invoice_date' => 'date',
 
         'due_date' => 'date',
+
+        'due_notified_at' => 'datetime',
+
+        'overdue_notified_at' => 'datetime',
+
+        'payment_extension_until' => 'date',
 
         'room_fee' => 'decimal:2',
 
@@ -167,6 +186,18 @@ class Invoice extends Model
     public function latestReminder()
     {
         return $this->hasOne(InvoiceReminder::class)->latestOfMany('reminded_at');
+    }
+
+    public function paymentDelayRequests()
+    {
+        return $this->hasMany(InvoicePaymentDelayRequest::class)->latest('id');
+    }
+
+    public function pendingPaymentDelayRequest()
+    {
+        return $this->hasOne(InvoicePaymentDelayRequest::class)
+            ->where('status', InvoicePaymentDelayRequest::STATUS_PENDING)
+            ->latestOfMany();
     }
 
     public function canceller()
@@ -244,11 +275,16 @@ class Invoice extends Model
 
     public function getDaysOverdueAttribute(): int
     {
-        if (! $this->canPay() || ! $this->due_date || ! today()->gt($this->due_date)) {
+        if (! $this->canPay() || ! $this->effective_due_date || ! today()->gt($this->effective_due_date)) {
             return 0;
         }
 
-        return (int) $this->due_date->diffInDays(today());
+        return (int) $this->effective_due_date->diffInDays(today());
+    }
+
+    public function getEffectiveDueDateAttribute()
+    {
+        return $this->payment_extension_until ?: $this->due_date;
     }
 
     public function getDebtBucketAttribute(): string
@@ -257,11 +293,11 @@ class Invoice extends Model
             return 'settled';
         }
 
-        if ($this->due_date->isFuture()) {
+        if ($this->effective_due_date->isFuture()) {
             return 'upcoming';
         }
 
-        if ($this->due_date->isToday()) {
+        if ($this->effective_due_date->isToday()) {
             return 'due_today';
         }
 

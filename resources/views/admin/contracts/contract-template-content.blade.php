@@ -11,6 +11,18 @@
     $landlordAddress = $hasContract ? ($contract->landlord_address_snapshot ?: $setting->landlord_address) : null;
     $members = $hasContract ? $contract->currentMembers : collect();
     $conditionLabels = ['normal' => 'Sử dụng bình thường', 'damaged' => 'Có hư hỏng'];
+    $template = $template ?? \App\Models\ContractTemplate::activeOrCreate();
+    $contractRates = (object) [
+        'electric_price' => $hasContract ? ($contract->electric_price_snapshot ?? $setting->electric_price) : $setting->electric_price,
+        'water_price' => $hasContract ? ($contract->water_price_snapshot ?? $setting->water_price) : $setting->water_price,
+        'internet_fee' => $hasContract ? ($contract->internet_fee_snapshot ?? $setting->internet_fee) : $setting->internet_fee,
+        'service_fee' => $hasContract ? ($contract->service_fee_snapshot ?? $setting->service_fee) : $setting->service_fee,
+    ];
+    $clause = fn (string $key) => str_replace(
+        ':invoice_day',
+        str_pad((string) ($setting->invoice_day ?: 5), 2, '0', STR_PAD_LEFT),
+        $template->clause($key)
+    );
 @endphp
 
 <style>
@@ -89,14 +101,14 @@
         <tr><td class="label">Số người ở</td><td>{{ $hasContract ? $contract->number_of_people.' người' : $blank }}</td></tr>
         <tr><td class="label">Tiền phòng</td><td>{{ $hasContract ? number_format((float) $contract->monthly_rent, 0, ',', '.').'đ/tháng' : $blank }}</td></tr>
         <tr><td class="label">Tiền cọc</td><td>{{ $hasContract ? number_format((float) $contract->deposit_amount, 0, ',', '.').'đ' : $blank }}</td></tr>
-        <tr><td class="label">Tiền điện</td><td>{{ number_format((float) $setting->electric_price, 0, ',', '.') }}đ/kWh, tính theo chỉ số công tơ</td></tr>
-        <tr><td class="label">Tiền nước</td><td>{{ number_format((float) $setting->water_price, 0, ',', '.') }}đ/m³, tính theo chỉ số đồng hồ</td></tr>
-        <tr><td class="label">Internet</td><td>{{ number_format((float) $setting->internet_fee, 0, ',', '.') }}đ/phòng/tháng</td></tr>
-        <tr><td class="label">Dịch vụ chung</td><td>{{ number_format((float) $setting->service_fee, 0, ',', '.') }}đ/phòng/tháng</td></tr>
+        <tr><td class="label">Tiền điện</td><td>{{ number_format((float) $contractRates->electric_price, 0, ',', '.') }}đ/kWh, tính theo chỉ số công tơ</td></tr>
+        <tr><td class="label">Tiền nước</td><td>{{ number_format((float) $contractRates->water_price, 0, ',', '.') }}đ/m³, tính theo chỉ số đồng hồ</td></tr>
+        <tr><td class="label">Internet</td><td>{{ number_format((float) $contractRates->internet_fee, 0, ',', '.') }}đ/phòng/tháng</td></tr>
+        <tr><td class="label">Dịch vụ chung</td><td>{{ number_format((float) $contractRates->service_fee, 0, ',', '.') }}đ/phòng/tháng</td></tr>
     </table>
 
-    <p><strong>Thanh toán:</strong> Trước khi nhận phòng, Bên B chỉ thanh toán tiền cọc. Tiền cọc được giữ đến khi kết thúc hợp đồng để hoàn trả hoặc khấu trừ khi quyết toán.</p>
-    <p>Vào ngày {{ str_pad((string) ($setting->invoice_day ?: 5), 2, '0', STR_PAD_LEFT) }} hằng tháng, Bên B thanh toán tiền phòng, điện, nước, Internet và dịch vụ của tháng liền trước. Tiền phòng tháng đầu tính theo số ngày thuê thực tế; nếu thời gian thuê trong tháng không quá 5 ngày thì được miễn tiền phòng, các khoản sử dụng thực tế vẫn được tính.</p>
+    <p><strong>Thanh toán:</strong> {{ $clause('deposit_payment') }}</p>
+    <p>{{ $clause('monthly_payment') }}</p>
     <p><strong>Tài khoản nhận tiền:</strong> {{ $setting->bank_id ?: $blank }} – {{ $setting->bank_account_no ?: $blank }} – {{ $setting->bank_account_name ?: $blank }}.</p>
 
     <div class="section-title">III. Danh sách người thuê</div>
@@ -150,15 +162,15 @@
     @endif
 
     <div class="section-title">V. Quyền và nghĩa vụ của các bên</div>
-    <p><strong>Bên A:</strong> Bàn giao phòng và tài sản đúng thỏa thuận; bảo đảm nguồn điện, nước, Internet và điều kiện sử dụng chung; thông báo các thay đổi về đơn giá theo quy định.</p>
-    <p><strong>Bên B:</strong> Thanh toán đầy đủ, đúng hạn; sử dụng phòng đúng mục đích; bảo quản tài sản; giữ gìn an ninh, vệ sinh; đăng ký người ở và phương tiện theo quy định; không tự ý sửa chữa hoặc cho thuê lại khi chưa được đồng ý.</p>
-    <p>Một bên muốn chấm dứt hợp đồng trước thời hạn phải thông báo cho bên còn lại ít nhất 30 ngày, trừ trường hợp hai bên có thỏa thuận khác hoặc pháp luật quy định khác.</p>
-    <p>Khi kết thúc hợp đồng, hai bên chốt chỉ số điện nước, kiểm tra tài sản, đối chiếu công nợ và quyết toán tiền cọc. Khoản khấu trừ phải có căn cứ và được ghi nhận.</p>
+    <p><strong>Bên A:</strong> {{ $clause('landlord_obligations') }}</p>
+    <p><strong>Bên B:</strong> {{ $clause('tenant_obligations') }}</p>
+    <p>{{ $clause('early_termination') }}</p>
+    <p>{{ $clause('settlement') }}</p>
     <div class="section-title">VI. Cam kết, hiệu lực và giải quyết tranh chấp</div>
-    <p>Hai bên cam kết thông tin cung cấp là đúng sự thật, tự nguyện giao kết, có đầy đủ quyền và năng lực thực hiện hợp đồng; Bên A cam kết có quyền cho thuê hợp pháp đối với phòng nêu trên.</p>
-    <p>Hợp đồng có hiệu lực kể từ thời điểm hai bên ký, trừ khi hai bên có thỏa thuận khác bằng văn bản. Mọi sửa đổi, bổ sung, gia hạn hoặc chấm dứt phải được ghi nhận bằng văn bản hoặc trên hệ thống và được các bên xác nhận.</p>
-    <p>Tranh chấp được ưu tiên giải quyết bằng thương lượng; nếu không đạt được thỏa thuận, một trong các bên có quyền yêu cầu cơ quan có thẩm quyền giải quyết theo pháp luật.</p>
-    <p>Hợp đồng được lập thành 02 bản có giá trị như nhau, mỗi bên giữ 01 bản. Hai bên đã đọc, hiểu và đồng ý với toàn bộ nội dung hợp đồng.</p>
+    <p>{{ $clause('commitment') }}</p>
+    <p>{{ $clause('effectiveness') }}</p>
+    <p>{{ $clause('dispute_resolution') }}</p>
+    <p>{{ $clause('copies') }}</p>
 
     <table class="signatures">
         <tr><td><strong>ĐẠI DIỆN BÊN A</strong><br><span>(Ký, ghi rõ họ tên)</span></td><td><strong>ĐẠI DIỆN BÊN B</strong><br><span>(Ký, ghi rõ họ tên)</span></td></tr>
@@ -166,6 +178,6 @@
     </table>
 
     @if($hasContract)
-        <p class="center muted">Trạng thái: {{ $contract->status_label }} · Ngày ký: {{ $signedDate?->format('d/m/Y H:i') ?: 'Chưa ký' }}</p>
+        <p class="center muted">Ngày ký: {{ $signedDate?->format('d/m/Y H:i') ?: 'Chưa ký' }}</p>
     @endif
 </div>

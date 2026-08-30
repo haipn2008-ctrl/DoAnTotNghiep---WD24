@@ -4,6 +4,7 @@
 // ADMIN CONTROLLERS
 // =====================================================
 
+use App\Http\Controllers\Admin\ContractAppendixController as AdminContractAppendixController;
 use App\Http\Controllers\Admin\ContractController;
 use App\Http\Controllers\Admin\ContractExtensionRequestController as AdminContractExtensionRequestController;
 use App\Http\Controllers\Admin\ContractTenantController;
@@ -29,24 +30,27 @@ use App\Http\Controllers\Admin\UtilityController;
 // =====================================================
 
 use App\Http\Controllers\Auth\AccountActivationController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\ResetPasswordController;
 // =====================================================
 // CLIENT CONTROLLERS
 // =====================================================
 
 use App\Http\Controllers\Client\AccountController as ClientAccountController;
+use App\Http\Controllers\Client\ContractAppendixController as ClientContractAppendixController;
 use App\Http\Controllers\Client\ContractController as ClientContractController;
 use App\Http\Controllers\Client\ContractExtensionRequestController as ClientContractExtensionRequestController;
 use App\Http\Controllers\Client\ContractTenantController as ClientContractTenantController;
 use App\Http\Controllers\Client\ContractTerminationRequestController as ClientContractTerminationRequestController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
-use App\Http\Controllers\Client\SettlementController as ClientSettlementController;
 use App\Http\Controllers\Client\DepositRefundController as ClientDepositRefundController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\LandlordInformationController as ClientLandlordInformationController;
 use App\Http\Controllers\Client\NotificationController as ClientNotificationController;
 use App\Http\Controllers\Client\RequestHistoryController;
 use App\Http\Controllers\Client\RoomController as ClientRoomController;
+use App\Http\Controllers\Client\SettlementController as ClientSettlementController;
 use App\Http\Controllers\Client\SupportController as ClientSupportController;
 use App\Http\Controllers\Client\UtilityController as ClientUtilityController;
 use App\Http\Controllers\Client\VehicleController as ClientVehicleController;
@@ -97,6 +101,26 @@ Route::middleware('guest')->group(function () {
         LoginController::class,
         'login',
     ]);
+
+    Route::get('/forgot-password', [
+        ForgotPasswordController::class,
+        'showLinkRequestForm',
+    ])->name('password.request');
+
+    Route::post('/forgot-password', [
+        ForgotPasswordController::class,
+        'sendResetLink',
+    ])->middleware('throttle:5,1')->name('password.email');
+
+    Route::get('/reset-password', [
+        ResetPasswordController::class,
+        'showResetForm',
+    ])->name('password.reset');
+
+    Route::post('/reset-password', [
+        ResetPasswordController::class,
+        'reset',
+    ])->middleware('throttle:5,1')->name('password.update');
 });
 
 // =====================================================
@@ -166,6 +190,9 @@ Route::middleware('auth')->group(function () {
                 Route::resource('users', UserController::class)
                     ->except(['show']);
 
+                Route::patch('users/{user}/restore', [UserController::class, 'restore'])
+                    ->name('users.restore');
+
                 // =================================================
                 // PHÒNG
                 // =================================================
@@ -179,6 +206,12 @@ Route::middleware('auth')->group(function () {
                     'rooms/{room}/evidence',
                     [RoomEvidenceController::class, 'store']
                 )->name('rooms.evidence.store');
+
+                Route::patch('rooms/{room}/retire', [RoomController::class, 'retire'])
+                    ->name('rooms.retire');
+
+                Route::patch('rooms/{room}/restore', [RoomController::class, 'restore'])
+                    ->name('rooms.restore');
 
                 Route::resource(
                     'rooms',
@@ -199,6 +232,9 @@ Route::middleware('auth')->group(function () {
                     TenantController::class
                 )->only(['index', 'show', 'edit', 'update', 'destroy']);
 
+                Route::patch('tenants/{tenant}/restore', [TenantController::class, 'restore'])
+                    ->name('tenants.restore');
+
                 Route::put('vehicles/{vehicle}/review', [TenantController::class, 'reviewVehicle'])
                     ->name('vehicles.review');
 
@@ -212,8 +248,14 @@ Route::middleware('auth')->group(function () {
                 Route::get('contracts/template', [ContractController::class, 'template'])
                     ->name('contracts.template');
 
+                Route::post('contracts/template', [ContractController::class, 'storeTemplate'])
+                    ->name('contracts.template.store');
+
                 Route::get('contracts/template/print', [ContractController::class, 'templatePrint'])
                     ->name('contracts.template.print');
+
+                Route::get('contracts/template/{contractTemplate}', [ContractController::class, 'showTemplate'])
+                    ->name('contracts.template.show');
 
                 // =================================================
                 // HỢP ĐỒNG - KẾT THÚC
@@ -271,6 +313,21 @@ Route::middleware('auth')->group(function () {
                     'contracts/{contract}/file',
                     [ContractController::class, 'file']
                 )->name('contracts.file');
+
+                Route::get('contracts/{contract}/appendices/create', [AdminContractAppendixController::class, 'create'])
+                    ->name('contracts.appendices.create');
+                Route::post('contracts/{contract}/appendices', [AdminContractAppendixController::class, 'store'])
+                    ->name('contracts.appendices.store');
+                Route::get('contract-appendices/{appendix}', [AdminContractAppendixController::class, 'show'])
+                    ->name('contract-appendices.show');
+                Route::get('contract-appendices/{appendix}/edit', [AdminContractAppendixController::class, 'edit'])
+                    ->name('contract-appendices.edit');
+                Route::put('contract-appendices/{appendix}', [AdminContractAppendixController::class, 'update'])
+                    ->name('contract-appendices.update');
+                Route::post('contract-appendices/{appendix}/send', [AdminContractAppendixController::class, 'send'])
+                    ->name('contract-appendices.send');
+                Route::post('contract-appendices/{appendix}/revise', [AdminContractAppendixController::class, 'revise'])
+                    ->name('contract-appendices.revise');
 
                 Route::get('contracts/{contract}/checkout-photos/{index}', [ContractController::class, 'checkoutPhoto'])
                     ->whereNumber('index')->name('contracts.checkout-photos.show');
@@ -382,6 +439,13 @@ Route::middleware('auth')->group(function () {
                 )
                     ->whereIn('side', ['front', 'back'])
                     ->name('contract-tenants.identity-document');
+
+                Route::get(
+                    'tenants/{tenant}/identity/{side}',
+                    [ContractController::class, 'tenantIdentityDocument']
+                )
+                    ->whereIn('side', ['front', 'back'])
+                    ->name('tenants.identity-document');
 
                 // =================================================
                 // RESOURCE HỢP ĐỒNG
@@ -512,6 +576,12 @@ Route::middleware('auth')->group(function () {
                 Route::post('debts/{invoice}/reminders', [DebtController::class, 'storeReminder'])
                     ->name('debts.reminders.store');
 
+                Route::post('payment-delay-requests/{delayRequest}/approve', [DebtController::class, 'approveDelayRequest'])
+                    ->name('payment-delay-requests.approve');
+
+                Route::post('payment-delay-requests/{delayRequest}/reject', [DebtController::class, 'rejectDelayRequest'])
+                    ->name('payment-delay-requests.reject');
+
                 Route::get(
                     'invoices/generate',
                     [InvoiceController::class, 'generate']
@@ -595,16 +665,19 @@ Route::middleware('auth')->group(function () {
                 Route::resource(
                     'invoices',
                     InvoiceController::class
-                )->except(['create', 'store']);
+                )->except(['create', 'store', 'destroy']);
 
                 // =================================================
                 // QUẢN LÝ TẠM TRÚ
                 // =================================================
 
+                Route::patch('temporary_residences/{temporary_residence}/cancel', [TemporaryResidenceController::class, 'cancel'])
+                    ->name('temporary_residences.cancel');
+
                 Route::resource(
                     'temporary_residences',
                     TemporaryResidenceController::class
-                );
+                )->except(['destroy']);
 
                 Route::post(
                     'temporary-residences/{temporaryResidence}/sign',
@@ -758,7 +831,7 @@ Route::middleware('auth')->group(function () {
 
                     $stats = [
 
-                        'total_rooms' => Room::count(),
+                        'total_rooms' => Room::where('status', '!=', Room::STATUS_RETIRED)->count(),
 
                         'available_rooms' => Room::where(
                             'status',
@@ -775,7 +848,7 @@ Route::middleware('auth')->group(function () {
                             'maintenance'
                         )->count(),
 
-                        'total_tenants' => Tenant::count(),
+                        'total_tenants' => Tenant::active()->count(),
 
                         'active_contracts' => Contract::where(
                             'status',
@@ -952,6 +1025,11 @@ Route::middleware('auth')->group(function () {
                     [ClientInvoiceController::class, 'storePayment']
                 )->name('invoices.payments.store');
 
+                Route::post(
+                    '/invoices/{invoice}/payment-delay-request',
+                    [ClientInvoiceController::class, 'storePaymentDelayRequest']
+                )->name('invoices.payment-delay-request.store');
+
                 Route::get(
                     '/payments/{payment}/proof',
                     [ClientInvoiceController::class, 'paymentProof']
@@ -986,6 +1064,38 @@ Route::middleware('auth')->group(function () {
                     ->middleware('rental.active')
                     ->name('room.show');
 
+                Route::get(
+                    '/room/members',
+                    [ClientRoomController::class, 'members']
+                )
+                    ->middleware('rental.active')
+                    ->name('room.members.index');
+
+                Route::get(
+                    '/room/members/{member}',
+                    [ClientRoomController::class, 'member']
+                )
+                    ->whereNumber('member')
+                    ->middleware('rental.active')
+                    ->name('room.members.show');
+
+                Route::put(
+                    '/room/members/{member}',
+                    [ClientRoomController::class, 'updateMember']
+                )
+                    ->whereNumber('member')
+                    ->middleware('rental.active')
+                    ->name('room.members.update');
+
+                Route::get(
+                    '/room/members/{member}/identity/{side}',
+                    [ClientRoomController::class, 'memberIdentity']
+                )
+                    ->whereNumber('member')
+                    ->whereIn('side', ['front', 'back'])
+                    ->middleware('rental.active')
+                    ->name('room.members.identity');
+
                 // =============================================
                 // HỢP ĐỒNG
                 // =============================================
@@ -994,6 +1104,13 @@ Route::middleware('auth')->group(function () {
                     '/contracts',
                     [ClientContractController::class, 'index']
                 )->name('contracts.index');
+
+                Route::get('/contract-appendices/{appendix}', [ClientContractAppendixController::class, 'show'])
+                    ->name('contract-appendices.show');
+                Route::post('/contract-appendices/{appendix}/accept', [ClientContractAppendixController::class, 'accept'])
+                    ->name('contract-appendices.accept');
+                Route::post('/contract-appendices/{appendix}/reject', [ClientContractAppendixController::class, 'reject'])
+                    ->name('contract-appendices.reject');
 
                 Route::get(
                     '/contracts/{contract}',
@@ -1004,6 +1121,12 @@ Route::middleware('auth')->group(function () {
                     '/contracts/{contract}/file',
                     [ClientContractController::class, 'file']
                 )->name('contracts.file');
+
+                Route::get(
+                    '/contracts/{contract}/handover-meter/{type}',
+                    [ClientContractController::class, 'handoverMeterImage']
+                )->whereIn('type', ['electricity', 'water'])
+                    ->name('contracts.handover-meter-image');
 
                 Route::get('/contracts/{contract}/checkout-photos/{index}', [ClientContractController::class, 'checkoutPhoto'])
                     ->whereNumber('index')->name('contracts.checkout-photos.show');
@@ -1135,6 +1258,11 @@ Route::middleware('auth')->group(function () {
                     [ClientAccountController::class, 'update']
                 )->name('account.update');
 
+                Route::get(
+                    '/account/identity/{side}',
+                    [ClientAccountController::class, 'identityDocument']
+                )->whereIn('side', ['front', 'back'])->name('account.identity-document');
+
                 Route::put(
                     '/account/password',
                     [ClientAccountController::class, 'updatePassword']
@@ -1145,6 +1273,7 @@ Route::middleware('auth')->group(function () {
                 Route::get('/vehicles/{vehicle}/image', [ClientVehicleController::class, 'image'])->middleware('rental.active')->name('vehicles.image');
                 Route::put('/vehicles/{vehicle}', [ClientVehicleController::class, 'update'])->middleware('rental.active')->name('vehicles.update');
                 Route::delete('/vehicles/{vehicle}', [ClientVehicleController::class, 'destroy'])->middleware('rental.active')->name('vehicles.destroy');
+                Route::patch('/vehicles/{vehicle}/restore', [ClientVehicleController::class, 'restore'])->middleware('rental.active')->name('vehicles.restore');
 
                 // =============================================
                 // LỊCH SỬ YÊU CẦU

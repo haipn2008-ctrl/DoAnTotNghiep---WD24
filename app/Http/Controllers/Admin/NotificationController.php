@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ContractAppendix;
 use App\Models\ContractLifecycleAlert;
+use App\Models\InvoicePaymentDelayRequest;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -36,7 +38,7 @@ class NotificationController extends Controller
 
     public function open(ContractLifecycleAlert $notification)
     {
-        if (in_array($notification->type, ['vehicle_removed', 'extension_response'], true) && ! $notification->resolved_at) {
+        if (in_array($notification->type, ['vehicle_removed', 'extension_response', 'contract_appendix_response'], true) && ! $notification->resolved_at) {
             $notification->update(['resolved_at' => now()]);
         }
 
@@ -46,7 +48,13 @@ class NotificationController extends Controller
             'termination_request' => route('admin.termination-requests.index'),
             'deposit_refund_request' => route('admin.deposit-refunds.index'),
             'payment_review' => route('admin.invoices.payments', ['status' => 'pending']),
+            'payment_delay_request' => ($delayRequest = InvoicePaymentDelayRequest::query()->find($referenceId))
+                ? route('admin.debts.show', $delayRequest->invoice_id)
+                : null,
             'support_request' => route('admin.support.index'),
+            'contract_appendix_response' => ContractAppendix::query()->find($referenceId)
+                ? route('admin.contract-appendices.show', $referenceId)
+                : null,
             'member_review', 'move_in_confirmation' => $notification->contract_id
                 ? route('admin.contracts.show', $notification->contract_id)
                 : null,

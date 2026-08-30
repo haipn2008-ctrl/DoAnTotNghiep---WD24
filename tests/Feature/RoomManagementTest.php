@@ -205,7 +205,7 @@ class RoomManagementTest extends TestCase
         $this->assertDatabaseCount('utility_readings', 0);
     }
 
-    public function test_room_with_only_baseline_reading_can_still_be_deleted(): void
+    public function test_room_with_only_baseline_reading_is_retired_without_losing_data(): void
     {
         $this->actingAs($this->admin)->post('/admin/rooms', $this->payload())
             ->assertRedirect(route('admin.rooms.index'));
@@ -216,12 +216,14 @@ class RoomManagementTest extends TestCase
             'reading_type' => 'baseline',
         ]);
 
-        $this->delete("/admin/rooms/{$room->id}")
+        $this->delete("/admin/rooms/{$room->id}", [
+            'retirement_reason' => 'Phòng được tạo nhưng hiện chưa còn nhu cầu khai thác.',
+        ])
             ->assertRedirect(route('admin.rooms.index'))
             ->assertSessionHas('success');
 
-        $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
-        $this->assertDatabaseMissing('utility_readings', ['room_id' => $room->id]);
+        $this->assertDatabaseHas('rooms', ['id' => $room->id, 'status' => Room::STATUS_RETIRED]);
+        $this->assertDatabaseHas('utility_readings', ['room_id' => $room->id, 'reading_type' => 'baseline']);
     }
 
     public function test_inactive_amenities_are_hidden_and_cannot_be_submitted(): void
@@ -273,9 +275,40 @@ class RoomManagementTest extends TestCase
         $this->actingAs($this->admin)->put("/admin/rooms/{$room->id}", $this->payload([
             'room_code' => $room->room_code, 'status' => Room::STATUS_AVAILABLE, 'current_people' => 0,
         ]))->assertSessionHasErrors(['status', 'current_people']);
-        $this->delete("/admin/rooms/{$room->id}")->assertRedirect()->assertSessionHas('error');
+        $this->delete("/admin/rooms/{$room->id}", [
+            'retirement_reason' => 'Không được ngừng phòng khi hợp đồng vẫn đang hoạt động.',
+        ])->assertRedirect()->assertSessionHas('error');
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'status' => Room::STATUS_OCCUPIED]);
         $this->assertDatabaseHas('contracts', ['id' => $contract->id]);
+    }
+
+    public function test_reserved_room_cannot_be_retired_before_the_contract_is_cancelled(): void
+    {
+        foreach ([
+            Contract::STATUS_PENDING_SIGNATURE,
+            Contract::STATUS_PENDING_DEPOSIT,
+            Contract::STATUS_AWAITING_MOVE_IN,
+        ] as $status) {
+            [$room, $contract] = $this->contract($status);
+
+            $this->actingAs($this->admin)->get(route('admin.rooms.index'))
+                ->assertOk()
+                ->assertDontSee('action="'.route('admin.rooms.destroy', $room).'"', false)
+                ->assertDontSee('action="'.route('admin.rooms.retire', $room).'"', false);
+
+            $this->delete(route('admin.rooms.destroy', $room), [
+                'retirement_reason' => 'Không được ngừng phòng khi hợp đồng vẫn đang giữ chỗ.',
+            ])->assertSessionHas('error');
+
+            $this->assertDatabaseHas('rooms', [
+                'id' => $room->id,
+                'status' => Room::STATUS_AVAILABLE,
+            ]);
+            $this->assertDatabaseHas('contracts', [
+                'id' => $contract->id,
+                'status' => $status,
+            ]);
+        }
     }
 
     public function test_occupied_status_cannot_be_assigned_manually_without_active_contract(): void
@@ -391,19 +424,54 @@ class RoomManagementTest extends TestCase
             ->assertSee('2 người');
     }
 
-    public function test_historical_contract_is_preserved_and_empty_room_deletion_removes_image_and_is_not_repeatable(): void
+    public function test_historical_contract_and_empty_room_evidence_are_preserved_when_retired(): void
     {
         [$historicalRoom, $contract] = $this->contract(Contract::STATUS_TERMINATED);
-        $this->actingAs($this->admin)->delete("/admin/rooms/{$historicalRoom->id}")->assertSessionHas('error');
+        $this->actingAs($this->admin)->delete("/admin/rooms/{$historicalRoom->id}", [
+            'retirement_reason' => 'Phòng đã kết thúc vận hành và cần ngừng khai thác.',
+        ])->assertSessionHas('success');
+        $this->assertDatabaseHas('rooms', ['id' => $historicalRoom->id, 'status' => Room::STATUS_RETIRED]);
         $this->assertDatabaseHas('contracts', ['id' => $contract->id]);
 
         Storage::fake('public');
         Storage::disk('public')->put('rooms/delete.jpg', 'image');
         $empty = $this->room(['room_code' => 'DELETE-ME', 'thumbnail' => 'rooms/delete.jpg']);
-        $this->delete("/admin/rooms/{$empty->id}")->assertRedirect()->assertSessionHas('success');
-        $this->assertDatabaseMissing('rooms', ['id' => $empty->id]);
-        Storage::disk('public')->assertMissing('rooms/delete.jpg');
-        $this->delete("/admin/rooms/{$empty->id}")->assertNotFound();
+        $this->delete("/admin/rooms/{$empty->id}", [
+            'retirement_reason' => 'Phòng tạo nhầm được ngừng khai thác nhưng vẫn giữ dữ liệu.',
+        ])->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseHas('rooms', ['id' => $empty->id, 'status' => Room::STATUS_RETIRED]);
+        Storage::disk('public')->assertExists('rooms/delete.jpg');
+        $this->delete("/admin/rooms/{$empty->id}", [
+            'retirement_reason' => 'Không được ngừng khai thác lặp lại lần thứ hai.',
+        ])->assertSessionHas('error');
+    }
+
+    public function test_historical_room_is_retired_and_excluded_from_operational_use(): void
+    {
+        [$room, $contract] = $this->contract(Contract::STATUS_TERMINATED);
+
+        $this->actingAs($this->admin)->patch(route('admin.rooms.retire', $room), [
+            'retirement_reason' => 'Phòng được chuyển đổi sang mục đích sử dụng khác.',
+        ])->assertRedirect(route('admin.rooms.index'))->assertSessionHas('success');
+
+        $this->assertDatabaseHas('rooms', [
+            'id' => $room->id,
+            'status' => Room::STATUS_RETIRED,
+            'retired_by' => $this->admin->id,
+        ]);
+        $this->assertDatabaseHas('contracts', ['id' => $contract->id, 'room_id' => $room->id]);
+        $this->get(route('admin.rooms.edit', $room))->assertStatus(409);
+        $this->get(route('admin.contracts.create'))->assertDontSee($room->room_code);
+
+        $this->patch(route('admin.rooms.restore', $room), [
+            'restoration_reason' => 'Đã hoàn tất cải tạo và phòng đủ điều kiện khai thác lại.',
+        ])->assertSessionHas('success');
+        $this->assertDatabaseHas('rooms', [
+            'id' => $room->id,
+            'status' => Room::STATUS_AVAILABLE,
+            'restored_by' => $this->admin->id,
+        ]);
+        $this->assertNotNull($room->fresh()->restored_at);
     }
 
     private function payload(array $overrides = []): array

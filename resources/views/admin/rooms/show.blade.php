@@ -8,6 +8,7 @@
         'available' => ['label' => 'Trống', 'class' => 'bg-emerald-50 text-emerald-700 ring-emerald-200', 'dot' => 'bg-emerald-500'],
         'occupied' => ['label' => 'Đang thuê', 'class' => 'bg-rose-50 text-rose-700 ring-rose-200', 'dot' => 'bg-rose-500'],
         'maintenance' => ['label' => 'Bảo trì', 'class' => 'bg-amber-50 text-amber-700 ring-amber-200', 'dot' => 'bg-amber-500'],
+        'retired' => ['label' => 'Ngừng khai thác', 'class' => 'bg-slate-100 text-slate-600 ring-slate-200', 'dot' => 'bg-slate-400'],
     ];
     $status = $statusOptions[$room->status] ?? ['label' => 'Không xác định', 'class' => 'bg-slate-50 text-slate-700 ring-slate-200', 'dot' => 'bg-slate-400'];
     $conditionLabels = [
@@ -39,10 +40,12 @@
             </div>
 
             <div class="flex flex-wrap gap-2">
+                @if ($room->status !== \App\Models\Room::STATUS_RETIRED)
                 <a href="{{ route('admin.rooms.edit', $room) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                     <i class="bx bx-edit text-lg"></i>
                     Cập nhật
                 </a>
+                @endif
                 <a href="{{ route('admin.rooms.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
                     <i class="bx bx-arrow-back text-lg"></i>
                     Quay lại
@@ -258,7 +261,7 @@
             <div class="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
                 @forelse ($room->images as $image)
                     <article class="overflow-hidden rounded-lg border border-slate-200">
-                        <a href="{{ asset('storage/'.$image->path) }}" target="_blank" rel="noopener">
+                        <a href="{{ asset('storage/'.$image->path) }}" data-image-modal data-image-title="Ảnh hiện trạng phòng">
                             <img src="{{ asset('storage/'.$image->path) }}" alt="{{ $evidenceLabels[$image->evidence_type] ?? 'Ảnh phòng' }}" class="h-48 w-full bg-slate-100 object-cover">
                         </a>
                         <div class="space-y-1.5 p-3 text-xs text-slate-500">

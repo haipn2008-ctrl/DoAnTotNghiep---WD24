@@ -41,7 +41,7 @@
                         </div>
                         <div class="shrink-0 lg:w-28">
                             @if($payment->proof_image)
-                                <a href="{{ route('admin.invoices.payments.proof', $payment) }}" target="_blank" rel="noopener" class="block w-28">
+                                <a href="{{ route('admin.invoices.payments.proof', $payment) }}" data-image-modal data-image-title="Biên lai thanh toán {{ $payment->invoice?->invoice_code }}" class="block w-28">
                                     <img src="{{ route('admin.invoices.payments.proof', $payment) }}" alt="Biên lai" class="h-28 w-28 rounded-lg object-cover ring-1 ring-slate-200">
                                     <span class="mt-1 block text-center text-xs font-semibold text-indigo-700">Xem ảnh lớn</span>
                                 </a>

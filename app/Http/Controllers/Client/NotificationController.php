@@ -28,17 +28,20 @@ class NotificationController extends Controller
         $target = match ($data['type'] ?? null) {
             'extension_terms_offered' => route('client.extension-requests.index'),
             default => match ($data['action'] ?? null) {
-            'invoice' => ! empty($data['invoice_id'])
-                ? route('client.invoices.show', $data['invoice_id'])
-                : null,
-            'contract' => ! empty($data['contract_id'])
-                ? route('client.contracts.show', $data['contract_id'])
-                : null,
-            'support' => route('client.support.index'),
-            'vehicles' => route('client.vehicles.index'),
-            default => ! empty($data['invoice_id'])
-                ? route('client.invoices.show', $data['invoice_id'])
-                : null,
+                'invoice' => ! empty($data['invoice_id'])
+                    ? route('client.invoices.show', $data['invoice_id'])
+                    : null,
+                'contract' => ! empty($data['contract_id'])
+                    ? route('client.contracts.show', $data['contract_id'])
+                    : null,
+                'support' => route('client.support.index'),
+                'vehicles' => route('client.vehicles.index'),
+                'appendix' => ! empty($data['appendix_id'])
+                    ? route('client.contract-appendices.show', $data['appendix_id'])
+                    : null,
+                default => ! empty($data['invoice_id'])
+                    ? route('client.invoices.show', $data['invoice_id'])
+                    : null,
             },
         };
 
