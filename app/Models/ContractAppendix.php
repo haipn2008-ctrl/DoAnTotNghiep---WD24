@@ -43,11 +43,18 @@ class ContractAppendix extends Model
 
     public const STATUS_SUPERSEDED = 'superseded';
 
+    public const STATUS_PENDING_SIGNATURE = 'pending_signature';
+
+    public const TYPE_GENERAL = 'general';
+
+    public const TYPE_EXTENSION = 'extension';
+
     protected $fillable = [
-        'contract_id', 'parent_appendix_id', 'appendix_number', 'revision', 'code',
+        'contract_id', 'extension_request_id', 'parent_appendix_id', 'appendix_number', 'revision', 'code', 'appendix_type',
         'title', 'legal_basis', 'content', 'price_adjustments', 'effective_from', 'status', 'created_by',
         'sent_at', 'sent_by', 'responded_at', 'responded_by', 'accepted_at',
         'rejected_at', 'rejection_reason', 'content_sha256',
+        'signed_evidence_paths', 'signed_evidence_uploaded_at', 'signed_evidence_uploaded_by',
     ];
 
     protected $casts = [
@@ -57,6 +64,8 @@ class ContractAppendix extends Model
         'responded_at' => 'datetime',
         'accepted_at' => 'datetime',
         'rejected_at' => 'datetime',
+        'signed_evidence_paths' => 'array',
+        'signed_evidence_uploaded_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -86,6 +95,16 @@ class ContractAppendix extends Model
     public function parent()
     {
         return $this->belongsTo(self::class, 'parent_appendix_id');
+    }
+
+    public function extensionRequest()
+    {
+        return $this->belongsTo(ContractExtensionRequest::class, 'extension_request_id');
+    }
+
+    public function evidenceUploader()
+    {
+        return $this->belongsTo(User::class, 'signed_evidence_uploaded_by');
     }
 
     public function revisions()
@@ -149,7 +168,13 @@ class ContractAppendix extends Model
             self::STATUS_ACCEPTED => 'Đã chấp nhận',
             self::STATUS_REJECTED => 'Khách từ chối',
             self::STATUS_SUPERSEDED => 'Đã có bản sửa đổi',
+            self::STATUS_PENDING_SIGNATURE => 'Chờ ký và tải minh chứng',
             default => 'Không xác định',
         };
+    }
+
+    public function isExtension(): bool
+    {
+        return $this->appendix_type === self::TYPE_EXTENSION;
     }
 }

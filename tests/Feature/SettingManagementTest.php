@@ -61,6 +61,7 @@ class SettingManagementTest extends TestCase
     public function test_consolidated_fee_form_updates_every_fee_atomically(): void
     {
         $setting = $this->createSetting();
+        $effectiveMonth = now()->addMonthNoOverflow()->startOfMonth();
         $payload = [
             'electric_price' => 4100,
             'water_price' => 22000,
@@ -68,24 +69,18 @@ class SettingManagementTest extends TestCase
             'service_fee' => 65000,
             'invoice_day' => 5,
             'payment_due_days' => 10,
-            'fee_effective_from' => '2026-08',
+            'fee_effective_from' => $effectiveMonth->format('Y-m'),
         ];
 
         $this->actingAs($this->admin)->put('/admin/settings/fees', $payload)
             ->assertRedirect('/admin/settings/fees')
             ->assertSessionHasNoErrors();
-        foreach ($payload as $field => $value) {
-            if ($field === 'fee_effective_from') {
-                continue;
-            }
-            if (in_array($field, ['invoice_day', 'payment_due_days'], true)) {
-                $this->assertSame($value, $setting->fresh()->{$field});
-            } else {
-                $this->assertSame(number_format($value, 2, '.', ''), $setting->fresh()->{$field});
-            }
-        }
+        $this->assertSame($payload['invoice_day'], $setting->fresh()->invoice_day);
+        $this->assertSame($payload['payment_due_days'], $setting->fresh()->payment_due_days);
+        $this->assertSame('3500.00', $setting->fresh()->electric_price);
+        $this->assertSame('15000.00', $setting->fresh()->water_price);
         $this->assertDatabaseHas('fee_schedules', [
-            'effective_from' => '2026-08-01',
+            'effective_from' => $effectiveMonth->toDateString(),
             'electric_price' => 4100,
             'water_price' => 22000,
         ]);
@@ -94,8 +89,11 @@ class SettingManagementTest extends TestCase
             'electric_price' => 5000,
             'water_price' => -1,
         ]))->assertSessionHasErrors('water_price');
-        $this->assertSame('4100.00', $setting->fresh()->electric_price);
-        $this->assertSame('22000.00', $setting->fresh()->water_price);
+        $this->assertDatabaseHas('fee_schedules', [
+            'effective_from' => $effectiveMonth->toDateString(),
+            'electric_price' => 4100,
+            'water_price' => 22000,
+        ]);
     }
 
     public function test_billing_schedule_requires_valid_issue_day_and_payment_window(): void
@@ -106,7 +104,7 @@ class SettingManagementTest extends TestCase
             'water_price' => 15000,
             'internet_fee' => 100000,
             'service_fee' => 50000,
-            'fee_effective_from' => '2026-08',
+            'fee_effective_from' => now()->addMonthNoOverflow()->format('Y-m'),
         ];
 
         $this->actingAs($this->admin)->put('/admin/settings/fees', array_merge($validFees, [
@@ -121,6 +119,35 @@ class SettingManagementTest extends TestCase
 
         $this->assertSame(5, $setting->fresh()->invoice_day);
         $this->assertSame(10, $setting->fresh()->payment_due_days);
+    }
+
+    public function test_fee_effective_month_only_accepts_future_months(): void
+    {
+        $this->createSetting();
+        $minimumMonth = now()->addMonthNoOverflow()->startOfMonth();
+        $payload = [
+            'electric_price' => 4100,
+            'water_price' => 22000,
+            'internet_fee' => 120000,
+            'service_fee' => 65000,
+            'invoice_day' => 5,
+            'payment_due_days' => 10,
+        ];
+
+        $this->actingAs($this->admin)
+            ->get('/admin/settings/fees')
+            ->assertOk()
+            ->assertSee('min="'.$minimumMonth->format('Y-m').'"', false)
+            ->assertSee('value="'.$minimumMonth->format('Y-m').'"', false)
+            ->assertSee('Chỉ được chọn từ tháng kế tiếp.');
+
+        foreach ([now()->format('Y-m'), now()->subMonthNoOverflow()->format('Y-m')] as $invalidMonth) {
+            $this->put('/admin/settings/fees', array_merge($payload, [
+                'fee_effective_from' => $invalidMonth,
+            ]))->assertSessionHasErrors('fee_effective_from');
+        }
+
+        $this->assertDatabaseCount('fee_schedules', 0);
     }
 
     public function test_property_and_payment_form_updates_both_sections_together(): void

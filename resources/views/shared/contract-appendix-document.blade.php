@@ -26,6 +26,6 @@
     @if($appendix->isPriceAdjustment() && $appendix->effective_from?->day !== 1)
         <p><em>Đơn giá mới được dùng để tính hóa đơn từ kỳ dịch vụ bắt đầu sau ngày hiệu lực nêu trên.</em></p>
     @endif
-    <p>Các nội dung khác của Hợp đồng số {{ $appendix->contract->contract_code }} không được nêu trong phụ lục này vẫn giữ nguyên. Phụ lục là một phần không tách rời của hợp đồng sau khi được người thuê đại diện chấp nhận.</p>
+    <p>Các nội dung khác của Hợp đồng số {{ $appendix->contract->contract_code }} không được nêu trong phụ lục này vẫn giữ nguyên. Phụ lục là một phần không tách rời của hợp đồng {{ $appendix->isExtension() ? 'sau khi hai bên ký và minh chứng bản ký được lưu trên hệ thống' : 'sau khi được người thuê đại diện chấp nhận' }}.</p>
     <table style="margin-top:42px;width:100%;border-collapse:collapse;text-align:center"><tr><td style="width:50%;border:0"><strong>ĐẠI DIỆN BÊN A</strong><br><span style="font-size:13px">Ban quản lý/Chủ nhà</span></td><td style="width:50%;border:0"><strong>ĐẠI DIỆN BÊN B</strong><br><span style="font-size:13px">Người thuê đại diện</span></td></tr><tr><td style="height:90px;border:0;vertical-align:bottom">{{ $appendix->contract->landlord_name_snapshot ?: 'Chủ nhà' }}</td><td style="height:90px;border:0;vertical-align:bottom">{{ $appendix->contract->tenant?->full_name }}</td></tr></table>
 </div>

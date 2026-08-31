@@ -53,15 +53,23 @@ class RoomController extends Controller
         $contract = $this->currentContract($request, [
             'room',
             'members' => fn ($query) => $query
-                ->where('status', ContractTenant::STATUS_CHECKED_IN)
+                ->whereIn('status', [
+                    ContractTenant::STATUS_CHECKED_IN,
+                    ContractTenant::STATUS_MOVED_OUT,
+                ])
+                ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [ContractTenant::STATUS_CHECKED_IN])
                 ->orderByRaw('CASE WHEN role = ? THEN 0 ELSE 1 END', [ContractTenant::ROLE_REPRESENTATIVE])
+                ->orderByDesc('actual_move_in_at')
                 ->orderBy('full_name'),
         ]);
+
+        $members = $contract?->members ?? collect();
 
         return view('client.room.members', [
             'contract' => $contract,
             'room' => $contract?->room,
-            'members' => $contract?->members ?? collect(),
+            'members' => $members->where('status', ContractTenant::STATUS_CHECKED_IN)->values(),
+            'formerMembers' => $members->where('status', ContractTenant::STATUS_MOVED_OUT)->values(),
         ]);
     }
 

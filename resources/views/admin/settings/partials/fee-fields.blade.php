@@ -1,4 +1,5 @@
 @php
+    $minimumFeeMonth = now()->addMonthNoOverflow()->startOfMonth()->format('Y-m');
     $feeFields = [
         'electric_price' => ['Đơn giá điện', 'VNĐ/kWh'],
         'water_price' => ['Đơn giá nước', 'VNĐ/m³'],
@@ -18,8 +19,8 @@
 
 <div class="border-t border-slate-200 pt-6">
     <label for="fee_effective_from" class="mb-1.5 block text-sm font-semibold text-slate-700">Áp dụng cho chi phí phát sinh từ tháng</label>
-    <input id="fee_effective_from" type="month" name="fee_effective_from" value="{{ old('fee_effective_from', now()->format('Y-m')) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 md:max-w-sm">
-    <p class="mt-1.5 text-sm text-slate-500">Hóa đơn phát hành tháng sau sẽ lấy bảng giá theo tháng sử dụng dịch vụ, không theo ngày tạo hóa đơn.</p>
+    <input id="fee_effective_from" type="month" name="fee_effective_from" min="{{ $minimumFeeMonth }}" value="{{ old('fee_effective_from', $minimumFeeMonth) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 md:max-w-sm">
+    <p class="mt-1.5 text-sm text-slate-500">Chỉ được chọn từ tháng kế tiếp. Hóa đơn sẽ lấy bảng giá theo tháng sử dụng dịch vụ, không theo ngày tạo hóa đơn.</p>
     @error('fee_effective_from')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror
 </div>
 

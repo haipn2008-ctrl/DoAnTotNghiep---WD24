@@ -21,6 +21,8 @@ class Invoice extends Model
 
     const TYPE_SETTLEMENT = 'settlement';
 
+    const TYPE_SUPPLEMENTAL = 'supplemental';
+
     /*
     |--------------------------------------------------------------------------
     | Invoice Status
@@ -47,6 +49,8 @@ class Invoice extends Model
 
         'contract_id',
 
+        'parent_invoice_id',
+
         'fee_schedule_id',
 
         'invoice_code',
@@ -64,6 +68,10 @@ class Invoice extends Model
         'year',
 
         'invoice_date',
+
+        'issued_at',
+
+        'issued_by',
 
         'due_date',
 
@@ -108,6 +116,8 @@ class Invoice extends Model
 
         'invoice_date' => 'date',
 
+        'issued_at' => 'datetime',
+
         'due_date' => 'date',
 
         'due_notified_at' => 'datetime',
@@ -145,6 +155,28 @@ class Invoice extends Model
     public function contract()
     {
         return $this->belongsTo(Contract::class);
+    }
+
+    public function parentInvoice()
+    {
+        return $this->belongsTo(self::class, 'parent_invoice_id');
+    }
+
+    public function supplementalInvoices()
+    {
+        return $this->hasMany(self::class, 'parent_invoice_id')
+            ->where('invoice_type', self::TYPE_SUPPLEMENTAL)
+            ->latest('id');
+    }
+
+    public function creditApplications()
+    {
+        return $this->hasMany(ContractCreditApplication::class);
+    }
+
+    public function creditsCreated()
+    {
+        return $this->hasMany(ContractCredit::class, 'source_invoice_id')->latest('id');
     }
 
     public function room()
@@ -203,6 +235,11 @@ class Invoice extends Model
     public function canceller()
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function issuer()
+    {
+        return $this->belongsTo(User::class, 'issued_by');
     }
 
     /*
@@ -372,6 +409,11 @@ class Invoice extends Model
     public function isDeposit(): bool
     {
         return $this->invoice_type === self::TYPE_DEPOSIT;
+    }
+
+    public function isSupplemental(): bool
+    {
+        return $this->invoice_type === self::TYPE_SUPPLEMENTAL;
     }
 
     /**

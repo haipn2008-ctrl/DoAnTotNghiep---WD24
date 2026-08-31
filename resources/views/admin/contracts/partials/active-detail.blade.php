@@ -54,6 +54,12 @@
             <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <h3 class="font-bold text-slate-950">Người thuê trong phòng</h3>
                 <div class="flex flex-wrap items-center gap-2">
+                    @if($contract->currentMembers->count() < (int) $contract->room?->max_people)
+                        <a href="{{ route('admin.contract-tenants.create', $contract) }}" class="inline-flex h-9 items-center gap-2 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700">
+                            <i class="bx bx-user-plus text-base"></i>
+                            Thêm người vào phòng
+                        </a>
+                    @endif
                     @if($departedMembers->isNotEmpty())
                         <button type="button" onclick="document.getElementById('departure-history-dialog').showModal()" class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
                             <i class="bx bx-history text-base"></i>
@@ -117,7 +123,7 @@
                         @foreach($contract->representativeTransfers->sortByDesc('effective_at') as $transfer)
                             <div class="flex flex-col gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                                 <span>{{ data_get($transfer->old_representative_snapshot, 'full_name') }} → {{ data_get($transfer->new_representative_snapshot, 'full_name') }} · {{ $transfer->effective_at->format('d/m/Y H:i') }}</span>
-                                <a target="_blank" href="{{ route('admin.representative-transfers.appendix', $transfer) }}" class="font-semibold text-emerald-700 hover:text-emerald-900">In phụ lục chuyển giao</a>
+                                <a data-contract-print href="{{ route('admin.representative-transfers.appendix', $transfer) }}" class="font-semibold text-emerald-700 hover:text-emerald-900">In phụ lục chuyển giao</a>
                             </div>
                         @endforeach
                     </div>

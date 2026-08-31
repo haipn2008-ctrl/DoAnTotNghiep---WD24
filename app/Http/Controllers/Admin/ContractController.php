@@ -20,6 +20,7 @@ use App\Services\AdminNotificationService;
 use App\Services\ClientNotificationService;
 use App\Services\ContractDocumentService;
 use App\Services\ContractIdentityDocumentService;
+use App\Services\ContractExtensionAppendixService;
 use App\Services\ContractLifecycleService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -37,6 +38,7 @@ class ContractController extends Controller
         private readonly ContractLifecycleService $lifecycle,
         private readonly ContractIdentityDocumentService $identityDocuments,
         private readonly ContractDocumentService $documents,
+        private readonly ContractExtensionAppendixService $extensionAppendices,
     ) {}
 
     public function index(Request $request)
@@ -64,8 +66,9 @@ class ContractController extends Controller
             ->orderBy('room_code')->get();
         $tenants = Tenant::query()->eligibleForContract()->with(['user:id,email,status', 'document'])
             ->orderBy('full_name')->get();
+        $availableMemberTenants = $this->availableMemberTenants();
 
-        return view('admin.contracts.create', compact('rooms', 'tenants'));
+        return view('admin.contracts.create', compact('rooms', 'tenants', 'availableMemberTenants'));
     }
 
     public function store(Request $request)
@@ -165,8 +168,9 @@ class ContractController extends Controller
             ->orderBy('room_code')->get();
         $tenants = Tenant::query()->eligibleForContract()->with(['user:id,email,status', 'document'])
             ->orderBy('full_name')->get();
+        $availableMemberTenants = $this->availableMemberTenants();
 
-        return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants'));
+        return view('admin.contracts.edit', compact('contract', 'rooms', 'tenants', 'availableMemberTenants'));
     }
 
     public function update(Request $request, Contract $contract)
@@ -600,24 +604,25 @@ class ContractController extends Controller
             'financial_override_reason' => ['nullable', 'string', 'min:3', 'max:1000'],
             'confirm_extend' => ['required', 'accepted'],
         ], [
-            'confirm_extend.required' => 'Bạn phải xác nhận 2 bên đã thỏa thuận gia hạn.',
-            'confirm_extend.accepted' => 'Bạn phải xác nhận 2 bên đã thỏa thuận gia hạn.',
+            'confirm_extend.required' => 'Bạn phải xác nhận thông tin dùng để lập phụ lục gia hạn.',
+            'confirm_extend.accepted' => 'Bạn phải xác nhận thông tin dùng để lập phụ lục gia hạn.',
         ]);
         $reason = $data['reason'] ?? trim(($data['extend_reason'] ?? '').' '.($data['extend_note'] ?? ''));
         if ($reason === '') {
             return back()->withErrors(['reason' => 'Gia hạn hợp đồng bắt buộc có lý do.'])->withInput();
         }
         $extensionRequest = $this->extendByAdminAgreement($contract, $request, $data, $reason);
+        $appendix = $this->extensionAppendices->prepare($extensionRequest, $request->user());
         $contract = $extensionRequest->contract->fresh();
         app(ClientNotificationService::class)->contract(
             $contract,
-            'extension_request_approved',
-            'Hợp đồng đã được gia hạn',
-            'Theo thỏa thuận giữa hai bên, hợp đồng '.$contract->contract_code.' đã được gia hạn đến '.$contract->end_date?->format('d/m/Y').'.'
+            'extension_appendix_ready',
+            'Đã lập phụ lục gia hạn',
+            'Phụ lục '.$appendix->code.' đã được lập. Hợp đồng chỉ được gia hạn sau khi hai bên ký và ban quản lý tải minh chứng.'
         );
 
-        return redirect()->route('admin.contracts.show', $contract)
-            ->with('success', 'Đã gia hạn hợp đồng theo thỏa thuận của hai bên.');
+        return redirect()->route('admin.contract-appendices.show', $appendix)
+            ->with('success', 'Đã lập phụ lục gia hạn. Hãy in, ký và tải ảnh minh chứng để hoàn tất gia hạn.');
     }
 
     private function extendByAdminAgreement(Contract $contract, Request $request, array $data, string $reason): ContractExtensionRequest
@@ -666,7 +671,7 @@ class ContractController extends Controller
                 'approved_end_date' => $newEndDate,
                 'proposed_monthly_rent' => $monthlyRent,
                 'proposed_deposit_amount' => $lockedContract->deposit_amount,
-                'status' => ContractExtensionRequest::STATUS_APPROVED,
+                'status' => ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
                 'financial_override_reason' => $data['financial_override_reason'] ?? null,
                 'terms_snapshot' => [
                     'old_end_date' => $lockedContract->end_date?->toDateString(),
@@ -688,8 +693,9 @@ class ContractController extends Controller
                         'role' => $member->role,
                     ])->values()->all(),
                 ],
-                'processed_by' => $request->user()->id,
-                'processed_at' => now(),
+                'processed_by' => null,
+                'processed_at' => null,
+                'terms_offered_at' => now(),
             ];
             if ($existingRequest) {
                 $extensionRequest = $existingRequest->forceFill($extensionData + [
@@ -703,17 +709,6 @@ class ContractController extends Controller
                     'reason' => $reason,
                 ]);
             }
-
-            $this->lifecycle->extendContract(
-                $lockedContract,
-                $request->user(),
-                $newEndDate,
-                $reason,
-                [
-                    'monthly_rent' => $monthlyRent,
-                    'extension_request_id' => $extensionRequest->id,
-                ],
-            );
 
             return $extensionRequest->fresh('contract');
         }, 3);
@@ -931,6 +926,7 @@ class ContractController extends Controller
             'members.*.id' => ['nullable', 'integer', Rule::exists('contract_tenants', 'id')->where(
                 fn ($query) => $contract ? $query->where('contract_id', $contract->id) : $query->whereRaw('1 = 0')
             )],
+            'members.*.tenant_id' => ['nullable', 'integer', Rule::exists('tenants', 'id')->where('status', Tenant::STATUS_ACTIVE)],
             'members.*.full_name' => ['required', 'string', 'max:150'],
             'members.*.date_of_birth' => ['nullable', 'date', new AdultDateOfBirth],
             'members.*.gender' => ['required', Rule::in(['male', 'female', 'other'])],
@@ -1100,19 +1096,32 @@ class ContractController extends Controller
         }
 
         foreach ($data['members'] as $memberData) {
-            if (! isset($memberData['identity_front'], $memberData['identity_back'])) {
+            $hasUploadedPair = isset($memberData['identity_front'], $memberData['identity_back']);
+            if (! $hasUploadedPair
+                && blank($memberData['tenant_id'] ?? null)
+                && blank($memberData['id'] ?? null)) {
                 continue;
             }
-            $member = $contract->members()->where('role', ContractTenant::ROLE_TENANT)
-                ->current()->where('identity_number', $memberData['identity_number'])
-                ->lockForUpdate()->latest('id')->firstOrFail();
-            $this->identityDocuments->storePair(
-                $member,
-                $memberData['identity_front'],
-                $memberData['identity_back'],
-                $actor,
-                $storedPaths,
-            );
+            $memberQuery = $contract->members()->where('role', ContractTenant::ROLE_TENANT)->current();
+            if (filled($memberData['id'] ?? null)) {
+                $memberQuery->whereKey($memberData['id']);
+            } elseif (filled($memberData['tenant_id'] ?? null)) {
+                $memberQuery->where('tenant_id', $memberData['tenant_id']);
+            } else {
+                $memberQuery->where('identity_number', $memberData['identity_number']);
+            }
+            $member = $memberQuery->lockForUpdate()->latest('id')->firstOrFail();
+            if ($hasUploadedPair) {
+                $this->identityDocuments->storePair(
+                    $member,
+                    $memberData['identity_front'],
+                    $memberData['identity_back'],
+                    $actor,
+                    $storedPaths,
+                );
+            } elseif (! $member->identity_front_path || ! $member->identity_back_path) {
+                $this->identityDocuments->useTenantProfile($member, $actor);
+            }
         }
     }
 
@@ -1138,5 +1147,21 @@ class ContractController extends Controller
         }
 
         return $query;
+    }
+
+    private function availableMemberTenants()
+    {
+        return Tenant::query()
+            ->active()
+            ->whereNotNull('full_name')
+            ->whereNotNull('date_of_birth')
+            ->whereDate('date_of_birth', '<=', today()->subYears(18))
+            ->whereNotNull('gender')
+            ->whereNotNull('cccd')
+            ->whereDoesntHave('contractMemberships', fn ($query) => $query->current())
+            ->whereDoesntHave('contracts', fn ($query) => $query->whereIn('status', Contract::RESERVING_STATUSES))
+            ->with(['document', 'user:id,status'])
+            ->orderBy('full_name')
+            ->get();
     }
 }

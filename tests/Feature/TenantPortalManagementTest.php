@@ -345,6 +345,36 @@ class TenantPortalManagementTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_client_sees_interim_reading_as_a_reconciliation_checkpoint_without_invoice_prompt(): void
+    {
+        [$client, , $contract, $room] = $this->createClientContext('CHECKPOINT');
+        $checkpoint = UtilityReading::create([
+            'room_id' => $room->id,
+            'contract_id' => $contract->id,
+            'month' => 8,
+            'year' => 2026,
+            'reading_type' => 'interim',
+            'record_date' => '2026-08-16',
+            'electricity_old' => 120,
+            'electricity_new' => 145,
+            'water_old' => 20,
+            'water_new' => 27,
+            'status' => UtilityReading::STATUS_CONFIRMED,
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('client.utilities.index'))
+            ->assertOk()
+            ->assertViewHas('readings', fn ($readings) => $readings->getCollection()->contains('id', $checkpoint->id))
+            ->assertSee('Mốc giữa kỳ')
+            ->assertSee('Mốc đối chiếu')
+            ->assertSee('Chốt ngày 16/08/2026')
+            ->assertSee('Chỉ số 120 → 145')
+            ->assertSee('Chỉ số 20 → 27')
+            ->assertSee('không tự chia tiền')
+            ->assertDontSee('Chưa có hóa đơn');
+    }
+
     public function test_profile_update_rejects_duplicate_tenant_contact_and_changes_nothing(): void
     {
         [$client, $tenant] = $this->createClientContext('PROFILE');

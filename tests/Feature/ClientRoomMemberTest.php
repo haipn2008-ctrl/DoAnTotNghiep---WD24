@@ -237,6 +237,38 @@ class ClientRoomMemberTest extends TestCase
         $this->assertNotSame($contract->id, $otherContract->id);
     }
 
+    public function test_client_can_see_move_in_and_move_out_history_without_opening_former_member_profile(): void
+    {
+        [$client, $contract] = $this->rentalFixture('HISTORY');
+        $formerTenant = Tenant::create([
+            'full_name' => 'Người thuê đã rời phòng',
+            'cccd' => '079999999901',
+            'phone' => '0987654321',
+        ]);
+        $formerMember = ContractTenant::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $formerTenant->id,
+            'role' => ContractTenant::ROLE_TENANT,
+            'full_name' => 'Người thuê đã rời phòng',
+            'phone' => '0987654321',
+            'status' => ContractTenant::STATUS_MOVED_OUT,
+            'actual_move_in_at' => '2026-08-05 09:30:00',
+            'actual_move_out_at' => '2026-08-20 18:15:00',
+        ]);
+
+        $this->actingAs($client)
+            ->get(route('client.room.members.index'))
+            ->assertOk()
+            ->assertSee('Lịch sử cư trú')
+            ->assertSee($formerMember->full_name)
+            ->assertSee('05/08/2026 09:30')
+            ->assertSee('20/08/2026 18:15')
+            ->assertDontSee('0987654321')
+            ->assertDontSee(route('client.room.members.show', $formerMember));
+
+        $this->get(route('client.room.members.show', $formerMember))->assertNotFound();
+    }
+
     private function rentalFixture(string $suffix): array
     {
         $role = Role::firstOrCreate(['role_name' => 'User']);

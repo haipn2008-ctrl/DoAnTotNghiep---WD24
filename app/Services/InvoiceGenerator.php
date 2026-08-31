@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Contract;
+use App\Models\ContractCredit;
 use App\Models\FeeSchedule;
 use App\Models\Invoice;
 use App\Models\RoomTransfer;
@@ -10,13 +11,20 @@ use App\Models\Setting;
 use App\Models\UtilityReading;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 class InvoiceGenerator
 {
     public function __construct(private readonly ContractRateResolver $pricing) {}
 
-    public function preview(Contract $contract, int $month, int $year, ?FeeSchedule $lockedFeeSchedule = null): array
+    public function preview(
+        Contract $contract,
+        int $month,
+        int $year,
+        ?FeeSchedule $lockedFeeSchedule = null,
+        ?Collection $lockedCredits = null
+    ): array
     {
         $contract->loadMissing(['room', 'tenant']);
 
@@ -173,6 +181,37 @@ class InvoiceGenerator
             ];
         }
 
+        $creditAmount = 0.0;
+        $remainingGross = max(0, (float) collect($lines)->sum('amount'));
+        $credits = $lockedCredits ?? $this->availableCredits($contract, $billingPeriod);
+        foreach ($credits as $credit) {
+            if ($remainingGross <= 0) {
+                break;
+            }
+
+            $appliedAmount = min($remainingGross, (float) $credit->remaining_amount);
+            if ($appliedAmount <= 0) {
+                continue;
+            }
+
+            $lines[] = [
+                'type' => 'contract_credit',
+                'name' => 'Khấu trừ khoản giảm '.$credit->credit_code,
+                'quantity' => 1,
+                'unit' => 'lần',
+                'unit_price' => -$appliedAmount,
+                'amount' => -$appliedAmount,
+                'old_index' => null,
+                'new_index' => null,
+                'note' => $credit->reason,
+                'sort_order' => 90,
+                '_credit_id' => $credit->id,
+                '_credit_amount' => $appliedAmount,
+            ];
+            $creditAmount += $appliedAmount;
+            $remainingGross -= $appliedAmount;
+        }
+
         $totalAmount = collect($lines)->sum('amount');
         $internetFee = collect($lines)->where('type', 'internet')->sum('amount');
         $serviceFee = collect($lines)->whereIn('type', ['service', 'parking'])->sum('amount');
@@ -194,27 +233,23 @@ class InvoiceGenerator
             'water_fee' => collect($lines)->where('type', 'water')->sum('amount'),
             'internet_fee' => $internetFee,
             'service_fee' => $serviceFee,
+            'credit_amount' => $creditAmount,
             'total_amount' => $totalAmount,
             'status' => 'unpaid',
             'lines' => $lines,
         ];
     }
 
-    public function issue(Contract $contract, int $month, int $year): Invoice
+    public function issue(Contract $contract, int $month, int $year, ?int $actorId = null): Invoice
     {
-        return DB::transaction(function () use ($contract, $month, $year) {
+        return DB::transaction(function () use ($contract, $month, $year, $actorId) {
             $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
             $contract->room()->lockForUpdate()->firstOrFail();
             $servicePeriod = Carbon::createFromDate($year, $month, 1)->subMonthNoOverflow();
             $feeSchedule = FeeSchedule::forPeriod($servicePeriod, true);
-            $preview = $this->preview($contract, $month, $year, $feeSchedule);
-
-            if (today()->lt(Carbon::parse($preview['invoice_date'])->startOfDay())) {
-                throw ValidationException::withMessages([
-                    'invoice_date' => 'Hóa đơn kỳ này chỉ được phát hành từ ngày '.
-                        Carbon::parse($preview['invoice_date'])->format('d/m/Y').'.',
-                ]);
-            }
+            $billingPeriod = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+            $credits = $this->availableCredits($contract, $billingPeriod, true);
+            $preview = $this->preview($contract, $month, $year, $feeSchedule, $credits);
 
             $lockedReading = UtilityReading::query()->lockForUpdate()->findOrFail($preview['reading']->id);
             if (! $lockedReading->isConfirmed()) {
@@ -240,6 +275,8 @@ class InvoiceGenerator
                 'month' => $month,
                 'year' => $year,
                 'invoice_date' => $preview['invoice_date'],
+                'issued_at' => now(),
+                'issued_by' => $actorId,
                 'due_date' => $preview['due_date'],
                 'room_fee' => $preview['room_fee'],
                 'electricity_fee' => $preview['electricity_fee'],
@@ -256,9 +293,25 @@ class InvoiceGenerator
 
             foreach ($preview['lines'] as $line) {
                 $invoice->details()->create($line);
+
+                if (! empty($line['_credit_id']) && (float) ($line['_credit_amount'] ?? 0) > 0) {
+                    $credit = $credits->firstWhere('id', $line['_credit_id']);
+                    if ($credit) {
+                        $amount = (float) $line['_credit_amount'];
+                        $credit->applications()->create([
+                            'invoice_id' => $invoice->id,
+                            'amount' => $amount,
+                        ]);
+                        $credit->update([
+                            'remaining_amount' => max(0, (float) $credit->remaining_amount - $amount),
+                        ]);
+                    }
+                }
             }
 
             $lockedReading->update(['status' => UtilityReading::STATUS_LOCKED]);
+
+            $invoice->refreshStatus();
 
             app(TenantAccountLifecycle::class)->sync(
                 $preview['tenant']->loadMissing('user')
@@ -297,6 +350,29 @@ class InvoiceGenerator
                 'contract' => "Hợp đồng {$contract->contract_code} không phát sinh chi phí trong tháng {$periodStart->month}/{$periodStart->year}.",
             ]);
         }
+    }
+
+    private function availableCredits(Contract $contract, Carbon $billingPeriod, bool $lockForUpdate = false): Collection
+    {
+        $query = ContractCredit::query()
+            ->where('contract_id', $contract->id)
+            ->where('remaining_amount', '>', 0)
+            ->whereHas('sourceInvoice', function ($query) use ($billingPeriod): void {
+                $query->where(function ($period) use ($billingPeriod): void {
+                    $period->where('year', '<', $billingPeriod->year)
+                        ->orWhere(function ($sameYear) use ($billingPeriod): void {
+                            $sameYear->where('year', $billingPeriod->year)
+                                ->where('month', '<', $billingPeriod->month);
+                        });
+                });
+            })
+            ->oldest('id');
+
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
+        }
+
+        return $query->get();
     }
 
     private function roomFeeForPeriod(Contract $contract, Carbon $servicePeriod): float

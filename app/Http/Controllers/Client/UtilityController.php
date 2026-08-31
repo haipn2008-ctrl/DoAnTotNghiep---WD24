@@ -28,7 +28,9 @@ class UtilityController extends Controller
         $readings = $query
             ->orderByDesc('year')
             ->orderByDesc('month')
+            ->orderByDesc('record_date')
             ->orderBy('room_id')
+            ->orderByDesc('id')
             ->paginate(12)
             ->withQueryString();
 

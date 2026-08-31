@@ -133,7 +133,19 @@ class SettingController extends Controller
             'service_fee' => $priceRule,
             'invoice_day' => ['required', 'integer', 'between:1,31'],
             'payment_due_days' => ['required', 'integer', 'between:1,90'],
-            'fee_effective_from' => ['required', 'date_format:Y-m'],
+            'fee_effective_from' => [
+                'bail',
+                'required',
+                'date_format:Y-m',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $minimumMonth = now()->addMonthNoOverflow()->startOfMonth();
+                    $selectedMonth = Carbon::createFromFormat('!Y-m', $value)->startOfMonth();
+
+                    if ($selectedMonth->lt($minimumMonth)) {
+                        $fail('Chỉ được chọn tháng trong tương lai, từ tháng '.$minimumMonth->format('m/Y').' trở đi.');
+                    }
+                },
+            ],
         ];
     }
 

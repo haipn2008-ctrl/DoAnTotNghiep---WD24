@@ -10,7 +10,7 @@
     @if($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"><p class="font-bold">Không thể xử lý yêu cầu</p><ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-6 py-4"><h2 class="font-bold text-slate-900">Gửi yêu cầu gia hạn</h2><p class="mt-1 text-sm text-slate-500">Ban quản lý sẽ kiểm tra công nợ và gửi phụ lục. Hợp đồng chỉ gia hạn sau khi người thuê đại diện xác nhận.</p></div>
+        <div class="border-b border-slate-200 px-6 py-4"><h2 class="font-bold text-slate-900">Gửi yêu cầu gia hạn</h2><p class="mt-1 text-sm text-slate-500">Ban quản lý sẽ kiểm tra công nợ và lập phụ lục. Hợp đồng chỉ gia hạn sau khi hai bên ký bản in và ảnh minh chứng được lưu.</p></div>
         <div class="p-6">
             @if($contracts->isEmpty())
                 <div class="py-10 text-center text-sm text-slate-500">Không có hợp đồng đủ điều kiện gửi yêu cầu.</div>
@@ -31,7 +31,7 @@
             @forelse($extensionRequests as $extension)
                 @php
                     $meta = match($extension->status) {
-                        'awaiting_confirmation' => ['Chờ bạn xác nhận', 'border-sky-200 bg-sky-50 text-sky-700'],
+                        'awaiting_confirmation' => ['Chờ ký phụ lục', 'border-sky-200 bg-sky-50 text-sky-700'],
                         'approved' => ['Đã gia hạn', 'border-emerald-200 bg-emerald-50 text-emerald-700'],
                         'rejected' => ['Admin từ chối', 'border-rose-200 bg-rose-50 text-rose-700'],
                         'declined_by_tenant' => ['Bạn không đồng ý', 'border-violet-200 bg-violet-50 text-violet-700'],
@@ -45,11 +45,11 @@
 
                     @if($extension->status === 'awaiting_confirmation')
                         <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
-                            <h3 class="font-semibold text-sky-950">Phụ lục chờ xác nhận</h3>
+                            <h3 class="font-semibold text-sky-950">Phụ lục chờ ký trực tiếp</h3>
                             <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2"><div><dt class="text-slate-500">Giá phòng hiện tại</dt><dd class="font-semibold">{{ number_format((float)($terms['old_monthly_rent'] ?? 0), 0, ',', '.') }}đ/tháng</dd></div><div><dt class="text-slate-500">Giá phòng kỳ mới</dt><dd class="font-semibold text-sky-800">{{ number_format((float)$extension->proposed_monthly_rent, 0, ',', '.') }}đ/tháng</dd></div><div><dt class="text-slate-500">Tiền cọc đang giữ</dt><dd class="font-semibold">{{ number_format((float)$extension->proposed_deposit_amount, 0, ',', '.') }}đ</dd></div><div><dt class="text-slate-500">Người tiếp tục thuê</dt><dd class="font-semibold">{{ count($terms['tenants'] ?? []) }} người</dd></div></dl>
                             @if($extension->admin_note)<p class="mt-3 border-t border-sky-200 pt-3 text-sm text-sky-900"><strong>Ghi chú quản lý:</strong> {{ $extension->admin_note }}</p>@endif
+                            @if($extension->appendix)<a href="{{ route('client.contract-appendices.show', $extension->appendix) }}" class="mt-3 inline-flex h-10 items-center rounded-lg bg-sky-700 px-4 text-sm font-semibold text-white">Xem phụ lục {{ $extension->appendix->code }}</a>@endif
                         </div>
-                        <form method="POST" action="{{ route('client.extension-requests.accept', $extension) }}" onsubmit="return confirm('Bạn xác nhận đồng ý toàn bộ điều khoản gia hạn?')" class="mt-4">@csrf<label class="mb-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" required class="mt-0.5 rounded border-slate-300 text-indigo-600"><span>Tôi là người thuê đại diện và đồng ý thời hạn, giá thuê, tiền cọc cùng danh sách người thuê nêu trên.</span></label><button class="h-11 w-full rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700">Xác nhận phụ lục và gia hạn</button></form>
                         <form method="POST" action="{{ route('client.extension-requests.decline', $extension) }}" class="mt-3 flex gap-2">@csrf<input name="decline_reason" required minlength="3" maxlength="1000" placeholder="Lý do không đồng ý" class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm"><button class="h-11 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700">Không đồng ý</button></form>
                     @else
                         <div class="mt-4 text-sm leading-6 text-slate-600"><strong>Lý do yêu cầu:</strong> {{ $extension->reason ?: 'Không có' }}@if($extension->admin_note)<p><strong>Phản hồi quản lý:</strong> {{ $extension->admin_note }}</p>@endif @if($extension->tenant_decline_reason)<p><strong>Lý do không đồng ý:</strong> {{ $extension->tenant_decline_reason }}</p>@endif</div>

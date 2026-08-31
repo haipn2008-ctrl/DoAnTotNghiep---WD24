@@ -20,7 +20,7 @@
         @foreach([
             ['Tổng yêu cầu', $extensionRequests->count(), 'border-slate-200 bg-white text-slate-900', 'bg-indigo-50 text-indigo-600', '#'],
             ['Chờ admin xem', $extensionRequests->where('status', 'pending')->count(), 'border-amber-200 bg-amber-50/60 text-amber-700', 'bg-amber-100 text-amber-700', '◷'],
-            ['Chờ khách xác nhận', $extensionRequests->where('status', 'awaiting_confirmation')->count(), 'border-sky-200 bg-sky-50/60 text-sky-700', 'bg-sky-100 text-sky-700', '…'],
+            ['Chờ ký phụ lục', $extensionRequests->where('status', 'awaiting_confirmation')->count(), 'border-sky-200 bg-sky-50/60 text-sky-700', 'bg-sky-100 text-sky-700', '…'],
             ['Đã gia hạn', $extensionRequests->where('status', 'approved')->count(), 'border-emerald-200 bg-emerald-50/60 text-emerald-700', 'bg-emerald-100 text-emerald-700', '✓'],
         ] as [$label, $count, $cardClass, $iconClass, $icon])
             <div class="rounded-2xl border p-5 shadow-sm {{ $cardClass }}"><div class="flex items-center justify-between"><div><p class="text-sm font-medium opacity-80">{{ $label }}</p><p class="mt-2 text-3xl font-bold">{{ $count }}</p></div><div class="flex h-11 w-11 items-center justify-center rounded-xl text-xl font-bold {{ $iconClass }}">{{ $icon }}</div></div></div>
@@ -33,7 +33,7 @@
             @forelse($extensionRequests as $request)
                 @php
                     $statusMeta = match ($request->status) {
-                        'awaiting_confirmation' => ['Chờ khách xác nhận', 'border-sky-200 bg-sky-50 text-sky-700', 'bg-sky-500'],
+                        'awaiting_confirmation' => ['Chờ ký phụ lục', 'border-sky-200 bg-sky-50 text-sky-700', 'bg-sky-500'],
                         'approved' => ['Đã gia hạn', 'border-emerald-200 bg-emerald-50 text-emerald-700', 'bg-emerald-500'],
                         'rejected' => ['Admin từ chối', 'border-rose-200 bg-rose-50 text-rose-700', 'bg-rose-500'],
                         'declined_by_tenant' => ['Khách không đồng ý', 'border-violet-200 bg-violet-50 text-violet-700', 'bg-violet-500'],
@@ -65,20 +65,19 @@
                         <div class="mt-4 space-y-3 border-t border-slate-100 pt-4">
                             <form method="POST" action="{{ route('admin.extension-requests.approve', $request) }}" class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                                 @csrf
-                                <p class="mb-3 text-sm font-semibold text-emerald-800">Duyệt và gia hạn hợp đồng</p>
+                                <p class="mb-3 text-sm font-semibold text-emerald-800">Duyệt điều khoản và lập phụ lục</p>
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <label class="text-xs font-semibold text-slate-600">Gia hạn đến<input type="date" name="approved_end_date" required value="{{ old('approved_end_date', $request->requested_end_date?->format('Y-m-d')) }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"></label>
                                     <label class="text-xs font-semibold text-slate-600">Giá phòng mới<input type="number" name="proposed_monthly_rent" required min="0" step="1000" value="{{ old('proposed_monthly_rent', (float) $request->contract->monthly_rent) }}" class="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"></label>
                                 </div>
                                 <input name="admin_note" maxlength="1000" placeholder="Ghi chú điều khoản (không bắt buộc)" class="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
                                 @if($outstanding > 0)<textarea name="financial_override_reason" required minlength="3" maxlength="1000" rows="2" placeholder="Hợp đồng còn nợ: nhập lý do vẫn đề nghị gia hạn" class="mt-3 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm"></textarea>@endif
-                                <label class="mt-3 flex items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3 text-sm font-semibold text-emerald-900"><input type="checkbox" name="extension_agreed" value="1" required class="mt-0.5 rounded border-slate-300 text-emerald-600"><span>2 bên đã thỏa thuận gia hạn</span></label>
-                                <button class="mt-3 h-11 w-full rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700">Duyệt và gia hạn hợp đồng</button>
+                                <button class="mt-3 h-11 w-full rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700">Lập phụ lục gia hạn</button>
                             </form>
                             <form method="POST" action="{{ route('admin.extension-requests.reject', $request) }}" class="flex gap-2">@csrf<input name="reject_reason" required minlength="3" maxlength="1000" placeholder="Nhập lý do từ chối" class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm"><button class="h-11 shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700">Từ chối</button></form>
                         </div>
                     @elseif($request->status === 'awaiting_confirmation')
-                        <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800"><p class="font-semibold">Đang chờ người thuê đại diện xác nhận</p><p class="mt-1">Giá phòng đề nghị: <strong>{{ number_format((float) $request->proposed_monthly_rent, 0, ',', '.') }}đ/tháng</strong></p></div>
+                        <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800"><p class="font-semibold">Đang chờ in, ký và tải minh chứng</p><p class="mt-1">Giá phòng đề nghị: <strong>{{ number_format((float) $request->proposed_monthly_rent, 0, ',', '.') }}đ/tháng</strong></p>@if($request->appendix)<a href="{{ route('admin.contract-appendices.show', $request->appendix) }}" class="mt-3 inline-flex h-10 items-center rounded-lg bg-sky-700 px-4 font-semibold text-white">Mở phụ lục {{ $request->appendix->code }}</a>@endif</div>
                     @else
                         <div class="mt-4 border-t border-slate-100 pt-4 text-right text-sm font-medium text-slate-400">Yêu cầu đã được xử lý</div>
                     @endif

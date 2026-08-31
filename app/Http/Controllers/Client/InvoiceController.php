@@ -272,6 +272,8 @@ class InvoiceController extends Controller
                 'contract.tenant',
                 'details',
                 'adjustments.creator',
+                'parentInvoice',
+                'creditsCreated.applications.invoice',
                 'payments' => fn ($query) => $query->latest('payment_date')->latest('id'),
                 'paymentDelayRequests.reviewer',
             ])

@@ -233,7 +233,7 @@
                         <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-bold text-white hover:bg-violet-800">Mở bước bàn giao <i class="bx bx-right-arrow-alt text-xl"></i></a>
                     </div>
                 </div>
-                <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><p class="mt-1 text-xs leading-5 text-slate-500">Cập nhật thời hạn và giá thuê sau khi hai bên đã thỏa thuận.</p><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Gia hạn hợp đồng</a></div>
+                <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><p class="mt-1 text-xs leading-5 text-slate-500">Lập phụ lục, in cho hai bên ký rồi tải ảnh minh chứng để hoàn tất.</p><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Lập phụ lục gia hạn</a></div>
             @endif
             @if($contract->status===\App\Models\Contract::STATUS_SETTLING)
                 @include('admin.contracts.partials.departure-progress', ['progressClass' => 'lg:col-span-2', 'showCheckoutLink' => true])

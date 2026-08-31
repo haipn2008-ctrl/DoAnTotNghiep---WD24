@@ -9,9 +9,11 @@ use App\Models\ContractTemplate;
 use App\Models\Setting;
 use App\Services\ClientNotificationService;
 use App\Services\ContractAppendixService;
+use App\Services\ContractExtensionAppendixService;
 use App\Services\ContractRateResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -20,6 +22,7 @@ class ContractAppendixController extends Controller
     public function __construct(
         private readonly ContractAppendixService $appendices,
         private readonly ContractRateResolver $pricing,
+        private readonly ContractExtensionAppendixService $extensionAppendices,
     ) {}
 
     public function create(Contract $contract)
@@ -50,9 +53,68 @@ class ContractAppendixController extends Controller
     public function show(ContractAppendix $appendix)
     {
         Gate::authorize('manageLifecycle', $appendix->contract);
-        $appendix->load(['contract.room', 'contract.tenant', 'creator', 'sender', 'responder', 'parent']);
+        $appendix->load(['contract.room', 'contract.tenant', 'creator', 'sender', 'responder', 'parent', 'extensionRequest', 'evidenceUploader']);
 
         return view('admin.contracts.appendices.show', compact('appendix'));
+    }
+
+    public function print(ContractAppendix $appendix)
+    {
+        Gate::authorize('manageLifecycle', $appendix->contract);
+        $appendix->load(['contract.room', 'contract.tenant']);
+        abort_if($appendix->sent_at && ! $appendix->hasValidContentHash(), 409, 'Nội dung phụ lục không vượt qua kiểm tra toàn vẹn SHA-256.');
+
+        return view('admin.contracts.appendices.print', compact('appendix'));
+    }
+
+    public function completeExtension(Request $request, ContractAppendix $appendix)
+    {
+        Gate::authorize('manageLifecycle', $appendix->contract);
+        $data = $request->validate([
+            'signed_evidence' => ['required', 'array', 'min:1', 'max:10'],
+            'signed_evidence.*' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ], [
+            'signed_evidence.required' => 'Hãy tải ít nhất một ảnh phụ lục đã ký.',
+            'signed_evidence.*.image' => 'Minh chứng phải là ảnh JPG, PNG hoặc WEBP.',
+        ]);
+
+        $paths = collect($data['signed_evidence'])
+            ->map(fn ($file) => $file->store('contract-appendices/signed', 'local'))
+            ->all();
+
+        try {
+            $contract = $this->extensionAppendices->finalize($appendix, $request->user(), $paths);
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($paths);
+            throw $exception;
+        }
+
+        app(ClientNotificationService::class)->contract(
+            $contract,
+            'extension_request_approved',
+            'Hợp đồng đã được gia hạn',
+            'Phụ lục '.$appendix->code.' đã được ký và hợp đồng được gia hạn đến '.$contract->end_date?->format('d/m/Y').'.'
+        );
+
+        return redirect()->route('admin.contract-appendices.show', $appendix)
+            ->with('success', 'Đã lưu minh chứng ký và hoàn tất gia hạn hợp đồng.');
+    }
+
+    public function signedEvidence(ContractAppendix $appendix, int $index)
+    {
+        Gate::authorize('manageLifecycle', $appendix->contract);
+        $path = $appendix->signed_evidence_paths[$index] ?? null;
+        abort_unless(
+            is_string($path)
+            && str_starts_with($path, 'contract-appendices/signed/')
+            && Storage::disk('local')->exists($path),
+            404
+        );
+
+        return Storage::disk('local')->response($path, 'phu-luc-da-ky-'.($index + 1).'.'.pathinfo($path, PATHINFO_EXTENSION), [
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store, max-age=0',
+        ]);
     }
 
     public function edit(ContractAppendix $appendix)

@@ -17,7 +17,7 @@
         </div>
     @endif
     <div class="flex flex-wrap items-end justify-between gap-4">
-        <div><p class="text-sm font-medium text-slate-500">Hợp đồng {{ $contract->contract_code }}</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Gia hạn hợp đồng</h2></div>
+        <div><p class="text-sm font-medium text-slate-500">Hợp đồng {{ $contract->contract_code }}</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Lập phụ lục gia hạn</h2></div>
         <a href="{{ route('admin.contracts.extend.list') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Quay lại</a>
     </div>
 
@@ -55,12 +55,12 @@
                 @endif
                 <label class="flex items-start gap-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-700 sm:col-span-2">
                     <input type="checkbox" name="confirm_extend" value="1" required @checked(old('confirm_extend')) class="mt-0.5 rounded border-slate-300 text-indigo-600">
-                    <span>2 bên đã thỏa thuận gia hạn</span>
+                    <span>Xác nhận thông tin trên dùng để lập phụ lục gia hạn</span>
                 </label>
             </div>
             <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
                 <a href="{{ route('admin.contracts.extend.list') }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Hủy</a>
-                <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Gia hạn hợp đồng</button>
+                <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Lập phụ lục gia hạn</button>
             </div>
         </form>
     </div>

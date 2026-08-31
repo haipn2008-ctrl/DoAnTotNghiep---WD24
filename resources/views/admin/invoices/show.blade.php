@@ -31,7 +31,8 @@
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
                 <p class="text-sm font-medium text-slate-500">{{ $invoice->invoice_code ?? 'HDON'.str_pad($invoice->id, 5, '0', STR_PAD_LEFT) }}</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Chi tiết hóa đơn</h2>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">{{ $invoice->isSupplemental() ? 'Chi tiết hóa đơn bổ sung' : 'Chi tiết hóa đơn' }}</h2>
+                @if($invoice->parentInvoice)<p class="mt-1 text-sm text-slate-500">Bổ sung cho <a class="font-semibold text-indigo-700" href="{{ route('admin.invoices.show', $invoice->parentInvoice) }}">{{ $invoice->parentInvoice->invoice_code }}</a></p>@endif
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -103,6 +104,26 @@
                     </div>
                 </section>
 
+                @if($invoice->supplementalInvoices->isNotEmpty() || $invoice->creditsCreated->isNotEmpty())
+                    <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Phát sinh sau hóa đơn</h3></div>
+                        <div class="divide-y divide-slate-100">
+                            @foreach($invoice->supplementalInvoices as $supplemental)
+                                <a href="{{ route('admin.invoices.show', $supplemental) }}" class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-slate-50">
+                                    <div><p class="font-semibold text-indigo-700">Hóa đơn bổ sung {{ $supplemental->invoice_code }}</p><p class="mt-1 text-xs text-slate-500">Phát hành {{ $supplemental->issued_at?->format('H:i d/m/Y') }}</p></div>
+                                    <div class="text-right"><p class="font-semibold text-slate-950">{{ number_format($supplemental->payable_amount, 0, ',', '.') }}đ</p><p class="mt-1 text-xs text-slate-500">{{ $supplemental->status_label }}</p></div>
+                                </a>
+                            @endforeach
+                            @foreach($invoice->creditsCreated as $credit)
+                                <div class="flex flex-wrap items-start justify-between gap-3 px-5 py-4">
+                                    <div><p class="font-semibold text-emerald-700">Khoản giảm {{ $credit->credit_code }}</p><p class="mt-1 text-sm text-slate-600">{{ $credit->reason }}</p><p class="mt-1 text-xs text-slate-500">Người tạo: {{ $credit->creator?->name ?? 'Tài khoản đã ngừng hoạt động' }}</p></div>
+                                    <div class="text-right"><p class="font-semibold text-emerald-700">-{{ number_format($credit->amount, 0, ',', '.') }}đ</p><p class="mt-1 text-xs text-slate-500">Còn chờ khấu trừ {{ number_format($credit->remaining_amount, 0, ',', '.') }}đ</p></div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </section>
+                @endif
+
                 <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-5 py-4">
                         <h3 class="font-semibold text-slate-950">Lịch sử thanh toán</h3>
@@ -173,8 +194,10 @@
 
                 <div class="mt-5 space-y-4 text-sm">
                     @php($servicePeriod = \Carbon\Carbon::createFromDate($invoice->year, $invoice->month, 1)->subMonthNoOverflow())
-                    <div class="flex justify-between gap-4"><span class="text-slate-500">Loại hóa đơn</span><span class="font-semibold text-slate-950">{{ $invoice->isDeposit() ? 'Tiền cọc hợp đồng' : ($invoice->isFirstMonthRent() ? 'Tiền phòng tháng đầu (dữ liệu cũ)' : 'Tiền phòng và tiện ích tháng '.$servicePeriod->month.'/'.$servicePeriod->year) }}</span></div>
-                    <div class="flex justify-between gap-4"><span class="text-slate-500">Ngày lập</span><span class="font-semibold text-slate-950">{{ \Carbon\Carbon::parse($invoice->invoice_date)->format('d/m/Y') }}</span></div>
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Loại hóa đơn</span><span class="font-semibold text-slate-950">{{ $invoice->isSupplemental() ? 'Hóa đơn bổ sung' : ($invoice->isDeposit() ? 'Tiền cọc hợp đồng' : ($invoice->isFirstMonthRent() ? 'Tiền phòng tháng đầu (dữ liệu cũ)' : 'Tiền phòng và tiện ích tháng '.$servicePeriod->month.'/'.$servicePeriod->year)) }}</span></div>
+                    @if($invoice->parentInvoice)<div class="flex justify-between gap-4"><span class="text-slate-500">Hóa đơn gốc</span><a class="font-semibold text-indigo-700" href="{{ route('admin.invoices.show', $invoice->parentInvoice) }}">{{ $invoice->parentInvoice->invoice_code }}</a></div>@endif
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Ngày hóa đơn theo lịch</span><span class="font-semibold text-slate-950">{{ \Carbon\Carbon::parse($invoice->invoice_date)->format('d/m/Y') }}</span></div>
+                    <div class="flex justify-between gap-4"><span class="text-slate-500">Phát hành thực tế</span><span class="text-right font-semibold text-slate-950">{{ $invoice->issued_at?->format('H:i d/m/Y') ?? $invoice->created_at?->format('H:i d/m/Y') }}<span class="block text-xs font-normal text-slate-500">{{ $invoice->issuer?->name ?? 'Không có thông tin' }}</span></span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Lần phát hành</span><span class="font-semibold text-slate-950">{{ $invoice->revision }}</span></div>
                     <div class="flex justify-between gap-4"><span class="text-slate-500">Hạn thanh toán</span><span class="font-semibold text-slate-950">{{ \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') }}</span></div>
                     <div class="border-t border-slate-200 pt-4"></div>
@@ -229,13 +252,29 @@
                 @endif
 
                 @if($invoice->invoice_type === \App\Models\Invoice::TYPE_RENTAL && !$invoice->isCancelled() && $invoice->status !== \App\Models\Invoice::STATUS_WRITTEN_OFF)
-                    <form method="POST" action="{{ route('admin.invoices.adjustments.store', $invoice) }}" class="mt-6 space-y-3 border-t border-slate-200 pt-5">
+                    <form method="POST" action="{{ route('admin.invoices.supplemental.store', $invoice) }}" class="mt-6 space-y-3 border-t border-slate-200 pt-5">
                         @csrf
-                        <h4 class="font-semibold text-slate-950">Tạo phiếu điều chỉnh</h4>
-                        <select name="direction" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm"><option value="credit">Điều chỉnh giảm</option><option value="debit">Điều chỉnh tăng</option></select>
-                        <input type="number" name="amount" min="1" step="1" required placeholder="Số tiền điều chỉnh" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
-                        <textarea name="reason" minlength="10" maxlength="2000" rows="3" required placeholder="Lý do điều chỉnh (ít nhất 10 ký tự)" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></textarea>
-                        <button class="inline-flex w-full items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">Lập phiếu điều chỉnh</button>
+                        <h4 class="font-semibold text-slate-950">Tạo hóa đơn bổ sung</h4>
+                        <p class="text-xs leading-5 text-slate-500">Tạo khoản phải thu độc lập, có mã và thanh toán riêng; hóa đơn gốc không thay đổi.</p>
+                        <select name="category" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
+                            <option value="utility">Truy thu điện, nước</option>
+                            <option value="service">Phí dịch vụ phát sinh</option>
+                            <option value="parking">Phí gửi xe phát sinh</option>
+                            <option value="damage">Bồi thường hư hỏng</option>
+                            <option value="other">Chi phí phát sinh khác</option>
+                        </select>
+                        <input type="number" name="amount" min="1" step="1" required placeholder="Số tiền cần thu thêm" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
+                        <textarea name="description" minlength="5" maxlength="500" rows="3" required placeholder="Nội dung phát sinh" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></textarea>
+                        <button class="inline-flex w-full items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">Phát hành hóa đơn bổ sung</button>
+                    </form>
+
+                    <form method="POST" action="{{ route('admin.invoices.next-invoice-credits.store', $invoice) }}" class="mt-6 space-y-3 border-t border-slate-200 pt-5">
+                        @csrf
+                        <h4 class="font-semibold text-slate-950">Giảm vào hóa đơn tháng sau</h4>
+                        <p class="text-xs leading-5 text-slate-500">Hóa đơn này được giữ nguyên. Khoản giảm sẽ tự động xuất hiện khi phát hành hóa đơn tháng kế tiếp.</p>
+                        <input type="number" name="amount" min="1" step="1" required placeholder="Số tiền được giảm" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">
+                        <textarea name="reason" minlength="10" maxlength="2000" rows="3" required placeholder="Lý do giảm (ít nhất 10 ký tự)" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></textarea>
+                        <button class="inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">Ghi nhận khoản giảm kỳ sau</button>
                     </form>
                 @endif
 

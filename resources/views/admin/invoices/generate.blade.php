@@ -35,11 +35,9 @@
 
         <div id="invoiceAlert" class="hidden rounded-lg border px-4 py-3 text-sm font-medium"></div>
 
-        @unless ($canIssue)
-            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Có thể xem trước để kiểm tra, nhưng hóa đơn kỳ {{ $month }}/{{ $year }} chỉ được phát hành từ ngày <strong>{{ $scheduledInvoiceDate->format('d/m/Y') }}</strong>.
-            </div>
-        @endunless
+        <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+            Ngày hóa đơn theo lịch của kỳ {{ $month }}/{{ $year }} là <strong>{{ $scheduledInvoiceDate->format('d/m/Y') }}</strong>. Bạn có thể phát hành bất kỳ lúc nào sau khi chốt điện nước; hệ thống sẽ lưu người và thời điểm phát hành thực tế.
+        </div>
 
         <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
@@ -175,10 +173,10 @@
 
                 <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
                     <button type="button" class="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-close-preview>Đóng</button>
-                    <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300" id="issueInvoiceBtn" @disabled(!$canIssue)>
+                    <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300" id="issueInvoiceBtn">
                         <span class="default-label inline-flex items-center gap-2">
                             <i class="bx bx-check-circle text-lg"></i>
-                            {{ $canIssue ? 'Xác nhận và phát hành' : 'Chưa đến ngày phát hành' }}
+                            Xác nhận và phát hành
                         </span>
                         <span class="loading-label hidden">Đang phát hành...</span>
                     </button>
@@ -197,7 +195,6 @@
             const modalElement = document.getElementById('invoicePreviewModal');
             const alertBox = document.getElementById('invoiceAlert');
             const issueButton = document.getElementById('issueInvoiceBtn');
-            const canIssue = @json($canIssue);
             let currentIssueUrl = null;
             let currentContractId = null;
 
@@ -231,7 +228,7 @@
 
             function renderPreview(data) {
                 document.getElementById('previewMeta').textContent =
-                    `${data.contract_code} - Tháng ${data.month}/${data.year} - Ngày lập ${data.invoice_date}`;
+                    `${data.contract_code} - Tháng ${data.month}/${data.year} - Ngày theo lịch ${data.invoice_date} - Phát hành ${data.issued_at}`;
                 document.getElementById('previewRoom').textContent = data.room_code;
                 document.getElementById('previewTenant').textContent = data.tenant_name;
                 document.getElementById('previewDueDate').textContent = data.due_date;
@@ -257,7 +254,7 @@
             }
 
             function setIssueLoading(isLoading) {
-                issueButton.disabled = isLoading || !canIssue;
+                issueButton.disabled = isLoading;
                 issueButton.querySelector('.default-label').classList.toggle('hidden', isLoading);
                 issueButton.querySelector('.loading-label').classList.toggle('hidden', !isLoading);
             }

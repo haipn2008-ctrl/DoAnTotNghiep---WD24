@@ -71,9 +71,9 @@
                             <tr class="hover:bg-slate-50">
                                 <td class="px-5 py-4">
                                     <p class="font-semibold text-slate-950">
-                                        {{ $invoice->isDeposit() ? 'Tiền cọc hợp đồng' : ($invoice->isFirstMonthRent()
+                                        {{ $invoice->isSupplemental() ? 'Hóa đơn bổ sung' : ($invoice->isDeposit() ? 'Tiền cọc hợp đồng' : ($invoice->isFirstMonthRent()
                                             ? 'Tiền phòng tháng đầu'
-                                            : 'Tháng ' . $invoice->month . '/' . $invoice->year) }}
+                                            : 'Tháng ' . $invoice->month . '/' . $invoice->year)) }}
                                     </p>
                                     <p class="mt-1 text-xs text-slate-500">{{ $invoice->invoice_code }}</p>
                                 </td>
@@ -101,9 +101,9 @@
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <p class="font-bold text-slate-950">
-                                    {{ $invoice->isDeposit() ? 'Tiền cọc hợp đồng' : ($invoice->isFirstMonthRent()
+                                    {{ $invoice->isSupplemental() ? 'Hóa đơn bổ sung' : ($invoice->isDeposit() ? 'Tiền cọc hợp đồng' : ($invoice->isFirstMonthRent()
                                         ? 'Tiền phòng tháng đầu'
-                                        : 'Tháng ' . $invoice->month . '/' . $invoice->year) }}
+                                        : 'Tháng ' . $invoice->month . '/' . $invoice->year)) }}
                                 </p>
                                 <p class="mt-1 text-xs text-slate-500">
                                     {{ $invoice->invoice_code }} · Phòng {{ $invoice->room->room_code ?? '-' }} · Hạn {{ $invoice->due_date?->format('d/m/Y') }}

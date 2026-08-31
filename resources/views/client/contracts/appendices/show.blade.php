@@ -6,7 +6,7 @@
 @section('content')
 @php
     $pending = $appendix->status === \App\Models\ContractAppendix::STATUS_PENDING_TENANT;
-    $colors = ['pending_tenant'=>'bg-amber-100 text-amber-800','accepted'=>'bg-emerald-100 text-emerald-800','rejected'=>'bg-rose-100 text-rose-800','superseded'=>'bg-violet-100 text-violet-800'];
+    $colors = ['pending_tenant'=>'bg-amber-100 text-amber-800','pending_signature'=>'bg-sky-100 text-sky-800','accepted'=>'bg-emerald-100 text-emerald-800','rejected'=>'bg-rose-100 text-rose-800','superseded'=>'bg-violet-100 text-violet-800'];
 @endphp
 <div class="mx-auto max-w-5xl space-y-5">
     <div>
@@ -21,9 +21,27 @@
         <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950"><strong>Lý do bạn đã từ chối:</strong><p class="mt-1 whitespace-pre-line">{{ $appendix->rejection_reason }}</p></div>
     @endif
 
+    @if($appendix->status === \App\Models\ContractAppendix::STATUS_PENDING_SIGNATURE)
+        <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950"><strong>Phụ lục gia hạn đang chờ ký trực tiếp.</strong> Ban quản lý sẽ in phụ lục để hai bên ký. Thời hạn hợp đồng chỉ thay đổi sau khi minh chứng bản ký được tải lên hệ thống.</div>
+    @endif
+
     <article class="mx-auto max-w-3xl bg-white px-8 py-10 shadow-lg ring-1 ring-slate-200 sm:px-14 sm:py-14">
         @include('shared.contract-appendix-document', ['appendix' => $appendix])
     </article>
+
+    @if(filled($appendix->signed_evidence_paths))
+        <section class="rounded-xl border border-emerald-200 bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2"><div><h3 class="font-bold text-slate-950">Ảnh bản cứng đã ký</h3><p class="mt-1 text-sm text-slate-500">Minh chứng phụ lục được hai bên ký và ban quản lý lưu trên hệ thống.</p></div><span class="text-xs font-semibold text-emerald-700">Tải lên {{ $appendix->signed_evidence_uploaded_at?->format('H:i d/m/Y') }}</span></div>
+            <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                @foreach($appendix->signed_evidence_paths as $index => $path)
+                    <a href="{{ route('client.contract-appendices.signed-evidence', [$appendix, $index]) }}" data-image-modal data-image-title="Bản cứng phụ lục {{ $appendix->code }} - Trang {{ $index + 1 }}" class="overflow-hidden rounded-lg border border-slate-200 bg-slate-50 hover:border-indigo-300">
+                        <img src="{{ route('client.contract-appendices.signed-evidence', [$appendix, $index]) }}" alt="Bản cứng phụ lục trang {{ $index + 1 }}" class="h-44 w-full object-cover">
+                        <span class="block px-3 py-2 text-center text-xs font-semibold text-indigo-700">Xem trang {{ $index + 1 }}</span>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
 
     @if($pending)
         <section class="grid gap-4 lg:grid-cols-2">

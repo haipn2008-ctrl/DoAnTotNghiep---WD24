@@ -337,6 +337,12 @@ Route::middleware('auth')->group(function () {
                     ->name('contracts.appendices.store');
                 Route::get('contract-appendices/{appendix}', [AdminContractAppendixController::class, 'show'])
                     ->name('contract-appendices.show');
+                Route::get('contract-appendices/{appendix}/print', [AdminContractAppendixController::class, 'print'])
+                    ->name('contract-appendices.print');
+                Route::post('contract-appendices/{appendix}/complete-extension', [AdminContractAppendixController::class, 'completeExtension'])
+                    ->name('contract-appendices.complete-extension');
+                Route::get('contract-appendices/{appendix}/signed-evidence/{index}', [AdminContractAppendixController::class, 'signedEvidence'])
+                    ->whereNumber('index')->name('contract-appendices.signed-evidence');
                 Route::get('contract-appendices/{appendix}/edit', [AdminContractAppendixController::class, 'edit'])
                     ->name('contract-appendices.edit');
                 Route::put('contract-appendices/{appendix}', [AdminContractAppendixController::class, 'update'])
@@ -429,6 +435,16 @@ Route::middleware('auth')->group(function () {
                 // =================================================
                 // NGƯỜI THAM GIA HỢP ĐỒNG
                 // =================================================
+
+                Route::get(
+                    'contracts/{contract}/members/create',
+                    [ContractTenantController::class, 'create']
+                )->name('contract-tenants.create');
+
+                Route::post(
+                    'contracts/{contract}/members',
+                    [ContractTenantController::class, 'store']
+                )->name('contract-tenants.store');
 
                 Route::post(
                     'contract-tenants/{member}/approve',
@@ -668,6 +684,12 @@ Route::middleware('auth')->group(function () {
                     'invoices/{invoice}/adjustments',
                     [InvoiceController::class, 'storeAdjustment']
                 )->name('invoices.adjustments.store');
+
+                Route::post('invoices/{invoice}/supplemental', [InvoiceController::class, 'storeSupplemental'])
+                    ->name('invoices.supplemental.store');
+
+                Route::post('invoices/{invoice}/next-invoice-credits', [InvoiceController::class, 'storeNextInvoiceCredit'])
+                    ->name('invoices.next-invoice-credits.store');
 
                 Route::post(
                     'invoices/payments/{payment}/approve',
@@ -1133,6 +1155,8 @@ Route::middleware('auth')->group(function () {
 
                 Route::get('/contract-appendices/{appendix}', [ClientContractAppendixController::class, 'show'])
                     ->name('contract-appendices.show');
+                Route::get('/contract-appendices/{appendix}/signed-evidence/{index}', [ClientContractAppendixController::class, 'signedEvidence'])
+                    ->whereNumber('index')->name('contract-appendices.signed-evidence');
                 Route::post('/contract-appendices/{appendix}/accept', [ClientContractAppendixController::class, 'accept'])
                     ->name('contract-appendices.accept');
                 Route::post('/contract-appendices/{appendix}/reject', [ClientContractAppendixController::class, 'reject'])

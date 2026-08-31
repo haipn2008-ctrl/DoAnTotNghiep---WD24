@@ -5,6 +5,7 @@
             ->whereIn('status', [\App\Models\ContractTenant::STATUS_PENDING, \App\Models\ContractTenant::STATUS_APPROVED])
             ->map(fn ($member) => [
                 'id' => $member->id,
+                'tenant_id' => $member->tenant_id,
                 'full_name' => $member->full_name,
                 'date_of_birth' => $member->date_of_birth?->toDateString(),
                 'gender' => $member->tenant?->gender,
@@ -23,13 +24,34 @@
 
 <div data-contract-tenants class="md:col-span-2 rounded-lg border border-slate-200">
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <div>
-            <p class="text-sm font-semibold text-slate-800">Người thuê</p>
-        </div>
         <div class="flex items-center gap-2">
+            <p class="text-sm font-semibold text-slate-800">Người thuê</p>
             <span data-member-count class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">0 người</span>
-            <button type="button" data-add-member class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">+ Thêm người</button>
         </div>
+        <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+            <select data-existing-member-tenant class="h-9 min-w-56 max-w-sm rounded-lg border border-slate-200 bg-white px-3 text-xs outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                <option value="">Chọn khách có sẵn</option>
+                @foreach($availableMemberTenants as $tenant)
+                    <option value="{{ $tenant->id }}"
+                        data-full-name="{{ $tenant->full_name }}"
+                        data-date-of-birth="{{ $tenant->date_of_birth?->toDateString() }}"
+                        data-gender="{{ $tenant->gender }}"
+                        data-cccd="{{ $tenant->cccd }}"
+                        data-cccd-issue-date="{{ $tenant->cccd_issue_date?->toDateString() }}"
+                        data-cccd-issue-place="{{ $tenant->cccd_issue_place }}"
+                        data-phone="{{ $tenant->phone }}"
+                        data-email="{{ $tenant->email }}"
+                        data-address="{{ $tenant->address }}"
+                        data-identity-front-url="{{ $tenant->document?->hasImage('front') ? route('admin.tenants.identity-document', [$tenant, 'front']) : '' }}"
+                        data-identity-back-url="{{ $tenant->document?->hasImage('back') ? route('admin.tenants.identity-document', [$tenant, 'back']) : '' }}">
+                        {{ $tenant->full_name }} — CCCD {{ $tenant->cccd }}
+                    </option>
+                @endforeach
+            </select>
+            <button type="button" data-add-existing-member class="h-9 rounded-lg border border-indigo-200 bg-white px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">Thêm khách có sẵn</button>
+            <button type="button" data-add-member class="h-9 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-700">Thêm khách mới</button>
+        </div>
+        <p data-existing-member-error class="hidden w-full text-right text-xs font-semibold text-rose-600"></p>
     </div>
 
     <div data-member-list class="space-y-3 p-4">

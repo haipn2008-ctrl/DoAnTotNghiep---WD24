@@ -11,11 +11,6 @@
                 <ul class="mt-1 list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             </div>
         @endif
-        @unless ($canConfirm)
-            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Kỳ {{ $month }}/{{ $year }} chỉ được xác nhận từ ngày <strong>{{ $billingPeriodEnd->format('d/m/Y') }}</strong>. Các chỉ số hiện tại chỉ có thể lưu ở trạng thái bản nháp.
-            </div>
-        @endunless
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
                 <p class="text-sm font-medium text-slate-500">Điện nước và dịch vụ</p>
@@ -77,10 +72,14 @@
                     <h3 class="font-semibold text-slate-950">Chi tiết các phòng đã nhập</h3>
                     <p class="text-sm text-slate-500">Tháng {{ $month }}/{{ $year }}</p>
                 </div>
-                <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year]) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-                    <i class="bx bx-plus text-lg"></i>
-                    Nhập chỉ số
-                </a>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year, 'mode' => 'checkpoint']) }}" class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-100">
+                        <i class="bx bx-map-pin text-lg"></i>Ghi mốc giữa kỳ
+                    </a>
+                    <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year]) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                        <i class="bx bx-plus text-lg"></i>Nhập chỉ số
+                    </a>
+                </div>
             </div>
 
             <div class="overflow-x-auto">
@@ -155,11 +154,30 @@
                                         <form action="{{ route('admin.utilities.reopen', $item) }}" method="POST" class="mt-2">@csrf<button class="text-xs font-semibold text-amber-700 hover:underline">Mở lại để sửa</button></form>
                                     @else
                                         <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Bản nháp</span>
-                                        @if ($canConfirm)
-                                            <form action="{{ route('admin.utilities.confirm', $item) }}" method="POST" class="mt-2">@csrf<button class="text-xs font-semibold text-indigo-700 hover:underline">Xác nhận chỉ số</button></form>
-                                        @else
-                                            <p class="mt-2 text-xs text-slate-500">Chờ đến {{ $billingPeriodEnd->format('d/m/Y') }}</p>
-                                        @endif
+                                        <form action="{{ route('admin.utilities.confirm', $item) }}" method="POST" class="mt-2">@csrf<button class="text-xs font-semibold text-indigo-700 hover:underline">Xác nhận chỉ số</button></form>
+                                    @endif
+                                    @if($item->histories->isNotEmpty())
+                                        @php
+                                            $historyLabels = [
+                                                'draft_created' => 'Tạo bản nháp',
+                                                'draft_updated' => 'Cập nhật bản nháp',
+                                                'created_and_confirmed' => 'Nhập và xác nhận',
+                                                'confirmed' => 'Xác nhận chỉ số',
+                                                'reopened' => 'Mở lại để sửa',
+                                                'checkpoint_recorded' => 'Ghi mốc giữa kỳ',
+                                            ];
+                                        @endphp
+                                        <details class="mt-3 text-left">
+                                            <summary class="cursor-pointer text-xs font-semibold text-slate-600 hover:text-indigo-700">Lịch sử thao tác ({{ $item->histories->count() }})</summary>
+                                            <ol class="mt-2 space-y-2 border-l border-slate-200 pl-3">
+                                                @foreach($item->histories->sortByDesc('performed_at') as $history)
+                                                    <li class="text-xs leading-5 text-slate-600">
+                                                        <span class="font-semibold text-slate-800">{{ $historyLabels[$history->action] ?? $history->action }}</span>
+                                                        <span class="block">{{ $history->actor?->name ?? 'Hệ thống' }} · {{ $history->performed_at?->format('H:i d/m/Y') }}</span>
+                                                    </li>
+                                                @endforeach
+                                            </ol>
+                                        </details>
                                     @endif
                                 </td>
                             </tr>
@@ -175,6 +193,43 @@
                                     </div>
                                 </td>
                             </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm">
+            <div class="flex flex-col justify-between gap-3 border-b border-sky-100 bg-sky-50/60 px-5 py-4 sm:flex-row sm:items-center">
+                <div>
+                    <h3 class="font-semibold text-slate-950">Mốc đối soát giữa kỳ</h3>
+                    <p class="text-sm text-slate-500">Dùng để chia giai đoạn sử dụng; không tự tạo hóa đơn hoặc khóa kỳ.</p>
+                </div>
+                <span class="inline-flex w-fit rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-sky-700 ring-1 ring-sky-200">{{ $checkpoints->count() }} mốc</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                        <tr>
+                            <th class="px-5 py-3">Ngày ghi mốc</th>
+                            <th class="px-5 py-3">Phòng</th>
+                            <th class="px-5 py-3 text-center">Điện</th>
+                            <th class="px-5 py-3 text-center">Nước</th>
+                            <th class="px-5 py-3">Người thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @forelse($checkpoints as $checkpoint)
+                            @php($checkpointHistory = $checkpoint->histories->last())
+                            <tr>
+                                <td class="px-5 py-4 font-semibold text-slate-950">{{ $checkpoint->record_date?->format('d/m/Y') }}</td>
+                                <td class="px-5 py-4"><span class="font-semibold text-slate-950">{{ $checkpoint->room?->room_code ?? '—' }}</span><span class="mt-1 block text-xs text-slate-500">{{ $checkpoint->contract?->contract_code ?? '—' }}</span></td>
+                                <td class="px-5 py-4 text-center"><span class="font-semibold text-indigo-700">{{ $checkpoint->electricity_new }}</span><span class="block text-xs text-slate-500">+{{ $checkpoint->electricity_usage }} kWh từ mốc trước</span></td>
+                                <td class="px-5 py-4 text-center"><span class="font-semibold text-sky-700">{{ $checkpoint->water_new }}</span><span class="block text-xs text-slate-500">+{{ $checkpoint->water_usage }} m³ từ mốc trước</span></td>
+                                <td class="px-5 py-4"><span class="font-medium text-slate-800">{{ $checkpointHistory?->actor?->name ?? 'Hệ thống' }}</span><span class="mt-1 block text-xs text-slate-500">{{ $checkpointHistory?->performed_at?->format('H:i d/m/Y') }}</span></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="px-5 py-10 text-center text-slate-500">Chưa có mốc giữa kỳ trong tháng {{ $month }}/{{ $year }}.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

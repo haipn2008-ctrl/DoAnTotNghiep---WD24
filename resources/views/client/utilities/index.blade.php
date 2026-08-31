@@ -9,7 +9,7 @@
             <div>
                 <p class="text-sm font-medium text-slate-500">Lịch sử sử dụng theo kỳ</p>
                 <h2 class="mt-1 text-2xl font-bold text-slate-950">Điện nước của tôi</h2>
-                <p class="mt-2 text-sm text-slate-500">Theo dõi lượng tiêu thụ, chi phí và ảnh đồng hồ do ban quản lý ghi nhận.</p>
+                <p class="mt-2 text-sm text-slate-500">Theo dõi kỳ chốt chính và các mốc giữa kỳ do ban quản lý ghi nhận.</p>
             </div>
             <form method="GET" action="{{ route('client.utilities.index') }}" class="flex items-end gap-2">
                 <div><label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Năm</label><select name="year" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"><option value="">Tất cả</option>@foreach($years as $year)<option value="{{ $year }}" @selected((string) request('year') === (string) $year)>{{ $year }}</option>@endforeach</select></div>
@@ -19,7 +19,7 @@
         </div>
 
         <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900">
-            Chi phí bên dưới được lấy từ hóa đơn đã phát hành của đúng kỳ. Nếu chưa có hóa đơn, hệ thống chỉ hiển thị lượng điện nước đã dùng.
+            Mốc giữa kỳ dùng để đối chiếu khi có thay đổi người ở, không phải hóa đơn và không tự chia tiền. Chi phí chỉ xuất hiện tại kỳ chốt chính sau khi hóa đơn được phát hành.
         </div>
 
         <div class="grid gap-4 lg:grid-cols-2">
@@ -27,17 +27,25 @@
                 @php
                     $electricityDetail = $reading->invoice?->details->firstWhere('type', 'electricity');
                     $waterDetail = $reading->invoice?->details->firstWhere('type', 'water');
+                    $isCheckpoint = $reading->reading_type === 'interim';
+                    $readingTitle = match ($reading->reading_type) {
+                        'handover' => 'Chỉ số bàn giao',
+                        'checkout' => 'Chỉ số trả phòng',
+                        'interim' => 'Mốc giữa kỳ',
+                        default => 'Kỳ chốt tháng '.$reading->month.'/'.$reading->year,
+                    };
                 @endphp
                 <article class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                     <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-                        <div><h3 class="font-bold text-slate-950">{{ ['handover' => 'Chỉ số bàn giao', 'checkout' => 'Chỉ số trả phòng'][$reading->reading_type] ?? 'Kỳ tháng '.$reading->month.'/'.$reading->year }}</h3><p class="mt-1 text-xs text-slate-500">Phòng {{ $reading->room->room_code ?? '-' }}{{ $reading->record_date ? ' · Ghi ngày '.$reading->record_date->format('d/m/Y') : '' }}</p></div>
-                        @if($reading->invoice)<a href="{{ route('client.invoices.show', $reading->invoice) }}" class="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">Xem hóa đơn</a>@else<span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Chưa có hóa đơn</span>@endif
+                        <div><h3 class="font-bold text-slate-950">{{ $readingTitle }}</h3><p class="mt-1 text-xs text-slate-500">Phòng {{ $reading->room->room_code ?? '-' }}{{ $reading->record_date ? ' · Chốt ngày '.$reading->record_date->format('d/m/Y') : '' }}</p></div>
+                        @if($isCheckpoint)<span class="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">Mốc đối chiếu</span>@elseif($reading->invoice)<a href="{{ route('client.invoices.show', $reading->invoice) }}" class="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">Xem hóa đơn</a>@else<span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Chưa có hóa đơn</span>@endif
                     </div>
 
                     <div class="grid divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                         <div class="p-5">
                             <div class="flex items-center justify-between"><p class="font-semibold text-indigo-700">Điện</p>@if($reading->meterImageExists('electricity'))<a href="{{ route('client.utilities.image', [$reading, 'electricity']) }}" data-image-modal data-image-title="Ảnh đồng hồ điện" class="text-xs font-semibold text-indigo-600">Xem ảnh đồng hồ</a>@elseif($reading->electricity_image)<span class="text-xs font-medium text-amber-700">Ảnh không còn tồn tại</span>@endif</div>
                             <p class="mt-3 text-3xl font-bold text-slate-950">{{ number_format($reading->electricity_usage, 0, ',', '.') }} <span class="text-sm font-medium text-slate-500">kWh</span></p>
+                            <p class="mt-1 text-xs text-slate-500">Chỉ số {{ number_format($reading->electricity_old, 0, ',', '.') }} → {{ number_format($reading->electricity_new, 0, ',', '.') }}</p>
                             @if($electricityDetail)
                                 <div class="mt-3 space-y-1 text-sm"><div class="flex justify-between text-slate-500"><span>Đơn giá</span><span>{{ number_format($electricityDetail->unit_price, 0, ',', '.') }}đ/kWh</span></div><div class="flex justify-between font-bold text-slate-950"><span>Tiền điện</span><span>{{ number_format($electricityDetail->amount, 0, ',', '.') }}đ</span></div></div>
                             @else<p class="mt-3 text-sm text-slate-400">Chi phí sẽ có khi phát hành hóa đơn.</p>@endif
@@ -45,6 +53,7 @@
                         <div class="p-5">
                             <div class="flex items-center justify-between"><p class="font-semibold text-sky-700">Nước</p>@if($reading->meterImageExists('water'))<a href="{{ route('client.utilities.image', [$reading, 'water']) }}" data-image-modal data-image-title="Ảnh đồng hồ nước" class="text-xs font-semibold text-sky-600">Xem ảnh đồng hồ</a>@elseif($reading->water_image)<span class="text-xs font-medium text-amber-700">Ảnh không còn tồn tại</span>@endif</div>
                             <p class="mt-3 text-3xl font-bold text-slate-950">{{ number_format($reading->water_usage, 0, ',', '.') }} <span class="text-sm font-medium text-slate-500">m³</span></p>
+                            <p class="mt-1 text-xs text-slate-500">Chỉ số {{ number_format($reading->water_old, 0, ',', '.') }} → {{ number_format($reading->water_new, 0, ',', '.') }}</p>
                             @if($waterDetail)
                                 <div class="mt-3 space-y-1 text-sm"><div class="flex justify-between text-slate-500"><span>Đơn giá</span><span>{{ number_format($waterDetail->unit_price, 0, ',', '.') }}đ/m³</span></div><div class="flex justify-between font-bold text-slate-950"><span>Tiền nước</span><span>{{ number_format($waterDetail->amount, 0, ',', '.') }}đ</span></div></div>
                             @else<p class="mt-3 text-sm text-slate-400">Chi phí sẽ có khi phát hành hóa đơn.</p>@endif

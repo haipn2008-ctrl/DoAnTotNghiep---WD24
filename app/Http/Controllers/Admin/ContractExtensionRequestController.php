@@ -10,7 +10,7 @@ use App\Models\Setting;
 use App\Services\AdminNotificationService;
 use App\Services\ClientNotificationService;
 use App\Services\ContractHistoryService;
-use App\Services\ContractLifecycleService;
+use App\Services\ContractExtensionAppendixService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +18,9 @@ use Illuminate\Validation\ValidationException;
 
 class ContractExtensionRequestController extends Controller
 {
-    public function __construct(private readonly ContractLifecycleService $lifecycle) {}
+    public function __construct(
+        private readonly ContractExtensionAppendixService $extensionAppendices,
+    ) {}
 
     public function index()
     {
@@ -28,6 +30,7 @@ class ContractExtensionRequestController extends Controller
             'contract.currentMembers',
             'contract.invoices.payments',
             'contract.invoices.adjustments',
+            'appendix',
         ])->latest()->get();
 
         return view('admin.contracts.extension-requests.index', compact('extensionRequests'));
@@ -41,13 +44,9 @@ class ContractExtensionRequestController extends Controller
             'proposed_monthly_rent' => ['required', 'numeric', 'min:0'],
             'admin_note' => ['nullable', 'string', 'max:1000'],
             'financial_override_reason' => ['nullable', 'string', 'min:3', 'max:1000'],
-            'extension_agreed' => ['required', 'accepted'],
-        ], [
-            'extension_agreed.required' => 'Bạn phải xác nhận 2 bên đã thỏa thuận gia hạn.',
-            'extension_agreed.accepted' => 'Bạn phải xác nhận 2 bên đã thỏa thuận gia hạn.',
         ]);
 
-        $contract = DB::transaction(function () use ($request, $extensionRequest, $data) {
+        $extensionRequest = DB::transaction(function () use ($request, $extensionRequest, $data) {
             $lockedRequest = ContractExtensionRequest::query()
                 ->with(['contract.currentMembers', 'contract.invoices.payments', 'contract.invoices.adjustments'])
                 ->lockForUpdate()
@@ -88,19 +87,8 @@ class ContractExtensionRequestController extends Controller
             $reason = filled($data['admin_note'] ?? null)
                 ? 'Hai bên đã thỏa thuận gia hạn. '.$data['admin_note']
                 : 'Hai bên đã thỏa thuận gia hạn.';
-            $contract = $this->lifecycle->extendContract(
-                $contract,
-                $request->user(),
-                $approvedEndDate,
-                $reason,
-                [
-                    'monthly_rent' => (float) $data['proposed_monthly_rent'],
-                    'extension_request_id' => $lockedRequest->id,
-                ],
-            );
-
             $lockedRequest->forceFill([
-                'status' => ContractExtensionRequest::STATUS_APPROVED,
+                'status' => ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION,
                 'approved_end_date' => $approvedEndDate,
                 'proposed_monthly_rent' => $data['proposed_monthly_rent'],
                 'proposed_deposit_amount' => $contract->deposit_amount,
@@ -126,22 +114,25 @@ class ContractExtensionRequestController extends Controller
                         'role' => $member->role,
                     ])->values()->all(),
                 ],
-                'processed_by' => $request->user()->id,
-                'processed_at' => now(),
+                'processed_by' => null,
+                'processed_at' => null,
+                'terms_offered_at' => now(),
             ])->save();
-            app(AdminNotificationService::class)->resolve('extension_request', $lockedRequest);
 
-            return $contract;
+            return $lockedRequest->fresh('contract');
         }, 3);
 
+        $appendix = $this->extensionAppendices->prepare($extensionRequest, $request->user());
+
         app(ClientNotificationService::class)->contract(
-            $contract,
-            'extension_request_approved',
-            'Hợp đồng đã được gia hạn',
-            'Theo thỏa thuận giữa hai bên, hợp đồng '.$contract->contract_code.' đã được gia hạn đến '.$contract->end_date?->format('d/m/Y').'.'
+            $extensionRequest->contract,
+            'extension_appendix_ready',
+            'Đã lập phụ lục gia hạn',
+            'Phụ lục '.$appendix->code.' đã được lập. Hợp đồng chỉ được gia hạn sau khi hai bên ký và ban quản lý tải minh chứng.'
         );
 
-        return back()->with('success', 'Đã gia hạn hợp đồng theo thỏa thuận của hai bên.');
+        return redirect()->route('admin.contract-appendices.show', $appendix)
+            ->with('success', 'Đã lập phụ lục gia hạn. Hãy in, ký và tải ảnh minh chứng để hoàn tất gia hạn.');
     }
 
     public function reject(Request $request, ContractExtensionRequest $extensionRequest)

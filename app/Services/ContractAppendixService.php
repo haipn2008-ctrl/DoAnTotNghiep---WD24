@@ -26,6 +26,7 @@ class ContractAppendixService
             && ! $contract->appendices()->whereIn('status', [
                 ContractAppendix::STATUS_DRAFT,
                 ContractAppendix::STATUS_PENDING_TENANT,
+                ContractAppendix::STATUS_PENDING_SIGNATURE,
             ])->exists();
     }
 
@@ -195,6 +196,7 @@ class ContractAppendixService
         if ($contract->appendices()->whereIn('status', [
             ContractAppendix::STATUS_DRAFT,
             ContractAppendix::STATUS_PENDING_TENANT,
+            ContractAppendix::STATUS_PENDING_SIGNATURE,
         ])->exists()) {
             $this->fail('contract', 'Hợp đồng đang có một phụ lục nháp hoặc đang chờ khách xác nhận.');
         }

@@ -7,9 +7,7 @@ use App\Models\Contract;
 use App\Models\ContractExtensionRequest;
 use App\Models\ContractTerminationRequest;
 use App\Services\AdminNotificationService;
-use App\Services\ClientNotificationService;
 use App\Services\ContractHistoryService;
-use App\Services\ContractLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +15,6 @@ use Illuminate\Validation\ValidationException;
 
 class ContractExtensionRequestController extends Controller
 {
-    public function __construct(private readonly ContractLifecycleService $lifecycle) {}
 
     public function index()
     {
@@ -27,7 +24,7 @@ class ContractExtensionRequestController extends Controller
             ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->orderByDesc('id')
             ->get();
-        $extensionRequests = ContractExtensionRequest::with(['contract.room'])
+        $extensionRequests = ContractExtensionRequest::with(['contract.room', 'appendix'])
             ->whereHas('contract', fn ($query) => $query->managedBy($user))
             ->latest()
             ->get();
@@ -99,49 +96,9 @@ class ContractExtensionRequestController extends Controller
 
     public function accept(Request $request, ContractExtensionRequest $extensionRequest)
     {
-        $user = $request->user();
-        $contract = DB::transaction(function () use ($user, $extensionRequest) {
-            $lockedRequest = ContractExtensionRequest::query()
-                ->whereKey($extensionRequest->id)
-                ->whereHas('contract', fn ($query) => $query->managedBy($user))
-                ->lockForUpdate()->firstOrFail();
-            if (! $lockedRequest->isAwaitingConfirmation()) {
-                throw ValidationException::withMessages(['request' => 'Điều khoản gia hạn này không còn chờ xác nhận.']);
-            }
-            $contract = Contract::query()->managedBy($user)->whereKey($lockedRequest->contract_id)->lockForUpdate()->firstOrFail();
-            if ($contract->end_date?->toDateString() !== $lockedRequest->current_end_date?->toDateString()) {
-                throw ValidationException::withMessages([
-                    'request' => 'Hợp đồng đã thay đổi sau khi điều khoản được gửi. Vui lòng yêu cầu ban quản lý lập lại điều khoản.',
-                ]);
-            }
-
-            $contract = $this->lifecycle->extendContract(
-                $contract,
-                $user,
-                $lockedRequest->approved_end_date,
-                'Người thuê đại diện đã xác nhận phụ lục gia hạn trên hệ thống.',
-                [
-                    'monthly_rent' => (float) $lockedRequest->proposed_monthly_rent,
-                    'extension_request_id' => $lockedRequest->id,
-                ]
-            );
-            $lockedRequest->forceFill([
-                'status' => ContractExtensionRequest::STATUS_APPROVED,
-                'tenant_confirmed_at' => now(),
-            ])->save();
-            app(AdminNotificationService::class)->extensionResponded($lockedRequest, true);
-
-            return $contract;
-        }, 3);
-
-        app(ClientNotificationService::class)->contract(
-            $contract,
-            'extension_request_approved',
-            'Gia hạn hợp đồng đã có hiệu lực',
-            'Bạn đã xác nhận phụ lục. Hợp đồng '.$contract->contract_code.' được gia hạn đến '.$contract->end_date?->format('d/m/Y').'.'
-        );
-
-        return back()->with('success', 'Đã xác nhận phụ lục và gia hạn hợp đồng thành công.');
+        throw ValidationException::withMessages([
+            'request' => 'Gia hạn không còn xác nhận trực tuyến. Hai bên phải ký bản in và ban quản lý tải ảnh minh chứng lên hệ thống.',
+        ]);
     }
 
     public function decline(Request $request, ContractExtensionRequest $extensionRequest)
@@ -162,6 +119,13 @@ class ContractExtensionRequestController extends Controller
                 'tenant_declined_at' => now(),
                 'tenant_decline_reason' => $data['decline_reason'],
             ])->save();
+            if ($lockedRequest->appendix) {
+                $lockedRequest->appendix->forceFill([
+                    'status' => \App\Models\ContractAppendix::STATUS_REJECTED,
+                    'rejected_at' => now(),
+                    'rejection_reason' => $data['decline_reason'],
+                ])->save();
+            }
             app(AdminNotificationService::class)->extensionResponded($lockedRequest, false);
             ContractHistoryService::log(
                 $lockedRequest->contract,

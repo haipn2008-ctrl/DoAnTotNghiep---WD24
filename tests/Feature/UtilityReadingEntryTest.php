@@ -169,7 +169,7 @@ class UtilityReadingEntryTest extends TestCase
         ]);
     }
 
-    public function test_current_period_can_only_be_saved_as_draft_before_month_end(): void
+    public function test_current_period_can_be_confirmed_before_month_end_and_records_history(): void
     {
         Carbon::setTestNow('2026-08-27 10:00:00');
         $room = $this->createOccupiedRoom('P-CLOSING-DATE');
@@ -190,37 +190,132 @@ class UtilityReadingEntryTest extends TestCase
             ->get('/admin/utilities/create?month=8&year=2026&record_date=2026-08-27')
             ->assertOk()
             ->assertSee('31/08/2026')
-            ->assertSee('Chưa đến ngày chốt');
+            ->assertSee('Lưu và xác nhận')
+            ->assertDontSee('Chưa đến ngày chốt');
 
-        $this->post('/admin/utilities/store', $payload)
-            ->assertSessionHasErrors('record_date');
-        $this->assertDatabaseMissing('utility_readings', [
-            'contract_id' => $contract->id,
-            'reading_type' => 'periodic',
-        ]);
-
-        $payload['intent'] = 'draft';
         $this->post('/admin/utilities/store', $payload)
             ->assertSessionHasNoErrors();
         $reading = UtilityReading::query()
             ->where('contract_id', $contract->id)
             ->where('reading_type', 'periodic')
             ->firstOrFail();
-        $this->assertTrue($reading->isDraft());
+        $this->assertTrue($reading->isConfirmed());
         $this->assertSame('2026-08-31', $reading->record_date->toDateString());
-
-        $this->post(route('admin.utilities.confirm', $reading))
-            ->assertSessionHasErrors('reading');
-        $this->assertTrue($reading->fresh()->isDraft());
-
-        Carbon::setTestNow('2026-08-31 00:01:00');
-        $this->get('/admin/utilities/create?month=8&year=2026')
+        $this->assertDatabaseHas('utility_reading_histories', [
+            'utility_reading_id' => $reading->id,
+            'actor_id' => $this->admin->id,
+            'action' => 'created_and_confirmed',
+            'from_status' => null,
+            'to_status' => UtilityReading::STATUS_CONFIRMED,
+            'performed_at' => '2026-08-27 10:00:00',
+        ]);
+        $this->get('/admin/utilities?month=8&year=2026')
             ->assertOk()
-            ->assertSee('Lưu và xác nhận')
-            ->assertDontSee('Chưa đến ngày chốt');
-        $this->post(route('admin.utilities.confirm', $reading))
+            ->assertSee('Lịch sử thao tác (1)')
+            ->assertSee($this->admin->name)
+            ->assertSee('10:00 27/08/2026');
+    }
+
+    public function test_multiple_mid_period_checkpoints_do_not_replace_the_full_period_reading(): void
+    {
+        Carbon::setTestNow('2026-08-20 09:30:00');
+        $room = $this->createOccupiedRoom('P-CHECKPOINT');
+        $contract = $this->createActiveContract($room, 'HD-CHECKPOINT');
+        $this->createHandover($room, $contract, 100, 20);
+
+        $firstCheckpoint = [
+            'month' => 8,
+            'year' => 2026,
+            'intent' => 'checkpoint',
+            'reading_date' => '2026-08-15',
+            'readings' => [[
+                'selected' => 1,
+                'room_id' => $room->id,
+                'electricity_new' => 140,
+                'water_new' => 25,
+            ]],
+        ];
+        $this->actingAs($this->admin)->post('/admin/utilities/store', $firstCheckpoint)
             ->assertSessionHasNoErrors();
-        $this->assertTrue($reading->fresh()->isConfirmed());
+
+        $this->get('/admin/utilities/create?month=8&year=2026&mode=checkpoint&reading_date=2026-08-20')
+            ->assertOk()
+            ->assertSee('Ghi mốc giữa kỳ')
+            ->assertSee('<span class="elec-old">140</span>', false)
+            ->assertSee('<span class="water-old">25</span>', false);
+
+        $secondCheckpoint = $firstCheckpoint;
+        $secondCheckpoint['reading_date'] = '2026-08-20';
+        $secondCheckpoint['readings'][0]['electricity_new'] = 160;
+        $secondCheckpoint['readings'][0]['water_new'] = 28;
+        $this->post('/admin/utilities/store', $secondCheckpoint)
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('utility_readings', 3);
+        $this->assertDatabaseHas('utility_readings', [
+            'contract_id' => $contract->id,
+            'reading_type' => 'interim',
+            'record_date' => '2026-08-15 00:00:00',
+            'electricity_old' => 100,
+            'electricity_new' => 140,
+            'water_old' => 20,
+            'water_new' => 25,
+        ]);
+        $this->assertDatabaseHas('utility_readings', [
+            'contract_id' => $contract->id,
+            'reading_type' => 'interim',
+            'record_date' => '2026-08-20 00:00:00',
+            'electricity_old' => 140,
+            'electricity_new' => 160,
+            'water_old' => 25,
+            'water_new' => 28,
+        ]);
+
+        $this->post('/admin/utilities/store', [
+            'month' => 8,
+            'year' => 2026,
+            'intent' => 'confirm',
+            'readings' => [[
+                'selected' => 1,
+                'room_id' => $room->id,
+                'electricity_new' => 190,
+                'water_new' => 32,
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $periodic = UtilityReading::query()
+            ->where('contract_id', $contract->id)
+            ->where('reading_type', 'periodic')
+            ->firstOrFail();
+        $this->assertSame(100, $periodic->electricity_old);
+        $this->assertSame(190, $periodic->electricity_new);
+        $this->assertSame(20, $periodic->water_old);
+        $this->assertSame(32, $periodic->water_new);
+
+        $preview = app(InvoiceGenerator::class)->preview($contract, 9, 2026);
+        $this->assertSame(90, collect($preview['lines'])->firstWhere('type', 'electricity')['quantity']);
+        $this->assertSame(12, collect($preview['lines'])->firstWhere('type', 'water')['quantity']);
+
+        $this->get('/admin/utilities?month=8&year=2026')
+            ->assertOk()
+            ->assertSee('Mốc đối soát giữa kỳ')
+            ->assertSee('15/08/2026')
+            ->assertSee('20/08/2026')
+            ->assertSee('+40 kWh từ mốc trước')
+            ->assertSee('+20 kWh từ mốc trước');
+
+        $this->post('/admin/utilities/store', $secondCheckpoint)
+            ->assertSessionHasErrors('reading_date');
+        $this->assertSame(2, UtilityReading::query()->where('reading_type', 'interim')->count());
+
+        app(InvoiceGenerator::class)->issue($contract, 9, 2026, $this->admin->id);
+        $afterInvoice = $secondCheckpoint;
+        $afterInvoice['reading_date'] = '2026-08-25';
+        $afterInvoice['readings'][0]['electricity_new'] = 180;
+        $afterInvoice['readings'][0]['water_new'] = 30;
+        $this->post('/admin/utilities/store', $afterInvoice)
+            ->assertSessionHasErrors('readings.0.room_id');
+        $this->assertSame(2, UtilityReading::query()->where('reading_type', 'interim')->count());
     }
 
     public function test_only_admin_can_access_entry_pages_and_direct_store(): void
@@ -375,6 +470,17 @@ class UtilityReadingEntryTest extends TestCase
 
         $this->post(route('admin.utilities.reopen', $reading))->assertSessionHasNoErrors();
         $this->assertTrue($reading->fresh()->isDraft());
+        $this->assertSame(
+            ['draft_created', 'confirmed', 'reopened'],
+            $reading->histories()->pluck('action')->all(),
+        );
+        $this->assertTrue(
+            $reading->histories()->get()->every(
+                fn ($history) => $history->actor_id === $this->admin->id
+                    && $history->performed_at !== null
+                    && is_array($history->snapshot),
+            ),
+        );
     }
 
     public function test_periods_must_be_confirmed_month_by_month_and_reopened_in_reverse_order(): void

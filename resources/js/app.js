@@ -430,13 +430,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const list = container.querySelector('[data-member-list]');
         const template = container.querySelector('[data-member-template]');
         const addButton = container.querySelector('[data-add-member]');
+        const existingSelector = container.querySelector('[data-existing-member-tenant]');
+        const addExistingButton = container.querySelector('[data-add-existing-member]');
+        const existingError = container.querySelector('[data-existing-member-error]');
         const countLabel = container.querySelector('[data-member-count]');
         const emptyState = container.querySelector('[data-empty-members]');
         const limitState = container.querySelector('[data-member-limit]');
         const roomSelector = container.closest('form')?.querySelector('[name="room_id"]');
+        const representativeSelector = container.closest('form')?.querySelector('[name="tenant_id"]');
         let nextIndex = container.querySelectorAll('[data-member-row]').length;
         let lastValidRoomValue = roomSelector?.value || '';
         let roomCapacityError = '';
+
+        const refreshExistingOptions = () => {
+            if (!existingSelector) return;
+            const usedTenantIds = new Set(
+                [...(list?.querySelectorAll('[data-member-tenant-id]') || [])]
+                    .map((input) => input.value)
+                    .filter(Boolean),
+            );
+            [...existingSelector.options].forEach((option) => {
+                if (!option.value) return;
+                const unavailable = option.value === representativeSelector?.value
+                    || usedTenantIds.has(option.value);
+                option.hidden = unavailable;
+                option.disabled = unavailable;
+                if (unavailable && option.selected) existingSelector.value = '';
+            });
+        };
 
         const refresh = () => {
             const count = list?.querySelectorAll('[data-member-row]').length || 0;
@@ -447,7 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 option.disabled = option.value !== roomSelector.value && optionMaximum > 0 && total > optionMaximum;
             });
             if (countLabel) {
-                countLabel.textContent = maximum ? `${total}/${maximum} người` : `${total} người`;
+                countLabel.textContent = maximum ? `${total}/${maximum}` : String(total);
             }
             emptyState?.classList.toggle('hidden', count > 0);
             const reachedCapacity = maximum > 0 && total >= maximum;
@@ -456,12 +477,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 addButton.classList.toggle('cursor-not-allowed', addButton.disabled);
                 addButton.classList.toggle('opacity-50', addButton.disabled);
             }
+            if (addExistingButton) {
+                addExistingButton.disabled = !maximum || reachedCapacity;
+                addExistingButton.classList.toggle('cursor-not-allowed', addExistingButton.disabled);
+                addExistingButton.classList.toggle('opacity-50', addExistingButton.disabled);
+            }
             if (limitState) {
                 limitState.classList.toggle('hidden', !reachedCapacity && !roomCapacityError);
                 limitState.textContent = roomCapacityError || (reachedCapacity
                     ? `Phòng chỉ chứa tối đa ${maximum} người. Đã đạt giới hạn của phòng.`
                     : '');
             }
+            refreshExistingOptions();
+        };
+
+        const appendRow = () => {
+            const maximum = Number(roomSelector?.selectedOptions[0]?.dataset.maxPeople || 0);
+            const current = (list?.querySelectorAll('[data-member-row]').length || 0) + 1;
+            if (!list || !template || !maximum || current >= maximum) {
+                refresh();
+                return null;
+            }
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = template.innerHTML.replaceAll('__INDEX__', String(nextIndex++));
+            const row = wrapper.firstElementChild;
+            if (row) {
+                const firstRow = list.querySelector('[data-member-row]');
+                list.insertBefore(row, firstRow || emptyState || list.firstChild);
+                bindRow(row);
+            }
+            roomCapacityError = '';
+            refresh();
+
+            return row;
         };
 
         const bindRow = (row) => {
@@ -474,24 +522,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
         list?.querySelectorAll('[data-member-row]').forEach(bindRow);
         addButton?.addEventListener('click', () => {
-            const maximum = Number(roomSelector?.selectedOptions[0]?.dataset.maxPeople || 0);
-            const current = (list?.querySelectorAll('[data-member-row]').length || 0) + 1;
-            if (!list || !template || !maximum || current >= maximum) {
-                refresh();
+            appendRow()?.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true });
+        });
+        addExistingButton?.addEventListener('click', () => {
+            const option = existingSelector?.selectedOptions[0];
+            const tenantId = option?.value || '';
+            const showExistingError = (message) => {
+                if (!existingError) return;
+                existingError.textContent = message;
+                existingError.classList.toggle('hidden', !message);
+            };
+            if (!tenantId) {
+                showExistingError('Hãy chọn một khách có sẵn.');
                 return;
             }
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = template.innerHTML.replaceAll('__INDEX__', String(nextIndex++));
-            const row = wrapper.firstElementChild;
-            if (row) {
-                const firstRow = list.querySelector('[data-member-row]');
-                list.insertBefore(row, firstRow || emptyState || list.firstChild);
-                bindRow(row);
-                row.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true });
+            if (representativeSelector?.value === tenantId) {
+                showExistingError('Người thuê đại diện đã thuộc hợp đồng, không thể thêm lại làm người thuê cùng.');
+                return;
             }
-            roomCapacityError = '';
-            refresh();
+            const duplicate = [...(list?.querySelectorAll('[data-member-row]') || [])].some((row) => {
+                const selectedId = row.querySelector('[data-member-tenant-id]')?.value;
+                const identityNumber = row.querySelector('[name$="[identity_number]"]')?.value;
+                return selectedId === tenantId || (option.dataset.cccd && identityNumber === option.dataset.cccd);
+            });
+            if (duplicate) {
+                showExistingError('Khách này đã có trong danh sách người thuê cùng.');
+                return;
+            }
+
+            const row = appendRow();
+            if (!row) return;
+            row.querySelector('[data-member-tenant-id]').value = tenantId;
+            const values = {
+                full_name: option.dataset.fullName,
+                date_of_birth: option.dataset.dateOfBirth,
+                gender: option.dataset.gender,
+                identity_number: option.dataset.cccd,
+                cccd_issue_date: option.dataset.cccdIssueDate,
+                cccd_issue_place: option.dataset.cccdIssuePlace,
+                phone: option.dataset.phone,
+                email: option.dataset.email,
+                address: option.dataset.address,
+            };
+            Object.entries(values).forEach(([field, value]) => {
+                const input = row.querySelector(`[name$="[${field}]"]`);
+                if (input) input.value = value || '';
+            });
+            ['front', 'back'].forEach((side) => {
+                const url = option.dataset[side === 'front' ? 'identityFrontUrl' : 'identityBackUrl'];
+                if (!url) return;
+                const fileInput = row.querySelector(`[name$="[identity_${side}]"]`);
+                const previewId = fileInput?.dataset.previewTarget;
+                const preview = previewId ? row.querySelector(`#${CSS.escape(previewId)}`) : null;
+                if (!preview) return;
+                preview.src = url;
+                preview.dataset.originalSrc = url;
+                preview.classList.remove('hidden');
+                preview.parentElement?.querySelector('[data-identity-preview-empty]')?.classList.add('hidden');
+            });
+            existingSelector.value = '';
+            showExistingError('');
+            refreshExistingOptions();
+            row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
+        representativeSelector?.addEventListener('change', refreshExistingOptions);
         roomSelector?.addEventListener('change', () => {
             const residentCount = (list?.querySelectorAll('[data-member-row]').length || 0) + 1;
             const selectedMaximum = Number(roomSelector.selectedOptions[0]?.dataset.maxPeople || 0);

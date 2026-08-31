@@ -136,7 +136,7 @@
                     <div class="col-md-12 mt-3">
                         <label class="form-check">
                             <input type="checkbox" name="confirm_extend" value="1" required class="form-check-input">
-                            <span class="form-check-label fw-semibold">2 bên đã thỏa thuận gia hạn</span>
+                            <span class="form-check-label fw-semibold">Xác nhận thông tin dùng để lập phụ lục gia hạn</span>
                         </label>
                     </div>
 
@@ -162,7 +162,7 @@
 
                     <i class="bi bi-check-circle me-1"></i>
 
-                    Gia hạn hợp đồng
+                    Lập phụ lục gia hạn
 
                 </button>
 

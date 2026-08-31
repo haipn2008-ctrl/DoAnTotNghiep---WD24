@@ -6,6 +6,7 @@
 
 <div data-member-row class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
     <input type="hidden" name="members[{{ $index }}][id]" value="{{ $member['id'] ?? '' }}">
+    <input type="hidden" name="members[{{ $index }}][tenant_id]" value="{{ $member['tenant_id'] ?? '' }}" data-member-tenant-id>
 
     <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div>

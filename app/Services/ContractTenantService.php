@@ -44,10 +44,29 @@ class ContractTenantService
         $retainedIds = [];
 
         foreach ($members as $payload) {
-            $profile = $this->profileData($payload);
-            $data = $this->membershipData($profile);
             $old = filled($payload['id'] ?? null) ? $existing->get((int) $payload['id']) : null;
-            $data['tenant_id'] = $this->resolveTenantProfile($profile, $old?->tenant)->id;
+            $selectedTenant = filled($payload['tenant_id'] ?? null)
+                ? Tenant::query()->lockForUpdate()->findOrFail((int) $payload['tenant_id'])
+                : null;
+            if ($selectedTenant) {
+                if ($selectedTenant->status !== Tenant::STATUS_ACTIVE) {
+                    $this->fail('members', 'Khách thuê đã chọn đang bị lưu trữ.');
+                }
+                $conflictingMembership = ContractTenant::query()
+                    ->where('tenant_id', $selectedTenant->id)
+                    ->when($old, fn ($query) => $query->whereKeyNot($old->id))
+                    ->current()
+                    ->lockForUpdate()
+                    ->exists();
+                if ($conflictingMembership) {
+                    $this->fail('members', $selectedTenant->full_name.' đang thuộc hợp đồng hoặc danh sách chờ khác.');
+                }
+                $profile = $this->profileFromTenant($selectedTenant);
+            } else {
+                $profile = $this->profileData($payload);
+            }
+            $data = $this->membershipData($profile);
+            $data['tenant_id'] = ($selectedTenant ?? $this->resolveTenantProfile($profile, $old?->tenant))->id;
 
             if ($old) {
                 $retainedIds[] = $old->id;
@@ -125,6 +144,98 @@ class ContractTenantService
             $this->syncPlannedCount($contract);
 
             return $member->fresh();
+        }, 3);
+    }
+
+    public function addByAdmin(
+        Contract $contract,
+        User $actor,
+        Carbon|string $moveInAt,
+        ?Tenant $existingTenant = null,
+        array $newProfile = [],
+    ): ContractTenant {
+        return DB::transaction(function () use ($contract, $actor, $moveInAt, $existingTenant, $newProfile): ContractTenant {
+            if (! $actor->isAdmin()) {
+                $this->fail('member', 'Chỉ quản trị viên được thêm trực tiếp người thuê vào phòng.');
+            }
+
+            $contract = Contract::query()->with('room')->lockForUpdate()->findOrFail($contract->id);
+            if (! in_array($contract->status, Contract::OPEN_OCCUPANCY_STATUSES, true)
+                || ! $contract->actual_move_in_at) {
+                $this->fail('contract', 'Chỉ được thêm người vào hợp đồng đã nhận phòng và đang còn hiệu lực.');
+            }
+
+            $moveInAt = Carbon::parse($moveInAt);
+            if ($moveInAt->isFuture() || $moveInAt->lt($contract->actual_move_in_at)) {
+                $this->fail('actual_move_in_at', 'Thời điểm vào ở phải từ lúc hợp đồng nhận phòng đến hiện tại.');
+            }
+
+            $this->ensureCapacity($contract, 1);
+
+            if ($existingTenant) {
+                $tenant = Tenant::query()->lockForUpdate()->findOrFail($existingTenant->id);
+                if ($tenant->status !== Tenant::STATUS_ACTIVE) {
+                    $this->fail('tenant_id', 'Hồ sơ khách thuê đã bị lưu trữ, không thể thêm vào phòng.');
+                }
+                $profile = [
+                    'full_name' => $tenant->full_name,
+                    'date_of_birth' => $tenant->date_of_birth?->toDateString(),
+                    'gender' => $tenant->gender,
+                    'identity_number' => $tenant->cccd,
+                    'cccd_issue_date' => $tenant->cccd_issue_date?->toDateString(),
+                    'cccd_issue_place' => $tenant->cccd_issue_place,
+                    'phone' => $tenant->phone,
+                    'email' => $tenant->email,
+                    'address' => $tenant->address,
+                ];
+                $this->ensureCompleteAdminProfile($profile, 'tenant_id');
+            } else {
+                $profile = $this->profileData($newProfile);
+                $this->ensureCompleteAdminProfile($profile);
+
+                $duplicate = Tenant::query()
+                    ->where('cccd', $profile['identity_number'])
+                    ->orWhere('phone', $profile['phone'])
+                    ->when(filled($profile['email']), fn ($query) => $query->orWhere('email', $profile['email']))
+                    ->lockForUpdate()
+                    ->first();
+                if ($duplicate) {
+                    $this->fail('identity_number', 'Khách thuê đã có hồ sơ trên hệ thống. Hãy chọn mục “Khách có sẵn”.');
+                }
+
+                $tenant = $this->resolveTenantProfile($profile);
+            }
+
+            $hasCurrentMembership = ContractTenant::query()
+                ->where('tenant_id', $tenant->id)
+                ->current()
+                ->lockForUpdate()
+                ->exists();
+            $hasOpenRepresentativeContract = Contract::query()
+                ->where(fn ($query) => $query
+                    ->where('tenant_id', $tenant->id)
+                    ->orWhere('representative_tenant_id', $tenant->id))
+                ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+                ->lockForUpdate()
+                ->exists();
+            if ($hasCurrentMembership || $hasOpenRepresentativeContract) {
+                $this->fail('tenant_id', 'Khách này đang thuộc một phòng hoặc danh sách chờ khác. Hãy dùng quy trình chuyển phòng.');
+            }
+
+            $member = $this->createMember($contract, $this->membershipData($profile) + [
+                'tenant_id' => $tenant->id,
+                'role' => ContractTenant::ROLE_TENANT,
+                'relationship' => 'Người ở cùng',
+                'status' => ContractTenant::STATUS_CHECKED_IN,
+                'declared_by' => $actor->id,
+                'reviewed_by' => $actor->id,
+                'reviewed_at' => now(),
+                'actual_move_in_at' => $moveInAt,
+            ], $actor, 'admin_add_checked_in_member', 'Admin thêm trực tiếp người thuê vào phòng đang hoạt động.');
+
+            $this->syncCounts($contract);
+
+            return $member->fresh(['tenant']);
         }, 3);
     }
 
@@ -658,6 +769,35 @@ class ContractTenantService
         return Arr::only($profile, [
             'full_name', 'date_of_birth', 'identity_number', 'phone', 'address',
         ]);
+    }
+
+    private function profileFromTenant(Tenant $tenant): array
+    {
+        return [
+            'full_name' => $tenant->full_name,
+            'date_of_birth' => $tenant->date_of_birth?->toDateString(),
+            'gender' => $tenant->gender,
+            'identity_number' => $tenant->cccd,
+            'cccd_issue_date' => $tenant->cccd_issue_date?->toDateString(),
+            'cccd_issue_place' => $tenant->cccd_issue_place,
+            'phone' => $tenant->phone,
+            'email' => $tenant->email,
+            'address' => $tenant->address,
+        ];
+    }
+
+    private function ensureCompleteAdminProfile(array $profile, string $errorKey = 'full_name'): void
+    {
+        $required = [
+            'full_name', 'date_of_birth', 'gender', 'identity_number',
+            'cccd_issue_date', 'cccd_issue_place', 'phone', 'address',
+        ];
+        if (collect($required)->contains(fn (string $field): bool => blank($profile[$field] ?? null))) {
+            $this->fail($errorKey, 'Hồ sơ khách thuê chưa đầy đủ. Hãy bổ sung thông tin cá nhân và CCCD trước khi thêm vào phòng.');
+        }
+        if (Carbon::parse($profile['date_of_birth'])->gt(today()->subYears(18))) {
+            $this->fail($errorKey, 'Người thuê phải đủ 18 tuổi.');
+        }
     }
 
     private function representativeSnapshot(Tenant $tenant, ContractTenant $member): array

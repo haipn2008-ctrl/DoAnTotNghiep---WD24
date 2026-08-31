@@ -27,8 +27,9 @@
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
                 <a href="{{ route('client.invoices.index') }}" class="text-sm font-semibold text-indigo-700">← Hóa đơn của tôi</a>
-                <h2 class="mt-2 text-2xl font-bold text-slate-950">{{ $invoice->isDeposit() ? 'Hóa đơn tiền cọc' : ($invoice->isFirstMonthRent() ? 'Hóa đơn tiền phòng tháng đầu' : 'Hóa đơn tháng '.$invoice->month.'/'.$invoice->year) }}</h2>
+                <h2 class="mt-2 text-2xl font-bold text-slate-950">{{ $invoice->isSupplemental() ? 'Hóa đơn bổ sung' : ($invoice->isDeposit() ? 'Hóa đơn tiền cọc' : ($invoice->isFirstMonthRent() ? 'Hóa đơn tiền phòng tháng đầu' : 'Hóa đơn tháng '.$invoice->month.'/'.$invoice->year)) }}</h2>
                 <p class="mt-1 text-sm text-slate-500">{{ $invoice->invoice_code }} · Phòng {{ $invoice->room->room_code ?? '-' }}</p>
+                @if($invoice->parentInvoice)<p class="mt-1 text-sm text-slate-500">Bổ sung cho <a href="{{ route('client.invoices.show', $invoice->parentInvoice) }}" class="font-semibold text-indigo-700">{{ $invoice->parentInvoice->invoice_code }}</a></p>@endif
             </div>
             <a href="{{ route('client.invoices.print', $invoice) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm"><i class="bx bx-printer text-lg"></i>In hóa đơn</a>
         </div>
@@ -59,6 +60,17 @@
                 </table>
             </div>
         </section>
+
+        @if($invoice->creditsCreated->isNotEmpty())
+            <section class="overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
+                <div class="border-b border-emerald-100 bg-emerald-50 px-5 py-4"><h3 class="font-semibold text-emerald-900">Khoản giảm cho hóa đơn tháng sau</h3></div>
+                <div class="divide-y divide-slate-100">
+                    @foreach($invoice->creditsCreated as $credit)
+                        <div class="flex flex-wrap justify-between gap-3 px-5 py-4 text-sm"><div><p class="font-semibold text-emerald-700">{{ $credit->credit_code }}</p><p class="mt-1 text-slate-600">{{ $credit->reason }}</p></div><div class="text-right"><p class="font-bold text-emerald-700">-{{ number_format($credit->amount, 0, ',', '.') }}đ</p><p class="mt-1 text-xs text-slate-500">Còn chờ khấu trừ {{ number_format($credit->remaining_amount, 0, ',', '.') }}đ</p></div></div>
+                    @endforeach
+                </div>
+            </section>
+        @endif
 
         @if ($invoice->isOverdue() && $remainingAmount > 0)
             <section class="rounded-lg border {{ $rejectedDelayRequest ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50' }} p-5 shadow-sm">

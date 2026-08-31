@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\ContractCredit;
 use App\Models\Invoice;
-use App\Models\InvoiceAdjustment;
 use App\Models\Payment;
 use App\Models\Setting;
 use App\Models\UtilityReading;
@@ -152,7 +152,13 @@ class InvoiceController extends Controller
             'details',
             'payments',
             'adjustments.creator',
+            'parentInvoice',
+            'supplementalInvoices',
+            'creditsCreated.creator',
+            'creditsCreated.applications.invoice',
+            'creditApplications.credit',
             'canceller',
+            'issuer',
         ]);
 
         $paidAmount = $invoice->payments()
@@ -239,7 +245,6 @@ class InvoiceController extends Controller
         $scheduledInvoiceDate = $periodStart->copy()->day(
             max(1, min((int) $setting->invoice_day, $periodStart->daysInMonth))
         );
-        $canIssue = ! today()->lt($scheduledInvoiceDate->copy()->startOfDay());
 
         return view(
             'admin.invoices.generate',
@@ -249,8 +254,7 @@ class InvoiceController extends Controller
                 'year',
                 'years',
                 'issuedContractIds',
-                'scheduledInvoiceDate',
-                'canIssue'
+                'scheduledInvoiceDate'
             )
         );
     }
@@ -267,7 +271,8 @@ class InvoiceController extends Controller
             $invoice = $generator->issue(
                 Contract::findOrFail($data['contract_id']),
                 (int) $data['month'],
-                (int) $data['year']
+                (int) $data['year'],
+                $request->user()?->id,
             );
             app(ClientNotificationService::class)->invoice($invoice, 'invoice_issued', 'Có hóa đơn mới', 'Hóa đơn '.$invoice->invoice_code.' đã được phát hành. Hạn thanh toán: '.$invoice->due_date?->format('d/m/Y').'.');
         } catch (ValidationException $exception) {
@@ -381,6 +386,7 @@ class InvoiceController extends Controller
                 'month' => $preview['month'],
                 'year' => $preview['year'],
                 'invoice_date' => $preview['invoice_date'],
+                'issued_at' => now()->format('H:i d/m/Y'),
                 'due_date' => $preview['due_date'],
                 'total_amount' => $preview['total_amount'],
                 'lines' => collect($preview['lines'])->map(fn (array $line) => [
@@ -420,7 +426,8 @@ class InvoiceController extends Controller
             $invoice = $generator->issue(
                 $contract,
                 (int) $data['month'],
-                (int) $data['year']
+                (int) $data['year'],
+                $request->user()?->id,
             );
 
             app(ClientNotificationService::class)->invoice($invoice, 'invoice_issued', 'Có hóa đơn mới', 'Hóa đơn '.$invoice->invoice_code.' đã được phát hành. Hạn thanh toán: '.$invoice->due_date?->format('d/m/Y').'.');
@@ -502,6 +509,18 @@ class InvoiceController extends Controller
                 ]);
             }
 
+            if ($lockedInvoice->supplementalInvoices()->where('status', '!=', Invoice::STATUS_CANCELLED)->exists()) {
+                throw ValidationException::withMessages([
+                    'cancellation_reason' => 'Không thể hủy hóa đơn gốc đang có hóa đơn bổ sung còn hiệu lực.',
+                ]);
+            }
+
+            if ($lockedInvoice->creditsCreated()->exists()) {
+                throw ValidationException::withMessages([
+                    'cancellation_reason' => 'Không thể hủy hóa đơn đã tạo khoản giảm cho kỳ sau.',
+                ]);
+            }
+
             if ($lockedInvoice->status !== Invoice::STATUS_UNPAID) {
                 throw ValidationException::withMessages([
                     'cancellation_reason' => 'Chỉ hóa đơn chưa thanh toán mới có thể hủy.',
@@ -511,6 +530,17 @@ class InvoiceController extends Controller
             $reading = $lockedInvoice->utilityReading()
                 ->lockForUpdate()
                 ->first();
+
+            $creditApplications = $lockedInvoice->creditApplications()
+                ->with('credit')
+                ->lockForUpdate()
+                ->get();
+            foreach ($creditApplications as $application) {
+                $credit = ContractCredit::query()->lockForUpdate()->findOrFail($application->contract_credit_id);
+                $credit->increment('remaining_amount', $application->amount);
+                $application->delete();
+            }
+
             $lockedInvoice->update([
                 'status' => Invoice::STATUS_CANCELLED,
                 'cancelled_at' => now(),
@@ -532,67 +562,141 @@ class InvoiceController extends Controller
 
     public function storeAdjustment(Request $request, Invoice $invoice)
     {
+        throw ValidationException::withMessages([
+            'direction' => 'Điều chỉnh trực tiếp đã ngừng sử dụng. Hãy tạo hóa đơn bổ sung nếu cần thu thêm hoặc ghi khoản giảm cho hóa đơn tháng sau.',
+        ]);
+    }
+
+    public function storeSupplemental(Request $request, Invoice $invoice)
+    {
         $data = $request->validate([
-            'direction' => ['required', Rule::in([
-                InvoiceAdjustment::DIRECTION_DEBIT,
-                InvoiceAdjustment::DIRECTION_CREDIT,
-            ])],
+            'category' => ['required', Rule::in(['utility', 'service', 'parking', 'damage', 'other'])],
+            'description' => ['required', 'string', 'min:5', 'max:500'],
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:1', 'max:999999999.99'],
+        ]);
+
+        $supplemental = DB::transaction(function () use ($invoice, $data): Invoice {
+            $source = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
+            if ($source->invoice_type !== Invoice::TYPE_RENTAL) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Chỉ được tạo hóa đơn bổ sung từ hóa đơn tiền phòng và tiện ích hằng tháng.',
+                ]);
+            }
+            if (in_array($source->status, [Invoice::STATUS_CANCELLED, Invoice::STATUS_WRITTEN_OFF], true)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Không thể tạo hóa đơn bổ sung từ hóa đơn đã hủy hoặc đã xóa nợ.',
+                ]);
+            }
+
+            $revision = ((int) Invoice::query()
+                ->where('contract_id', $source->contract_id)
+                ->where('invoice_type', Invoice::TYPE_SUPPLEMENTAL)
+                ->where('month', $source->month)
+                ->where('year', $source->year)
+                ->max('revision')) + 1;
+            $setting = Setting::currentOrCreate();
+            $amount = round((float) $data['amount']);
+            $categoryLabel = match ($data['category']) {
+                'utility' => 'Truy thu điện, nước',
+                'service' => 'Phí dịch vụ phát sinh',
+                'parking' => 'Phí gửi xe phát sinh',
+                'damage' => 'Bồi thường hư hỏng',
+                default => 'Chi phí phát sinh khác',
+            };
+
+            $supplemental = Invoice::create([
+                'contract_id' => $source->contract_id,
+                'parent_invoice_id' => $source->id,
+                'invoice_type' => Invoice::TYPE_SUPPLEMENTAL,
+                'revision' => $revision,
+                'room_id' => $source->room_id,
+                'invoice_code' => null,
+                'month' => $source->month,
+                'year' => $source->year,
+                'invoice_date' => today()->toDateString(),
+                'issued_at' => now(),
+                'issued_by' => auth()->id(),
+                'due_date' => today()->addDays((int) $setting->payment_due_days)->toDateString(),
+                'room_fee' => 0,
+                'electricity_fee' => 0,
+                'water_fee' => 0,
+                'internet_fee' => 0,
+                'service_fee' => 0,
+                'total_amount' => $amount,
+                'status' => Invoice::STATUS_UNPAID,
+            ]);
+            $supplemental->update([
+                'invoice_code' => sprintf('SUP-%04d%02d-%06d', $source->year, $source->month, $supplemental->id),
+            ]);
+            $supplemental->details()->create([
+                'type' => 'supplemental_'.$data['category'],
+                'name' => $categoryLabel,
+                'quantity' => 1,
+                'unit' => 'lần',
+                'unit_price' => $amount,
+                'amount' => $amount,
+                'note' => $data['description'],
+                'sort_order' => 1,
+            ]);
+
+            return $supplemental;
+        });
+
+        app(ClientNotificationService::class)->invoice(
+            $supplemental,
+            'supplemental_invoice_issued',
+            'Có hóa đơn bổ sung mới',
+            'Hóa đơn '.$supplemental->invoice_code.' đã được phát hành từ hóa đơn '.$invoice->invoice_code.'.'
+        );
+
+        return redirect()->route('admin.invoices.show', $supplemental)
+            ->with('success', 'Đã phát hành hóa đơn bổ sung độc lập.');
+    }
+
+    public function storeNextInvoiceCredit(Request $request, Invoice $invoice)
+    {
+        $data = $request->validate([
             'amount' => ['required', 'numeric', 'decimal:0,2', 'min:1', 'max:999999999.99'],
             'reason' => ['required', 'string', 'min:10', 'max:2000'],
         ]);
 
-        DB::transaction(function () use ($invoice, $data): void {
-            $lockedInvoice = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
-
-            if ($lockedInvoice->invoice_type !== Invoice::TYPE_RENTAL) {
+        $credit = DB::transaction(function () use ($invoice, $data): ContractCredit {
+            $source = Invoice::query()->lockForUpdate()->findOrFail($invoice->id);
+            if ($source->invoice_type !== Invoice::TYPE_RENTAL) {
                 throw ValidationException::withMessages([
-                    'amount' => 'Hiện chỉ hỗ trợ điều chỉnh hóa đơn tiền phòng và tiện ích hằng tháng.',
+                    'amount' => 'Chỉ được tạo khoản giảm từ hóa đơn tiền phòng và tiện ích hằng tháng.',
+                ]);
+            }
+            if (in_array($source->status, [Invoice::STATUS_CANCELLED, Invoice::STATUS_WRITTEN_OFF], true)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Không thể tạo khoản giảm từ hóa đơn đã hủy hoặc đã xóa nợ.',
                 ]);
             }
 
-            if (in_array($lockedInvoice->status, [Invoice::STATUS_CANCELLED, Invoice::STATUS_WRITTEN_OFF], true)) {
-                throw ValidationException::withMessages([
-                    'amount' => 'Không thể điều chỉnh hóa đơn đã hủy hoặc đã xóa nợ.',
-                ]);
-            }
-
-            if ($lockedInvoice->payments()->pending()->exists()) {
-                throw ValidationException::withMessages([
-                    'amount' => 'Hãy xử lý xác nhận thanh toán đang chờ trước khi điều chỉnh hóa đơn.',
-                ]);
-            }
-
-            if (
-                $data['direction'] === InvoiceAdjustment::DIRECTION_CREDIT
-                && (float) $data['amount'] > $lockedInvoice->payable_amount
-            ) {
-                throw ValidationException::withMessages([
-                    'amount' => 'Khoản giảm không được lớn hơn tổng tiền hiện tại của hóa đơn.',
-                ]);
-            }
-
-            $adjustment = $lockedInvoice->adjustments()->create([
-                'direction' => $data['direction'],
-                'amount' => $data['amount'],
+            $amount = round((float) $data['amount']);
+            $credit = ContractCredit::create([
+                'contract_id' => $source->contract_id,
+                'source_invoice_id' => $source->id,
+                'credit_code' => null,
+                'amount' => $amount,
+                'remaining_amount' => $amount,
                 'reason' => $data['reason'],
                 'created_by' => auth()->id(),
             ]);
-            $adjustment->update([
-                'adjustment_code' => sprintf('ADJ-%06d', $adjustment->id),
-            ]);
+            $credit->update(['credit_code' => sprintf('CRD-%06d', $credit->id)]);
 
-            $adjustmentAmount = $lockedInvoice->adjustments()->get()
-                ->sum(fn (InvoiceAdjustment $item): float => $item->signed_amount);
-            $lockedInvoice->update(['adjustment_amount' => $adjustmentAmount]);
-            $lockedInvoice->refreshStatus();
-            $this->syncTenantAccountAfterPayment($lockedInvoice);
+            return $credit;
         });
 
-        app(ClientNotificationService::class)->invoice($invoice->fresh(), 'invoice_adjusted', 'Hóa đơn đã được điều chỉnh', 'Số tiền của hóa đơn '.$invoice->invoice_code.' đã thay đổi. Lý do: '.$data['reason']);
+        app(ClientNotificationService::class)->invoice(
+            $invoice,
+            'invoice_credit_created',
+            'Đã ghi nhận khoản giảm',
+            'Khoản giảm '.$credit->credit_code.' sẽ được tự động trừ vào hóa đơn tháng kế tiếp.'
+        );
 
-        return redirect()
-            ->route('admin.invoices.show', $invoice)
-            ->with('success', 'Đã tạo phiếu điều chỉnh và cập nhật số tiền phải thu.');
+        return redirect()->route('admin.invoices.show', $invoice)
+            ->with('success', 'Đã ghi nhận khoản giảm; hệ thống sẽ tự khấu trừ vào hóa đơn tháng kế tiếp.');
     }
 
     /**

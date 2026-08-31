@@ -22,15 +22,28 @@ class UtilityController extends Controller
         $period = $request->validate([
             'month' => 'nullable|integer|between:1,12',
             'year' => 'nullable|integer|between:2000,2100',
+            'mode' => 'nullable|in:final,checkpoint',
+            'reading_date' => 'nullable|date',
+            'room_id' => 'nullable|integer|exists:rooms,id',
         ]);
 
         $month = (int) ($period['month'] ?? Carbon::now()->month);
         $year = (int) ($period['year'] ?? Carbon::now()->year);
+        $mode = $period['mode'] ?? 'final';
 
         $billingPeriodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $billingPeriodEnd = $billingPeriodStart->copy()->endOfMonth();
-        $canConfirm = ! today()->lt($billingPeriodEnd->copy()->startOfDay());
         $recordDate = $billingPeriodEnd->toDateString();
+        $checkpointDate = isset($period['reading_date'])
+            ? Carbon::parse($period['reading_date'])->startOfDay()
+            : (today()->betweenIncluded($billingPeriodStart, $billingPeriodEnd)
+                ? today()
+                : $billingPeriodEnd->copy()->startOfDay());
+        if ($mode === 'checkpoint' && ! $checkpointDate->betweenIncluded($billingPeriodStart, $billingPeriodEnd)) {
+            throw ValidationException::withMessages([
+                'reading_date' => "Ngày ghi mốc phải nằm trong tháng {$month}/{$year}.",
+            ]);
+        }
 
         $rooms = Room::with(['contracts' => function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
             $query->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
@@ -39,6 +52,7 @@ class UtilityController extends Controller
                 ->orderByDesc('start_date');
         }])
             ->where('status', 'occupied')
+            ->when($period['room_id'] ?? null, fn ($query, $roomId) => $query->whereKey($roomId))
             ->whereHas('contracts', function ($query) use ($billingPeriodStart, $billingPeriodEnd) {
                 $query->whereIn('status', [Contract::STATUS_ACTIVE, Contract::STATUS_EXPIRED])
                     ->whereDate('start_date', '<=', $billingPeriodEnd)
@@ -60,18 +74,21 @@ class UtilityController extends Controller
         foreach ($rooms as $room) {
             $activeContract = $room->contracts->first();
             $contractStart = $activeContract?->start_date?->toDateString();
-            $currentReading = $activeContract ? $periodReadings
+            $periodicReading = $activeContract ? $periodReadings
                 ->where('room_id', $room->id)
                 ->first(fn ($reading) => (int) $reading->contract_id === $activeContract->id)
                 ?? $periodReadings->where('room_id', $room->id)->first(fn ($reading) => $reading->contract_id === null && $reading->record_date?->toDateString() >= $contractStart
                 ) : null;
+            $currentReading = $mode === 'checkpoint' ? null : $periodicReading;
             $previousReading = $activeContract ? UtilityReading::where('room_id', $room->id)
                 ->where(fn ($query) => $query->where('contract_id', $activeContract->id)
                     ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contractStart)))
-                ->where(function ($query) use ($recordDate) {
-                    $query->whereDate('record_date', '<', $recordDate)
+                ->when($mode !== 'checkpoint', fn ($query) => $query->where('reading_type', '!=', 'interim'))
+                ->where(function ($query) use ($mode, $recordDate, $checkpointDate) {
+                    $targetDate = $mode === 'checkpoint' ? $checkpointDate->toDateString() : $recordDate;
+                    $query->whereDate('record_date', '<', $targetDate)
                         ->orWhere(fn ($sameDay) => $sameDay
-                            ->whereDate('record_date', $recordDate)
+                            ->whereDate('record_date', $targetDate)
                             ->whereIn('reading_type', ['handover', 'transfer_handover']));
                 })
                 ->latest('record_date')->latest('id')->first() : null;
@@ -87,17 +104,31 @@ class UtilityController extends Controller
                 'water_old' => $currentReading?->water_old ?? $previousReading?->water_new ?? 0,
                 'water_new' => $currentReading?->water_new,
                 'water_image' => $currentReading?->water_image,
-                'last_period' => $previousReading ? "{$previousReading->month}/{$previousReading->year}" : null,
+                'last_period' => $previousReading
+                    ? ($mode === 'checkpoint'
+                        ? $previousReading->record_date?->format('d/m/Y')
+                        : "{$previousReading->month}/{$previousReading->year}")
+                    : null,
                 'saved' => (bool) $currentReading,
                 'status' => $currentReading?->status,
-                'locked' => $currentReading?->isLocked() || (bool) $currentReading?->invoice,
-                'editable' => ! $currentReading || $currentReading->isDraft(),
+                'locked' => $periodicReading?->isLocked() || (bool) $periodicReading?->invoice,
+                'editable' => $mode === 'checkpoint'
+                    ? ! ($periodicReading?->isLocked() || (bool) $periodicReading?->invoice)
+                    : (! $currentReading || $currentReading->isDraft()),
             ];
         }
 
         $savedCount = collect($readings)->where('saved', true)->count();
 
-        return view('admin.utilities.create', compact('readings', 'month', 'year', 'recordDate', 'canConfirm', 'savedCount'));
+        return view('admin.utilities.create', compact(
+            'readings',
+            'month',
+            'year',
+            'mode',
+            'recordDate',
+            'checkpointDate',
+            'savedCount',
+        ));
     }
 
     // Lưu chỉ số mới nhập
@@ -106,7 +137,8 @@ class UtilityController extends Controller
         $data = $request->validate([
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|between:2000,2100',
-            'intent' => 'nullable|in:draft,confirm',
+            'intent' => 'nullable|in:draft,confirm,checkpoint',
+            'reading_date' => 'nullable|date',
             'readings' => 'required|array',
             'readings.*.selected' => 'nullable|boolean',
             'readings.*.room_id' => 'required|distinct|exists:rooms,id',
@@ -118,6 +150,7 @@ class UtilityController extends Controller
 
         $selectedReadings = collect($data['readings'])
             ->filter(fn ($reading) => (bool) ($reading['selected'] ?? false));
+        $isCheckpoint = ($data['intent'] ?? 'confirm') === 'checkpoint';
         $targetStatus = ($data['intent'] ?? 'confirm') === 'draft'
             ? UtilityReading::STATUS_DRAFT
             : UtilityReading::STATUS_CONFIRMED;
@@ -130,20 +163,21 @@ class UtilityController extends Controller
 
         $periodStart = Carbon::createFromDate($data['year'], $data['month'], 1)->startOfMonth();
         $periodEnd = $periodStart->copy()->endOfMonth();
-        $data['record_date'] = $periodEnd->toDateString();
-
-        if ($targetStatus === UtilityReading::STATUS_CONFIRMED) {
-            $this->ensureClosingDateReached(
-                (int) $data['month'],
-                (int) $data['year'],
-                'record_date',
-            );
+        $recordDate = $isCheckpoint
+            ? Carbon::parse($data['reading_date'] ?? now())->startOfDay()
+            : $periodEnd->copy()->startOfDay();
+        if ($isCheckpoint && ! $recordDate->betweenIncluded($periodStart, $periodEnd)) {
+            throw ValidationException::withMessages([
+                'reading_date' => "Ngày ghi mốc phải nằm trong tháng {$data['month']}/{$data['year']}.",
+            ]);
         }
+        $data['record_date'] = $recordDate->toDateString();
+
         $newImages = [];
         $replacedImages = [];
 
         try {
-            DB::transaction(function () use ($request, $data, $selectedReadings, $periodStart, $periodEnd, $targetStatus, &$newImages, &$replacedImages) {
+            DB::transaction(function () use ($request, $data, $selectedReadings, $periodStart, $periodEnd, $targetStatus, $isCheckpoint, &$newImages, &$replacedImages) {
                 foreach ($selectedReadings as $index => $readingData) {
                     $roomId = (int) $readingData['room_id'];
 
@@ -171,28 +205,65 @@ class UtilityController extends Controller
                         ->where(fn ($query) => $query->where('status', Contract::STATUS_EXPIRED)->orWhereDate('end_date', '>=', $periodStart))
                         ->latest('start_date')->firstOrFail();
 
-                    $reading = UtilityReading::query()
+                    $periodicReading = UtilityReading::query()
                         ->where('room_id', $roomId)
                         ->where(fn ($query) => $query->where('contract_id', $contract->id)
                             ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contract->start_date)))
                         ->where('month', $data['month'])
                         ->where('year', $data['year'])
                         ->where('reading_type', 'periodic')
-                        ->lockForUpdate()->first() ?? new UtilityReading([
+                        ->lockForUpdate()->first();
+
+                    if ($isCheckpoint && ($periodicReading?->isLocked() || (bool) $periodicReading?->invoice)) {
+                        throw ValidationException::withMessages([
+                            "readings.{$index}.room_id" => 'Không thể ghi thêm mốc vì kỳ này đã phát hành hóa đơn.',
+                        ]);
+                    }
+
+                    if ($isCheckpoint) {
+                        $latestCheckpoint = UtilityReading::query()
+                            ->where('contract_id', $contract->id)
+                            ->where('room_id', $roomId)
+                            ->where('month', $data['month'])
+                            ->where('year', $data['year'])
+                            ->where('reading_type', 'interim')
+                            ->latest('record_date')
+                            ->latest('id')
+                            ->lockForUpdate()
+                            ->first();
+                        if ($latestCheckpoint && $latestCheckpoint->record_date->gte($data['record_date'])) {
+                            throw ValidationException::withMessages([
+                                'reading_date' => 'Mốc mới phải sau mốc gừa kỳ gần nhất của phòng.',
+                            ]);
+                        }
+                        $reading = new UtilityReading([
+                            'room_id' => $roomId,
+                            'contract_id' => $contract->id,
+                            'month' => $data['month'],
+                            'year' => $data['year'],
+                            'reading_type' => 'interim',
+                            'lifecycle_event_key' => "utility-checkpoint:{$contract->id}:{$data['record_date']}",
+                        ]);
+                    } else {
+                        $reading = $periodicReading ?? new UtilityReading([
                             'room_id' => $roomId,
                             'contract_id' => $contract->id,
                             'month' => $data['month'],
                             'year' => $data['year'],
                             'reading_type' => 'periodic',
                         ]);
+                    }
 
-                    if ($reading->exists && ($reading->isLocked() || $reading->invoice()->exists())) {
+                    $previousStatus = $reading->exists ? $reading->status : null;
+                    $previousSnapshot = $reading->exists ? $this->readingSnapshot($reading) : null;
+
+                    if (! $isCheckpoint && $reading->exists && ($reading->isLocked() || $reading->invoice()->exists())) {
                         throw ValidationException::withMessages([
                             "readings.{$index}.room_id" => 'Không thể sửa chỉ số vì phòng này đã phát hành hóa đơn.',
                         ]);
                     }
 
-                    if ($reading->exists && $reading->isConfirmed()) {
+                    if (! $isCheckpoint && $reading->exists && $reading->isConfirmed()) {
                         throw ValidationException::withMessages([
                             "readings.{$index}.room_id" => 'Chỉ số đã được xác nhận. Hãy chuyển về bản nháp trước khi sửa.',
                         ]);
@@ -201,6 +272,7 @@ class UtilityController extends Controller
                     $previousReading = UtilityReading::where('room_id', $roomId)
                         ->where(fn ($query) => $query->where('contract_id', $contract->id)
                             ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contract->start_date)))
+                        ->when(! $isCheckpoint, fn ($query) => $query->where('reading_type', '!=', 'interim'))
                         ->where(function ($query) use ($data) {
                             $query->whereDate('record_date', '<', $data['record_date'])
                                 ->orWhere(fn ($sameDay) => $sameDay
@@ -215,7 +287,7 @@ class UtilityController extends Controller
                         ]);
                     }
 
-                    if ($targetStatus === UtilityReading::STATUS_CONFIRMED) {
+                    if (! $isCheckpoint && $targetStatus === UtilityReading::STATUS_CONFIRMED) {
                         $this->ensurePreviousPeriodIsClosed(
                             $roomId,
                             $contract,
@@ -234,9 +306,10 @@ class UtilityController extends Controller
                         ]);
                     }
 
-                    $nextReading = UtilityReading::where('room_id', $roomId)
+                    $nextReading = $isCheckpoint ? null : UtilityReading::where('room_id', $roomId)
                         ->where(fn ($query) => $query->where('contract_id', $contract->id)
                             ->orWhere(fn ($legacy) => $legacy->whereNull('contract_id')->whereDate('record_date', '>=', $contract->start_date)))
+                        ->where('reading_type', '!=', 'interim')
                         ->whereDate('record_date', '>', $data['record_date'])
                         ->orderBy('record_date')->orderBy('id')->lockForUpdate()->first();
 
@@ -253,7 +326,7 @@ class UtilityController extends Controller
                         'water_old' => $waterOld,
                         'water_new' => $readingData['water_new'],
                         'record_date' => $data['record_date'],
-                        'reading_type' => 'periodic',
+                        'reading_type' => $isCheckpoint ? 'interim' : 'periodic',
                         'status' => $targetStatus,
                     ];
 
@@ -269,6 +342,17 @@ class UtilityController extends Controller
                     }
 
                     $reading->fill($payload)->save();
+                    $this->recordHistory(
+                        $reading,
+                        $request->user()?->id,
+                        $reading->wasRecentlyCreated
+                            ? ($isCheckpoint
+                                ? 'checkpoint_recorded'
+                                : ($targetStatus === UtilityReading::STATUS_CONFIRMED ? 'created_and_confirmed' : 'draft_created'))
+                            : ($targetStatus === UtilityReading::STATUS_CONFIRMED ? 'confirmed' : 'draft_updated'),
+                        $previousStatus,
+                        $previousSnapshot,
+                    );
                 }
             });
         } catch (\Throwable $exception) {
@@ -279,9 +363,11 @@ class UtilityController extends Controller
         Storage::disk('local')->delete($replacedImages);
 
         $savedCount = $selectedReadings->count();
-        $message = $targetStatus === UtilityReading::STATUS_DRAFT
+        $message = $isCheckpoint
+            ? "Đã ghi mốc giữa kỳ cho {$savedCount} phòng."
+            : ($targetStatus === UtilityReading::STATUS_DRAFT
             ? "Đã lưu nháp chỉ số cho {$savedCount} phòng."
-            : "Đã xác nhận chỉ số cho {$savedCount} phòng.";
+            : "Đã xác nhận chỉ số cho {$savedCount} phòng.");
 
         return redirect()
             ->route('admin.utilities.index', ['month' => $data['month'], 'year' => $data['year']])
@@ -290,7 +376,9 @@ class UtilityController extends Controller
 
     public function confirm(UtilityReading $reading)
     {
-        DB::transaction(function () use ($reading): void {
+        $actorId = request()->user()?->id;
+
+        DB::transaction(function () use ($reading, $actorId): void {
             $reading = UtilityReading::query()->lockForUpdate()->findOrFail($reading->id);
             $this->ensurePeriodicReadingCanChangeStatus($reading);
 
@@ -302,11 +390,6 @@ class UtilityController extends Controller
                 return;
             }
 
-            $this->ensureClosingDateReached(
-                (int) $reading->month,
-                (int) $reading->year,
-                'reading',
-            );
             $contract = $this->contractForReading($reading);
             $this->ensurePreviousPeriodIsClosed(
                 (int) $reading->room_id,
@@ -316,10 +399,18 @@ class UtilityController extends Controller
                 'reading',
             );
 
+            $previousSnapshot = $this->readingSnapshot($reading);
             $reading->update([
                 'record_date' => Carbon::createFromDate($reading->year, $reading->month, 1)->endOfMonth()->toDateString(),
                 'status' => UtilityReading::STATUS_CONFIRMED,
             ]);
+            $this->recordHistory(
+                $reading,
+                $actorId,
+                'confirmed',
+                UtilityReading::STATUS_DRAFT,
+                $previousSnapshot,
+            );
         });
 
         return back()->with('success', 'Đã xác nhận chỉ số điện nước.');
@@ -327,7 +418,9 @@ class UtilityController extends Controller
 
     public function reopen(UtilityReading $reading)
     {
-        DB::transaction(function () use ($reading): void {
+        $actorId = request()->user()?->id;
+
+        DB::transaction(function () use ($reading, $actorId): void {
             $reading = UtilityReading::query()->lockForUpdate()->findOrFail($reading->id);
             $this->ensurePeriodicReadingCanChangeStatus($reading);
 
@@ -347,7 +440,15 @@ class UtilityController extends Controller
                 ]);
             }
 
+            $previousSnapshot = $this->readingSnapshot($reading);
             $reading->update(['status' => UtilityReading::STATUS_DRAFT]);
+            $this->recordHistory(
+                $reading,
+                $actorId,
+                'reopened',
+                UtilityReading::STATUS_CONFIRMED,
+                $previousSnapshot,
+            );
         });
 
         return back()->with('success', 'Đã chuyển chỉ số về bản nháp để chỉnh sửa.');
@@ -357,18 +458,6 @@ class UtilityController extends Controller
     {
         if ($reading->reading_type !== 'periodic') {
             throw ValidationException::withMessages(['reading' => 'Chỉ số bàn giao hoặc trả phòng không dùng quy trình chốt số hằng tháng.']);
-        }
-    }
-
-    private function ensureClosingDateReached(int $month, int $year, string $errorKey): void
-    {
-        $closingDate = Carbon::createFromDate($year, $month, 1)->endOfMonth()->startOfDay();
-
-        if (today()->lt($closingDate)) {
-            throw ValidationException::withMessages([
-                $errorKey => 'Chỉ được xác nhận chỉ số kỳ này từ ngày chốt '.
-                    $closingDate->format('d/m/Y').'. Trước ngày này chỉ có thể lưu nháp.',
-            ]);
         }
     }
 
@@ -449,6 +538,43 @@ class UtilityController extends Controller
             ->firstOrFail();
     }
 
+    private function recordHistory(
+        UtilityReading $reading,
+        ?int $actorId,
+        string $action,
+        ?string $fromStatus,
+        ?array $previousSnapshot = null,
+    ): void {
+        $reading->histories()->create([
+            'actor_id' => $actorId,
+            'action' => $action,
+            'from_status' => $fromStatus,
+            'to_status' => $reading->status,
+            'snapshot' => $this->readingSnapshot($reading),
+            'previous_snapshot' => $previousSnapshot,
+            'performed_at' => now(),
+        ]);
+    }
+
+    private function readingSnapshot(UtilityReading $reading): array
+    {
+        return [
+            'room_id' => $reading->room_id,
+            'contract_id' => $reading->contract_id,
+            'month' => $reading->month,
+            'year' => $reading->year,
+            'reading_type' => $reading->reading_type,
+            'record_date' => $reading->record_date?->toDateString(),
+            'electricity_old' => $reading->electricity_old,
+            'electricity_new' => $reading->electricity_new,
+            'water_old' => $reading->water_old,
+            'water_new' => $reading->water_new,
+            'electricity_image' => $reading->electricity_image,
+            'water_image' => $reading->water_image,
+            'status' => $reading->status,
+        ];
+    }
+
     // Màn hình 2: KIỂM TRA CHỈ SỐ
     public function index(Request $request)
     {
@@ -462,7 +588,6 @@ class UtilityController extends Controller
         // Lấy ngày cuối cùng của kỳ chốt số
         $billingPeriodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $billingPeriodEnd = $billingPeriodStart->copy()->endOfMonth();
-        $canConfirm = ! today()->lt($billingPeriodEnd->copy()->startOfDay());
 
         // 1. Lấy danh sách các phòng đang cho thuê có hợp đồng active tính đến kỳ chốt
         // Đồng bộ logic với hàm create để Tiến độ chốt số (A/B phòng) chính xác tuyệt đối
@@ -482,10 +607,19 @@ class UtilityController extends Controller
                     ->where(fn ($query) => $query->where('status', Contract::STATUS_EXPIRED)->orWhereDate('end_date', '>=', $billingPeriodStart))
                     ->orderByDesc('start_date');
             },
+            'histories.actor',
         ])
             ->where('month', $month)
             ->where('year', $year)
             ->where('reading_type', 'periodic')
+            ->get();
+
+        $checkpoints = UtilityReading::with(['room', 'contract', 'histories.actor'])
+            ->where('month', $month)
+            ->where('year', $year)
+            ->where('reading_type', 'interim')
+            ->orderByDesc('record_date')
+            ->orderByDesc('id')
             ->get();
 
         // 3. Tính toán các con số thống kê
@@ -529,8 +663,7 @@ class UtilityController extends Controller
             'totalUtilityFee',
             'setting',
             'readings',
-            'billingPeriodEnd',
-            'canConfirm'
+            'checkpoints',
         ));
     }
 

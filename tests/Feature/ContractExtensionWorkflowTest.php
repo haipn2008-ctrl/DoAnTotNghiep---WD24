@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Contract;
 use App\Models\ContractExtensionRequest;
+use App\Models\ContractAppendix;
 use App\Models\ContractLifecycleAlert;
 use App\Models\Invoice;
 use App\Models\Role;
@@ -11,6 +12,8 @@ use App\Models\Room;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ContractExtensionWorkflowTest extends TestCase
@@ -19,6 +22,7 @@ class ContractExtensionWorkflowTest extends TestCase
 
     public function test_expired_occupancy_can_request_and_receive_a_safe_extension(): void
     {
+        Storage::fake('local');
         [$admin, $client, $contract] = $this->fixture(Contract::STATUS_EXPIRED);
         $oldEndDate = $contract->end_date->copy();
         $requestedEndDate = today()->addMonths(2)->toDateString();
@@ -37,30 +41,54 @@ class ContractExtensionWorkflowTest extends TestCase
             'resolved_at' => null,
         ]);
 
-        $this->actingAs($admin)
-            ->post(route('admin.extension-requests.approve', $extensionRequest), [
-                'approved_end_date' => $requestedEndDate,
-                'proposed_monthly_rent' => 2700000,
-            ])
-            ->assertSessionHasErrors('extension_agreed');
-
-        $this->assertSame(ContractExtensionRequest::STATUS_PENDING, $extensionRequest->fresh()->status);
-        $this->assertSame($oldEndDate->toDateString(), $contract->fresh()->end_date->toDateString());
-
-        $this->post(route('admin.extension-requests.approve', $extensionRequest), [
+        $this->actingAs($admin)->post(route('admin.extension-requests.approve', $extensionRequest), [
             'approved_end_date' => $requestedEndDate,
             'proposed_monthly_rent' => 2700000,
-            'extension_agreed' => '1',
         ])
-            ->assertSessionHas('success');
+            ->assertRedirect()->assertSessionHasNoErrors()->assertSessionHas('success');
+
+        $appendix = ContractAppendix::query()->sole();
+        $this->assertSame(ContractAppendix::TYPE_EXTENSION, $appendix->appendix_type);
+        $this->assertSame(ContractAppendix::STATUS_PENDING_SIGNATURE, $appendix->status);
+        $this->assertTrue($appendix->hasValidContentHash());
+        $this->assertSame(ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION, $extensionRequest->fresh()->status);
+        $this->assertSame($oldEndDate->toDateString(), $contract->fresh()->end_date->toDateString());
+        $this->get(route('admin.contract-appendices.print', $appendix))
+            ->assertOk()->assertSee('Gia hạn thời hạn hợp đồng')->assertSee('In phụ lục');
+
+        $this->actingAs($client)->get(route('client.extension-requests.index'))
+            ->assertOk()->assertSee('Chờ ký phụ lục')->assertSee($appendix->code)
+            ->assertDontSee('Xác nhận phụ lục và gia hạn');
+        $this->post(route('client.extension-requests.accept', $extensionRequest))
+            ->assertSessionHasErrors('request');
+        $this->assertSame($oldEndDate->toDateString(), $contract->fresh()->end_date->toDateString());
+
+        $this->actingAs($admin)->post(route('admin.contract-appendices.complete-extension', $appendix), [])
+            ->assertSessionHasErrors('signed_evidence');
+        $this->post(route('admin.contract-appendices.complete-extension', $appendix), [
+            'signed_evidence' => [UploadedFile::fake()->image('phu-luc-da-ky-1.jpg')],
+        ])->assertSessionHasNoErrors()->assertSessionHas('success');
 
         $contract->refresh();
         $extensionRequest->refresh();
+        $appendix->refresh();
         $this->assertSame(Contract::STATUS_ACTIVE, $contract->status);
         $this->assertSame($requestedEndDate, $contract->end_date->toDateString());
         $this->assertSame($oldEndDate->copy()->addDay()->toDateString(), $contract->extend_start_date->toDateString());
         $this->assertSame('2700000.00', $contract->monthly_rent);
         $this->assertSame(ContractExtensionRequest::STATUS_APPROVED, $extensionRequest->status);
+        $this->assertSame(ContractAppendix::STATUS_ACCEPTED, $appendix->status);
+        $this->assertCount(1, $appendix->signed_evidence_paths);
+        Storage::disk('local')->assertExists($appendix->signed_evidence_paths[0]);
+        $this->get(route('admin.contract-appendices.show', $appendix))
+            ->assertOk()->assertSee('data-contract-print', false)->assertSee('data-image-modal', false)
+            ->assertDontSee('target="_blank"', false);
+        $this->get(route('admin.contract-appendices.signed-evidence', [$appendix, 0]))->assertOk();
+        $this->actingAs($client)->get(route('client.contract-appendices.show', $appendix))
+            ->assertOk()->assertSee('Ảnh bản cứng đã ký')->assertSee('Xem trang 1')
+            ->assertSee('data-image-modal', false)->assertDontSee('target="_blank"', false);
+        $this->get(route('client.contract-appendices.signed-evidence', [$appendix, 0]))
+            ->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->assertNotNull($extensionRequest->processed_at);
         $this->assertNotNull(ContractLifecycleAlert::query()->where('type', 'extension_request')->sole()->resolved_at);
         $this->assertContains('extension_request_approved', $client->notifications()->get()->pluck('data.type')->all());
@@ -135,13 +163,15 @@ class ContractExtensionWorkflowTest extends TestCase
         ])->assertSessionHas('success');
 
         $extensionRequest = ContractExtensionRequest::query()->sole();
-        $this->assertSame(ContractExtensionRequest::STATUS_APPROVED, $extensionRequest->status);
+        $this->assertSame(ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION, $extensionRequest->status);
         $this->assertSame(500000.0, (float) $extensionRequest->terms_snapshot['outstanding_at_offer']);
-        $this->assertSame($payload['new_end_date'], $contract->fresh()->end_date->toDateString());
+        $this->assertNotSame($payload['new_end_date'], $contract->fresh()->end_date->toDateString());
+        $this->assertSame(ContractAppendix::STATUS_PENDING_SIGNATURE, $extensionRequest->appendix->status);
     }
 
     public function test_admin_can_finalize_a_legacy_extension_that_was_waiting_for_tenant_confirmation(): void
     {
+        Storage::fake('local');
         [$admin, , $contract] = $this->fixture();
         $newEndDate = $contract->end_date->copy()->addYear()->toDateString();
         $legacyRequest = ContractExtensionRequest::create([
@@ -159,11 +189,18 @@ class ContractExtensionWorkflowTest extends TestCase
             'proposed_monthly_rent' => 2800000,
             'reason' => 'Hai bên đã thống nhất trực tiếp.',
             'confirm_extend' => '1',
-        ])->assertRedirect(route('admin.contracts.show', $contract))
+        ])->assertRedirect()
             ->assertSessionHasNoErrors()
             ->assertSessionHas('success');
 
         $this->assertDatabaseCount('contract_extension_requests', 1);
+        $this->assertSame(ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION, $legacyRequest->fresh()->status);
+        $this->assertNotSame($newEndDate, $contract->fresh()->end_date->toDateString());
+        $appendix = $legacyRequest->appendix()->sole();
+        $this->post(route('admin.contract-appendices.complete-extension', $appendix), [
+            'signed_evidence' => [UploadedFile::fake()->image('legacy-extension-signed.jpg')],
+        ])->assertSessionHasNoErrors()->assertSessionHas('success');
+
         $this->assertSame(ContractExtensionRequest::STATUS_APPROVED, $legacyRequest->fresh()->status);
         $this->assertSame($newEndDate, $contract->fresh()->end_date->toDateString());
         $this->assertSame('2800000.00', $contract->fresh()->monthly_rent);

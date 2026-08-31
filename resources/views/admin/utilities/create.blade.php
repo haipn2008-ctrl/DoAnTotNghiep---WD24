@@ -8,10 +8,11 @@
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
                 <p class="text-sm font-medium text-slate-500">Ghi đồng hồ theo từng phòng, lưu đến đâu chắc đến đó</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Kỳ tháng {{ $month }}/{{ $year }}</h2>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">{{ $mode === 'checkpoint' ? 'Ghi mốc giữa kỳ' : 'Chốt kỳ' }} tháng {{ $month }}/{{ $year }}</h2>
             </div>
 
             <form action="{{ route('admin.utilities.create') }}" method="GET" class="flex items-end gap-2">
+                <input type="hidden" name="mode" value="{{ $mode }}">
                 <div>
                     <label for="month" class="mb-1 block text-xs font-semibold text-slate-600">Tháng</label>
                     <select id="month" name="month" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
@@ -28,10 +29,17 @@
                         @endfor
                     </select>
                 </div>
-                <div>
-                    <p class="mb-1 text-xs font-semibold text-slate-600">Ngày chốt</p>
-                    <div class="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-100 px-3 text-sm font-semibold text-slate-700">{{ \Carbon\Carbon::parse($recordDate)->format('d/m/Y') }}</div>
-                </div>
+                @if($mode === 'checkpoint')
+                    <div>
+                        <label for="reading_date" class="mb-1 block text-xs font-semibold text-slate-600">Ngày ghi mốc</label>
+                        <input id="reading_date" type="date" name="reading_date" min="{{ \Carbon\Carbon::createFromDate($year, $month, 1)->toDateString() }}" max="{{ $recordDate }}" value="{{ $checkpointDate->toDateString() }}" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700">
+                    </div>
+                @else
+                    <div>
+                        <p class="mb-1 text-xs font-semibold text-slate-600">Ngày đối soát</p>
+                        <div class="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-100 px-3 text-sm font-semibold text-slate-700">{{ \Carbon\Carbon::parse($recordDate)->format('d/m/Y') }}</div>
+                    </div>
+                @endif
                 <button class="h-10 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white">Xem kỳ</button>
             </form>
         </div>
@@ -47,16 +55,24 @@
             </div>
         @endif
 
-        @unless ($canConfirm)
-            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Kỳ này chỉ được xác nhận từ ngày <strong>{{ \Carbon\Carbon::parse($recordDate)->format('d/m/Y') }}</strong>. Hiện tại bạn vẫn có thể nhập và lưu nháp chỉ số.
+        @if($mode === 'checkpoint')
+            <div class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                Mốc giữa kỳ dùng để đối soát khi số người ở thay đổi. Có thể ghi nhiều mốc trong tháng; mốc này không khóa kỳ và không được dùng trực tiếp để phát hành hóa đơn.
             </div>
-        @endunless
+        @else
+            <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+                Bạn có thể chốt kỳ {{ $month }}/{{ $year }} bất kỳ lúc nào. Hệ thống vẫn ghi nhận ngày đối soát cuối kỳ là <strong>{{ \Carbon\Carbon::parse($recordDate)->format('d/m/Y') }}</strong> và lưu lịch sử người thao tác.
+            </div>
+        @endif
 
         <div class="grid gap-3 sm:grid-cols-3">
             <div class="rounded-lg border border-slate-200 bg-white p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">Tiến độ</p>
-                <p class="mt-1 text-2xl font-bold text-slate-950"><span id="savedCount">{{ $savedCount }}</span>/{{ count($readings) }} phòng</p>
+                <p class="text-xs font-semibold uppercase text-slate-500">{{ $mode === 'checkpoint' ? 'Ngày ghi mốc' : 'Tiến độ' }}</p>
+                @if($mode === 'checkpoint')
+                    <p class="mt-1 text-2xl font-bold text-sky-700">{{ $checkpointDate->format('d/m/Y') }}</p>
+                @else
+                    <p class="mt-1 text-2xl font-bold text-slate-950"><span id="savedCount">{{ $savedCount }}</span>/{{ count($readings) }} phòng</p>
+                @endif
             </div>
             <div class="rounded-lg border border-slate-200 bg-white p-4 sm:col-span-2">
                 <p class="text-sm font-semibold text-slate-800">Cách nhập nhanh</p>
@@ -68,6 +84,9 @@
             @csrf
             <input type="hidden" name="month" value="{{ $month }}">
             <input type="hidden" name="year" value="{{ $year }}">
+            @if($mode === 'checkpoint')
+                <input type="hidden" name="reading_date" value="{{ $checkpointDate->toDateString() }}">
+            @endif
 
             <div class="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex flex-1 flex-col gap-2 sm:flex-row">
@@ -85,6 +104,9 @@
                 </div>
                 <a href="{{ route('admin.utilities.index', ['month' => $month, 'year' => $year]) }}" class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     <i class="bx bx-list-check text-lg"></i>Xem bảng đã chốt
+                </a>
+                <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year, 'mode' => $mode === 'checkpoint' ? 'final' : 'checkpoint']) }}" class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-700 hover:bg-sky-100">
+                    <i class="bx bx-transfer-alt text-lg"></i>{{ $mode === 'checkpoint' ? 'Quay lại chốt kỳ' : 'Ghi mốc giữa kỳ' }}
                 </a>
             </div>
 
@@ -118,7 +140,7 @@
                                             <p class="font-bold text-slate-950">{{ $item['room_name'] }}</p>
                                             <p class="mt-0.5 text-xs text-slate-500">Thuê từ {{ $item['start_date'] }}</p>
                                             @if ($item['last_period'])
-                                                <p class="text-xs text-slate-400">Số cũ từ {{ $item['last_period'] }}</p>
+                                            <p class="text-xs text-slate-400">Số cũ từ {{ $item['last_period'] }}</p>
                                             @endif
                                         </div>
                                     </div>
@@ -169,12 +191,18 @@
                 <div class="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-sm text-slate-500"><strong id="selectedCount" class="text-slate-900">0</strong> phòng sẽ được lưu. Phòng chưa chọn sẽ được giữ nguyên.</p>
                     <div class="flex flex-col gap-2 sm:flex-row">
-                        <button id="draftButton" type="submit" name="intent" value="draft" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400" disabled>
-                            <i class="bx bx-save text-lg"></i>Lưu nháp
-                        </button>
-                        <button id="confirmButton" type="submit" name="intent" value="confirm" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>
-                            <i class="bx bx-check-circle text-lg"></i>{{ $canConfirm ? 'Lưu và xác nhận' : 'Chưa đến ngày chốt' }}
-                        </button>
+                        @if($mode === 'checkpoint')
+                            <button id="confirmButton" type="submit" name="intent" value="checkpoint" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-sky-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>
+                                <i class="bx bx-map-pin text-lg"></i>Ghi mốc giữa kỳ
+                            </button>
+                        @else
+                            <button id="draftButton" type="submit" name="intent" value="draft" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400" disabled>
+                                <i class="bx bx-save text-lg"></i>Lưu nháp
+                            </button>
+                            <button id="confirmButton" type="submit" name="intent" value="confirm" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>
+                                <i class="bx bx-check-circle text-lg"></i>Lưu và xác nhận
+                            </button>
+                        @endif
                     </div>
                 </div>
             @endif
@@ -192,7 +220,27 @@
             const selectedCount = document.getElementById('selectedCount');
             const draftButton = document.getElementById('draftButton');
             const confirmButton = document.getElementById('confirmButton');
-            const canConfirmPeriod = @json($canConfirm);
+            const monthInput = document.getElementById('month');
+            const yearInput = document.getElementById('year');
+            const readingDateInput = document.getElementById('reading_date');
+
+            const syncCheckpointDate = () => {
+                if (!readingDateInput) return;
+                const year = Number(yearInput.value);
+                const month = Number(monthInput.value);
+                const paddedMonth = String(month).padStart(2, '0');
+                const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+                const minimum = `${year}-${paddedMonth}-01`;
+                const maximum = `${year}-${paddedMonth}-${String(lastDay).padStart(2, '0')}`;
+                readingDateInput.min = minimum;
+                readingDateInput.max = maximum;
+                if (!readingDateInput.value || readingDateInput.value < minimum || readingDateInput.value > maximum) {
+                    readingDateInput.value = maximum;
+                }
+            };
+
+            monthInput?.addEventListener('change', syncCheckpointDate);
+            yearInput?.addEventListener('change', syncCheckpointDate);
 
             const updateRow = (row, autoSelect = false) => {
                 const selector = row.querySelector('.row-selector');
@@ -228,8 +276,8 @@
             const refreshSelection = () => {
                 const checked = document.querySelectorAll('.row-selector:checked').length;
                 selectedCount.textContent = checked;
-                draftButton.disabled = checked === 0;
-                confirmButton.disabled = checked === 0 || !canConfirmPeriod;
+                if (draftButton) draftButton.disabled = checked === 0;
+                confirmButton.disabled = checked === 0;
             };
 
             const applyFilter = () => {

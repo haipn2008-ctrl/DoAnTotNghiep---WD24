@@ -53,6 +53,11 @@ class ContractExtensionRequest extends Model
         return $this->belongsTo(Contract::class);
     }
 
+    public function appendix()
+    {
+        return $this->hasOne(ContractAppendix::class, 'extension_request_id');
+    }
+
     public function isPending(): bool
     {
         return $this->status === self::STATUS_PENDING;

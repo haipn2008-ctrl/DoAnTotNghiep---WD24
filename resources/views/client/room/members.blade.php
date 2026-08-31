@@ -11,7 +11,7 @@
                 <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-950">Thành viên trong phòng</h2>
                 <p class="mt-2 text-sm text-slate-500">
                     @if($room)
-                        Những người đã được xác nhận đang ở phòng {{ $room->room_code }}.
+                        Theo dõi người đang ở và lịch sử vào, rời phòng {{ $room->room_code }}.
                     @else
                         Danh sách sẽ xuất hiện khi tài khoản có phòng đang thuê.
                     @endif
@@ -91,6 +91,45 @@
                     @endforelse
                 </div>
             </section>
+
+            @if($formerMembers->isNotEmpty())
+                <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+                        <div class="flex items-center gap-3">
+                            <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-200 text-slate-600">
+                                <i class="bx bx-history text-2xl"></i>
+                            </span>
+                            <div>
+                                <h3 class="font-semibold text-slate-950">Lịch sử cư trú</h3>
+                                <p class="mt-0.5 text-xs text-slate-500">Chỉ hiển thị thời gian vào và rời phòng để đối chiếu.</p>
+                            </div>
+                        </div>
+                        <span class="rounded-full bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700">
+                            {{ $formerMembers->count() }} người đã rời phòng
+                        </span>
+                    </div>
+
+                    <div class="divide-y divide-slate-100">
+                        @foreach($formerMembers as $member)
+                            <div class="flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center sm:px-6">
+                                <div class="flex items-center gap-3">
+                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 font-bold uppercase text-slate-600">
+                                        {{ mb_substr(trim($member->full_name), 0, 1) }}
+                                    </span>
+                                    <div>
+                                        <p class="font-semibold text-slate-900">{{ $member->full_name }}</p>
+                                        <p class="mt-0.5 text-xs text-slate-500">{{ $member->role_label }}</p>
+                                    </div>
+                                </div>
+                                <div class="grid gap-1 text-sm text-slate-600 sm:text-right">
+                                    <span>Vào ở: <strong class="text-slate-800">{{ $member->actual_move_in_at?->format('d/m/Y H:i') ?? 'Chưa ghi nhận' }}</strong></span>
+                                    <span>Rời phòng: <strong class="text-slate-800">{{ $member->actual_move_out_at?->format('d/m/Y H:i') ?? 'Chưa ghi nhận' }}</strong></span>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </section>
+            @endif
         @else
             <div class="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm">
                 <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">

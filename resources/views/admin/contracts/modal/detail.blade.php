@@ -1062,7 +1062,7 @@ Thông tin hợp đồng
                     <div class="border rounded bg-light p-4 text-center">
                         <i class="bi bi-file-earmark-pdf display-1 text-danger"></i>
                         <div class="mt-3">
-                            <a href="{{ $contractImageUrl }}" target="_blank" rel="noopener" class="btn btn-outline-primary">
+                            <a href="{{ $contractImageUrl }}" data-image-modal data-media-type="pdf" data-image-title="File hợp đồng {{ $contract->contract_code }}" class="btn btn-outline-primary">
                                 Xem file hợp đồng
                             </a>
                         </div>

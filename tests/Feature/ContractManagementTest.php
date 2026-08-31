@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\ContractExtensionRequest;
+use App\Models\ContractAppendix;
 use App\Models\ContractLifecycleAlert;
 use App\Models\ContractStatusHistory;
 use App\Models\ContractTemplate;
@@ -1257,6 +1258,85 @@ class ContractManagementTest extends TestCase
         $this->assertDatabaseCount('contracts', 0);
     }
 
+    public function test_contract_draft_can_select_an_available_existing_person_as_a_co_tenant(): void
+    {
+        $room = $this->room('DRAFT-EXISTING-MEMBER');
+        $representative = $this->tenant('draft-existing-representative');
+        $available = $this->tenant('draft-existing-co-tenant');
+        Storage::disk('local')->put('tenant-documents/draft-member-front.jpg', 'front');
+        Storage::disk('local')->put('tenant-documents/draft-member-back.jpg', 'back');
+        $available->document()->create([
+            'cccd' => $available->cccd,
+            'cccd_issue_date' => $available->cccd_issue_date,
+            'cccd_issue_place' => $available->cccd_issue_place,
+            'cccd_front_image' => 'tenant-documents/draft-member-front.jpg',
+            'cccd_back_image' => 'tenant-documents/draft-member-back.jpg',
+        ]);
+        $tenantCount = Tenant::query()->count();
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.contracts.create'))
+            ->assertOk()
+            ->assertSee('Chọn khách có sẵn')
+            ->assertSee('Thêm khách có sẵn')
+            ->assertSee('Thêm khách mới')
+            ->assertSee($available->full_name.' — CCCD '.$available->cccd)
+            ->assertSee('value="'.$available->id.'"', false)
+            ->assertSee('data-existing-member-tenant', false)
+            ->assertViewHas('availableMemberTenants', fn ($tenants) => $tenants->contains('id', $available->id));
+
+        $this->post(route('admin.contracts.store'), $this->payload($room, $representative, [
+            'members' => [[
+                'tenant_id' => $available->id,
+                'full_name' => 'Tên bị sửa trên request',
+                'gender' => 'male',
+                'identity_number' => '079999999999',
+            ]],
+        ]))->assertSessionHasNoErrors();
+
+        $contract = Contract::query()->sole();
+        $member = $contract->members()
+            ->where('role', ContractTenant::ROLE_TENANT)
+            ->sole();
+        $this->assertSame($available->id, $member->tenant_id);
+        $this->assertSame($available->full_name, $member->full_name);
+        $this->assertSame($available->cccd, $member->identity_number);
+        $this->assertSame('tenant-documents/draft-member-front.jpg', $member->identity_front_path);
+        $this->assertSame('tenant-documents/draft-member-back.jpg', $member->identity_back_path);
+        $this->assertDatabaseCount('tenants', $tenantCount);
+
+        $this->get(route('admin.contracts.edit', $contract))
+            ->assertOk()
+            ->assertSee('name="members[0][tenant_id]" value="'.$available->id.'"', false)
+            ->assertSee($available->full_name);
+    }
+
+    public function test_contract_draft_rejects_forged_selection_of_a_person_in_another_contract(): void
+    {
+        $occupiedContract = $this->active([], 'draft-member-already-renting');
+        $alreadyRenting = $occupiedContract->tenant;
+        $room = $this->room('DRAFT-MEMBER-TARGET');
+        $representative = $this->tenant('draft-member-target-representative');
+        $contractCount = Contract::query()->count();
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.contracts.create'))
+            ->assertOk()
+            ->assertViewHas('availableMemberTenants', fn ($tenants) => ! $tenants->contains('id', $alreadyRenting->id));
+
+        $this->post(route('admin.contracts.store'), $this->payload($room, $representative, [
+            'members' => [[
+                'tenant_id' => $alreadyRenting->id,
+                'full_name' => $alreadyRenting->full_name,
+                'gender' => $alreadyRenting->gender,
+                'identity_number' => $alreadyRenting->cccd,
+            ]],
+        ]))->assertSessionHasErrors('members');
+
+        $this->assertDatabaseCount('contracts', $contractCount);
+        $this->assertDatabaseMissing('contracts', ['room_id' => $room->id]);
+    }
+
     public function test_client_declares_member_and_admin_review_is_required_before_check_in(): void
     {
         $contract = $this->awaiting();
@@ -1449,6 +1529,153 @@ class ContractManagementTest extends TestCase
         $this->assertDatabaseHas('contract_tenant_histories', [
             'contract_tenant_id' => $member->id, 'action' => 'tenant_move_out',
         ]);
+    }
+
+    public function test_admin_can_add_a_new_person_directly_to_an_active_room_and_is_sent_to_record_checkpoint(): void
+    {
+        $contract = $this->active([], 'admin-add-new-member');
+        $payload = [
+            'source' => 'new',
+            'actual_move_in_at' => '2026-08-11 10:00:00',
+            'full_name' => 'Người mới do admin thêm',
+            'identity_number' => '079123450001',
+            ...$this->memberIdentityImages('admin-add-new-member'),
+        ];
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.contracts.show', $contract))
+            ->assertOk()
+            ->assertSee(route('admin.contract-tenants.create', $contract))
+            ->assertSee('Thêm người vào phòng');
+
+        $this->post(route('admin.contract-tenants.store', $contract), $payload)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('admin.utilities.create', [
+                'mode' => 'checkpoint',
+                'month' => 8,
+                'year' => 2026,
+                'reading_date' => '2026-08-11',
+                'room_id' => $contract->room_id,
+            ]));
+
+        $member = ContractTenant::query()->where('full_name', 'Người mới do admin thêm')->sole();
+        $this->assertSame(ContractTenant::STATUS_CHECKED_IN, $member->status);
+        $this->assertSame('2026-08-11 10:00:00', $member->actual_move_in_at->format('Y-m-d H:i:s'));
+        $this->assertNull($member->tenant->user_id);
+        $this->assertNotNull($member->identity_front_path);
+        $this->assertNotNull($member->identity_back_path);
+        Storage::disk('local')->assertExists($member->identity_front_path);
+        Storage::disk('local')->assertExists($member->identity_back_path);
+        $this->assertSame(2, $contract->fresh()->number_of_people);
+        $this->assertSame(2, $contract->room->fresh()->current_people);
+        $this->assertDatabaseHas('contract_tenant_histories', [
+            'contract_tenant_id' => $member->id,
+            'to_status' => ContractTenant::STATUS_CHECKED_IN,
+            'action' => 'admin_add_checked_in_member',
+            'performed_by' => $this->admin->id,
+        ]);
+
+        $this->get(route('admin.utilities.create', [
+            'mode' => 'checkpoint', 'month' => 8, 'year' => 2026,
+            'reading_date' => '2026-08-11', 'room_id' => $contract->room_id,
+        ]))->assertOk()
+            ->assertSee('Ghi mốc giữa kỳ')
+            ->assertSee($contract->room->room_code);
+    }
+
+    public function test_admin_can_reuse_an_available_tenant_profile_without_creating_a_duplicate(): void
+    {
+        $contract = $this->active([], 'admin-add-existing-target');
+        $available = $this->tenant('admin-add-existing-person');
+        Storage::disk('local')->put('tenant-documents/existing-front.jpg', 'front');
+        Storage::disk('local')->put('tenant-documents/existing-back.jpg', 'back');
+        $available->document()->create([
+            'cccd' => $available->cccd,
+            'cccd_issue_date' => $available->cccd_issue_date,
+            'cccd_issue_place' => $available->cccd_issue_place,
+            'cccd_front_image' => 'tenant-documents/existing-front.jpg',
+            'cccd_back_image' => 'tenant-documents/existing-back.jpg',
+        ]);
+        $tenantCount = Tenant::query()->count();
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.contract-tenants.create', $contract))
+            ->assertOk()
+            ->assertSee($available->full_name)
+            ->assertSee('data-has-documents="1"', false);
+
+        $this->post(route('admin.contract-tenants.store', $contract), [
+            'source' => 'existing',
+            'tenant_id' => $available->id,
+            'actual_move_in_at' => '2026-08-11 10:00:00',
+        ])->assertSessionHasNoErrors();
+
+        $member = ContractTenant::query()
+            ->where('contract_id', $contract->id)
+            ->where('tenant_id', $available->id)
+            ->sole();
+        $this->assertSame(ContractTenant::STATUS_CHECKED_IN, $member->status);
+        $this->assertSame('tenant-documents/existing-front.jpg', $member->identity_front_path);
+        $this->assertSame('tenant-documents/existing-back.jpg', $member->identity_back_path);
+        $this->assertDatabaseCount('tenants', $tenantCount);
+    }
+
+    public function test_admin_cannot_forge_addition_of_a_person_who_is_already_in_another_room(): void
+    {
+        $target = $this->active([], 'admin-add-transfer-target');
+        $otherContract = $this->active([], 'admin-add-transfer-source');
+        $alreadyRenting = $otherContract->tenant;
+        $beforeTargetCount = $target->currentMembers()->count();
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.contract-tenants.create', $target))
+            ->assertOk()
+            ->assertDontSee($alreadyRenting->full_name);
+
+        $this->post(route('admin.contract-tenants.store', $target), [
+            'source' => 'existing',
+            'tenant_id' => $alreadyRenting->id,
+            'actual_move_in_at' => '2026-08-11 10:00:00',
+            'identity_front' => UploadedFile::fake()->image('forged-front.jpg'),
+            'identity_back' => UploadedFile::fake()->image('forged-back.jpg'),
+        ])->assertSessionHasErrors('tenant_id');
+
+        $this->assertSame($beforeTargetCount, $target->currentMembers()->count());
+        $this->assertDatabaseMissing('contract_tenants', [
+            'contract_id' => $target->id,
+            'tenant_id' => $alreadyRenting->id,
+        ]);
+    }
+
+    public function test_admin_new_person_flow_rejects_duplicate_profile_and_full_room_without_partial_writes(): void
+    {
+        $contract = $this->active([], 'admin-add-validation');
+        $existing = $this->tenant('admin-add-duplicate');
+        $tenantCount = Tenant::query()->count();
+        $memberCount = ContractTenant::query()->count();
+
+        $this->actingAs($this->admin)->post(route('admin.contract-tenants.store', $contract), [
+            'source' => 'new',
+            'actual_move_in_at' => now(),
+            'full_name' => $existing->full_name,
+            'identity_number' => $existing->cccd,
+            ...$this->memberIdentityImages('admin-add-duplicate-form'),
+        ])->assertSessionHasErrors('identity_number');
+
+        $this->assertDatabaseCount('tenants', $tenantCount);
+        $this->assertDatabaseCount('contract_tenants', $memberCount);
+
+        $contract->room->forceFill(['max_people' => 1])->save();
+        $this->get(route('admin.contract-tenants.create', $contract))->assertStatus(409);
+        $this->post(route('admin.contract-tenants.store', $contract), [
+            'source' => 'existing',
+            'tenant_id' => $existing->id,
+            'actual_move_in_at' => now(),
+            'identity_front' => UploadedFile::fake()->image('full-front.jpg'),
+            'identity_back' => UploadedFile::fake()->image('full-back.jpg'),
+        ])->assertSessionHasErrors('members');
+
+        $this->assertDatabaseCount('contract_tenants', $memberCount);
     }
 
     public function test_admin_can_restore_an_individual_move_out_entered_by_mistake(): void
@@ -1906,7 +2133,13 @@ class ContractManagementTest extends TestCase
             'new_end_date' => '2027-08-10', 'reason' => 'Hai bên đồng ý gia hạn.', 'confirm_extend' => '1',
         ])->assertSessionHasNoErrors();
         $extensionRequest = $old->extensionRequests()->latest('id')->firstOrFail();
-        $this->assertSame(ContractExtensionRequest::STATUS_APPROVED, $extensionRequest->status);
+        $this->assertSame(ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION, $extensionRequest->status);
+        $this->assertSame(Contract::STATUS_EXPIRED, $old->fresh()->status);
+        $appendix = ContractAppendix::query()->where('extension_request_id', $extensionRequest->id)->sole();
+        $this->post(route('admin.contract-appendices.complete-extension', $appendix), [
+            'signed_evidence' => [UploadedFile::fake()->image('signed-extension.jpg')],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(ContractExtensionRequest::STATUS_APPROVED, $extensionRequest->fresh()->status);
         $this->assertSame(Contract::STATUS_ACTIVE, $old->fresh()->status);
 
         $future = $this->awaiting(['room_id' => $room->id, 'start_date' => '2027-08-11', 'scheduled_move_in_date' => '2027-08-11', 'reservation_expires_at' => '2027-08-12 18:00:00', 'end_date' => '2028-08-11'], 'future-tenant');

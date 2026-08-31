@@ -91,7 +91,7 @@ class InvoiceManagementTest extends TestCase
         $this->assertDatabaseCount('invoice_details', 0);
     }
 
-    public function test_invoice_can_be_previewed_but_not_issued_before_scheduled_date(): void
+    public function test_invoice_can_be_issued_before_scheduled_date_and_records_actual_issuer(): void
     {
         Carbon::setTestNow('2026-08-31 12:00:00');
 
@@ -101,9 +101,9 @@ class InvoiceManagementTest extends TestCase
             $this->actingAs($this->admin)
                 ->get('/admin/invoices/generate?month=9&year=2026')
                 ->assertOk()
-                ->assertSee('chỉ được phát hành từ ngày')
                 ->assertSee('05/09/2026')
-                ->assertSee('Chưa đến ngày phát hành');
+                ->assertSee('Xác nhận và phát hành')
+                ->assertDontSee('Chưa đến ngày phát hành');
 
             $this->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=9&year=2026")
                 ->assertOk()
@@ -112,22 +112,24 @@ class InvoiceManagementTest extends TestCase
             $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", [
                 'month' => 9,
                 'year' => 2026,
-            ])->assertUnprocessable()
-                ->assertJsonPath('message', 'Hóa đơn kỳ này chỉ được phát hành từ ngày 05/09/2026.');
+            ])->assertOk();
 
-            $this->assertDatabaseMissing('invoices', [
+            $this->assertDatabaseHas('invoices', [
                 'contract_id' => $contract->id,
                 'month' => 9,
                 'year' => 2026,
+                'invoice_date' => '2026-09-05 00:00:00',
+                'issued_at' => '2026-08-31 12:00:00',
+                'issued_by' => $this->admin->id,
             ]);
-            $this->assertTrue($reading->fresh()->isConfirmed());
-
-            Carbon::setTestNow('2026-09-05 00:00:00');
-            $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", [
-                'month' => 9,
-                'year' => 2026,
-            ])->assertOk();
             $this->assertTrue($reading->fresh()->isLocked());
+
+            $invoice = Invoice::query()->where('contract_id', $contract->id)->firstOrFail();
+            $this->get(route('admin.invoices.show', $invoice))
+                ->assertOk()
+                ->assertSee('Phát hành thực tế')
+                ->assertSee('12:00 31/08/2026')
+                ->assertSee($this->admin->name);
         } finally {
             Carbon::setTestNow();
         }
@@ -470,7 +472,7 @@ class InvoiceManagementTest extends TestCase
         $this->assertTrue($reading->fresh()->isLocked());
     }
 
-    public function test_adjustments_preserve_original_total_and_recalculate_payable_status(): void
+    public function test_legacy_direct_adjustment_is_rejected_to_preserve_the_original_invoice(): void
     {
         [$contract] = $this->fixture('ADJUSTMENT');
         $invoice = $this->issue($contract);
@@ -480,32 +482,89 @@ class InvoiceManagementTest extends TestCase
             'direction' => 'debit',
             'amount' => 100000,
             'reason' => 'Bổ sung khoản phí dịch vụ còn thiếu.',
-        ])->assertSessionHas('success');
+        ])->assertSessionHasErrors('direction');
 
         $invoice->refresh();
         $this->assertSame($originalTotal, $invoice->total_amount);
-        $this->assertSame('100000.00', $invoice->adjustment_amount);
-        $this->assertSame(3420000.0, $invoice->payable_amount);
+        $this->assertSame('0.00', $invoice->adjustment_amount);
+        $this->assertDatabaseCount('invoice_adjustments', 0);
+    }
 
-        $this->post(route('admin.invoices.payments.store', $invoice), [
-            'amount_paid' => 3000000,
-            'payment_date' => '2026-07-10',
-            'payment_method' => Payment::METHOD_CASH,
-        ])->assertSessionHas('success');
-        $this->assertSame(Invoice::STATUS_PARTIAL, $invoice->fresh()->status);
+    public function test_admin_creates_an_independent_supplemental_invoice_from_a_rental_invoice(): void
+    {
+        [$contract, , $tenant] = $this->fixture('SUPPLEMENTAL');
+        $source = $this->issue($contract);
+        $sourceTotal = $source->total_amount;
 
-        $this->post(route('admin.invoices.adjustments.store', $invoice), [
-            'direction' => 'credit',
+        $this->actingAs($this->admin)->post(route('admin.invoices.supplemental.store', $source), [
+            'category' => 'damage',
+            'amount' => 250000,
+            'description' => 'Bồi thường khóa cửa bị hỏng sau khi đối chiếu.',
+        ])->assertSessionHasNoErrors()->assertSessionHas('success');
+
+        $supplemental = Invoice::query()
+            ->where('invoice_type', Invoice::TYPE_SUPPLEMENTAL)
+            ->sole();
+        $this->assertSame($source->id, $supplemental->parent_invoice_id);
+        $this->assertSame($source->contract_id, $supplemental->contract_id);
+        $this->assertSame('250000.00', $supplemental->total_amount);
+        $this->assertSame($sourceTotal, $source->fresh()->total_amount);
+        $this->assertSame(Invoice::STATUS_UNPAID, $source->fresh()->status);
+        $this->assertStringStartsWith('SUP-', $supplemental->invoice_code);
+        $this->assertDatabaseHas('invoice_details', [
+            'invoice_id' => $supplemental->id,
+            'type' => 'supplemental_damage',
+            'amount' => 250000,
+        ]);
+
+        $this->get(route('admin.invoices.show', $source))
+            ->assertOk()->assertSee($supplemental->invoice_code)->assertSee('Hóa đơn bổ sung');
+        $this->actingAs($tenant->user)->get(route('client.invoices.show', $supplemental))
+            ->assertOk()->assertSee('Hóa đơn bổ sung')->assertSee($source->invoice_code);
+    }
+
+    public function test_credit_is_applied_to_the_next_month_invoice_and_restored_if_that_invoice_is_cancelled(): void
+    {
+        [$contract, $room] = $this->fixture('NEXT-CREDIT');
+        $source = $this->issue($contract);
+
+        $this->actingAs($this->admin)->post(route('admin.invoices.next-invoice-credits.store', $source), [
             'amount' => 420000,
-            'reason' => 'Giảm khoản thu sau khi đối soát lại dịch vụ.',
-        ])->assertSessionHas('success');
+            'reason' => 'Giảm tiền sau khi đối chiếu lại chi phí dịch vụ tháng trước.',
+        ])->assertSessionHasNoErrors()->assertSessionHas('success');
 
-        $invoice->refresh();
-        $this->assertSame('-320000.00', $invoice->adjustment_amount);
-        $this->assertSame(3000000.0, $invoice->payable_amount);
-        $this->assertSame(Invoice::STATUS_PAID, $invoice->status);
-        $this->assertDatabaseCount('invoice_adjustments', 2);
-        $this->assertNotNull($invoice->adjustments()->first()->adjustment_code);
+        $credit = DB::table('contract_credits')->sole();
+        $this->assertEquals(420000, $credit->remaining_amount);
+        $this->assertSame('0.00', $source->fresh()->adjustment_amount);
+        $this->assertSame(3320000.0, $source->fresh()->payable_amount);
+
+        $reading = $this->reading($room, 7);
+        $reading->update(['contract_id' => $contract->id, 'reading_type' => 'periodic']);
+        $preview = app(InvoiceGenerator::class)->preview($contract, 8, 2026);
+        $this->assertSame(420000.0, $preview['credit_amount']);
+        $this->assertSame(2900000.0, $preview['total_amount']);
+        $this->assertSame('contract_credit', collect($preview['lines'])->last()['type']);
+
+        $nextInvoice = $this->issue($contract, 8);
+        $this->assertSame(2900000.0, $nextInvoice->payable_amount);
+        $this->assertDatabaseHas('contract_credits', [
+            'id' => $credit->id,
+            'remaining_amount' => 0,
+        ]);
+        $this->assertDatabaseHas('contract_credit_applications', [
+            'contract_credit_id' => $credit->id,
+            'invoice_id' => $nextInvoice->id,
+            'amount' => 420000,
+        ]);
+
+        $this->post(route('admin.invoices.cancel', $nextInvoice), [
+            'cancellation_reason' => 'Hủy hóa đơn để kiểm tra hoàn lại khoản giảm.',
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('contract_credits', [
+            'id' => $credit->id,
+            'remaining_amount' => 420000,
+        ]);
+        $this->assertDatabaseMissing('contract_credit_applications', ['invoice_id' => $nextInvoice->id]);
     }
 
     public function test_debt_aging_starts_after_due_date_and_uses_confirmed_buckets(): void

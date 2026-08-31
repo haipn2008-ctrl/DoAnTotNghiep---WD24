@@ -72,6 +72,11 @@ class UtilityReading extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    public function histories()
+    {
+        return $this->hasMany(UtilityReadingHistory::class)->orderBy('performed_at')->orderBy('id');
+    }
+
     public function isDraft(): bool
     {
         return $this->status === self::STATUS_DRAFT;
