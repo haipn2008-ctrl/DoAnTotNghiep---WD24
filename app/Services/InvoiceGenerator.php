@@ -140,7 +140,7 @@ class InvoiceGenerator
         $serviceLines = [
             // Internet là phí cố định theo phòng, thu một lần mỗi tháng và không phụ thuộc số người.
             ['internet', "Phí internet tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->internet_fee ?? 0), 1, 4],
-            ['service', "Phí dịch vụ tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->service_fee ?? 0), 1, 5],
+            ['service', "Phí vệ sinh tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->service_fee ?? 0), 1, 5],
         ];
 
         foreach ($serviceLines as [$type, $name, $unitPrice, $quantity, $sortOrder]) {
