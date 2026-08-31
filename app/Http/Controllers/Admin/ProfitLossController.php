@@ -19,10 +19,14 @@ class ProfitLossController extends Controller
         $filters = $request->validate([
             'year' => 'nullable|integer|between:2000,2100',
             'month' => 'nullable|integer|between:1,12',
+            'gov_electricity_unit_price' => 'nullable|numeric|min:0',
+            'gov_water_unit_price' => 'nullable|numeric|min:0',
         ]);
 
         $selectedYear = (int) ($filters['year'] ?? $currentYear);
         $selectedMonth = isset($filters['month']) ? (int) $filters['month'] : null;
+        $selectedUtilityMonth = $selectedMonth ?: (int) now()->month;
+        $selectedUtilityYear = $selectedYear;
 
         // 1. Tổng quan Doanh thu (Thu) vs Chi phí (Chi)
         $revenueQuery = Payment::success()->whereYear('payment_date', $selectedYear);
@@ -38,7 +42,24 @@ class ProfitLossController extends Controller
         $netProfit = $totalRevenue - $totalExpenses;
         $profitMargin = $totalRevenue > 0 ? round(($netProfit / $totalRevenue) * 100, 1) : 0;
 
-        // 2. Đối soát Điện - Nước (Thu từ khách vs Nộp nhà nước)
+        $revenueDetails = (clone $revenueQuery)
+            ->with(['invoice:id,invoice_code,room_id', 'invoice.room:id,room_code'])
+            ->orderByDesc('payment_date')
+            ->orderByDesc('id')
+            ->take(12)
+            ->get(['id', 'invoice_id', 'transaction_code', 'amount_paid', 'payment_date']);
+        $revenueDetailsCount = (clone $revenueQuery)->count();
+
+        $expenseDetails = (clone $expenseQuery)
+            ->with('room:id,room_code')
+            ->orderByDesc('expense_date')
+            ->orderByDesc('id')
+            ->take(12)
+            ->get(['id', 'expense_code', 'title', 'category', 'amount', 'expense_date', 'room_id']);
+        $expenseDetailsCount = (clone $expenseQuery)->count();
+        $expenseCategoryLabels = Expense::categories();
+
+        // 2. Đối soát Điện - Nước (Thu từ khách vs Đơn giá NN dự kiến vs Đã đóng thực tế)
         $invoiceUtilityQuery = Invoice::query()
             ->whereYear('invoice_date', $selectedYear)
             ->where('status', '!=', Invoice::STATUS_CANCELLED);
@@ -55,11 +76,38 @@ class ProfitLossController extends Controller
         $elecInvoiced = (float) ($utilityInvoiced->elec_invoiced ?? 0);
         $waterInvoiced = (float) ($utilityInvoiced->water_invoiced ?? 0);
 
+        $utilityUsageSummary = Invoice::query()
+            ->join('utility_readings', 'utility_readings.id', '=', 'invoices.utility_reading_id')
+            ->whereYear('invoices.invoice_date', $selectedUtilityYear)
+            ->whereMonth('invoices.invoice_date', $selectedUtilityMonth)
+            ->where('invoices.status', '!=', Invoice::STATUS_CANCELLED)
+            ->selectRaw('COALESCE(SUM(utility_readings.electricity_new - utility_readings.electricity_old), 0) as electricity_usage, COALESCE(SUM(utility_readings.water_new - utility_readings.water_old), 0) as water_usage')
+            ->first();
+
+        $totalElectricityUsage = max(0, (float) ($utilityUsageSummary->electricity_usage ?? 0));
+        $totalWaterUsage = max(0, (float) ($utilityUsageSummary->water_usage ?? 0));
+
         $elecPaidGov = (float) (clone $expenseQuery)->where('category', Expense::CATEGORY_ELECTRICITY)->sum('amount');
         $waterPaidGov = (float) (clone $expenseQuery)->where('category', Expense::CATEGORY_WATER)->sum('amount');
 
+        $suggestedGovElectricityUnitPrice = $totalElectricityUsage > 0
+            ? round($elecPaidGov / $totalElectricityUsage, 2)
+            : 0;
+        $suggestedGovWaterUnitPrice = $totalWaterUsage > 0
+            ? round($waterPaidGov / $totalWaterUsage, 2)
+            : 0;
+
+        $govElectricityUnitPrice = (float) ($filters['gov_electricity_unit_price'] ?? $suggestedGovElectricityUnitPrice);
+        $govWaterUnitPrice = (float) ($filters['gov_water_unit_price'] ?? $suggestedGovWaterUnitPrice);
+
+        $elecGovEstimated = $totalElectricityUsage * $govElectricityUnitPrice;
+        $waterGovEstimated = $totalWaterUsage * $govWaterUnitPrice;
+
         $elecDiff = $elecInvoiced - $elecPaidGov;
         $waterDiff = $waterInvoiced - $waterPaidGov;
+
+        $elecGovBalance = $elecGovEstimated - $elecPaidGov;
+        $waterGovBalance = $waterGovEstimated - $waterPaidGov;
 
         // 3. Biểu đồ 12 tháng trong năm được chọn
         $monthlyRevenueData = [];
@@ -146,17 +194,34 @@ class ProfitLossController extends Controller
         return view('admin.overview.profit-loss', compact(
             'selectedYear',
             'selectedMonth',
+            'selectedUtilityMonth',
+            'selectedUtilityYear',
             'years',
             'totalRevenue',
             'totalExpenses',
             'netProfit',
             'profitMargin',
+            'revenueDetails',
+            'revenueDetailsCount',
+            'expenseDetails',
+            'expenseDetailsCount',
+            'expenseCategoryLabels',
             'elecInvoiced',
+            'totalElectricityUsage',
+            'govElectricityUnitPrice',
+            'suggestedGovElectricityUnitPrice',
+            'elecGovEstimated',
             'elecPaidGov',
             'elecDiff',
+            'elecGovBalance',
             'waterInvoiced',
+            'totalWaterUsage',
+            'govWaterUnitPrice',
+            'suggestedGovWaterUnitPrice',
+            'waterGovEstimated',
             'waterPaidGov',
             'waterDiff',
+            'waterGovBalance',
             'monthsLabels',
             'monthlyRevenueData',
             'monthlyExpenseData',

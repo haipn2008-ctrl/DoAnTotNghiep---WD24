@@ -28,6 +28,9 @@
                     @endforeach
                 </select>
 
+                <input type="hidden" name="gov_electricity_unit_price" value="{{ $govElectricityUnitPrice }}">
+                <input type="hidden" name="gov_water_unit_price" value="{{ $govWaterUnitPrice }}">
+
                 <a href="{{ route('admin.expenses.create') }}" class="inline-flex h-10 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
                     <i class="bx bx-plus text-base"></i> Lập phiếu chi
                 </a>
@@ -38,24 +41,116 @@
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div class="rounded-lg border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm">
                 <div class="flex items-center justify-between">
-                    <p class="text-sm font-semibold text-emerald-800">Doanh thu thực thu</p>
+                    <div class="flex items-center gap-2">
+                        <p class="text-sm font-semibold text-emerald-800">Doanh thu thực thu</p>
+                        <button
+                            type="button"
+                            onclick="toggleKpiDetail('kpiRevenueDetail', this)"
+                            aria-controls="kpiRevenueDetail"
+                            aria-expanded="false"
+                            class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-300 bg-white text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                            title="Xem chi tiết"
+                        >V</button>
+                    </div>
                     <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
                         <i class="bx bx-trending-up text-xl"></i>
                     </span>
                 </div>
                 <p class="mt-3 text-2xl font-extrabold text-emerald-700">+{{ number_format($totalRevenue, 0, ',', '.') }}đ</p>
                 <p class="mt-1 text-xs text-emerald-600">Tiền khách đã thanh toán thành công</p>
+
+                <div id="kpiRevenueDetail" class="mt-3 hidden rounded-lg border border-emerald-200 bg-white/80 p-3">
+                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Chi tiết các khoản thu</p>
+                    @if($revenueDetails->isNotEmpty())
+                        <div class="max-h-56 overflow-auto">
+                            <table class="min-w-full text-xs text-slate-700">
+                                <thead class="text-left text-[11px] uppercase text-slate-500">
+                                    <tr>
+                                        <th class="pb-1">Ngày</th>
+                                        <th class="pb-1">Giao dịch / Hóa đơn</th>
+                                        <th class="pb-1">Phòng</th>
+                                        <th class="pb-1 text-right">Số tiền</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @foreach($revenueDetails as $payment)
+                                        <tr>
+                                            <td class="py-1.5">{{ $payment->payment_date?->format('d/m/Y') ?? '-' }}</td>
+                                            <td class="py-1.5">
+                                                {{ $payment->transaction_code ?: 'GD-' . $payment->id }}
+                                                <span class="text-slate-500">/ {{ $payment->invoice->invoice_code ?? '-' }}</span>
+                                            </td>
+                                            <td class="py-1.5">{{ $payment->invoice?->room?->room_code ?? '-' }}</td>
+                                            <td class="py-1.5 text-right font-semibold text-emerald-700">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        @if($revenueDetailsCount > $revenueDetails->count())
+                            <p class="mt-2 text-[11px] text-emerald-700">Còn {{ number_format($revenueDetailsCount - $revenueDetails->count(), 0, ',', '.') }} khoản thu khác trong kỳ.</p>
+                        @endif
+                    @else
+                        <p class="text-xs text-slate-500">Không có khoản thu nào trong kỳ đã chọn.</p>
+                    @endif
+                </div>
             </div>
 
             <div class="rounded-lg border border-rose-200 bg-rose-50/70 p-5 shadow-sm">
                 <div class="flex items-center justify-between">
-                    <p class="text-sm font-semibold text-rose-800">Tổng chi phí vận hành</p>
+                    <div class="flex items-center gap-2">
+                        <p class="text-sm font-semibold text-rose-800">Tổng chi phí vận hành</p>
+                        <button
+                            type="button"
+                            onclick="toggleKpiDetail('kpiExpenseDetail', this)"
+                            aria-controls="kpiExpenseDetail"
+                            aria-expanded="false"
+                            class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-rose-300 bg-white text-xs font-bold text-rose-700 hover:bg-rose-100"
+                            title="Xem chi tiết"
+                        >V</button>
+                    </div>
                     <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 text-rose-700">
                         <i class="bx bx-trending-down text-xl"></i>
                     </span>
                 </div>
                 <p class="mt-3 text-2xl font-extrabold text-rose-700">-{{ number_format($totalExpenses, 0, ',', '.') }}đ</p>
                 <p class="mt-1 text-xs text-rose-600">Bao gồm điện nước NN, sửa chữa, định kỳ</p>
+
+                <div id="kpiExpenseDetail" class="mt-3 hidden rounded-lg border border-rose-200 bg-white/80 p-3">
+                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-700">Chi tiết các khoản chi</p>
+                    @if($expenseDetails->isNotEmpty())
+                        <div class="max-h-56 overflow-auto">
+                            <table class="min-w-full text-xs text-slate-700">
+                                <thead class="text-left text-[11px] uppercase text-slate-500">
+                                    <tr>
+                                        <th class="pb-1">Ngày</th>
+                                        <th class="pb-1">Mã phiếu / Khoản chi</th>
+                                        <th class="pb-1">Danh mục</th>
+                                        <th class="pb-1 text-right">Số tiền</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @foreach($expenseDetails as $expense)
+                                        <tr>
+                                            <td class="py-1.5">{{ $expense->expense_date?->format('d/m/Y') ?? '-' }}</td>
+                                            <td class="py-1.5">
+                                                {{ $expense->expense_code ?: 'EXP-' . $expense->id }}
+                                                <span class="text-slate-500">/ {{ $expense->title }}</span>
+                                            </td>
+                                            <td class="py-1.5">{{ $expenseCategoryLabels[$expense->category] ?? 'Chi phí khác' }}</td>
+                                            <td class="py-1.5 text-right font-semibold text-rose-700">{{ number_format($expense->amount, 0, ',', '.') }}đ</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        @if($expenseDetailsCount > $expenseDetails->count())
+                            <p class="mt-2 text-[11px] text-rose-700">Còn {{ number_format($expenseDetailsCount - $expenseDetails->count(), 0, ',', '.') }} khoản chi khác trong kỳ.</p>
+                        @endif
+                    @else
+                        <p class="text-xs text-slate-500">Không có khoản chi nào trong kỳ đã chọn.</p>
+                    @endif
+                </div>
             </div>
 
             <div class="rounded-lg border {{ $netProfit >= 0 ? 'border-indigo-200 bg-indigo-50/70' : 'border-red-200 bg-red-50/70' }} p-5 shadow-sm">
@@ -90,9 +185,44 @@
             <div class="flex flex-col justify-between gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-center">
                 <div>
                     <h3 class="font-bold text-slate-950">Đối soát Chênh lệch Điện & Nước</h3>
-                    <p class="text-xs text-slate-500">So sánh tiền thu từ khách theo hóa đơn phòng với tiền nộp nhà nước theo phiếu chi</p>
+                    <p class="text-xs text-slate-500">Đơn giá nhà nước = tổng kWh/m3 cả tòa trong tháng nhân với đơn giá admin nhập</p>
                 </div>
+                <form method="GET" action="{{ route('admin.profit-loss.index') }}" class="grid gap-2 sm:grid-cols-2">
+                    <input type="hidden" name="month" value="{{ $selectedMonth }}">
+                    <input type="hidden" name="year" value="{{ $selectedYear }}">
+                    <label class="text-xs text-slate-500">
+                        Đơn giá điện nhà nước (VND/kWh)
+                        <input
+                            type="number"
+                            name="gov_electricity_unit_price"
+                            min="0"
+                            step="0.01"
+                            value="{{ $govElectricityUnitPrice }}"
+                            class="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                        >
+                    </label>
+                    <label class="text-xs text-slate-500">
+                        Đơn giá nước nhà nước (VND/m3)
+                        <input
+                            type="number"
+                            name="gov_water_unit_price"
+                            min="0"
+                            step="0.01"
+                            value="{{ $govWaterUnitPrice }}"
+                            class="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+                        >
+                    </label>
+                    <button type="submit" class="sm:col-span-2 h-10 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">
+                        Cập nhật đối soát điện nước
+                    </button>
+                </form>
             </div>
+
+            <p class="mt-3 text-xs text-slate-500">
+                Kỳ đối soát sản lượng: tháng {{ $selectedUtilityMonth }}/{{ $selectedUtilityYear }}.
+                Gợi ý đơn giá theo dữ liệu đã đóng: điện {{ number_format($suggestedGovElectricityUnitPrice, 2, ',', '.') }} đ/kWh,
+                nước {{ number_format($suggestedGovWaterUnitPrice, 2, ',', '.') }} đ/m3.
+            </p>
 
             <div class="mt-4 grid gap-4 md:grid-cols-2">
                 {{-- Cột Điện --}}
@@ -114,8 +244,16 @@
                             <span class="font-semibold text-slate-900">{{ number_format($elecInvoiced, 0, ',', '.') }}đ</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-600">Nộp nhà nước (EVN):</span>
-                            <span class="font-semibold text-rose-600">-{{ number_format($elecPaidGov, 0, ',', '.') }}đ</span>
+                            <span class="text-slate-600">Đơn giá NN: {{ number_format($totalElectricityUsage, 0, ',', '.') }} kWh x {{ number_format($govElectricityUnitPrice, 2, ',', '.') }}đ</span>
+                            <span class="font-semibold text-slate-900">{{ number_format($elecGovEstimated, 0, ',', '.') }}đ</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-600">Đã đóng (phiếu chi EVN):</span>
+                            <span class="font-semibold text-rose-600">{{ number_format($elecPaidGov, 0, ',', '.') }}đ</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-600">Còn thiếu/dư so với đơn giá NN:</span>
+                            <span class="font-semibold {{ $elecGovBalance > 0 ? 'text-amber-700' : 'text-emerald-700' }}"> {{ number_format(abs($elecGovBalance), 0, ',', '.') }}đ</span>
                         </div>
                     </div>
                 </div>
@@ -139,8 +277,16 @@
                             <span class="font-semibold text-slate-900">{{ number_format($waterInvoiced, 0, ',', '.') }}đ</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-600">Nộp nhà nước (Cấp nước):</span>
-                            <span class="font-semibold text-rose-600">-{{ number_format($waterPaidGov, 0, ',', '.') }}đ</span>
+                            <span class="text-slate-600">Đơn giá NN: {{ number_format($totalWaterUsage, 0, ',', '.') }} m3 x {{ number_format($govWaterUnitPrice, 2, ',', '.') }}đ</span>
+                            <span class="font-semibold text-slate-900">{{ number_format($waterGovEstimated, 0, ',', '.') }}đ</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-600">Đã đóng (phiếu chi cấp nước):</span>
+                            <span class="font-semibold text-rose-600">{{ number_format($waterPaidGov, 0, ',', '.') }}đ</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-600">Còn thiếu/dư so với đơn giá NN:</span>
+                            <span class="font-semibold {{ $waterGovBalance > 0 ? 'text-amber-700' : 'text-emerald-700' }}"> {{ number_format(abs($waterGovBalance), 0, ',', '.') }}đ</span>
                         </div>
                     </div>
                 </div>
@@ -234,6 +380,18 @@
 @push('scripts')
     <script>
         const formatMoney = val => Number(val).toLocaleString('vi-VN') + 'đ';
+
+        function toggleKpiDetail(panelId, btn) {
+            const panel = document.getElementById(panelId);
+            if (!panel) {
+                return;
+            }
+
+            panel.classList.toggle('hidden');
+            const isExpanded = !panel.classList.contains('hidden');
+            btn.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+            btn.textContent = isExpanded ? '^' : 'V';
+        }
 
         // Biểu đồ Thu - Chi 12 tháng
         new ApexCharts(document.querySelector("#cashFlowChart"), {

@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Room;
 use App\Models\SupportRequest;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class OverviewController extends Controller
@@ -31,7 +32,7 @@ class OverviewController extends Controller
         // Tỷ lệ thu hồi và tổng tiền công nợ
         $totalBilledOut = $this->totalBilled();
         $totalRevenue = Payment::success()->sum('amount_paid');
-        $totalReceivable = max(0, $totalBilledOut - $totalRevenue);
+        $totalReceivable = $this->totalReceivable();
         $collectionRate = $totalBilledOut > 0
             ? min(100, round(($totalRevenue / $totalBilledOut) * 100, 1))
             : 0;
@@ -80,6 +81,7 @@ class OverviewController extends Controller
         return view('admin.overview.index', compact(
             'totalRooms',
             'activeContracts',
+            'totalRevenue',
             'monthRevenue',
             'totalReceivable',
             'collectionRate',
@@ -102,12 +104,18 @@ class OverviewController extends Controller
         ));
     }
 
-    public function revenueChart()
+    public function revenueChart(Request $request)
     {
-        $currentYear = now()->year;
-        $reportDate = now()->subMonth();
-        $reportYear = $reportDate->year;
-        $reportMonth = $reportDate->month;
+        $defaultDate = now()->copy()->subMonthNoOverflow();
+        $filters = $request->validate([
+            'month' => ['nullable', 'integer', 'between:1,12'],
+            'year' => ['nullable', 'integer', 'between:2000,2100'],
+        ]);
+
+        $reportYear = (int) ($filters['year'] ?? $defaultDate->year);
+        $reportMonth = (int) ($filters['month'] ?? $defaultDate->month);
+        $reportDate = now()->copy()->startOfMonth()->setYear($reportYear)->setMonth($reportMonth);
+        $currentYear = $reportDate->year;
 
         // Last month invoice breakdown
         $monthSummary = Invoice::whereYear('invoice_date', $reportYear)
@@ -136,7 +144,13 @@ class OverviewController extends Controller
         $totalBilled = $this->totalBilled();
         $totalRevenue = (float) Payment::success()->sum('amount_paid');
 
-        $totalReceivable = max(0, $totalBilled - $totalRevenue);
+        $totalReceivable = $this->totalReceivable();
+        $monthlyReceivable = (float) Invoice::query()
+            ->whereYear('invoice_date', $reportYear)
+            ->whereMonth('invoice_date', $reportMonth)
+            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+            ->get()
+            ->sum(fn (Invoice $invoice) => (float) $invoice->remaining_amount);
 
         $totalRooms = Room::where('status', '!=', Room::STATUS_RETIRED)->count();
         $occupiedRooms = Room::occupied()->count();
@@ -174,14 +188,23 @@ class OverviewController extends Controller
             ['label' => 'Internet',    'value' => (float) ($monthSummary->internet_fee ?? 0), 'color' => 'bg-emerald-500'],
             ['label' => 'Dịch vụ',     'value' => (float) ($monthSummary->service_fee ?? 0), 'color' => 'bg-violet-500'],
         ];
-        $remaining = max(0, $totalInvoiced - $actualRevenue);
+        $remaining = $monthlyReceivable;
+
+        $years = Invoice::query()->pluck('invoice_date')
+            ->map(fn ($d) => \Carbon\Carbon::parse($d)->year)
+            ->merge(Payment::query()->pluck('payment_date')->map(fn ($d) => \Carbon\Carbon::parse($d)->year))
+            ->push(now()->year)
+            ->unique()
+            ->sortDesc()
+            ->values();
 
         return view('admin.overview.revenue-chart', compact(
             'currentYear', 'reportYear', 'reportMonth',
             'fixedRevenue', 'actualRevenue', 'totalInvoiced', 'remaining',
-            'totalReceivable', 'fillRate', 'totalRooms', 'occupiedRooms',
+            'totalReceivable', 'monthlyReceivable', 'fillRate', 'totalRooms', 'occupiedRooms',
             'monthSummary', 'breakdownItems',
-            'categoryLabels', 'catRoom', 'catElec', 'catWater', 'catInternet', 'catService'
+            'categoryLabels', 'catRoom', 'catElec', 'catWater', 'catInternet', 'catService',
+            'years'
         ));
     }
 
@@ -191,7 +214,7 @@ class OverviewController extends Controller
 
         $totalRevenue = Payment::success()->sum('amount_paid');
         $totalBilled = $this->totalBilled();
-        $totalReceivable = max(0, $totalBilled - $totalRevenue);
+        $totalReceivable = $this->totalReceivable();
 
         $collectionRate = $totalBilled > 0
             ? min(100, round(($totalRevenue / $totalBilled) * 100, 1))
@@ -221,6 +244,14 @@ class OverviewController extends Controller
         return (float) Invoice::query()
             ->where('status', '!=', Invoice::STATUS_CANCELLED)
             ->sum(DB::raw('total_amount + adjustment_amount'));
+    }
+
+    private function totalReceivable(): float
+    {
+        return (float) Invoice::query()
+            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+            ->get()
+            ->sum(fn (Invoice $invoice) => (float) $invoice->remaining_amount);
     }
 
     public function roomStats()
