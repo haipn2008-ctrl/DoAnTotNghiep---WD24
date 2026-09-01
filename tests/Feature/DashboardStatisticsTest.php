@@ -115,8 +115,8 @@ class DashboardStatisticsTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/overview')
             ->assertSuccessful()
-            // totalReceivable bao gồm cả unpaid + partial + paid (không có payment nào ở test này)
-            ->assertViewHas('totalReceivable', 6000.0)
+            // totalReceivable chỉ tính hóa đơn còn phải thu: unpaid + partial
+            ->assertViewHas('totalReceivable', 3000.0)
             ->assertSee('Tổng tiền công nợ');
     }
 

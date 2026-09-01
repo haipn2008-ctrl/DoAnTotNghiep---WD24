@@ -65,4 +65,10 @@ class SupportRequest extends Model
     {
         return filled($this->attachment) && Storage::disk('local')->exists($this->attachment);
     }
+
+    public function expenses()
+    {
+        return $this->hasMany(Expense::class);
+    }
 }
+

@@ -82,6 +82,7 @@
 
         @endforeach
 
+
         @if($isRentalActive)
         <div>
             <button type="button"

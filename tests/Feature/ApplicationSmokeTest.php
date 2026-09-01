@@ -27,6 +27,8 @@ class ApplicationSmokeTest extends TestCase
         $pages = [
             '/admin',
             '/admin/overview',
+            '/admin/profit-loss',
+            '/admin/overview/profit-loss',
             '/admin/overview/revenue-chart',
             '/admin/overview/revenue-stats',
             '/admin/overview/room-stats',

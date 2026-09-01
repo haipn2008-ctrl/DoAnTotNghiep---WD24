@@ -215,4 +215,8 @@ class Room extends Model
             default => 'Không xác định',
         };
     }
+    public function expenses()
+    {
+        return $this->hasMany(Expense::class);
+    }
 }

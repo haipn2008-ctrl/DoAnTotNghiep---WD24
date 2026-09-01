@@ -5,9 +5,25 @@
 
 @section('content')
     <div class="space-y-6">
-        <div>
-            <p class="text-sm font-medium text-slate-500">Tháng {{ $reportMonth }}/{{ $reportYear }}</p>
-            <h2 class="mt-1 text-2xl font-bold text-slate-950">Phân tích doanh thu</h2>
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+                <p class="text-sm font-medium text-slate-500">Tháng {{ $reportMonth }}/{{ $reportYear }}</p>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Phân tích doanh thu</h2>
+            </div>
+
+            <form method="GET" action="{{ route('admin.overview.revenue-chart') }}" class="flex flex-wrap items-center gap-2">
+                <select name="month" onchange="this.form.submit()" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none">
+                    @for($m = 1; $m <= 12; $m++)
+                        <option value="{{ $m }}" @selected((int)$reportMonth === (int)$m)>Tháng {{ $m }}</option>
+                    @endfor
+                </select>
+
+                <select name="year" onchange="this.form.submit()" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none">
+                    @foreach($years as $y)
+                        <option value="{{ $y }}" @selected((int)$reportYear === (int)$y)>Năm {{ $y }}</option>
+                    @endforeach
+                </select>
+            </form>
         </div>
 
         {{-- KPI Cards --}}
@@ -29,9 +45,9 @@
             </div>
             <div class="rounded-lg border border-red-100 bg-red-50 p-5 shadow-sm">
                 <p class="text-sm text-red-600">Công nợ phải thu</p>
-                <p class="mt-3 text-2xl font-bold text-red-700">{{ number_format($totalReceivable, 0, ',', '.') }}đ</p>
-                <p class="mt-1 text-xs text-red-400">Tổng tất cả hóa đơn chưa thu</p>
-                <a href="{{ route('admin.invoices.index', ['status' => 'unpaid']) }}" class="mt-1 inline-block text-xs font-medium text-red-600 hover:underline">Xem →</a>
+                <p class="mt-3 text-2xl font-bold text-red-700">{{ number_format($monthlyReceivable, 0, ',', '.') }}đ</p>
+                <p class="mt-1 text-xs text-red-400">Riêng hóa đơn tháng {{ $reportMonth }}/{{ $reportYear }} chưa thu</p>
+                <a href="{{ route('admin.invoices.index', ['status' => 'unpaid', 'month' => $reportMonth, 'year' => $reportYear]) }}" class="mt-1 inline-block text-xs font-medium text-red-600 hover:underline">Xem →</a>
             </div>
         </div>
 
@@ -73,7 +89,7 @@
             </div>
             <div class="border-t border-red-100 bg-red-50 px-5 py-3">
                 <div class="flex items-center justify-between text-sm">
-                    <span class="font-medium text-red-600">Còn phải thu</span>
+                    <span class="font-medium text-red-600">Còn phải thu (theo hóa đơn chưa thu/thu một phần) hoặc đã được xóa nợ</span>
                     <span class="font-bold text-red-600">{{ number_format($remaining, 0, ',', '.') }}đ</span>
                 </div>
             </div>
@@ -134,7 +150,6 @@
     </div>
 @endsection
 
-@push('scripts')
 @push('scripts')
 <script>
     const fmt = val => Number(val).toLocaleString('vi-VN') + 'đ';
