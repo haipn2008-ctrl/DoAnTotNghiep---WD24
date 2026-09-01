@@ -23,10 +23,19 @@ class ContractTenant extends Model
 
     public const STATUS_WITHDRAWN = 'withdrawn';
 
+    public const VEHICLE_UNDECLARED = 'undeclared';
+
+    public const VEHICLE_NONE = 'no_vehicle';
+
+    public const VEHICLE_HAS = 'has_vehicle';
+
+    public const VEHICLE_LATER = 'later';
+
     protected $fillable = [
         'contract_id', 'tenant_id', 'replaces_contract_tenant_id', 'role', 'full_name',
         'date_of_birth', 'identity_number', 'identity_front_path', 'identity_back_path',
         'phone', 'relationship', 'address', 'status',
+        'vehicle_declaration_status', 'vehicle_declared_at', 'vehicle_declared_by',
         'declared_by', 'reviewed_by', 'reviewed_at', 'review_note',
         'actual_move_in_at', 'actual_move_out_at',
     ];
@@ -36,6 +45,7 @@ class ContractTenant extends Model
         'reviewed_at' => 'datetime',
         'actual_move_in_at' => 'datetime',
         'actual_move_out_at' => 'datetime',
+        'vehicle_declared_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -63,6 +73,21 @@ class ContractTenant extends Model
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function vehicleDeclarer()
+    {
+        return $this->belongsTo(User::class, 'vehicle_declared_by');
+    }
+
+    public function getVehicleDeclarationLabelAttribute(): string
+    {
+        return match ($this->vehicle_declaration_status) {
+            self::VEHICLE_NONE => 'Không có phương tiện',
+            self::VEHICLE_HAS => 'Có phương tiện',
+            self::VEHICLE_LATER => 'Sẽ bổ sung sau',
+            default => 'Chưa khai báo',
+        };
     }
 
     public function histories()
@@ -110,12 +135,10 @@ class ContractTenant extends Model
             'phone' => ['value' => $this->phone, 'label' => 'Số điện thoại'],
             'address' => ['value' => $this->address, 'label' => 'Địa chỉ thường trú'],
         ];
-        if ($this->role !== self::ROLE_REPRESENTATIVE) {
-            $fields += [
-                'identity_front' => ['value' => $this->identity_front_path, 'label' => 'Ảnh CCCD mặt trước'],
-                'identity_back' => ['value' => $this->identity_back_path, 'label' => 'Ảnh CCCD mặt sau'],
-            ];
-        }
+        $fields += [
+            'identity_front' => ['value' => $this->identity_front_path, 'label' => 'Ảnh CCCD mặt trước'],
+            'identity_back' => ['value' => $this->identity_back_path, 'label' => 'Ảnh CCCD mặt sau'],
+        ];
 
         return collect($fields)
             ->filter(fn (array $field): bool => blank($field['value']))

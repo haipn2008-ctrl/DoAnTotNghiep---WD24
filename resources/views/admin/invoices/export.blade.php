@@ -12,7 +12,6 @@
             </div>
         </div>
 
-        <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">File CSV sẽ giữ nguyên bộ lọc hiện tại và có thể mở trực tiếp bằng Excel.</div>
 
         <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"><div class="overflow-x-auto"><table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th class="px-5 py-3">Mã hóa đơn</th><th class="px-5 py-3">Kỳ</th><th class="px-5 py-3">Phòng / khách thuê</th><th class="px-5 py-3 text-right">Tổng tiền</th><th class="px-5 py-3 text-right">Đã thu</th><th class="px-5 py-3 text-right">Còn lại</th><th class="px-5 py-3">Trạng thái</th></tr></thead>

@@ -21,7 +21,6 @@
         <a href="{{ route('admin.contracts.extend.list') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Quay lại</a>
     </div>
 
-    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900">Sau khi xác nhận, thời hạn và giá thuê mới sẽ được áp dụng ngay cho hợp đồng.</div>
 
     <div class="grid gap-6 lg:grid-cols-[360px_1fr]">
         <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

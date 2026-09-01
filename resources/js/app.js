@@ -1,4 +1,123 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const dialog = document.createElement('div');
+    dialog.className = 'app-dialog';
+    dialog.hidden = true;
+    dialog.innerHTML = `
+        <div class="app-dialog__backdrop" data-dialog-cancel></div>
+        <section class="app-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="app-dialog-title">
+            <div class="app-dialog__icon"><i class="bx bx-help-circle"></i></div>
+            <div class="app-dialog__content">
+                <h2 id="app-dialog-title">Xác nhận thao tác</h2><p data-dialog-message></p>
+                <div class="app-dialog__reason" data-dialog-reason-wrap hidden>
+                    <label for="app-dialog-reason">Lý do thực hiện <span>*</span></label>
+                    <textarea id="app-dialog-reason" rows="3" data-dialog-reason></textarea>
+                    <small data-dialog-error>Vui lòng nhập ít nhất 10 ký tự.</small>
+                </div>
+                <div class="app-dialog__actions"><button type="button" class="app-dialog__cancel" data-dialog-cancel>Hủy</button><button type="button" class="app-dialog__confirm" data-dialog-confirm>Xác nhận</button></div>
+            </div>
+        </section>`;
+    document.body.appendChild(dialog);
+
+    const openFormDialog = (form, submitter = null) => {
+        const reasonInputName = form.dataset.reasonInput;
+        const reasonWrap = dialog.querySelector('[data-dialog-reason-wrap]');
+        const reason = dialog.querySelector('[data-dialog-reason]');
+        const error = dialog.querySelector('[data-dialog-error]');
+        dialog.querySelector('[data-dialog-message]').textContent = form.dataset.confirm || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+        dialog.querySelector('[data-dialog-confirm]').textContent = form.dataset.confirmLabel || 'Xác nhận';
+        reasonWrap.hidden = !reasonInputName;
+        reason.placeholder = form.dataset.reasonPlaceholder || 'Nhập lý do thực hiện...';
+        reason.value = '';
+        error.hidden = true;
+        dialog.hidden = false;
+        document.body.classList.add('app-dialog-open');
+        setTimeout(() => (reasonInputName ? reason : dialog.querySelector('[data-dialog-confirm]')).focus(), 30);
+        const close = () => { dialog.hidden = true; document.body.classList.remove('app-dialog-open'); };
+        const confirm = () => {
+            if (reasonInputName && reason.value.trim().length < Number(form.dataset.reasonMin || 10)) { error.hidden = false; reason.focus(); return; }
+            if (reasonInputName && form.elements[reasonInputName]) form.elements[reasonInputName].value = reason.value.trim();
+            form.dataset.dialogConfirmed = '1';
+            close();
+            form.requestSubmit(submitter || undefined);
+        };
+        dialog.querySelectorAll('[data-dialog-cancel]').forEach((button) => button.onclick = close);
+        dialog.querySelector('[data-dialog-confirm]').onclick = confirm;
+    };
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.dataset.confirm || form.dataset.dialogConfirmed === '1') return;
+        event.preventDefault();
+        openFormDialog(form, event.submitter);
+    }, true);
+
+    const iconActionExclusions = [
+        'nav',
+        'aside',
+        '[role="navigation"]',
+        '[data-keep-action-label]',
+        '#clientUserMenuButton',
+        '#clientUserMenu',
+        '#clientNotificationMenu',
+        '#admin-user-menu',
+        '#admin-notification-menu',
+        '.pagination',
+    ].join(',');
+
+    const directActionIcon = (action) => Array.from(action.children).find((child) =>
+        child.matches('i.bx, i[class*="mdi-"], i[class*="fa-"], svg')
+    );
+
+    const makeIconOnlyAction = (action) => {
+        if (!(action instanceof HTMLElement) || action.dataset.iconActionReady === '1') return;
+        action.dataset.iconActionReady = '1';
+        if (action.matches('[data-keep-action-label]') || action.closest(iconActionExclusions)) return;
+
+        // Chỉ thu gọn các thao tác lặp lại trong bảng hoặc nhóm được đánh dấu rõ ràng.
+        // Hành động chính ở đầu trang cần giữ nhãn để người dùng mới dễ nhận biết.
+        if (!action.closest('td, [data-compact-actions]')) return;
+
+        const icon = directActionIcon(action);
+        if (!icon || action.querySelector(':scope > img, :scope > picture')) return;
+
+        const labelParts = Array.from(action.childNodes)
+            .filter((node) => node !== icon)
+            .map((node) => node.textContent?.replace(/\s+/g, ' ').trim() || '')
+            .filter(Boolean);
+        const label = labelParts.join(' ').trim();
+        if (!label) return;
+
+        action.setAttribute('aria-label', action.getAttribute('aria-label') || label);
+        action.setAttribute('title', action.getAttribute('title') || label);
+        action.classList.add('app-icon-action');
+
+        Array.from(action.childNodes).forEach((node) => {
+            if (node === icon) return;
+            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                const accessibleLabel = document.createElement('span');
+                accessibleLabel.className = 'sr-only';
+                accessibleLabel.textContent = node.textContent.trim();
+                node.replaceWith(accessibleLabel);
+                return;
+            }
+            if (node instanceof HTMLElement && node.textContent.trim() && !node.querySelector('i, svg, img')) {
+                node.classList.add('sr-only');
+            }
+        });
+    };
+
+    const initializeIconActions = (root = document) => {
+        if (root instanceof HTMLElement && root.matches('a, button')) makeIconOnlyAction(root);
+        root.querySelectorAll?.('a, button').forEach(makeIconOnlyAction);
+    };
+
+    initializeIconActions();
+    new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+            if (node instanceof HTMLElement) initializeIconActions(node);
+        }));
+    }).observe(document.body, { childList: true, subtree: true });
+
     document.querySelectorAll('[data-room-evidence-toggle]').forEach((toggle) => {
         const section = toggle.closest('section');
         const form = section?.querySelector('[data-room-evidence-form]');
@@ -45,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (input) {
                     input.value = '';
-                    input.required = !url;
+                    input.required = false;
                 }
                 if (preview) {
                     if (url) {
@@ -63,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     link.classList.toggle('hidden', !url);
                 }
                 badge?.classList.toggle('hidden', !url);
-                requiredMark?.classList.toggle('hidden', Boolean(url));
+                requiredMark?.classList.add('hidden');
                 emptyState?.classList.toggle('hidden', Boolean(url));
             });
         });

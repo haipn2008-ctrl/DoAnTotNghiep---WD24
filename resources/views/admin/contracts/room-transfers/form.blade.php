@@ -58,10 +58,10 @@
                 <h3 class="font-bold text-slate-950">4. Tài sản nhận tại phòng mới</h3>
                 @foreach($rooms as $room)
                     <div data-new-room-assets="{{ $room->id }}" class="mt-4 hidden space-y-3">@forelse($room->amenities as $asset)
-                        <div class="rounded-lg border border-slate-200 p-3"><p class="font-semibold">{{ $asset->name }}</p><div class="mt-2 grid grid-cols-3 gap-2"><input type="number" min="0" name="new_assets[{{ $room->id }}][{{ $asset->id }}][quantity]" value="{{ $asset->pivot->quantity }}" class="h-10 rounded border border-slate-200 px-2"><select name="new_assets[{{ $room->id }}][{{ $asset->id }}][condition]" class="h-10 rounded border border-slate-200 px-2"><option value="normal">Bình thường</option><option value="damaged">Hư hỏng</option></select><input name="new_assets[{{ $room->id }}][{{ $asset->id }}][note]" value="{{ $asset->pivot->note }}" placeholder="Ghi chú" class="h-10 rounded border border-slate-200 px-2"></div></div>
+                        <div class="rounded-lg border border-slate-200 p-3"><div class="flex items-center gap-3">@if($asset->pivot->image_path)<a href="{{ route('admin.rooms.assets.image', [$room, $asset]) }}" data-image-modal data-image-title="{{ $asset->name }}"><img src="{{ route('admin.rooms.assets.image', [$room, $asset]) }}" alt="{{ $asset->name }}" class="h-12 w-16 rounded-lg object-cover ring-1 ring-slate-200"></a>@endif<p class="font-semibold">{{ $asset->name }}</p></div><div class="mt-2 grid grid-cols-3 gap-2"><input type="number" min="0" name="new_assets[{{ $room->id }}][{{ $asset->id }}][quantity]" value="{{ $asset->pivot->quantity }}" class="h-10 rounded border border-slate-200 px-2"><select name="new_assets[{{ $room->id }}][{{ $asset->id }}][condition]" class="h-10 rounded border border-slate-200 px-2"><option value="normal">Bình thường</option><option value="damaged">Hư hỏng</option></select><input name="new_assets[{{ $room->id }}][{{ $asset->id }}][note]" value="{{ $asset->pivot->note }}" placeholder="Ghi chú" class="h-10 rounded border border-slate-200 px-2"></div></div>
                     @empty<p class="text-sm text-slate-500">Phòng này không có tài sản bàn giao.</p>@endforelse</div>
                 @endforeach
-                <p id="asset-placeholder" class="mt-4 text-sm text-slate-500">Chọn phòng mới để xem tài sản.</p>
+                <p id="asset-placeholder" class="mt-4 text-sm text-slate-500">Chọn phòng mới</p>
             </div>
         </section>
 

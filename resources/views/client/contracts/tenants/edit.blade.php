@@ -16,13 +16,9 @@
         <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><p class="font-semibold">Vui lòng kiểm tra lại:</p><ul class="mt-2 list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
     @endif
 
-    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-        Hồ sơ này phải đầy đủ trước khi xác nhận nhận phòng để ban quản lý có thể thực hiện thủ tục lưu trú. Email không bắt buộc.
-    </div>
-
     <form method="POST" action="{{ route('client.contracts.members.update', [$contract, $member]) }}" enctype="multipart/form-data" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         @csrf @method('PUT')
-        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Thông tin cá nhân</h3><p class="mt-1 text-xs text-slate-500">Các trường có dấu * là bắt buộc.</p></div>
+        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Thông tin cá nhân</h3></div>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
             <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Họ và tên *</label><input name="full_name" value="{{ old('full_name', $member->full_name) }}" required maxlength="150" class="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"></div>
             <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày sinh *</label><input type="date" name="date_of_birth" value="{{ old('date_of_birth', $member->date_of_birth?->toDateString()) }}" max="{{ now()->subYears(18)->toDateString() }}" required class="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"></div>

@@ -7,7 +7,6 @@
     <div class="space-y-5">
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
-                <p class="text-sm font-medium text-slate-500">Ghi đồng hồ theo từng phòng, lưu đến đâu chắc đến đó</p>
                 <h2 class="mt-1 text-2xl font-bold text-slate-950">{{ $mode === 'checkpoint' ? 'Ghi mốc giữa kỳ' : 'Chốt kỳ' }} tháng {{ $month }}/{{ $year }}</h2>
             </div>
 
@@ -55,28 +54,14 @@
             </div>
         @endif
 
-        @if($mode === 'checkpoint')
-            <div class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-                Mốc giữa kỳ dùng để đối soát khi số người ở thay đổi. Có thể ghi nhiều mốc trong tháng; mốc này không khóa kỳ và không được dùng trực tiếp để phát hành hóa đơn.
-            </div>
-        @else
-            <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
-                Bạn có thể chốt kỳ {{ $month }}/{{ $year }} bất kỳ lúc nào. Hệ thống vẫn ghi nhận ngày đối soát cuối kỳ là <strong>{{ \Carbon\Carbon::parse($recordDate)->format('d/m/Y') }}</strong> và lưu lịch sử người thao tác.
-            </div>
-        @endif
-
         <div class="grid gap-3 sm:grid-cols-3">
-            <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 sm:col-span-3">
                 <p class="text-xs font-semibold uppercase text-slate-500">{{ $mode === 'checkpoint' ? 'Ngày ghi mốc' : 'Tiến độ' }}</p>
                 @if($mode === 'checkpoint')
                     <p class="mt-1 text-2xl font-bold text-sky-700">{{ $checkpointDate->format('d/m/Y') }}</p>
                 @else
                     <p class="mt-1 text-2xl font-bold text-slate-950"><span id="savedCount">{{ $savedCount }}</span>/{{ count($readings) }} phòng</p>
                 @endif
-            </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-4 sm:col-span-2">
-                <p class="text-sm font-semibold text-slate-800">Cách nhập nhanh</p>
-                <p class="mt-1 text-sm text-slate-500">Nhập điện mới → Enter → nước mới → Enter để sang phòng kế tiếp. Bạn có thể chỉ nhập vài phòng rồi lưu, không cần hoàn thành tất cả cùng lúc.</p>
             </div>
         </div>
 
@@ -189,7 +174,7 @@
 
             @if (count($readings) > 0)
                 <div class="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-sm text-slate-500"><strong id="selectedCount" class="text-slate-900">0</strong> phòng sẽ được lưu. Phòng chưa chọn sẽ được giữ nguyên.</p>
+                    <p class="text-sm text-slate-500"><strong id="selectedCount" class="text-slate-900">0</strong> phòng</p>
                     <div class="flex flex-col gap-2 sm:flex-row">
                         @if($mode === 'checkpoint')
                             <button id="confirmButton" type="submit" name="intent" value="checkpoint" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-sky-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>

@@ -136,7 +136,7 @@ class Room extends Model
             Amenity::class,
             'amenity_room'
         )->where('amenities.is_active', true)
-            ->withPivot(['quantity', 'condition', 'note'])
+            ->withPivot(['quantity', 'condition', 'note', 'image_path'])
             ->withTimestamps();
     }
 

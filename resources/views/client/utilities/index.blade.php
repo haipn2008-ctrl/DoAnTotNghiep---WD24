@@ -7,19 +7,16 @@
     <div class="space-y-5">
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-                <p class="text-sm font-medium text-slate-500">Lịch sử sử dụng theo kỳ</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Điện nước của tôi</h2>
-                <p class="mt-2 text-sm text-slate-500">Theo dõi kỳ chốt chính và các mốc giữa kỳ do ban quản lý ghi nhận.</p>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="text-2xl font-bold text-slate-950">Điện nước</h2>
+                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">Mốc giữa kỳ không tự chia tiền</span>
+                </div>
             </div>
             <form method="GET" action="{{ route('client.utilities.index') }}" class="flex items-end gap-2">
                 <div><label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Năm</label><select name="year" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"><option value="">Tất cả</option>@foreach($years as $year)<option value="{{ $year }}" @selected((string) request('year') === (string) $year)>{{ $year }}</option>@endforeach</select></div>
                 <button class="h-10 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white">Lọc</button>
                 @if(request('year'))<a href="{{ route('client.utilities.index') }}" class="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600">Xóa lọc</a>@endif
             </form>
-        </div>
-
-        <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900">
-            Mốc giữa kỳ dùng để đối chiếu khi có thay đổi người ở, không phải hóa đơn và không tự chia tiền. Chi phí chỉ xuất hiện tại kỳ chốt chính sau khi hóa đơn được phát hành.
         </div>
 
         <div class="grid gap-4 lg:grid-cols-2">
@@ -48,7 +45,7 @@
                             <p class="mt-1 text-xs text-slate-500">Chỉ số {{ number_format($reading->electricity_old, 0, ',', '.') }} → {{ number_format($reading->electricity_new, 0, ',', '.') }}</p>
                             @if($electricityDetail)
                                 <div class="mt-3 space-y-1 text-sm"><div class="flex justify-between text-slate-500"><span>Đơn giá</span><span>{{ number_format($electricityDetail->unit_price, 0, ',', '.') }}đ/kWh</span></div><div class="flex justify-between font-bold text-slate-950"><span>Tiền điện</span><span>{{ number_format($electricityDetail->amount, 0, ',', '.') }}đ</span></div></div>
-                            @else<p class="mt-3 text-sm text-slate-400">Chi phí sẽ có khi phát hành hóa đơn.</p>@endif
+                            @endif
                         </div>
                         <div class="p-5">
                             <div class="flex items-center justify-between"><p class="font-semibold text-sky-700">Nước</p>@if($reading->meterImageExists('water'))<a href="{{ route('client.utilities.image', [$reading, 'water']) }}" data-image-modal data-image-title="Ảnh đồng hồ nước" class="text-xs font-semibold text-sky-600">Xem ảnh đồng hồ</a>@elseif($reading->water_image)<span class="text-xs font-medium text-amber-700">Ảnh không còn tồn tại</span>@endif</div>
@@ -56,12 +53,12 @@
                             <p class="mt-1 text-xs text-slate-500">Chỉ số {{ number_format($reading->water_old, 0, ',', '.') }} → {{ number_format($reading->water_new, 0, ',', '.') }}</p>
                             @if($waterDetail)
                                 <div class="mt-3 space-y-1 text-sm"><div class="flex justify-between text-slate-500"><span>Đơn giá</span><span>{{ number_format($waterDetail->unit_price, 0, ',', '.') }}đ/m³</span></div><div class="flex justify-between font-bold text-slate-950"><span>Tiền nước</span><span>{{ number_format($waterDetail->amount, 0, ',', '.') }}đ</span></div></div>
-                            @else<p class="mt-3 text-sm text-slate-400">Chi phí sẽ có khi phát hành hóa đơn.</p>@endif
+                            @endif
                         </div>
                     </div>
                 </article>
             @empty
-                <div class="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center lg:col-span-2"><p class="font-semibold text-slate-950">Chưa có lịch sử điện nước</p><p class="mt-2 text-sm text-slate-500">Dữ liệu sẽ xuất hiện sau khi ban quản lý ghi chỉ số cho phòng của bạn.</p></div>
+                <div class="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center lg:col-span-2"><p class="font-semibold text-slate-950">Chưa có chỉ số</p></div>
             @endforelse
         </div>
 

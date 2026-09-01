@@ -20,37 +20,39 @@
 @endphp
 
 @section('content')
-    <div class="space-y-5">
+    <div class="space-y-6">
         @if ($errors->any())
             <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><p class="font-semibold">Chưa thể gửi xác nhận</p><ul class="mt-1 list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
         @endif
-        <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-            <div>
-                <a href="{{ route('client.invoices.index') }}" class="text-sm font-semibold text-indigo-700">← Hóa đơn của tôi</a>
-                <h2 class="mt-2 text-2xl font-bold text-slate-950">{{ $invoice->isSupplemental() ? 'Hóa đơn bổ sung' : ($invoice->isDeposit() ? 'Hóa đơn tiền cọc' : ($invoice->isFirstMonthRent() ? 'Hóa đơn tiền phòng tháng đầu' : 'Hóa đơn tháng '.$invoice->month.'/'.$invoice->year)) }}</h2>
-                <p class="mt-1 text-sm text-slate-500">{{ $invoice->invoice_code }} · Phòng {{ $invoice->room->room_code ?? '-' }}</p>
+        <header class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+            <div class="min-w-0">
+                <a href="{{ route('client.invoices.index') }}" class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"><i class="bx bx-left-arrow-alt text-lg"></i>Quay lại</a>
+                <div class="mt-4 flex flex-wrap items-center gap-3"><h2 class="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{{ $invoice->isSupplemental() ? 'Hóa đơn bổ sung' : ($invoice->isDeposit() ? 'Hóa đơn tiền cọc' : ($invoice->isFirstMonthRent() ? 'Hóa đơn tiền phòng tháng đầu' : 'Hóa đơn tháng '.$invoice->month.'/'.$invoice->year)) }}</h2><span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ring-1 ring-inset {{ $status['class'] }}">{{ $status['label'] }}</span></div>
+                <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500"><span class="font-mono font-semibold text-slate-600">{{ $invoice->invoice_code }}</span><span class="text-slate-300">•</span><span>Phòng {{ $invoice->room->room_code ?? '-' }}</span><span class="text-slate-300">•</span><span>Hạn {{ $invoice->effective_due_date?->format('d/m/Y') }}</span></p>
                 @if($invoice->parentInvoice)<p class="mt-1 text-sm text-slate-500">Bổ sung cho <a href="{{ route('client.invoices.show', $invoice->parentInvoice) }}" class="font-semibold text-indigo-700">{{ $invoice->parentInvoice->invoice_code }}</a></p>@endif
             </div>
-            <a href="{{ route('client.invoices.print', $invoice) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm"><i class="bx bx-printer text-lg"></i>In hóa đơn</a>
+            <a href="{{ route('client.invoices.print', $invoice) }}" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"><i class="bx bx-printer text-lg"></i>In hóa đơn</a>
+            </div>
+        </header>
+
+        <div class="grid gap-3 sm:grid-cols-3">
+            <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><span class="absolute inset-x-0 top-0 h-1 bg-indigo-500"></span><p class="text-sm font-medium text-slate-500">Tổng hóa đơn</p><p class="mt-2 text-2xl font-bold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</p><p class="mt-1 text-xs text-slate-400">Sau tất cả điều chỉnh</p></div>
+            <div class="relative overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm"><span class="absolute inset-x-0 top-0 h-1 bg-emerald-500"></span><p class="text-sm font-medium text-emerald-700">Đã thanh toán</p><p class="mt-2 text-2xl font-bold text-emerald-700">{{ number_format($paidAmount, 0, ',', '.') }}đ</p><p class="mt-1 text-xs text-emerald-600/70">Khoản tiền đã được xác nhận</p></div>
+            <div class="relative overflow-hidden rounded-2xl border {{ $remainingAmount > 0 ? 'border-rose-200 bg-rose-50/40' : 'border-emerald-200 bg-emerald-50/40' }} p-5 shadow-sm"><span class="absolute inset-x-0 top-0 h-1 {{ $remainingAmount > 0 ? 'bg-rose-500' : 'bg-emerald-500' }}"></span><p class="text-sm font-medium {{ $remainingAmount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">Còn phải trả</p><p class="mt-2 text-2xl font-bold {{ $remainingAmount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format($remainingAmount, 0, ',', '.') }}đ</p><p class="mt-1 text-xs {{ $remainingAmount > 0 ? 'text-rose-600/70' : 'text-emerald-600/70' }}">{{ $remainingAmount > 0 ? 'Số tiền chưa hoàn tất' : 'Hóa đơn đã hoàn tất' }}</p></div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-3">
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Tổng sau điều chỉnh</p><p class="mt-2 text-2xl font-bold text-slate-950">{{ number_format($invoice->payable_amount, 0, ',', '.') }}đ</p></div>
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Đã thanh toán</p><p class="mt-2 text-2xl font-bold text-emerald-700">{{ number_format($paidAmount, 0, ',', '.') }}đ</p></div>
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Còn phải trả</p><p class="mt-2 text-2xl font-bold {{ $remainingAmount > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format($remainingAmount, 0, ',', '.') }}đ</p></div>
-        </div>
-
-        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-                <div><h3 class="font-semibold text-slate-950">Các khoản cần thanh toán</h3><p class="mt-1 text-sm text-slate-500">Hạn thanh toán {{ $invoice->effective_due_date?->format('d/m/Y') }}@if($invoice->payment_extension_until) · Hạn gốc {{ $invoice->due_date?->format('d/m/Y') }}@endif</p></div>
-                <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">{{ $status['label'] }}</span>
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/60 px-5 py-4 sm:px-6">
+                <div><h3 class="font-bold text-slate-950">Chi tiết các khoản thu</h3><p class="mt-1 text-sm text-slate-500">Hạn thanh toán <strong class="text-slate-700">{{ $invoice->effective_due_date?->format('d/m/Y') }}</strong>@if($invoice->payment_extension_until) · Hạn gốc {{ $invoice->due_date?->format('d/m/Y') }}@endif</p></div>
+                <span class="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">{{ $invoice->details->count() + $invoice->adjustments->count() }} khoản</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th class="px-5 py-3">Khoản tiền</th><th class="px-5 py-3 text-center">Đã sử dụng</th><th class="px-5 py-3 text-right">Đơn giá</th><th class="px-5 py-3 text-right">Thành tiền</th></tr></thead>
                     <tbody class="divide-y divide-slate-100">
                         @foreach ($invoice->details as $detail)
-                            <tr><td class="px-5 py-4"><p class="font-semibold text-slate-950">{{ $detail->name }}</p>@if($detail->note)<p class="mt-1 text-xs text-slate-500">{{ $detail->note }}</p>@endif</td><td class="px-5 py-4 text-center text-slate-700">{{ number_format($detail->quantity, 0, ',', '.') }} {{ $detail->unit }}</td><td class="px-5 py-4 text-right text-slate-600">{{ number_format($detail->unit_price, 0, ',', '.') }}đ</td><td class="px-5 py-4 text-right font-semibold text-slate-950">{{ number_format($detail->amount, 0, ',', '.') }}đ</td></tr>
+                            <tr class="transition hover:bg-indigo-50/30"><td class="px-5 py-4"><p class="font-semibold text-slate-950">{{ $detail->name }}</p>@if($detail->note)<p class="mt-1 text-xs text-slate-500">{{ $detail->note }}</p>@endif</td><td class="px-5 py-4 text-center text-slate-700">{{ number_format($detail->quantity, 0, ',', '.') }} {{ $detail->unit }}</td><td class="px-5 py-4 text-right text-slate-600">{{ number_format($detail->unit_price, 0, ',', '.') }}đ</td><td class="px-5 py-4 text-right font-bold text-slate-950">{{ number_format($detail->amount, 0, ',', '.') }}đ</td></tr>
                         @endforeach
                         @foreach($invoice->adjustments as $adjustment)
                             <tr class="bg-slate-50"><td class="px-5 py-4"><p class="font-semibold">{{ $adjustment->direction === \App\Models\InvoiceAdjustment::DIRECTION_CREDIT ? 'Điều chỉnh giảm' : 'Điều chỉnh tăng' }} · {{ $adjustment->adjustment_code }}</p><p class="mt-1 text-xs text-slate-500">{{ $adjustment->reason }}</p></td><td class="px-5 py-4 text-center text-slate-500">Phiếu điều chỉnh</td><td class="px-5 py-4 text-right">—</td><td class="px-5 py-4 text-right font-semibold">{{ $adjustment->direction === \App\Models\InvoiceAdjustment::DIRECTION_CREDIT ? '-' : '+' }}{{ number_format($adjustment->amount, 0, ',', '.') }}đ</td></tr>
@@ -75,7 +77,6 @@
         @if ($invoice->isOverdue() && $remainingAmount > 0)
             <section class="rounded-lg border {{ $rejectedDelayRequest ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50' }} p-5 shadow-sm">
                 <h3 class="font-bold {{ $rejectedDelayRequest ? 'text-rose-900' : 'text-amber-900' }}">Hóa đơn đã quá hạn thanh toán</h3>
-                <p class="mt-2 text-sm leading-6 {{ $rejectedDelayRequest ? 'text-rose-800' : 'text-amber-800' }}">Bạn vẫn có thể gửi thanh toán ngay. Nếu chưa thể thanh toán, hãy cung cấp lý do và ngày dự kiến thanh toán để ban quản lý xem xét.</p>
 
                 @if ($pendingDelayRequest)
                     <div class="mt-4 rounded-lg border border-amber-200 bg-white p-4 text-sm text-slate-700">
@@ -87,7 +88,6 @@
                     <div class="mt-4 rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-800">
                         <p class="font-semibold">Ban quản lý đã từ chối lý do chậm thanh toán.</p>
                         <p class="mt-2">{{ $rejectedDelayRequest->review_note }}</p>
-                        <p class="mt-2 font-medium">Vui lòng thanh toán ngay hoặc liên hệ ban quản lý để tránh chuyển sang quy trình chấm dứt hợp đồng.</p>
                     </div>
                 @elseif ($canRequestDelay)
                     <form method="POST" action="{{ route('client.invoices.payment-delay-request.store', $invoice) }}" class="mt-4 grid gap-4 rounded-lg border border-amber-200 bg-white p-4 sm:grid-cols-2">
@@ -118,9 +118,8 @@
         @if ($remainingAmount > 0 && $invoice->canPay())
             <section class="grid gap-5 rounded-lg border border-indigo-200 bg-white p-5 shadow-sm lg:grid-cols-[320px_1fr]">
                 <div>
-                    <p class="text-sm font-semibold text-indigo-700">Xác nhận đã chuyển khoản</p>
-                    <h3 class="mt-1 text-xl font-bold text-slate-950">Gửi biên lai cho ban quản lý</h3>
-                    <p class="mt-2 text-sm leading-6 text-slate-500">Quét mã VietQR để chuyển đúng số tiền và nội dung. Sau đó chỉ cần gửi ảnh biên lai; ngày gửi được hệ thống ghi tự động và tiền chỉ được ghi nhận sau khi quản trị viên duyệt.</p>
+                    <h3 class="text-xl font-bold text-slate-950">Gửi biên lai cho ban quản lý</h3>
+                    <p class="mt-1 text-sm text-slate-500">Quét mã VietQR</p>
                     @if ($bankSetting->bank_id && $bankSetting->bank_account_no && $bankSetting->bank_account_name)
                         @php($qrBase = 'https://img.vietqr.io/image/'.$bankSetting->bank_id.'-'.$bankSetting->bank_account_no.'-compact2.png')
                         <div class="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-center">
@@ -129,7 +128,7 @@
                             <p class="mt-1 text-xs font-semibold text-indigo-700">Nội dung: {{ $paymentContent }}</p>
                         </div>
                     @else
-                        <div class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Ban quản lý chưa cấu hình tài khoản nhận tiền. Vui lòng liên hệ trước khi chuyển khoản.</div>
+                        <div class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Chưa có tài khoản nhận tiền.</div>
                     @endif
                     @if ($pendingAmount > 0)
                         <div class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Đang chờ xác nhận: <strong>{{ number_format($pendingAmount, 0, ',', '.') }}đ</strong></div>
@@ -149,13 +148,13 @@
             </section>
         @endif
 
-        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Lịch sử thanh toán</h3></div>
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/60 px-5 py-4 sm:px-6"><div><h3 class="font-bold text-slate-950">Lịch sử thanh toán</h3><p class="mt-0.5 text-xs text-slate-500">Các giao dịch đã gửi cho hóa đơn này</p></div><span class="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">{{ $invoice->payments->count() }} giao dịch</span></div>
             <div class="divide-y divide-slate-100">
                 @forelse ($invoice->payments as $payment)
-                    <div class="flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center"><div><p class="font-semibold text-slate-950">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ · {{ $methodLabels[$payment->payment_method] ?? 'Không xác định' }}</p><p class="mt-1 text-xs text-slate-500">{{ $payment->payment_date?->format('d/m/Y') }}{{ $payment->transaction_code ? ' · Mã '.$payment->transaction_code : '' }}</p>@if($payment->review_note)<p class="mt-2 text-xs text-rose-600">Phản hồi: {{ $payment->review_note }}</p>@endif</div><div class="flex items-center gap-3">@if($payment->proofImageExists())<a href="{{ route('client.invoices.payments.proof', $payment) }}" data-image-modal data-image-title="Biên lai thanh toán {{ $invoice->invoice_code }}" class="text-xs font-semibold text-indigo-700">Xem biên lai</a>@elseif($payment->proof_image)<span class="text-xs font-semibold text-amber-700">Ảnh không còn tồn tại</span>@endif<span class="text-sm font-semibold text-slate-600">{{ $paymentStatuses[$payment->status] ?? 'Không xác định' }}</span></div></div>
+                    <div class="flex flex-col justify-between gap-3 px-5 py-4 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:px-6"><div class="flex items-start gap-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $payment->status === 'success' ? 'bg-emerald-100 text-emerald-700' : ($payment->status === 'failed' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700') }}"><i class="bx bx-receipt text-xl"></i></span><div><p class="font-bold text-slate-950">{{ number_format($payment->amount_paid, 0, ',', '.') }}đ</p><p class="mt-0.5 text-xs text-slate-500">{{ $methodLabels[$payment->payment_method] ?? 'Không xác định' }} · {{ $payment->payment_date?->format('d/m/Y') }}{{ $payment->transaction_code ? ' · Mã '.$payment->transaction_code : '' }}</p>@if($payment->review_note)<p class="mt-2 text-xs text-rose-600">Phản hồi: {{ $payment->review_note }}</p>@endif</div></div><div class="flex items-center gap-3 pl-13 sm:pl-0">@if($payment->proofImageExists())<a href="{{ route('client.invoices.payments.proof', $payment) }}" data-image-modal data-image-title="Biên lai thanh toán {{ $invoice->invoice_code }}" class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100">Xem biên lai</a>@elseif($payment->proof_image)<span class="text-xs font-semibold text-amber-700">Ảnh không còn tồn tại</span>@endif<span class="rounded-full px-2.5 py-1 text-xs font-bold {{ $payment->status === 'success' ? 'bg-emerald-50 text-emerald-700' : ($payment->status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700') }}">{{ $paymentStatuses[$payment->status] ?? 'Không xác định' }}</span></div></div>
                 @empty
-                    <div class="px-5 py-8 text-center text-sm text-slate-500">Chưa có giao dịch thanh toán.</div>
+                    <div class="px-5 py-10 text-center"><span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><i class="bx bx-receipt text-2xl"></i></span><p class="mt-3 text-sm font-semibold text-slate-700">Chưa có giao dịch thanh toán</p></div>
                 @endforelse
             </div>
         </section>

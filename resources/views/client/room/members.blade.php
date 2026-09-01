@@ -9,13 +9,6 @@
             <div>
                 <p class="text-sm font-semibold text-indigo-600">Quản lý nơi ở</p>
                 <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-950">Thành viên trong phòng</h2>
-                <p class="mt-2 text-sm text-slate-500">
-                    @if($room)
-                        Theo dõi người đang ở và lịch sử vào, rời phòng {{ $room->room_code }}.
-                    @else
-                        Danh sách sẽ xuất hiện khi tài khoản có phòng đang thuê.
-                    @endif
-                </p>
             </div>
 
             @if($room)
@@ -35,7 +28,6 @@
                         </span>
                         <div>
                             <h3 class="font-semibold text-slate-950">Danh sách đang cư trú</h3>
-                            <p class="mt-0.5 text-xs text-slate-500">Chọn một thành viên để xem và cập nhật hồ sơ.</p>
                         </div>
                     </div>
                     <span class="rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm">
@@ -86,7 +78,6 @@
                                 <i class="bx bx-user-x text-3xl"></i>
                             </span>
                             <h3 class="mt-4 font-semibold text-slate-800">Chưa có thành viên</h3>
-                            <p class="mt-1 text-sm text-slate-500">Thành viên sẽ xuất hiện sau khi được xác nhận vào ở.</p>
                         </div>
                     @endforelse
                 </div>
@@ -101,7 +92,6 @@
                             </span>
                             <div>
                                 <h3 class="font-semibold text-slate-950">Lịch sử cư trú</h3>
-                                <p class="mt-0.5 text-xs text-slate-500">Chỉ hiển thị thời gian vào và rời phòng để đối chiếu.</p>
                             </div>
                         </div>
                         <span class="rounded-full bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700">
@@ -136,7 +126,6 @@
                     <i class="bx bx-building-house text-3xl"></i>
                 </span>
                 <h3 class="mt-4 font-semibold text-slate-950">Chưa có phòng đang thuê</h3>
-                <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Danh sách thành viên sẽ xuất hiện khi tài khoản có hợp đồng đang hiệu lực.</p>
             </div>
         @endif
     </div>

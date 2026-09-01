@@ -14,6 +14,7 @@ use App\Services\RoomEvidenceService;
 use App\Support\Csv;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class RoomController extends Controller
@@ -82,12 +83,13 @@ class RoomController extends Controller
         $initialElectricity = (int) $data['initial_electricity'];
         $initialWater = (int) $data['initial_water'];
         $files = $request->file('images', []);
+        $thumbnailImage = $request->file('thumbnail_image');
         if ($request->hasFile('image')) {
             $files[] = $request->file('image');
         }
 
         unset(
-            $data['image'], $data['images'], $data['amenities'], $data['inventory'],
+            $data['image'], $data['images'], $data['thumbnail_image'], $data['amenities'], $data['inventory'],
             $data['status'], $data['current_people'], $data['initial_electricity'], $data['initial_water']
         );
         $data['status'] = Room::STATUS_AVAILABLE;
@@ -95,9 +97,12 @@ class RoomController extends Controller
         $storedImages = collect();
 
         try {
-            DB::transaction(function () use ($data, $files, $request, $initialElectricity, $initialWater, &$storedImages): void {
+            DB::transaction(function () use ($data, $files, $thumbnailImage, $request, $initialElectricity, $initialWater, &$storedImages): void {
                 $room = Room::create($data);
-                $room->amenities()->sync($this->inventoryPayload($request));
+                if ($thumbnailImage) {
+                    $room->update(['thumbnail' => $thumbnailImage->store("room-thumbnails/{$room->id}", 'public')]);
+                }
+                $room->amenities()->sync($this->inventoryPayload($request, $room));
 
                 UtilityReading::query()->forceCreate([
                     'room_id' => $room->id,
@@ -122,9 +127,6 @@ class RoomController extends Controller
                     'caption' => 'Ảnh trước khi bàn giao phòng, được tải lên lúc tạo phòng.',
                 ]);
 
-                if ($storedImages->isNotEmpty()) {
-                    $room->update(['thumbnail' => $storedImages->first()->path]);
-                }
             });
         } catch (\Throwable $exception) {
             $this->evidenceService->deleteFiles($storedImages);
@@ -166,6 +168,27 @@ class RoomController extends Controller
         ));
     }
 
+    public function thumbnail(Room $room)
+    {
+        abort_unless($room->thumbnail && ! str_starts_with($room->thumbnail, 'room-evidence/'), 404);
+        abort_unless(Storage::disk('public')->exists($room->thumbnail), 404);
+
+        return Storage::disk('public')->response($room->thumbnail, null, [
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
+    }
+
+    public function assetImage(Room $room, Amenity $amenity)
+    {
+        $asset = $room->amenities()->whereKey($amenity->id)->firstOrFail();
+        $path = $asset->pivot->image_path;
+        abort_unless($path && Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->response($path, null, [
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
+    }
+
     public function edit(Room $room)
     {
         abort_if($room->status === Room::STATUS_RETIRED, 409, 'Phòng đã ngừng khai thác không thể chỉnh sửa.');
@@ -180,18 +203,22 @@ class RoomController extends Controller
         abort_if($room->status === Room::STATUS_RETIRED, 409, 'Phòng đã ngừng khai thác không thể chỉnh sửa.');
         $data = $request->validated();
         $files = $request->file('images', []);
+        $thumbnailImage = $request->file('thumbnail_image');
         if ($request->hasFile('image')) {
             $files[] = $request->file('image');
         }
 
-        unset($data['image'], $data['images'], $data['amenities'], $data['inventory'], $data['current_people']);
+        unset($data['image'], $data['images'], $data['thumbnail_image'], $data['amenities'], $data['inventory'], $data['current_people']);
         $storedImages = collect();
 
         try {
-            DB::transaction(function () use ($data, $files, $request, $room, &$storedImages): void {
+            DB::transaction(function () use ($data, $files, $thumbnailImage, $request, $room, &$storedImages): void {
                 $lockedRoom = Room::query()->lockForUpdate()->findOrFail($room->id);
                 $lockedRoom->update($data);
-                $lockedRoom->amenities()->sync($this->inventoryPayload($request));
+                if ($thumbnailImage) {
+                    $lockedRoom->update(['thumbnail' => $thumbnailImage->store("room-thumbnails/{$lockedRoom->id}", 'public')]);
+                }
+                $lockedRoom->amenities()->sync($this->inventoryPayload($request, $lockedRoom));
                 $storedImages = $this->evidenceService->store($lockedRoom, $files, [
                     'evidence_type' => 'baseline',
                     'uploaded_by' => $request->user()->id,
@@ -199,9 +226,6 @@ class RoomController extends Controller
                     'caption' => 'Ảnh bổ sung trước khi bàn giao phòng.',
                 ]);
 
-                if (! $lockedRoom->thumbnail && $storedImages->isNotEmpty()) {
-                    $lockedRoom->update(['thumbnail' => $storedImages->first()->path]);
-                }
             });
         } catch (\Throwable $exception) {
             $this->evidenceService->deleteFiles($storedImages);
@@ -284,21 +308,24 @@ class RoomController extends Controller
         };
     }
 
-    private function inventoryPayload(RoomRequest $request): array
+    private function inventoryPayload(RoomRequest $request, Room $room): array
     {
         $payload = [];
+        $existingImages = $room->amenities()->get()->mapWithKeys(
+            fn (Amenity $amenity): array => [$amenity->id => $amenity->pivot->image_path]
+        );
 
         if (! $request->has('inventory') && ! $request->route('room')) {
             $payload = Amenity::query()->active()->assets()->pluck('id')
                 ->mapWithKeys(fn (int $amenityId): array => [
-                    $amenityId => ['quantity' => 1, 'condition' => 'normal', 'note' => null],
+                    $amenityId => ['quantity' => 1, 'condition' => 'normal', 'note' => null, 'image_path' => null],
                 ])->all();
         }
 
         $legacyAssetIds = Amenity::query()->active()->assets()
             ->whereKey((array) $request->input('amenities', []))->pluck('id');
         foreach ($legacyAssetIds as $amenityId) {
-            $payload[(int) $amenityId] = ['quantity' => 1, 'condition' => 'normal', 'note' => null];
+            $payload[(int) $amenityId] = ['quantity' => 1, 'condition' => 'normal', 'note' => null, 'image_path' => $existingImages->get((int) $amenityId)];
         }
 
         $inventory = (array) $request->input('inventory', []);
@@ -309,10 +336,16 @@ class RoomController extends Controller
             }
 
             $amenity = $amenities->get((int) $amenityId);
+            $imagePath = $existingImages->get((int) $amenityId);
+            if ($request->hasFile("inventory.{$amenityId}.image")) {
+                $imagePath = $request->file("inventory.{$amenityId}.image")
+                    ->store("room-assets/{$room->id}/{$amenityId}", 'public');
+            }
             $payload[(int) $amenityId] = [
                 'quantity' => $amenity->is_quantifiable ? (int) ($item['quantity'] ?? 1) : 1,
                 'condition' => $item['condition'] ?? 'normal',
                 'note' => filled($item['note'] ?? null) ? trim((string) $item['note']) : null,
+                'image_path' => $imagePath,
             ];
         }
 

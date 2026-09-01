@@ -22,7 +22,6 @@
 
     <div class="border-b border-slate-200 px-5 py-4">
         <h3 class="font-semibold text-slate-950">Thông tin tài khoản</h3>
-        <p class="text-sm text-slate-500">Thiết lập thông tin đăng nhập và vai trò hệ thống.</p>
     </div>
 
     <div class="grid gap-5 p-5 md:grid-cols-2">
@@ -42,7 +41,6 @@
             <label for="password" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $isEdit ? 'Mật khẩu mới' : 'Mật khẩu' }}</label>
             <input id="password" type="password" name="password" {{ $isEdit ? '' : 'required' }} class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
             @if ($isEdit)
-                <p class="mt-1 text-xs text-slate-500">Để trống nếu không đổi mật khẩu.</p>
             @endif
             @error('password') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
         </div>

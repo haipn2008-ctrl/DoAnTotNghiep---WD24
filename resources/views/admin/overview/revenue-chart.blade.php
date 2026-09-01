@@ -77,7 +77,6 @@
                     <span class="font-bold text-red-600">{{ number_format($remaining, 0, ',', '.') }}đ</span>
                 </div>
             </div>
-            <div class="border-t border-slate-200 bg-white px-5 py-3 text-xs text-slate-500">Báo cáo này phản ánh khoản phải thu và đã thu, không phải lợi nhuận. Lợi nhuận chỉ được tính khi có dữ liệu chi thực tế.</div>
         </section>
 
         {{-- Chart lịch sử 6 tháng --}}

@@ -121,6 +121,7 @@ class RoomManagementTest extends TestCase
                 UploadedFile::fake()->image('overview.jpg'),
                 UploadedFile::fake()->image('air-conditioner.jpg'),
             ],
+            'thumbnail_image' => UploadedFile::fake()->image('room-cover.jpg'),
         ]));
         $response->assertRedirect(route('admin.rooms.index'))->assertSessionHas('success');
         $room = Room::where('room_code', 'ROOM-NEW')->firstOrFail();
@@ -148,6 +149,7 @@ class RoomManagementTest extends TestCase
             'uploaded_by' => $this->admin->id,
         ]);
         Storage::disk('public')->assertExists($room->thumbnail);
+        $this->assertStringStartsWith("room-thumbnails/{$room->id}/", $room->thumbnail);
     }
 
     public function test_create_room_selects_all_active_assets_by_default_and_hides_mattress(): void

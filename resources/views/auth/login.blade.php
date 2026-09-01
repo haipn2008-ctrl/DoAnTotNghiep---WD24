@@ -58,7 +58,6 @@
                     <div>
                         <p class="text-sm font-medium text-indigo-600">Chào mừng quay lại</p>
                         <h2 class="mt-2 text-2xl font-bold text-slate-950">Đăng nhập</h2>
-                        <p class="mt-2 text-sm text-slate-500">Nhập email và mật khẩu để tiếp tục.</p>
                     </div>
 
                     @if ($errors->any())

@@ -28,11 +28,6 @@
             </div>
         @endif
 
-        <section class="rounded-lg border border-amber-200 bg-amber-50 p-5">
-            <h3 class="font-semibold text-amber-950">Lưu ý trước khi kết thúc</h3>
-            <p class="mt-1 text-sm leading-6 text-amber-800">Hãy đảm bảo người thuê đã thanh toán đầy đủ, chốt chỉ số điện nước, bàn giao tài sản và phòng sẽ được chuyển về trạng thái trống sau khi xác nhận.</p>
-        </section>
-
         <div class="grid gap-6 lg:grid-cols-[380px_1fr]">
             <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-5 py-4">
@@ -47,7 +42,7 @@
                 </div>
             </section>
 
-            <form action="{{ route('admin.contracts.end', $contract->id) }}" method="POST" class="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <form action="{{ route('admin.contracts.end', $contract->id) }}" method="POST" class="rounded-lg border border-slate-200 bg-white shadow-sm" data-confirm="Hợp đồng sẽ được kết thúc sau khi xác nhận trả phòng và ghi nhận chỉ số cuối kỳ." data-confirm-label="Kết thúc hợp đồng">
                 @csrf
 
                 <div class="border-b border-slate-200 px-5 py-4">
@@ -88,7 +83,7 @@
 
                 <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
                     <a href="{{ route('admin.contracts.end.list') }}" class="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Hủy</a>
-                    <button id="btnEnd" type="submit" disabled onclick="return confirm('Bạn chắc chắn muốn kết thúc hợp đồng này?')" class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+                    <button id="btnEnd" type="submit" disabled class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300">
                         <i class="bx bx-check-circle text-lg"></i>
                         Xác nhận kết thúc
                     </button>

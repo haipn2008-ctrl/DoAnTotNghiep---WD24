@@ -150,7 +150,7 @@
                                     {{ $errors->first('approved_end_date') ?: $errors->first('request') ?: $errors->first('contract') }}
                                 </div>
                             @endif
-                            <form method="POST" action="{{ route('admin.termination-requests.approve', $request) }}" onsubmit="return confirm('Bạn chắc chắn muốn duyệt yêu cầu trả phòng này?')" class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
+                            <form method="POST" action="{{ route('admin.termination-requests.approve', $request) }}" data-confirm="Yêu cầu trả phòng này sẽ được duyệt và chuyển sang bước xử lý tiếp theo." data-confirm-label="Duyệt yêu cầu" class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
                                 @csrf
                                 <p class="mb-3 text-sm font-semibold text-emerald-800">Xác nhận lịch rời phòng và bàn giao</p>
 
@@ -168,7 +168,7 @@
                                 <button type="submit" class="mt-3 h-11 w-full rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">✓ Duyệt trả phòng</button>
                             </form>
 
-                            <form method="POST" action="{{ route('admin.termination-requests.reject', $request) }}" onsubmit="return confirm('Bạn chắc chắn muốn từ chối yêu cầu trả phòng này?')" class="flex min-w-0 gap-2">
+                            <form method="POST" action="{{ route('admin.termination-requests.reject', $request) }}" data-confirm="Yêu cầu trả phòng này sẽ bị từ chối." data-confirm-label="Từ chối yêu cầu" class="flex min-w-0 gap-2">
                                 @csrf
                                 <input name="reject_reason" required minlength="3" maxlength="1000" placeholder="Nhập lý do từ chối" class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100">
                                 <button type="submit" class="h-11 shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">Từ chối</button>
@@ -182,7 +182,6 @@
                 <div class="py-14 text-center lg:col-span-2">
                     <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-400">□</div>
                     <h3 class="mt-4 font-semibold text-slate-900">Chưa có yêu cầu trả phòng</h3>
-                    <p class="mt-1 text-sm text-slate-500">Yêu cầu trả phòng của khách thuê sẽ xuất hiện tại đây.</p>
                 </div>
             @endforelse
         </div>

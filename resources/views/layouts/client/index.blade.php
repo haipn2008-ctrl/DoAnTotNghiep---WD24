@@ -7,6 +7,7 @@
     <link rel="icon" href="data:,">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&display=swap">
+    <link href="{{ asset('assets/css/icons.min.css') }}" rel="stylesheet" type="text/css">
     @stack('styles')
 </head>
 <body class="min-h-screen bg-[#f6f8ff] font-sans text-slate-900 antialiased">

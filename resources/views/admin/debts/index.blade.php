@@ -6,7 +6,6 @@
 @section('content')
     <div class="space-y-5">
         <div>
-            <p class="text-sm font-medium text-slate-500">Theo dõi phải thu</p>
             <h2 class="mt-1 text-2xl font-bold text-slate-950">Danh sách công nợ</h2>
             <p class="mt-2 text-sm text-slate-500">Thanh toán chờ duyệt được hiển thị riêng và chưa được tính là đã thu.</p>
         </div>

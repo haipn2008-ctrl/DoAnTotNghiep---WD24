@@ -10,13 +10,9 @@
             <div>
                 <p class="text-sm font-semibold text-indigo-600">Hợp đồng {{ $contract->contract_code }}</p>
                 <h2 class="mt-1 text-2xl font-bold text-slate-950">Thêm người vào phòng {{ $contract->room->room_code }}</h2>
-                <p class="mt-2 text-sm text-slate-500">Phòng đang có {{ $contract->currentMembers->count() }}/{{ $contract->room->max_people }} người. Người được thêm sẽ vào trạng thái đang ở ngay.</p>
+                <p class="mt-2 text-sm text-slate-500">{{ $contract->currentMembers->count() }}/{{ $contract->room->max_people }} người</p>
             </div>
             <a href="{{ route('admin.contracts.show', $contract).'#contract-tenants' }}" class="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">Quay lại hợp đồng</a>
-        </div>
-
-        <div class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
-            Sau khi lưu, hệ thống sẽ chuyển sang màn hình ghi mốc điện nước đúng ngày người này vào ở. Mốc chỉ dùng để đối chiếu và không tự chia tiền.
         </div>
 
         @if($errors->any())
@@ -44,7 +40,7 @@
                     <label class="cursor-pointer rounded-xl border p-4 transition has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
                         <span class="flex items-start gap-3">
                             <input type="radio" name="source" value="new" class="mt-1 h-4 w-4 text-indigo-600" @checked($selectedSource === 'new')>
-                            <span><strong class="block text-slate-950">Người hoàn toàn mới</strong><span class="mt-1 block text-sm text-slate-500">Tạo hồ sơ khách thuê mới và lưu lại để dùng về sau.</span></span>
+                        <span><strong class="block text-slate-950">Người mới</strong></span>
                         </span>
                     </label>
                 </div>
@@ -104,7 +100,6 @@
 
             <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <label class="block max-w-md"><span class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày giờ bắt đầu ở</span><input type="datetime-local" name="actual_move_in_at" value="{{ old('actual_move_in_at', now()->format('Y-m-d\TH:i')) }}" min="{{ $contract->actual_move_in_at->format('Y-m-d\TH:i') }}" max="{{ now()->format('Y-m-d\TH:i') }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold"></label>
-                <p class="mt-2 text-xs text-slate-500">Thời điểm này được lưu vào lịch sử cư trú và dùng làm ngày ghi mốc điện nước tiếp theo.</p>
             </section>
 
             <div class="flex flex-col-reverse justify-end gap-3 sm:flex-row">

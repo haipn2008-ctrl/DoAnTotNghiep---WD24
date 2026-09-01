@@ -7,7 +7,11 @@ use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\Room;
 use App\Models\Vehicle;
+use App\Services\VehicleCapacityService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class VehicleController extends Controller
@@ -85,8 +89,89 @@ class VehicleController extends Controller
 
         $rooms = Room::query()->orderBy('room_code')->get(['id', 'room_code']);
 
+        $allDeclarationMembers = ContractTenant::query()
+            ->with(['tenant', 'contract.room'])
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)
+            ->whereNotNull('tenant_id')
+            ->whereHas('contract', fn ($query) => $query->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES))
+            ->latest('updated_at')
+            ->get();
+        $declarationMembers = $allDeclarationMembers
+            ->groupBy('tenant_id')
+            ->map(function ($members) {
+                $member = $members->first();
+                $member->setAttribute('active_room_codes', $members->pluck('contract.room.room_code')->filter()->unique()->values());
+                $member->setAttribute('active_contract_codes', $members->pluck('contract.contract_code')->filter()->unique()->values());
+                $status = $members->contains(fn ($item) => $item->vehicle_declaration_status === ContractTenant::VEHICLE_HAS)
+                    ? ContractTenant::VEHICLE_HAS
+                    : ($members->contains(fn ($item) => $item->vehicle_declaration_status === ContractTenant::VEHICLE_LATER)
+                        ? ContractTenant::VEHICLE_LATER
+                        : ($members->every(fn ($item) => $item->vehicle_declaration_status === ContractTenant::VEHICLE_NONE)
+                            ? ContractTenant::VEHICLE_NONE
+                            : ContractTenant::VEHICLE_UNDECLARED));
+                $member->setAttribute('vehicle_declaration_status', $status);
+                return $member;
+            })->values();
+        $declarationCounts = [
+            'undeclared' => $declarationMembers->where('vehicle_declaration_status', ContractTenant::VEHICLE_UNDECLARED)->count(),
+            'later' => $declarationMembers->where('vehicle_declaration_status', ContractTenant::VEHICLE_LATER)->count(),
+            'no_vehicle' => $declarationMembers->where('vehicle_declaration_status', ContractTenant::VEHICLE_NONE)->count(),
+            'has_vehicle' => $declarationMembers->where('vehicle_declaration_status', ContractTenant::VEHICLE_HAS)->count(),
+        ];
+
         return view('admin.vehicles.index', compact(
-            'vehicles', 'rooms', 'counts', 'search', 'status', 'roomId'
+            'vehicles', 'rooms', 'counts', 'search', 'status', 'roomId',
+            'declarationMembers', 'declarationCounts'
         ));
+    }
+
+    public function store(Request $request, VehicleCapacityService $capacity): RedirectResponse
+    {
+        $data = $request->validate([
+            'contract_tenant_id' => ['required', 'integer', Rule::exists('contract_tenants', 'id')],
+            'vehicle_type' => ['required', Rule::in(['motorcycle', 'electric_motorcycle', 'bicycle'])],
+            'vehicle_name' => ['nullable', 'string', 'max:255'],
+            'license_plate' => ['nullable', 'required_unless:vehicle_type,bicycle', 'string', 'max:50', Rule::unique('vehicles', 'license_plate')],
+            'color' => ['nullable', 'string', 'max:100'],
+            'vehicle_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
+        $member = ContractTenant::query()->with(['tenant', 'contract'])
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)
+            ->whereHas('contract', fn ($query) => $query->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES))
+            ->findOrFail($data['contract_tenant_id']);
+        abort_unless($member->tenant, 422, 'Người thuê chưa có hồ sơ tài khoản để đăng ký phương tiện.');
+        $imagePath = $request->file('vehicle_image')?->store('vehicles', 'local');
+
+        try {
+            DB::transaction(function () use ($member, $data, $imagePath, $request, $capacity): void {
+                $capacity->ensureCanSubmit($member->tenant);
+                $member->tenant->vehicles()->create([
+                    'vehicle_type' => $data['vehicle_type'],
+                    'vehicle_name' => $data['vehicle_name'] ?? null,
+                    'license_plate' => $data['vehicle_type'] === 'bicycle' ? null : strtoupper(trim($data['license_plate'])),
+                    'color' => $data['color'] ?? null,
+                    'vehicle_image' => $imagePath,
+                    'status' => Vehicle::STATUS_APPROVED,
+                    'submitted_by' => $request->user()->id,
+                    'reviewed_by' => $request->user()->id,
+                    'reviewed_at' => now(),
+                    'review_note' => 'Quản lý đăng ký hộ khách thuê.',
+                ]);
+                ContractTenant::query()->where('tenant_id', $member->tenant_id)
+                    ->where('status', ContractTenant::STATUS_CHECKED_IN)
+                    ->whereHas('contract', fn ($query) => $query->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES))->update([
+                    'vehicle_declaration_status' => ContractTenant::VEHICLE_HAS,
+                    'vehicle_declared_at' => now(),
+                    'vehicle_declared_by' => $request->user()->id,
+                ]);
+            }, 3);
+        } catch (\Throwable $exception) {
+            if ($imagePath) {
+                Storage::disk('local')->delete($imagePath);
+            }
+            throw $exception;
+        }
+
+        return back()->with('success', 'Đã thêm và duyệt phương tiện hộ khách thuê.');
     }
 }

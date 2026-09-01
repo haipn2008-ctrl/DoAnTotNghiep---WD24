@@ -268,9 +268,6 @@
                 Lịch sử yêu cầu
             </h2>
 
-            <p class="mt-1 text-xs text-slate-500">
-                Theo dõi trạng thái các yêu cầu trả phòng đã gửi.
-            </p>
 
         </div>
 
@@ -299,9 +296,6 @@
                     Chưa có yêu cầu trả phòng
                 </h3>
 
-                <p class="mt-1 text-sm text-slate-500">
-                    Các yêu cầu bạn gửi sẽ xuất hiện tại đây.
-                </p>
 
             </div>
 

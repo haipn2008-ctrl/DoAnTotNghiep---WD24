@@ -48,14 +48,14 @@
                 <label class="block text-sm font-semibold text-indigo-950">{{ $temporaryResidence->evidence_path ? 'Thay tệp minh chứng' : 'Bổ sung tệp minh chứng' }}
                     <input type="file" name="evidence" required accept="image/jpeg,image/png,image/webp,application/pdf" class="mt-2 block w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-normal file:mr-4 file:rounded-md file:border-0 file:bg-indigo-100 file:px-3 file:py-2 file:font-semibold file:text-indigo-700">
                 </label>
-                <p class="mt-1 text-xs text-indigo-700">JPG, PNG, WEBP hoặc PDF; tối đa 5 MB. Có thể cập nhật ngay cả với hồ sơ nội bộ đã ký.</p>
+                <p class="mt-1 text-xs text-indigo-700">JPG, PNG, WEBP, PDF · 5 MB</p>
                 <button class="mt-3 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white">Lưu minh chứng</button>
             </form>
         @endif
     </section>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-bold text-slate-950">Lịch sử giấy tạm trú của người thuê</h3><p class="mt-1 text-xs text-slate-500">Các lần cập nhật trước được giữ lại để đối chiếu.</p></div>
+        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-bold text-slate-950">Lịch sử giấy tạm trú</h3></div>
         <div class="overflow-x-auto"><table class="min-w-full divide-y divide-slate-100 text-sm"><thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th class="px-5 py-3">Hiệu lực</th><th class="px-5 py-3">Mã hồ sơ</th><th class="px-5 py-3">Trạng thái</th><th class="px-5 py-3">Minh chứng</th><th class="px-5 py-3 text-right">Chi tiết</th></tr></thead><tbody class="divide-y divide-slate-100">
             @foreach($residenceHistory as $history)
                 <tr class="{{ $history->is($temporaryResidence) ? 'bg-indigo-50/50' : '' }}"><td class="whitespace-nowrap px-5 py-3">{{ $history->start_date?->format('d/m/Y') }} → {{ $history->end_date?->format('d/m/Y') ?? 'Không thời hạn' }}</td><td class="px-5 py-3">{{ $history->reference_number ?: '—' }}</td><td class="px-5 py-3 font-semibold">{{ $history->status_label }}</td><td class="px-5 py-3">{{ $history->evidence_path ? 'Đã có' : 'Chưa có' }}</td><td class="px-5 py-3 text-right">@if(! $history->is($temporaryResidence))<a href="{{ route('admin.temporary_residences.show', $history) }}" class="font-semibold text-indigo-700">Xem</a>@else<span class="text-xs text-slate-400">Đang xem</span>@endif</td></tr>

@@ -9,3 +9,44 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* Nút thao tác dùng icon thống nhất; nhãn vẫn được giữ cho accessibility và tooltip. */
+.app-icon-action {
+    width: 2.75rem !important;
+    min-width: 2.75rem !important;
+    min-height: 2.75rem !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    gap: 0 !important;
+    flex: 0 0 2.75rem;
+}
+
+.app-icon-action > i,
+.app-icon-action > svg {
+    margin: 0 !important;
+}
+
+.app-dialog[hidden] { display: none; }
+.app-dialog [hidden] { display: none !important; }
+.app-dialog { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 1rem; }
+.app-dialog__backdrop { position: absolute; inset: 0; background: rgb(15 23 42 / .62); backdrop-filter: blur(4px); }
+.app-dialog__panel { position: relative; width: min(100%, 30rem); display: flex; gap: 1rem; border: 1px solid rgb(226 232 240); border-radius: 1rem; background: white; padding: 1.5rem; box-shadow: 0 24px 70px rgb(15 23 42 / .25); animation: app-dialog-in .18s ease-out; }
+.app-dialog__icon { display: flex; width: 2.75rem; height: 2.75rem; flex: 0 0 2.75rem; align-items: center; justify-content: center; border-radius: .8rem; background: rgb(238 242 255); color: rgb(79 70 229); font-size: 1.5rem; }
+.app-dialog__content { min-width: 0; flex: 1; }
+.app-dialog__content h2 { margin: 0; color: rgb(15 23 42); font-size: 1.05rem; font-weight: 750; }
+.app-dialog__content > p { margin: .4rem 0 0; color: rgb(100 116 139); font-size: .875rem; line-height: 1.5; }
+.app-dialog__reason { margin-top: 1rem; }
+.app-dialog__reason label { display: block; margin-bottom: .4rem; color: rgb(51 65 85); font-size: .82rem; font-weight: 650; }
+.app-dialog__reason label span, .app-dialog__reason small { color: rgb(225 29 72); }
+.app-dialog__reason textarea { width: 100%; resize: vertical; border: 1px solid rgb(203 213 225); border-radius: .7rem; padding: .7rem .8rem; color: rgb(15 23 42); outline: none; }
+.app-dialog__reason textarea:focus { border-color: rgb(99 102 241); box-shadow: 0 0 0 4px rgb(224 231 255); }
+.app-dialog__reason small { display: block; margin-top: .35rem; font-size: .75rem; }
+.app-dialog__actions { display: flex; justify-content: flex-end; gap: .65rem; margin-top: 1.25rem; }
+.app-dialog__actions button { min-height: 2.6rem; border-radius: .7rem; padding: 0 1rem; font-size: .875rem; font-weight: 700; }
+.app-dialog__cancel { border: 1px solid rgb(226 232 240); background: white; color: rgb(71 85 105); }
+.app-dialog__cancel:hover { background: rgb(248 250 252); }
+.app-dialog__confirm { border: 0; background: rgb(79 70 229); color: white; box-shadow: 0 4px 12px rgb(79 70 229 / .22); }
+.app-dialog__confirm:hover { background: rgb(67 56 202); }
+.app-dialog-open { overflow: hidden; }
+@keyframes app-dialog-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+@media (max-width: 520px) { .app-dialog__panel { padding: 1.1rem; } .app-dialog__icon { display: none; } }

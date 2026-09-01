@@ -16,9 +16,6 @@
             Lịch sử yêu cầu
         </h1>
 
-        <p class="mt-1 text-sm text-slate-500">
-            Theo dõi các yêu cầu gia hạn và trả phòng bạn đã gửi.
-        </p>
     </div>
 
     {{-- FILTER --}}
@@ -57,9 +54,6 @@
                     Chưa có yêu cầu
                 </h3>
 
-                <p class="mt-1 text-sm text-slate-500">
-                    Các yêu cầu gia hạn hoặc trả phòng của bạn sẽ xuất hiện tại đây.
-                </p>
 
             </div>
 

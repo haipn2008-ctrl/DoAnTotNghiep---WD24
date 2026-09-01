@@ -31,7 +31,7 @@
 
 <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm {{ $progressClass ?? '' }}">
     <div class="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div><h3 class="font-bold text-slate-950">Tiến độ kết thúc hợp đồng</h3><p class="mt-1 text-xs text-slate-500">Trạng thái được lưu tự động; bạn có thể rời trang và quay lại tiếp tục bất cứ lúc nào.</p></div>
+        <div><h3 class="font-bold text-slate-950">Tiến độ kết thúc hợp đồng</h3></div>
         @if($contract->status === \App\Models\Contract::STATUS_SETTLING)<span class="w-fit rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700">Đang quyết toán</span>@endif
     </div>
     <div class="grid gap-3 p-5 sm:p-6 lg:grid-cols-4">

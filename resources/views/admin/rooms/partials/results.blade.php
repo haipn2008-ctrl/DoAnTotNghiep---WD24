@@ -35,8 +35,8 @@
                     <tr class="align-middle hover:bg-slate-50/70">
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-3">
-                                @if ($room->thumbnail)
-                                    <img src="{{ asset('storage/' . $room->thumbnail) }}" alt="Phòng {{ $room->room_code }}" class="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-slate-200">
+                                @if ($room->thumbnail && ! str_starts_with($room->thumbnail, 'room-evidence/'))
+                                    <img src="{{ route('admin.rooms.thumbnail', $room) }}" alt="Phòng {{ $room->room_code }}" class="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-slate-200">
                                 @else
                                     <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 ring-1 ring-slate-200"><i class="bx bx-image text-xl"></i></div>
                                 @endif
@@ -59,14 +59,14 @@
                                     <a href="{{ route('admin.rooms.edit', $room) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" title="Chỉnh sửa"><i class="bx bx-edit text-lg"></i></a>
                                 @endif
                                 @if ($room->status === \App\Models\Room::STATUS_RETIRED)
-                                    <form action="{{ route('admin.rooms.restore', $room) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do đưa phòng vào khai thác lại (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.restoration_reason.value = reason.trim(); return confirm('Xác nhận đưa phòng trở lại trạng thái sẵn sàng?');">
+                                    <form action="{{ route('admin.rooms.restore', $room) }}" method="POST" data-confirm="Phòng sẽ được đưa trở lại trạng thái sẵn sàng khai thác." data-confirm-label="Khôi phục phòng" data-reason-input="restoration_reason" data-reason-placeholder="Nhập lý do đưa phòng vào khai thác lại...">
                                         @csrf
                                         @method('PATCH')
                                         <input type="hidden" name="restoration_reason">
                                         <button type="submit" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Khôi phục"><i class="bx bx-revision text-lg"></i></button>
                                     </form>
                                 @elseif ($room->reserving_contracts_count === 0 && (int) $room->current_people === 0)
-                                    <form action="{{ $room->contracts_count === 0 && $room->operational_utility_readings_count === 0 ? route('admin.rooms.destroy', $room) : route('admin.rooms.retire', $room) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do ngừng khai thác phòng (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.retirement_reason.value = reason.trim(); return confirm('Xác nhận ngừng khai thác? Phòng và toàn bộ dữ liệu sẽ được giữ lại.');">
+                                    <form action="{{ $room->contracts_count === 0 && $room->operational_utility_readings_count === 0 ? route('admin.rooms.destroy', $room) : route('admin.rooms.retire', $room) }}" method="POST" data-confirm="Phòng sẽ ngừng khai thác nhưng toàn bộ dữ liệu vẫn được giữ lại." data-confirm-label="Ngừng khai thác" data-reason-input="retirement_reason" data-reason-placeholder="Nhập lý do ngừng khai thác phòng...">
                                         @csrf
                                         @method($room->contracts_count === 0 && $room->operational_utility_readings_count === 0 ? 'DELETE' : 'PATCH')
                                         <input type="hidden" name="retirement_reason">

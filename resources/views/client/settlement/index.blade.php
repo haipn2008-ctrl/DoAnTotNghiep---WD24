@@ -9,7 +9,7 @@
             <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                 <div>
                     <p class="text-sm font-semibold text-violet-700">Cổng quyết toán sau trả phòng</p>
-                    <h2 class="mt-1 text-2xl font-bold text-violet-950">Theo dõi toàn bộ nghĩa vụ tài chính tại một nơi</h2>
+                    <h2 class="mt-1 text-2xl font-bold text-violet-950">Quyết toán</h2>
                     <p class="mt-2 max-w-3xl text-sm leading-6 text-violet-800">
                         Xem bảng quyết toán, thanh toán khoản còn thiếu, cung cấp thông tin nhận tiền hoàn và tải chứng từ của từng hợp đồng.
                     </p>
@@ -113,7 +113,6 @@
         @empty
             <section class="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
                 <h3 class="font-semibold text-slate-950">Chưa có hợp đồng cần quyết toán</h3>
-                <p class="mt-2 text-sm text-slate-500">Các hợp đồng đã trả phòng hoặc đã hoàn tất sẽ xuất hiện tại đây.</p>
                 <a href="{{ route('client.contracts.index') }}" class="mt-4 inline-flex text-sm font-semibold text-indigo-700">Xem lịch sử hợp đồng →</a>
             </section>
         @endforelse

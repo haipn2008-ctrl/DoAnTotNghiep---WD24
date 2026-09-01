@@ -5,6 +5,8 @@
 
 @section('content')
     <div class="space-y-6">
+        @include('admin.contracts.partials.workspace-nav')
+
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
                 <h2 class="text-2xl font-bold text-slate-950">Danh sách hợp đồng</h2>

@@ -305,11 +305,6 @@
                 Cần hỗ trợ?
             </p>
 
-            <p class="mt-1 text-xs leading-5 text-slate-500">
-                Liên hệ ban quản lý để được xử lý yêu cầu về phòng,
-                hóa đơn hoặc hợp đồng.
-            </p>
-
             @if(filled($clientSupportPhone))
                 <a href="tel:{{ preg_replace('/[^0-9+]/', '', $clientSupportPhone) }}"
                    class="mt-3 inline-block text-sm font-bold text-indigo-700 hover:text-indigo-800">

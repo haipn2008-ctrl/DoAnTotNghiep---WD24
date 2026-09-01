@@ -10,6 +10,7 @@ use App\Services\RoomEvidenceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -54,9 +55,6 @@ class RoomEvidenceController extends Controller
                     'caption' => $data['caption'] ?? null,
                 ]);
 
-                if (! $lockedRoom->thumbnail) {
-                    $lockedRoom->update(['thumbnail' => $storedImages->first()->path]);
-                }
             });
         } catch (\Throwable $exception) {
             $this->evidenceService->deleteFiles($storedImages);
@@ -64,5 +62,15 @@ class RoomEvidenceController extends Controller
         }
 
         return back()->with('success', 'Đã thêm ảnh vào nhật ký hiện trạng. Ảnh cũ không bị thay thế.');
+    }
+
+    public function image(Room $room, RoomImage $roomImage)
+    {
+        abort_unless($roomImage->room_id === $room->id, 404);
+        abort_unless(Storage::disk($roomImage->disk)->exists($roomImage->path), 404);
+
+        return Storage::disk($roomImage->disk)->response($roomImage->path, null, [
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
     }
 }

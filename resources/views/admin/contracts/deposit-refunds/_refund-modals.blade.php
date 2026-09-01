@@ -499,10 +499,6 @@
                                         <span>Tôi xác nhận số tiền cần hoàn cho khách là <strong>{{ number_format($eligibleRefund,0,',','.') }} VNĐ</strong>.</span>
                                     </label>
 
-                                    <div class="refund-note">
-                                        <i class="bx bx-info-circle"></i>
-                                        <span>Một lần xác nhận sẽ duyệt số tiền, lưu bằng chứng chuyển khoản và chuyển yêu cầu sang chờ khách xác nhận nhận tiền.</span>
-                                    </div>
                                 </section>
                             </div>
                         </div>

@@ -21,14 +21,15 @@
 @endphp
 
 <div class="space-y-6">
-    <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+    @include('admin.contracts.partials.workspace-nav')
+
+    <div class="flex flex-col justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:flex-row lg:items-center">
         <div>
-            <a href="{{ route('admin.contracts.template') }}" class="text-sm font-semibold text-indigo-700">← Lịch sử phiên bản</a>
-            <div class="mt-3 flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <h2 class="text-2xl font-bold text-slate-950">Chi tiết phiên bản {{ $template->version }}</h2>
-                @if($template->is_active)<span class="rounded-full bg-emerald-700 px-3 py-1 text-xs font-bold text-white">Đang áp dụng</span>@endif
+                @if($template->is_active)<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Đang áp dụng</span>@endif
             </div>
-            <p class="mt-1 text-sm text-slate-600">{{ $template->name }} · Phát hành {{ $template->effective_from?->format('H:i d/m/Y') }}</p>
+            <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600"><span>{{ $template->name }}</span><span class="hidden text-slate-300 sm:inline">•</span><span class="inline-flex items-center gap-1.5"><i class="bx bx-calendar" aria-hidden="true"></i>Phát hành {{ $template->effective_from?->format('H:i d/m/Y') }}</span></p>
         </div>
         <button type="button" id="open-template-editor" aria-controls="template-editor" aria-expanded="{{ $showEditForm ? 'true' : 'false' }}" class="template-primary-action">
             <i class="bx bx-edit-alt" aria-hidden="true"></i>
@@ -52,7 +53,7 @@
     </section>
 
     <section id="template-editor" class="{{ $showEditForm ? '' : 'hidden' }} overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm" tabindex="-1">
-        <form method="POST" action="{{ route('admin.contracts.template.store') }}">
+        <form method="POST" action="{{ route('admin.contracts.template.store') }}" data-confirm="Một phiên bản mẫu mới sẽ được phát hành từ nội dung đang chỉnh." data-confirm-label="Phát hành phiên bản">
             @csrf
             <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
                 <div>
@@ -83,7 +84,7 @@
 
             <div class="flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row">
                 <button type="button" id="cancel-template-editor" class="template-secondary-action">Hủy</button>
-                <button class="template-primary-action" onclick="return confirm('Phát hành phiên bản mẫu mới từ nội dung đang chỉnh?')">
+                <button class="template-primary-action">
                     <i class="bx bx-save" aria-hidden="true"></i>
                     <span>Lưu thành phiên bản mới</span>
                 </button>

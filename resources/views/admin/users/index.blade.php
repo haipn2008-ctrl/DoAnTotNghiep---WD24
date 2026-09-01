@@ -87,7 +87,7 @@
                                             <i class="bx bx-edit text-lg"></i>
                                         </a>
                                         @if ($user->status === \App\Models\User::STATUS_INACTIVE)
-                                            <form action="{{ route('admin.users.restore', $user) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do khôi phục tài khoản (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.reactivation_reason.value = reason.trim(); return confirm('Xác nhận khôi phục tài khoản?');">
+                                            <form action="{{ route('admin.users.restore', $user) }}" method="POST" data-confirm="Tài khoản sẽ được khôi phục và có thể sử dụng lại hệ thống." data-confirm-label="Khôi phục tài khoản" data-reason-input="reactivation_reason" data-reason-placeholder="Nhập lý do khôi phục tài khoản...">
                                                 @csrf
                                                 @method('PATCH')
                                                 <input type="hidden" name="reactivation_reason">
@@ -96,7 +96,7 @@
                                                 </button>
                                             </form>
                                         @elseif (! auth()->user()->is($user))
-                                            <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="const reason = prompt('Nhập lý do ngừng sử dụng tài khoản (ít nhất 10 ký tự):'); if (!reason || reason.trim().length < 10) { alert('Lý do phải có ít nhất 10 ký tự.'); return false; } this.elements.deactivation_reason.value = reason.trim(); return confirm('Xác nhận ngừng sử dụng tài khoản? Lịch sử sẽ được giữ lại.');">
+                                            <form action="{{ route('admin.users.destroy', $user) }}" method="POST" data-confirm="Tài khoản sẽ ngừng hoạt động nhưng toàn bộ lịch sử vẫn được giữ lại." data-confirm-label="Ngừng sử dụng" data-reason-input="deactivation_reason" data-reason-placeholder="Nhập lý do ngừng sử dụng tài khoản...">
                                                 @csrf
                                                 @method('DELETE')
                                                 <input type="hidden" name="deactivation_reason">

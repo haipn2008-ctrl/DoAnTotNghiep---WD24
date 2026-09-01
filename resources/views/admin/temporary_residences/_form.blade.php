@@ -2,14 +2,23 @@
 @php($editing = $temporaryResidence !== null)
 
 @if($errors->any())
-    <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+    <div class="m-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
         <p class="font-bold">Vui lòng kiểm tra lại thông tin:</p>
         <ul class="mt-2 list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
     </div>
 @endif
 
+<div class="border-b border-slate-200 bg-slate-50/70 px-6 py-5">
+    <div class="flex items-center gap-3">
+        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700"><i class="bx bx-id-card text-xl"></i></span>
+        <div><h3 class="font-bold text-slate-950">Thông tin hồ sơ</h3><p class="text-sm text-slate-500">Thông tin người thuê và thời gian hiệu lực tạm trú.</p></div>
+    </div>
+</div>
+
+<div class="space-y-5 p-6">
+
 @if($editing)
-    <div class="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+    <div class="grid gap-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 sm:grid-cols-3">
         <div><p class="text-xs text-slate-500">Người thuê</p><p class="mt-1 font-bold text-slate-950">{{ $temporaryResidence->contractTenant?->full_name ?? $temporaryResidence->tenant?->full_name }}</p></div>
         <div><p class="text-xs text-slate-500">CCCD</p><p class="mt-1 font-semibold text-slate-950">{{ $temporaryResidence->contractTenant?->identity_number ?? $temporaryResidence->tenant?->cccd ?? '—' }}</p></div>
         <div><p class="text-xs text-slate-500">Phòng</p><p class="mt-1 font-semibold text-slate-950">{{ $temporaryResidence->room?->room_code ?? $temporaryResidence->contract?->room?->room_code ?? '—' }}</p></div>
@@ -43,8 +52,12 @@
     <input name="reference_number" maxlength="100" value="{{ old('reference_number', $temporaryResidence?->reference_number) }}" placeholder="Nhập nếu có" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 font-normal outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
 </label>
 
+<div class="grid gap-5 lg:grid-cols-2">
+    <div class="rounded-xl border border-slate-200 p-5">
+        <div class="mb-4 flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"><i class="bx bx-file text-lg"></i></span><div><h3 class="font-bold text-slate-950">Minh chứng</h3><p class="text-xs text-slate-500">Ảnh hoặc tài liệu PDF hợp lệ.</p></div></div>
+
 <label class="block text-sm font-semibold text-slate-700">Ảnh hoặc PDF minh chứng @unless($editing)<span class="text-rose-600">*</span>@endunless
-    <input type="file" name="evidence" accept="image/jpeg,image/png,image/webp,application/pdf" @required(! $editing) class="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal file:mr-4 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:font-semibold file:text-indigo-700">
+    <input type="file" name="evidence" accept="image/jpeg,image/png,image/webp,application/pdf" @required(! $editing) class="mt-2 block w-full cursor-pointer rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-2 text-sm font-normal file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:font-semibold file:text-white hover:border-indigo-300">
     <span class="mt-1 block text-xs font-normal text-slate-500">JPG, PNG, WEBP hoặc PDF; tối đa 5 MB. Tệp được lưu riêng tư.</span>
     @if($editing && $temporaryResidence->evidenceExists())
         <a href="{{ route('admin.temporary_residences.evidence', $temporaryResidence) }}" data-image-modal data-media-type="{{ $temporaryResidence->evidenceIsPdf() ? 'pdf' : 'image' }}" data-image-title="Minh chứng giấy tạm trú {{ $temporaryResidence->reference_number ?: '#'.$temporaryResidence->id }}" class="mt-2 inline-flex text-sm font-semibold text-indigo-700">Xem minh chứng hiện tại</a>
@@ -52,14 +65,24 @@
         <span class="mt-2 block text-sm font-semibold text-amber-700">Tệp minh chứng hiện tại không còn tồn tại.</span>
     @endif
 </label>
+    </div>
 
-<label class="block text-sm font-semibold text-slate-700">Ghi chú
-    <textarea name="note" rows="4" maxlength="1000" placeholder="Thông tin cần lưu ý khi kiểm tra giấy tạm trú" class="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 font-normal outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('note', $temporaryResidence?->note) }}</textarea>
-</label>
+    <div class="rounded-xl border border-slate-200 p-5">
+        <div class="mb-4 flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><i class="bx bx-note text-lg"></i></span><div><h3 class="font-bold text-slate-950">Ghi chú</h3><p class="text-xs text-slate-500">Thông tin hỗ trợ kiểm tra hồ sơ.</p></div></div>
+        <label class="block text-sm font-semibold text-slate-700">Nội dung ghi chú
+            <textarea name="note" rows="5" maxlength="1000" placeholder="Thông tin cần lưu ý khi kiểm tra giấy tạm trú" class="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-3 font-normal outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('note', $temporaryResidence?->note) }}</textarea>
+        </label>
+    </div>
+</div>
+</div>
 
-<div class="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
-    <a href="{{ route('admin.temporary_residences.index') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Quay lại</a>
-    <button @disabled(! $editing && $members->isEmpty()) class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+<div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-6 py-4">
+    <p class="text-xs text-slate-500"><span class="text-rose-600">*</span> Thông tin bắt buộc</p>
+    <div class="flex gap-3">
+    <a href="{{ route('admin.temporary_residences.index') }}" class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Hủy</a>
+    <button @disabled(! $editing && $members->isEmpty()) class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+        <i class="bx bx-save text-lg"></i>
         {{ $editing ? 'Lưu cập nhật' : 'Cập nhật giấy tạm trú' }}
     </button>
+    </div>
 </div>

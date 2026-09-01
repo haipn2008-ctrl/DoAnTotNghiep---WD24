@@ -7,9 +7,7 @@
 
     <div class="mx-auto max-w-3xl space-y-5">
         <div>
-            <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Hỗ trợ</p>
             <h2 class="mt-1 text-2xl font-bold text-slate-950">Thông tin chủ trọ</h2>
-            <p class="mt-1 text-sm text-slate-500">Thông tin liên hệ chính thức khi bạn cần trao đổi trực tiếp.</p>
         </div>
 
         <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

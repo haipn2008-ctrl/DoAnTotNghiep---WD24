@@ -35,8 +35,9 @@
 
         <div id="invoiceAlert" class="hidden rounded-lg border px-4 py-3 text-sm font-medium"></div>
 
-        <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
-            Ngày hóa đơn theo lịch của kỳ {{ $month }}/{{ $year }} là <strong>{{ $scheduledInvoiceDate->format('d/m/Y') }}</strong>. Bạn có thể phát hành bất kỳ lúc nào sau khi chốt điện nước; hệ thống sẽ lưu người và thời điểm phát hành thực tế.
+        <div class="flex items-center gap-2 text-sm text-slate-500">
+            <span>Ngày hóa đơn</span>
+            <strong class="text-slate-800">{{ $scheduledInvoiceDate->format('d/m/Y') }}</strong>
         </div>
 
         <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

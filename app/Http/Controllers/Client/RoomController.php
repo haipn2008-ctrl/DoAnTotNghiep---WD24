@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\Amenity;
 use App\Models\Contract;
 use App\Models\ContractTenant;
 use App\Models\ContractTenantHistory;
 use App\Models\TemporaryResidence;
+use App\Models\Room;
+use App\Models\RoomImage;
 use App\Rules\AdultDateOfBirth;
 use App\Services\ContractIdentityDocumentService;
 use App\Services\TenantIdentityDocumentService;
@@ -46,6 +49,34 @@ class RoomController extends Controller
         return view('client.room.show', [
             'contracts' => $contracts,
         ]);
+    }
+
+    public function assetImage(Request $request, Room $room, Amenity $amenity)
+    {
+        $this->authorizeCurrentRoom($request, $room);
+        $asset = $room->amenities()->whereKey($amenity->id)->firstOrFail();
+        $path = $asset->pivot->image_path;
+        abort_unless($path && Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->response($path, null, ['Cache-Control' => 'private, max-age=3600']);
+    }
+
+    public function thumbnail(Request $request, Room $room)
+    {
+        $this->authorizeCurrentRoom($request, $room);
+        abort_unless($room->thumbnail && ! str_starts_with($room->thumbnail, 'room-evidence/'), 404);
+        abort_unless(Storage::disk('public')->exists($room->thumbnail), 404);
+
+        return Storage::disk('public')->response($room->thumbnail, null, ['Cache-Control' => 'private, max-age=3600']);
+    }
+
+    public function evidenceImage(Request $request, Room $room, RoomImage $roomImage)
+    {
+        $this->authorizeCurrentRoom($request, $room);
+        abort_unless($roomImage->room_id === $room->id, 404);
+        abort_unless(Storage::disk($roomImage->disk)->exists($roomImage->path), 404);
+
+        return Storage::disk($roomImage->disk)->response($roomImage->path, null, ['Cache-Control' => 'private, max-age=3600']);
     }
 
     public function members(Request $request): View
@@ -291,5 +322,15 @@ class RoomController extends Controller
             ->with('tenant.user')
             ->where('status', ContractTenant::STATUS_CHECKED_IN)
             ->findOrFail($member);
+    }
+
+    private function authorizeCurrentRoom(Request $request, Room $room): void
+    {
+        $hasAccess = $request->user()->tenant?->contracts()
+            ->where('room_id', $room->id)
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+            ->exists() ?? false;
+
+        abort_unless($hasAccess, 404);
     }
 }

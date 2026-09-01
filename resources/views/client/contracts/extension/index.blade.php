@@ -10,7 +10,7 @@
     @if($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"><p class="font-bold">Không thể xử lý yêu cầu</p><ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-6 py-4"><h2 class="font-bold text-slate-900">Gửi yêu cầu gia hạn</h2><p class="mt-1 text-sm text-slate-500">Ban quản lý sẽ kiểm tra công nợ và lập phụ lục. Hợp đồng chỉ gia hạn sau khi hai bên ký bản in và ảnh minh chứng được lưu.</p></div>
+        <div class="border-b border-slate-200 px-6 py-4"><h2 class="font-bold text-slate-900">Yêu cầu gia hạn</h2></div>
         <div class="p-6">
             @if($contracts->isEmpty())
                 <div class="py-10 text-center text-sm text-slate-500">Không có hợp đồng đủ điều kiện gửi yêu cầu.</div>

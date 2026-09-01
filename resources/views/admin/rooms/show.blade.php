@@ -20,6 +20,8 @@
         'checkout' => 'Sau khi nhận lại phòng', 'maintenance' => 'Bảo trì (dữ liệu cũ)',
         'general' => 'Khác', 'legacy' => 'Ảnh dữ liệu cũ',
     ];
+    $roomAssets = $room->amenities->where('category', \App\Models\Amenity::CATEGORY_ASSET);
+    $totalAssetQuantity = $roomAssets->sum(fn ($asset) => (int) ($asset->pivot->quantity ?? 1));
 @endphp
 
 @section('content')
@@ -33,10 +35,10 @@
             </div>
         @endif
 
-        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-                <p class="text-sm font-medium text-slate-500">Phòng {{ $room->room_code }}</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Chi tiết phòng</h2>
+                <h2 class="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Phòng {{ $room->room_code }}</h2>
+                <p class="mt-1 text-sm text-slate-500">Tổng quan thông tin, người ở và toàn bộ tài sản trong phòng.</p>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -46,78 +48,80 @@
                     Cập nhật
                 </a>
                 @endif
-                <a href="{{ route('admin.rooms.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                <a href="{{ route('admin.rooms.index') }}" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
                     <i class="bx bx-arrow-back text-lg"></i>
                     Quay lại
                 </a>
             </div>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-[360px_1fr]">
-            <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                @if ($room->thumbnail)
-                    <img src="{{ asset('storage/' . $room->thumbnail) }}" alt="Phòng {{ $room->room_code }}" class="h-72 w-full object-cover">
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="grid lg:grid-cols-[minmax(300px,0.8fr)_minmax(0,1.7fr)]">
+            <div class="relative min-h-72 overflow-hidden bg-slate-100">
+                @if ($room->thumbnail && ! str_starts_with($room->thumbnail, 'room-evidence/'))
+                    <img src="{{ route('admin.rooms.thumbnail', $room) }}" alt="Phòng {{ $room->room_code }}" class="absolute inset-0 h-full w-full object-cover">
                 @else
-                    <div class="flex h-72 w-full items-center justify-center bg-slate-100 text-slate-400">
-                        <i class="bx bx-image text-5xl"></i>
+                    <div class="flex h-full min-h-72 w-full flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
+                        <span class="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/80 shadow-sm"><i class="bx bx-image text-4xl"></i></span>
+                        <p class="mt-3 text-sm font-medium">Chưa có ảnh đại diện</p>
                     </div>
                 @endif
-
-                <div class="space-y-4 p-5">
-                    <div>
-                        <p class="text-sm text-slate-500">Mã phòng</p>
-                        <p class="mt-1 text-2xl font-bold text-slate-950">{{ $room->room_code }}</p>
-                    </div>
-
-                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $status['class'] }}">
+                    <span class="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold shadow-sm ring-1 {{ $status['class'] }}">
                         <span class="h-1.5 w-1.5 rounded-full {{ $status['dot'] }}"></span>
                         {{ $status['label'] }}
                     </span>
+            </div>
+
+            <div class="p-5 sm:p-7">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-widest text-indigo-600">Thông tin phòng</p>
+                        <h3 class="mt-1 text-xl font-bold text-slate-950">Không gian &amp; giá thuê</h3>
+                    </div>
+                    <span class="rounded-lg bg-indigo-50 px-3 py-2 font-mono text-sm font-bold text-indigo-700">{{ $room->room_code }}</span>
                 </div>
-            </section>
 
-            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h3 class="font-semibold text-slate-950">Thông tin phòng</h3>
-                    <p class="text-sm text-slate-500">Thông tin giá thuê, sức chứa và mô tả.</p>
-                </div>
-
-                <div class="grid gap-4 p-5 sm:grid-cols-2">
-                    <div class="rounded-lg bg-slate-50 p-4">
-                        <p class="text-sm font-medium text-slate-500">Tầng</p>
-                        <p class="mt-2 text-lg font-semibold text-slate-950">Tầng {{ $room->floor }}</p>
+                <div class="grid grid-cols-2 gap-3 py-5 xl:grid-cols-4">
+                    <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-indigo-600 shadow-sm"><i class="bx bx-building-house text-xl"></i></span>
+                        <p class="mt-3 text-xs font-medium text-slate-500">Vị trí</p>
+                        <p class="mt-1 font-bold text-slate-950">Tầng {{ $room->floor }}</p>
                     </div>
-
-                    <div class="rounded-lg bg-slate-50 p-4">
-                        <p class="text-sm font-medium text-slate-500">Giá thuê</p>
-                        <p class="mt-2 text-lg font-semibold text-slate-950">{{ number_format($room->price, 0, ',', '.') }}đ</p>
+                    <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-sm"><i class="bx bx-wallet text-xl"></i></span>
+                        <p class="mt-3 text-xs font-medium text-slate-500">Giá thuê/tháng</p>
+                        <p class="mt-1 font-bold text-slate-950">{{ number_format($room->price, 0, ',', '.') }}đ</p>
                     </div>
-
-                    <div class="rounded-lg bg-slate-50 p-4">
-                        <p class="text-sm font-medium text-slate-500">Diện tích</p>
-                        <p class="mt-2 text-lg font-semibold text-slate-950">{{ $room->area }} m²</p>
+                    <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-sky-600 shadow-sm"><i class="bx bx-area text-xl"></i></span>
+                        <p class="mt-3 text-xs font-medium text-slate-500">Diện tích</p>
+                        <p class="mt-1 font-bold text-slate-950">{{ $room->area }} m²</p>
                     </div>
-
-                    <div class="rounded-lg bg-slate-50 p-4">
-                        <p class="text-sm font-medium text-slate-500">Số người hiện tại</p>
-                        <p class="mt-2 text-lg font-semibold text-slate-950">{{ $room->current_people }}/{{ $room->max_people ?? 4 }} người</p>
-                    </div>
-
-                    <div class="sm:col-span-2">
-                        <p class="text-sm font-semibold text-slate-700">Mô tả</p>
-                        <p class="mt-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-600">
-                            {{ $room->description ?: 'Chưa có mô tả cho phòng này.' }}
-                        </p>
+                    <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-violet-600 shadow-sm"><i class="bx bx-group text-xl"></i></span>
+                        <p class="mt-3 text-xs font-medium text-slate-500">Sức chứa</p>
+                        <p class="mt-1 font-bold text-slate-950">{{ $room->current_people }}/{{ $room->max_people ?? 4 }} người</p>
                     </div>
                 </div>
-            </section>
-        </div>
+                <div class="rounded-xl border border-slate-200 px-4 py-3.5">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Mô tả</p>
+                    <p class="mt-1.5 text-sm leading-6 text-slate-600">{{ $room->description ?: 'Chưa có mô tả cho phòng này.' }}</p>
+                </div>
+            </div>
+            </div>
+        </section>
 
-        <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <nav aria-label="Điều hướng nhanh" class="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-4">
+            <a href="#nguoi-dang-o" class="flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700"><i class="bx bx-group text-xl"></i>Người đang ở</a>
+            <a href="#phuong-tien" class="flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700"><i class="bx bx-cycling text-xl"></i>Phương tiện</a>
+            <a href="#tai-san" class="flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700"><i class="bx bx-package text-xl"></i>Tài sản ({{ $totalAssetQuantity }})</a>
+            <a href="#nhat-ky" class="flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700"><i class="bx bx-images text-xl"></i>Ảnh hiện trạng</a>
+        </nav>
+
+        <section id="nguoi-dang-o" class="scroll-mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                 <div>
                     <h3 class="font-semibold text-slate-950">Người đang ở</h3>
-                    <p class="text-sm text-slate-500">Danh sách lấy từ hợp đồng đang hoạt động hoặc đã quá hạn nhưng chưa trả phòng.</p>
                 </div>
                 <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">
                     {{ $occupancyContract?->number_of_people ?? 0 }} người
@@ -179,7 +183,7 @@
             @endif
         </section>
 
-        <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section id="phuong-tien" class="scroll-mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                 <div>
                     <h3 class="font-semibold text-slate-950">Phương tiện đang gửi</h3>
@@ -215,40 +219,52 @@
             </div>
         </section>
 
-        @php
-            $roomAssets = $room->amenities->where('category', \App\Models\Amenity::CATEGORY_ASSET);
-        @endphp
-        <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-5 py-4">
-                <h3 class="font-semibold text-slate-950">Tài sản bàn giao</h3>
-                <p class="text-sm text-slate-500">Số lượng và tình trạng tài sản để đối chiếu khi bàn giao, trả phòng.</p>
+        <section id="tai-san" class="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-5 sm:px-6">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-950">Tài sản có trong phòng</h3>
+                    <p class="mt-1 text-sm text-slate-500">Danh sách đầy đủ thiết bị và vật dụng được bàn giao cùng phòng.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-bold text-indigo-700">{{ $roomAssets->count() }} loại</span>
+                    <span class="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-700">{{ $totalAssetQuantity }} món</span>
+                </div>
             </div>
 
-            <div class="p-5">
-                <div class="mb-3 flex items-center gap-2">
-                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700"><i class="bx bx-package"></i></span>
-                    <p class="text-sm font-semibold text-slate-700">{{ $roomAssets->count() }} loại tài sản</p>
-                </div>
-                <div class="space-y-3">
+            <div class="p-5 sm:p-6">
+                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     @forelse ($roomAssets as $asset)
-                        <div class="grid gap-2 rounded-lg border border-slate-200 px-4 py-3 sm:grid-cols-[1fr_120px_190px_minmax(180px,1fr)] sm:items-center">
-                            <p class="font-semibold text-slate-900">{{ $asset->name }}</p>
-                            <p class="text-sm text-slate-600">Số lượng: {{ $asset->pivot->quantity }}</p>
-                            <p class="text-sm text-slate-600">{{ $conditionLabels[$asset->pivot->condition] ?? 'Không xác định' }}</p>
-                            <p class="text-sm text-slate-600">{{ $asset->pivot->note ?: 'Không có ghi chú' }}</p>
-                        </div>
+                        @php $isDamaged = $asset->pivot->condition === 'damaged'; @endphp
+                        <article class="flex min-h-44 flex-col rounded-xl border {{ $isDamaged ? 'border-rose-200 bg-rose-50/40' : 'border-slate-200 bg-white' }} p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                            <div class="flex items-start justify-between gap-3">
+                                @if($asset->pivot->image_path)
+                                    <a href="{{ route('admin.rooms.assets.image', [$room, $asset]) }}" data-image-modal data-image-title="{{ $asset->name }} · Phòng {{ $room->room_code }}" class="block overflow-hidden rounded-xl">
+                                        <img src="{{ route('admin.rooms.assets.image', [$room, $asset]) }}" alt="{{ $asset->name }}" loading="lazy" class="h-20 w-28 object-cover ring-1 ring-slate-200 transition hover:scale-105">
+                                    </a>
+                                @else
+                                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl {{ $isDamaged ? 'bg-rose-100 text-rose-600' : 'bg-indigo-50 text-indigo-600' }}"><i class="bx bx-package text-2xl"></i></span>
+                                @endif
+                                <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">SL: {{ $asset->pivot->quantity }}</span>
+                            </div>
+                            <h4 class="mt-3 text-base font-bold text-slate-950">{{ $asset->name }}</h4>
+                            <p class="mt-1 inline-flex items-center gap-1.5 text-sm font-medium {{ $isDamaged ? 'text-rose-700' : 'text-emerald-700' }}"><i class="bx {{ $isDamaged ? 'bx-error-circle' : 'bx-check-circle' }} text-lg"></i>{{ $conditionLabels[$asset->pivot->condition] ?? 'Không xác định' }}</p>
+                            <p class="mt-auto border-t border-slate-200/80 pt-3 text-sm text-slate-500"><span class="font-medium text-slate-700">Ghi chú:</span> {{ $asset->pivot->note ?: 'Không có' }}</p>
+                        </article>
                     @empty
-                        <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">Chưa khai báo tài sản bàn giao.</div>
+                        <div class="sm:col-span-2 xl:col-span-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
+                            <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm"><i class="bx bx-package text-2xl"></i></span>
+                            <p class="mt-3 font-semibold text-slate-700">Chưa khai báo tài sản trong phòng</p>
+                            <p class="mt-1 text-sm text-slate-500">Bấm “Cập nhật” để bổ sung thiết bị và vật dụng bàn giao.</p>
+                        </div>
                     @endforelse
-                    </div>
+                </div>
             </div>
         </section>
 
-        <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section id="nhat-ky" class="scroll-mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                 <div>
                     <h3 class="font-semibold text-slate-950">Nhật ký ảnh hiện trạng</h3>
-                    <p class="text-sm text-slate-500">Chỉ dùng hai mốc trước bàn giao và sau khi nhận lại phòng. Thời điểm ghi nhận do máy chủ tự khóa, quản trị viên không thể sửa.</p>
                 </div>
                 <button type="button" data-room-evidence-toggle aria-expanded="{{ $errors->any() ? 'true' : 'false' }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
                     <i class="bx bx-plus text-lg"></i>Thêm nhật ký
@@ -297,8 +313,8 @@
             <div class="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
                 @forelse ($room->images as $image)
                     <article class="overflow-hidden rounded-lg border border-slate-200">
-                        <a href="{{ asset('storage/'.$image->path) }}" data-image-modal data-image-title="Ảnh hiện trạng phòng">
-                            <img src="{{ asset('storage/'.$image->path) }}" alt="{{ $evidenceLabels[$image->evidence_type] ?? 'Ảnh phòng' }}" class="h-48 w-full bg-slate-100 object-cover">
+                        <a href="{{ route('admin.rooms.evidence.image', [$room, $image]) }}" data-image-modal data-image-title="Ảnh hiện trạng phòng">
+                            <img src="{{ route('admin.rooms.evidence.image', [$room, $image]) }}" alt="{{ $evidenceLabels[$image->evidence_type] ?? 'Ảnh phòng' }}" class="h-48 w-full bg-slate-100 object-cover">
                         </a>
                         <div class="space-y-1.5 p-3 text-xs text-slate-500">
                             <p class="font-semibold text-slate-900">{{ $evidenceLabels[$image->evidence_type] ?? $image->evidence_type }}</p>

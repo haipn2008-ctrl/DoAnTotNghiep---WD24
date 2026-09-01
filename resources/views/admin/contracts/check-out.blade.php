@@ -35,7 +35,6 @@
         <div>
             <p class="text-sm font-semibold text-violet-700">{{ $contract->contract_code }} · Phòng {{ $contract->room?->room_code }}</p>
             <h2 class="mt-1 text-2xl font-bold text-slate-950">Quy trình kết thúc hợp đồng</h2>
-            <p class="mt-1 text-sm text-slate-500">Toàn bộ quá trình được xử lý trên trang này; hoàn thành bước hiện tại để mở bước tiếp theo.</p>
         </div>
         <a href="{{ route('admin.contracts.show', $contract) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"><i class="bx bx-arrow-back text-lg"></i>Chi tiết hợp đồng</a>
     </div>
@@ -44,7 +43,7 @@
 
     @if($beforeCheckout && ! $departureScheduled)
         <section class="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm">
-            <div class="border-b border-sky-100 bg-sky-50/70 px-5 py-5 sm:px-6"><p class="text-xs font-bold uppercase tracking-wider text-sky-700">Bước 1/4</p><h3 class="mt-1 text-lg font-bold text-slate-950">Ghi nhận lý do và xếp lịch bàn giao</h3><p class="mt-1 text-sm text-slate-600">Nếu khách đã gửi yêu cầu trả phòng, thao tác này đồng thời duyệt yêu cầu đó. Nếu admin chủ động kết thúc, hệ thống sẽ tạo hồ sơ lịch bàn giao để lưu vết đầy đủ.</p></div>
+            <div class="border-b border-sky-100 bg-sky-50/70 px-5 py-5 sm:px-6"><p class="text-xs font-bold uppercase tracking-wider text-sky-700">Bước 1/4</p><h3 class="mt-1 text-lg font-bold text-slate-950">Lịch bàn giao</h3></div>
             <form class="lifecycle-form space-y-4 p-5 sm:p-6" method="POST" action="{{ route('admin.contracts.departure-schedule', $contract) }}">
                 @csrf
                 <label class="block text-xs font-semibold text-slate-700">Ngày kết thúc và bàn giao được thống nhất<input type="date" name="approved_end_date" min="{{ today()->toDateString() }}" max="{{ $contract->status === \App\Models\Contract::STATUS_ACTIVE ? $contract->end_date?->toDateString() : '' }}" value="{{ old('approved_end_date', today()->toDateString()) }}" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal"><span class="mt-1.5 block font-normal text-slate-500">Khách có thể bàn giao bất kỳ lúc nào trong giờ hành chính 08:00–17:00 của ngày này.</span></label>
@@ -55,7 +54,7 @@
         </section>
     @elseif($beforeCheckout)
         <section class="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm">
-            <div class="border-b border-violet-100 bg-violet-50/70 px-5 py-5 sm:px-6"><p class="text-xs font-bold uppercase tracking-wider text-violet-600">Bước 2/4</p><h3 class="mt-1 text-lg font-bold text-slate-950">Bàn giao phòng và chốt quyết toán</h3><p class="mt-1 text-sm text-slate-600">Sau khi xác nhận, hệ thống chốt chỉ số, giải phóng phòng, lập hóa đơn cuối kỳ và tự động bù tiền cọc vào công nợ.</p></div>
+            <div class="border-b border-violet-100 bg-violet-50/70 px-5 py-5 sm:px-6"><p class="text-xs font-bold uppercase tracking-wider text-violet-600">Bước 2/4</p><h3 class="mt-1 text-lg font-bold text-slate-950">Bàn giao và quyết toán</h3></div>
             <form class="lifecycle-form" method="POST" action="{{ route('admin.contracts.check-out', $contract) }}" enctype="multipart/form-data">
                 @csrf
                 @include('admin.contracts.partials.check-out-fields')
@@ -147,7 +146,7 @@
     @endif
 
     @if($completed)
-        <section class="rounded-2xl border border-emerald-300 bg-emerald-50 p-6 text-center shadow-sm"><span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-2xl text-white"><i class="bx bx-check"></i></span><h3 class="mt-3 text-lg font-bold text-emerald-950">Hợp đồng đã hoàn tất</h3><p class="mt-1 text-sm text-emerald-800">Công nợ và tiền cọc đã được xử lý; hệ thống đã ghi nhận kết thúc nghĩa vụ của hai bên.</p></section>
+        <section class="rounded-2xl border border-emerald-300 bg-emerald-50 p-6 text-center shadow-sm"><span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-2xl text-white"><i class="bx bx-check"></i></span><h3 class="mt-3 text-lg font-bold text-emerald-950">Đã hoàn tất</h3></section>
     @endif
 </div>
 @push('scripts')

@@ -4,10 +4,10 @@
 @section('page_title', 'Tạo hợp đồng')
 
 @section('content')
-    <div class="space-y-6">
+    <div class="mx-auto max-w-6xl space-y-6">
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-                <h2 class="text-2xl font-bold text-slate-950">Tạo hợp đồng thuê phòng</h2>
+                <p class="text-sm font-semibold text-indigo-600">QUẢN LÝ HỢP ĐỒNG</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Tạo hợp đồng thuê phòng</h2><p class="mt-1 text-sm text-slate-500">Tạo bản nháp trước, hoàn thiện hồ sơ rồi mới gửi khách ký.</p>
             </div>
 
             <a href="{{ route('admin.contracts.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
@@ -15,6 +15,8 @@
                 Quay lại
             </a>
         </div>
+
+        <div class="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-3"><div class="flex gap-3 border-b border-slate-100 p-4 sm:border-b-0 sm:border-r"><span class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 font-bold text-white">1</span><div><p class="font-semibold text-slate-900">Tạo bản nháp</p><p class="text-xs text-slate-500">Chọn phòng và người thuê</p></div></div><div class="flex gap-3 border-b border-slate-100 p-4 sm:border-b-0 sm:border-r"><span class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-600">2</span><div><p class="font-semibold text-slate-900">Hoàn thiện hồ sơ</p><p class="text-xs text-slate-500">Bổ sung đủ ảnh CCCD</p></div></div><div class="flex gap-3 p-4"><span class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-600">3</span><div><p class="font-semibold text-slate-900">Gửi khách ký</p><p class="text-xs text-slate-500">Kiểm tra trước khi phát hành</p></div></div></div>
 
         @if ($errors->any())
             <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -62,7 +64,7 @@
                     <select id="tenant_id" name="tenant_id" data-contract-representative class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         <option value="">Chọn người đại diện</option>
                         @foreach ($tenants as $tenant)
-                            <option value="{{ $tenant->id }}" data-full-name="{{ $tenant->full_name }}" data-phone="{{ $tenant->phone }}" data-date-of-birth="{{ $tenant->date_of_birth?->toDateString() }}" data-gender="{{ $tenant->gender }}" data-cccd="{{ $tenant->cccd }}" data-address="{{ $tenant->address }}" data-identity-front-url="{{ $tenant->document?->hasImage('front') ? route('admin.tenants.identity-document', [$tenant, 'front']) : '' }}" data-identity-back-url="{{ $tenant->document?->hasImage('back') ? route('admin.tenants.identity-document', [$tenant, 'back']) : '' }}" @selected((string) old('tenant_id') === (string) $tenant->id)>
+                            <option value="{{ $tenant->id }}" data-full-name="{{ $tenant->full_name }}" data-phone="{{ $tenant->phone }}" data-date-of-birth="{{ $tenant->date_of_birth?->toDateString() }}" data-gender="{{ $tenant->gender }}" data-cccd="{{ $tenant->cccd }}" data-cccd-issue-date="{{ $tenant->cccd_issue_date?->toDateString() }}" data-cccd-issue-place="{{ $tenant->cccd_issue_place }}" data-address="{{ $tenant->address }}" data-identity-front-url="{{ $tenant->document?->hasImage('front') ? route('admin.tenants.identity-document', [$tenant, 'front']) : '' }}" data-identity-back-url="{{ $tenant->document?->hasImage('back') ? route('admin.tenants.identity-document', [$tenant, 'back']) : '' }}" @selected((string) old('tenant_id') === (string) $tenant->id)>
                                 {{ $tenant->full_name }} — {{ $tenant->user?->email }}{{ $tenant->cccd ? '' : ' (cần bổ sung CCCD)' }}
                             </option>
                         @endforeach

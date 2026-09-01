@@ -31,7 +31,7 @@
                     Xuất CSV
                 </a>
                 <a href="{{ route('admin.invoices.generate') }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-                    <i class="bx bx-file-plus text-lg"></i>
+                    <i class="bx bxs-file-plus text-lg"></i>
                     Sinh hóa đơn
                 </a>
             </div>

@@ -34,7 +34,6 @@
 
             <div class="border-b border-slate-200 px-5 py-4">
                 <h3 class="font-semibold text-slate-950">Thông tin phòng</h3>
-                <p class="text-sm text-slate-500">Số người chỉ được cập nhật khi nhận hoặc trả phòng; ảnh mới được nối vào nhật ký và không xóa ảnh cũ.</p>
             </div>
 
             <div class="grid gap-5 p-5 md:grid-cols-2">
@@ -92,9 +91,15 @@
                 </div>
 
                 <div class="md:col-span-2">
+                    <label for="thumbnail_image" class="mb-1.5 block text-sm font-semibold text-slate-700">Ảnh đại diện phòng</label>
+                    <p class="mb-2 text-xs text-slate-500">Chọn ảnh mới nếu muốn thay ảnh đại diện. Ảnh nhật ký hiện trạng bên dưới không được dùng làm ảnh đại diện.</p>
+                    <input id="thumbnail_image" type="file" name="thumbnail_image" accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 text-sm text-slate-600 file:mr-4 file:border-0 file:bg-indigo-50 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100">
+                    @error('thumbnail_image') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
+                </div>
+
+                <div class="md:col-span-2">
                     <label for="images" class="mb-1.5 block text-sm font-semibold text-slate-700">Bổ sung ảnh hiện trạng ban đầu</label>
                     <input id="images" type="file" name="images[]" multiple accept="image/jpeg,image/png,image/webp" data-preview-target="images-preview" data-max-files="15" class="js-image-preview-input block w-full rounded-lg border border-slate-200 text-sm text-slate-600 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200">
-                    <p class="mt-1 text-xs text-slate-500">Ảnh mới chỉ được thêm vào nhật ký; {{ $room->images->count() }} ảnh cũ vẫn được giữ nguyên.</p>
                     <div id="images-preview" class="mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-3">
                         <p data-preview-count class="mb-2 text-xs font-semibold text-slate-600"></p>
                         <div data-preview-grid class="flex flex-wrap gap-3"></div>

@@ -203,7 +203,6 @@
             <div class="flex flex-col justify-between gap-3 border-b border-sky-100 bg-sky-50/60 px-5 py-4 sm:flex-row sm:items-center">
                 <div>
                     <h3 class="font-semibold text-slate-950">Mốc đối soát giữa kỳ</h3>
-                    <p class="text-sm text-slate-500">Dùng để chia giai đoạn sử dụng; không tự tạo hóa đơn hoặc khóa kỳ.</p>
                 </div>
                 <span class="inline-flex w-fit rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-sky-700 ring-1 ring-sky-200">{{ $checkpoints->count() }} mốc</span>
             </div>

@@ -1052,11 +1052,6 @@ Thông tin hợp đồng
                                 style="max-width:100%;max-height:650px;object-fit:contain;">
                         </a>
 
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                Nhấn vào ảnh để xem kích thước đầy đủ
-                            </small>
-                        </div>
                     </div>
                 @elseif($contractImageUrl)
                     <div class="border rounded bg-light p-4 text-center">
@@ -1394,7 +1389,8 @@ Thông tin hợp đồng
             action="{{ route('admin.contracts.deposit-invoice', $contract) }}"
             method="POST"
             class="d-inline"
-            onsubmit="return confirm('Tạo hóa đơn tiền cọc cho hợp đồng này?')"
+            data-confirm="Hóa đơn tiền cọc sẽ được tạo cho hợp đồng này."
+            data-confirm-label="Tạo hóa đơn"
         >
             @csrf
 

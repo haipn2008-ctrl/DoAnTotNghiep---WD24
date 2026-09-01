@@ -34,7 +34,6 @@
                         <option value="{{ $clauseTitle }}" data-price-fields="{{ implode(',', \App\Models\ContractAppendix::priceFieldsForTitle($clauseTitle)) }}" @selected(old('title', $appendix->title ?? '') === $clauseTitle)>{{ $clauseTitle }}</option>
                     @endforeach
                 </select>
-                <p class="mt-1.5 text-xs text-slate-500">Chỉ các điều khoản có trong mẫu hợp đồng mới có thể được chọn để lập phụ lục.</p>
                 @error('title')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror
             </div>
             <section data-price-adjustment-panel class="hidden rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
@@ -62,7 +61,6 @@
             <div>
                 <label class="mb-1.5 block text-sm font-semibold text-slate-700">Nội dung điều chỉnh/bổ sung *</label>
                 <textarea name="content" data-appendix-content rows="12" required minlength="20" maxlength="30000" placeholder="Chọn tiêu đề phụ lục để lấy sẵn nội dung đang áp dụng, sau đó chỉnh sửa phần cần thay đổi" class="w-full rounded-lg border border-slate-200 p-3 leading-7 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">{{ old('content', $appendix->content ?? '') }}</textarea>
-                <p class="mt-1.5 text-xs text-slate-500">Nội dung hiện hành sẽ tự đổ khi chọn tiêu đề. Bạn có thể sửa trực tiếp trước khi lưu bản nháp.</p>
                 @error('content')<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror
             </div>
             <div class="max-w-sm">

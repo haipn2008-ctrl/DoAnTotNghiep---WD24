@@ -24,7 +24,7 @@
 
     <form method="POST" action="{{ route('client.contracts.members.store', $contract) }}" enctype="multipart/form-data" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         @csrf
-        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Thông tin người thuê</h3><p class="mt-1 text-xs text-slate-500">Các trường có dấu * là bắt buộc.</p></div>
+        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Thông tin người thuê</h3></div>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
             <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Họ và tên *</label><input name="full_name" value="{{ old('full_name') }}" required maxlength="150" class="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"></div>
             <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Ngày sinh *</label><input type="date" name="date_of_birth" value="{{ old('date_of_birth') }}" max="{{ now()->subYears(18)->toDateString() }}" required class="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"></div>

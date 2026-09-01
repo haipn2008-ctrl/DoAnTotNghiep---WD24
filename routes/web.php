@@ -208,6 +208,15 @@ Route::middleware('auth')->group(function () {
                     [RoomEvidenceController::class, 'store']
                 )->name('rooms.evidence.store');
 
+                Route::get('rooms/{room}/thumbnail', [RoomController::class, 'thumbnail'])
+                    ->name('rooms.thumbnail');
+
+                Route::get('rooms/{room}/assets/{amenity}/image', [RoomController::class, 'assetImage'])
+                    ->name('rooms.assets.image');
+
+                Route::get('rooms/{room}/evidence/{roomImage}', [RoomEvidenceController::class, 'image'])
+                    ->name('rooms.evidence.image');
+
                 Route::patch('rooms/{room}/retire', [RoomController::class, 'retire'])
                     ->name('rooms.retire');
 
@@ -238,6 +247,9 @@ Route::middleware('auth')->group(function () {
 
                 Route::get('vehicles', [AdminVehicleController::class, 'index'])
                     ->name('vehicles.index');
+
+                Route::post('vehicles', [AdminVehicleController::class, 'store'])
+                    ->name('vehicles.store');
 
                 Route::put('vehicles/{vehicle}/review', [TenantController::class, 'reviewVehicle'])
                     ->name('vehicles.review');
@@ -1104,6 +1116,18 @@ Route::middleware('auth')->group(function () {
                     ->middleware('rental.active')
                     ->name('room.show');
 
+                Route::get('/room/{room}/assets/{amenity}/image', [ClientRoomController::class, 'assetImage'])
+                    ->middleware('rental.active')
+                    ->name('room.assets.image');
+
+                Route::get('/room/{room}/thumbnail', [ClientRoomController::class, 'thumbnail'])
+                    ->middleware('rental.active')
+                    ->name('room.thumbnail');
+
+                Route::get('/room/{room}/evidence/{roomImage}', [ClientRoomController::class, 'evidenceImage'])
+                    ->middleware('rental.active')
+                    ->name('room.evidence.image');
+
                 Route::get(
                     '/room/members',
                     [ClientRoomController::class, 'members']
@@ -1354,6 +1378,7 @@ Route::middleware('auth')->group(function () {
                 )->name('account.password.update');
 
                 Route::get('/vehicles', [ClientVehicleController::class, 'index'])->middleware('rental.active')->name('vehicles.index');
+                Route::patch('/vehicles/declaration', [ClientVehicleController::class, 'declare'])->middleware('rental.active')->name('vehicles.declare');
                 Route::post('/vehicles', [ClientVehicleController::class, 'store'])->middleware('rental.active')->name('vehicles.store');
                 Route::get('/vehicles/{vehicle}/image', [ClientVehicleController::class, 'image'])->middleware('rental.active')->name('vehicles.image');
                 Route::put('/vehicles/{vehicle}', [ClientVehicleController::class, 'update'])->middleware('rental.active')->name('vehicles.update');

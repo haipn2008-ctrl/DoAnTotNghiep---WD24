@@ -6,7 +6,7 @@
 @section('content')
     <div class="space-y-5">
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-            <div><p class="text-sm font-medium text-slate-500">Kỳ {{ $month }}/{{ $year }}</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Báo cáo đối soát thu tiền</h2><p class="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Đối chiếu hóa đơn phát hành trong kỳ với số đã thu, đồng thời tách riêng dòng tiền thực nhận theo ngày thanh toán.</p></div>
+            <div><p class="text-sm font-medium text-slate-500">Kỳ {{ $month }}/{{ $year }}</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Đối soát thu tiền</h2></div>
             <form method="GET" action="{{ route('admin.reconciliation.index') }}" class="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
                 <div><label class="mb-1 block text-xs font-semibold text-slate-600">Tháng</label><select name="month" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">@foreach(range(1, 12) as $value)<option value="{{ $value }}" @selected($month === $value)>Tháng {{ $value }}</option>@endforeach</select></div>
                 <div><label class="mb-1 block text-xs font-semibold text-slate-600">Năm</label><select name="year" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">@foreach($years as $value)<option value="{{ $value }}" @selected($year === (int) $value)>{{ $value }}</option>@endforeach</select></div>
@@ -24,8 +24,6 @@
             <div class="rounded-lg border border-fuchsia-200 bg-fuchsia-50 p-5"><p class="text-sm text-fuchsia-700">Thu thừa cần đối soát</p><p class="mt-2 text-xl font-bold text-fuchsia-800">{{ number_format($summary['overpaid_amount'], 0, ',', '.') }}đ</p></div>
             <div class="rounded-lg border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Tỷ lệ thu hồi nhóm hóa đơn</p><p class="mt-2 text-xl font-bold text-slate-950">{{ $summary['gross_billed'] > 0 ? min(100, round($summary['cohort_collected'] / $summary['gross_billed'] * 100, 1)) : 0 }}%</p></div>
         </div>
-
-        <div class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-800"><strong>Phân biệt:</strong> “Đã thu của nhóm hóa đơn” bám theo tháng phát hành hóa đơn; “Tiền thực nhận trong kỳ” bám theo ngày thanh toán được ghi nhận.</div>
 
         <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Chi tiết hóa đơn phát hành trong kỳ</h3></div>

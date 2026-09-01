@@ -69,68 +69,62 @@
 @if($contract->status === \App\Models\Contract::STATUS_DRAFT)
     @include('admin.contracts.partials.draft-detail')
 @else
-<div class="space-y-4">
-    <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <div class="flex flex-wrap items-center gap-2">
-                <p class="text-sm font-medium text-slate-500">{{ $contract->contract_code }}</p>
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $currentStatus['class'] }}">
-                    <span class="h-1.5 w-1.5 rounded-full {{ $currentStatus['dot'] }}"></span>
-                    {{ $currentStatus['label'] }}
-                </span>
+<div class="mx-auto max-w-7xl space-y-6">
+    <header class="relative overflow-visible rounded-2xl border border-indigo-100 bg-gradient-to-r from-white via-indigo-50/70 to-violet-50 px-5 py-5 shadow-sm sm:px-6">
+        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+            <div class="min-w-0">
+                <a href="{{ route('admin.contracts.index') }}" class="mb-3 inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700">
+                    <i class="bx bx-left-arrow-alt text-lg"></i>
+                    Danh sách hợp đồng
+                </a>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{{ $contract->contract_code }}</h2>
+                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $currentStatus['class'] }}">
+                        <span class="h-1.5 w-1.5 rounded-full {{ $currentStatus['dot'] }}"></span>
+                        {{ $currentStatus['label'] }}
+                    </span>
+                </div>
+                <p class="mt-1 text-sm text-slate-600">
+                    <span class="font-semibold text-slate-800">Phòng {{ $contract->room?->room_code ?? 'Không có' }}</span>
+                    <span class="mx-1 text-slate-300">·</span>
+                    {{ $contract->tenant?->full_name ?? 'Chưa có khách thuê' }}
+                    <span class="mx-1 text-slate-300">·</span>
+                    {{ $contract->start_date?->format('d/m/Y') }} – {{ $contract->end_date?->format('d/m/Y') }}
+                </p>
             </div>
-            <h2 class="mt-1 text-2xl font-bold text-slate-950">Chi tiết hợp đồng</h2>
-            <p class="mt-1 text-sm text-slate-500">Phòng {{ $contract->room?->room_code ?? 'Không có' }} · {{ $contract->tenant?->full_name ?? 'Chưa có khách thuê' }}</p>
+            <div class="flex flex-wrap items-center gap-2">
+            <details class="group relative">
+                <summary class="flex h-10 cursor-pointer list-none items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+                    <i class="bx bx-dots-horizontal-rounded text-xl"></i>
+                    Thao tác
+                    <i class="bx bx-chevron-down text-base transition group-open:rotate-180"></i>
+                </summary>
+                <div class="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                    @if($contract->status === \App\Models\Contract::STATUS_ACTIVE)
+                        <a href="{{ route('admin.invoices.index', ['keyword' => $contract->contract_code]) }}" class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><i class="bx bx-receipt text-lg text-indigo-600"></i>Xem hóa đơn</a>
+                        <a href="{{ route('admin.contracts.extend.form', $contract) }}" class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><i class="bx bx-calendar-plus text-lg text-indigo-600"></i>Gia hạn</a>
+                        <a href="{{ route('admin.room-transfers.create', $contract) }}" class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><i class="bx bx-transfer-alt text-lg text-indigo-600"></i>Đổi phòng</a>
+                        <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50"><i class="bx bx-log-out-circle text-lg"></i>Kết thúc hợp đồng</a>
+                    @endif
+                    @if($contract->status === \App\Models\Contract::STATUS_PENDING_SIGNATURE)
+                        <button type="button" onclick="document.getElementById('edit-contract-dialog').showModal()" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"><i class="bx bx-edit text-lg text-indigo-600"></i>Sửa hợp đồng</button>
+                    @endif
+                    @if($contract->status === \App\Models\Contract::STATUS_AWAITING_MOVE_IN)
+                        <button type="button" onclick="document.getElementById('extend-move-in-dialog').showModal()" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"><i class="bx bx-calendar-plus text-lg text-sky-600"></i>Gia hạn giữ phòng</button>
+                    @endif
+                    <a data-contract-print href="{{ route('admin.contracts.print',$contract) }}" class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><i class="bx bx-printer text-lg text-slate-500"></i>In hợp đồng</a>
+                    @if($contract->signed_at && $signedContractFileExists)
+                        <a href="{{ route('admin.contracts.file', $contract) }}" data-image-modal data-media-type="{{ $signedContractMediaType }}" data-image-title="Bản hợp đồng đã ký - {{ $contract->contract_code }}" class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"><i class="bx bx-file-find text-lg"></i>Xem bản đã ký</a>
+                    @endif
+                    @if(in_array($contract->status, [\App\Models\Contract::STATUS_PENDING_SIGNATURE, \App\Models\Contract::STATUS_PENDING_DEPOSIT, \App\Models\Contract::STATUS_AWAITING_MOVE_IN], true))
+                        <div class="my-1 border-t border-slate-100"></div>
+                        <button type="button" onclick="document.getElementById('cancel-contract-dialog').showModal()" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-rose-700 hover:bg-rose-50"><i class="bx bx-x-circle text-lg"></i>Hủy hợp đồng</button>
+                    @endif
+                </div>
+            </details>
+            </div>
         </div>
-        <div class="flex flex-wrap gap-2">
-            @if($contract->status === \App\Models\Contract::STATUS_ACTIVE)
-                <a href="{{ route('admin.invoices.index', ['keyword' => $contract->contract_code]) }}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-50">
-                    <i class="bx bx-receipt text-lg"></i>Xem hóa đơn
-                </a>
-                <a href="{{ route('admin.contracts.extend.form', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-700">
-                    <i class="bx bx-calendar-plus text-lg"></i>Gia hạn
-                </a>
-                <a href="{{ route('admin.room-transfers.create', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-                    <i class="bx bx-transfer-alt text-lg"></i>Đổi phòng
-                </a>
-                <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
-                    <i class="bx bx-log-out-circle text-lg"></i>Kết thúc hợp đồng
-                </a>
-            @endif
-            <a data-contract-print href="{{ route('admin.contracts.print',$contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-                <i class="bx bx-printer text-lg"></i>
-                In hợp đồng
-            </a>
-            @if($contract->signed_at && $signedContractFileExists)
-                <a href="{{ route('admin.contracts.file', $contract) }}" data-image-modal data-media-type="{{ $signedContractMediaType }}" data-image-title="Bản hợp đồng đã ký - {{ $contract->contract_code }}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50">
-                    <i class="bx bx-file-find text-lg"></i>
-                    Xem bản đã ký
-                </a>
-            @endif
-            @if($contract->status === \App\Models\Contract::STATUS_PENDING_SIGNATURE)
-                <button type="button" onclick="document.getElementById('edit-contract-dialog').showModal()" class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50">
-                    <i class="bx bx-edit text-lg"></i>
-                    Sửa hợp đồng
-                </button>
-            @endif
-            @if($contract->status === \App\Models\Contract::STATUS_AWAITING_MOVE_IN)
-                <button type="button" onclick="document.getElementById('extend-move-in-dialog').showModal()" class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-700 shadow-sm hover:bg-sky-50">
-                    <i class="bx bx-calendar-plus text-lg"></i>
-                    Gia hạn giữ phòng
-                </button>
-            @endif
-            @if(in_array($contract->status, [\App\Models\Contract::STATUS_PENDING_SIGNATURE, \App\Models\Contract::STATUS_PENDING_DEPOSIT, \App\Models\Contract::STATUS_AWAITING_MOVE_IN], true))
-                <button type="button" onclick="document.getElementById('cancel-contract-dialog').showModal()" class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 shadow-sm hover:bg-rose-50">
-                    <i class="bx bx-x-circle text-lg"></i>
-                    Hủy hợp đồng
-                </button>
-            @endif
-            <a href="{{ route('admin.contracts.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-                <i class="bx bx-arrow-back text-lg"></i>
-                Quay lại
-            </a>
-        </div>
-    </div>
+    </header>
 
     @if($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><ul class="list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     @if($contract->approvedTerminationRequest && $contract->scheduled_move_out_at)
@@ -161,21 +155,17 @@
                 @if($openExtensionRequest)
                     <a href="{{ route('admin.extension-requests.index') }}#request-{{ $openExtensionRequest->id }}" class="rounded-xl border border-sky-200 bg-sky-50 p-4 hover:bg-sky-100">
                         <p class="font-bold text-sky-900">Đang chờ xử lý gia hạn</p>
-                        <p class="mt-1 text-sm text-sky-700">Khách đã chọn gia hạn hợp đồng.</p>
                     </a>
                 @elseif($openTerminationRequest)
                     <a href="{{ route('admin.termination-requests.index') }}#request-{{ $openTerminationRequest->id }}" class="rounded-xl border border-violet-200 bg-violet-50 p-4 hover:bg-violet-100">
                         <p class="font-bold text-violet-900">{{ $openTerminationRequest->status === 'approved' ? 'Đã chốt trả phòng - chờ bàn giao' : 'Đang chờ duyệt trả phòng' }}</p>
-                        <p class="mt-1 text-sm text-violet-700">Mở yêu cầu để tiếp tục xử lý.</p>
                     </a>
                 @else
                     <a href="{{ route('admin.contracts.extend.form', $contract) }}" class="rounded-xl border border-sky-200 bg-sky-50 p-4 hover:bg-sky-100">
                         <p class="font-bold text-sky-900">Gia hạn hợp đồng</p>
-                        <p class="mt-1 text-sm text-sky-700">Cập nhật thời hạn và giá thuê sau khi hai bên thống nhất.</p>
                     </a>
                     <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="rounded-xl border border-violet-200 bg-violet-50 p-4 hover:bg-violet-100">
                         <p class="font-bold text-violet-900">Trả phòng</p>
-                        <p class="mt-1 text-sm text-violet-700">Lập lịch bàn giao, chốt chỉ số và quyết toán.</p>
                     </a>
                 @endif
             </div>
@@ -183,26 +173,29 @@
     @endif
 
     @if($contract->signed_at)
-        <section class="flex flex-col justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 sm:flex-row sm:items-center">
-            <div>
-                <h3 class="font-semibold text-emerald-950">Bản hợp đồng đã ký</h3>
-                <p class="mt-1 text-sm text-emerald-800">Xác nhận lúc {{ $contract->signed_at->format('H:i d/m/Y') }}{{ $contract->signedConfirmer ? ' · '.$contract->signedConfirmer->name : '' }}.</p>
+        <div class="grid gap-3 lg:grid-cols-2">
+        <section class="flex flex-col justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50/70 px-4 py-3 sm:flex-row sm:items-center">
+            <div class="flex min-w-0 items-start gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><i class="bx bx-check text-xl"></i></span>
+                <div>
+                    <h3 class="text-sm font-semibold text-emerald-950">Đã xác nhận bản hợp đồng ký lúc {{ $contract->signed_at->format('H:i d/m/Y') }}</h3>
+                    <p class="mt-0.5 text-xs text-emerald-800">{{ $contract->signedConfirmer?->name ?? 'Quản trị viên' }}</p>
                 @if($contract->contract_file && ! $signedContractFileExists)
-                    <p class="mt-1 text-sm font-semibold text-rose-700">File minh chứng đã lưu nhưng hiện không còn tồn tại.</p>
+                    <p class="mt-1 text-xs font-semibold text-rose-700">File minh chứng đã lưu nhưng hiện không còn tồn tại.</p>
                 @elseif(! $contract->contract_file)
-                    <p class="mt-1 text-sm font-semibold text-amber-700">Chưa tải lên file minh chứng bản hợp đồng đã ký.</p>
+                    <p class="mt-1 text-xs font-semibold text-amber-700">Chưa tải lên file minh chứng bản hợp đồng đã ký.</p>
                 @endif
+                </div>
             </div>
             @if($signedContractFileExists)
-                <a href="{{ route('admin.contracts.file', $contract) }}" data-image-modal data-media-type="{{ $signedContractMediaType }}" data-image-title="Bản hợp đồng đã ký - {{ $contract->contract_code }}" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">
-                    <i class="bx bx-show text-lg"></i>
-                    Xem ngay
+                <a href="{{ route('admin.contracts.file', $contract) }}" data-image-modal data-media-type="{{ $signedContractMediaType }}" data-image-title="Bản hợp đồng đã ký - {{ $contract->contract_code }}" class="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-900">
+                    Xem bản ký <i class="bx bx-right-arrow-alt text-lg"></i>
                 </a>
             @endif
         </section>
+        @include('admin.contracts.appendices._contract-section')
+        </div>
     @endif
-
-    @include('admin.contracts.appendices._contract-section')
 
     @if($contract->status === \App\Models\Contract::STATUS_PENDING_SIGNATURE)
         @include('admin.contracts.partials.pending-signature-detail')
@@ -229,17 +222,17 @@
             @if(in_array($contract->status,\App\Models\Contract::OPEN_OCCUPANCY_STATUSES,true))
                 <div class="rounded-xl border border-violet-200 bg-violet-50/50 p-5 lg:col-span-2">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div><h4 class="font-bold text-slate-950">Bàn giao phòng và chốt quyết toán</h4><p class="mt-1 text-sm text-slate-600">Mở quy trình tập trung để ghi chỉ số, đối chiếu tài sản, khai báo hư hỏng và tính tiền cọc.</p></div>
+                        <div><h4 class="font-bold text-slate-950">Bàn giao và quyết toán</h4></div>
                         <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-bold text-white hover:bg-violet-800">Mở bước bàn giao <i class="bx bx-right-arrow-alt text-xl"></i></a>
                     </div>
                 </div>
-                <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><p class="mt-1 text-xs leading-5 text-slate-500">Lập phụ lục, in cho hai bên ký rồi tải ảnh minh chứng để hoàn tất.</p><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Lập phụ lục gia hạn</a></div>
+                <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Lập phụ lục</a></div>
             @endif
             @if($contract->status===\App\Models\Contract::STATUS_SETTLING)
                 @include('admin.contracts.partials.departure-progress', ['progressClass' => 'lg:col-span-2', 'showCheckoutLink' => true])
                 <div class="rounded-xl border border-violet-200 bg-violet-50/50 p-5 lg:col-span-2">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div><h4 class="font-bold text-slate-950">Quy trình trả phòng đang xử lý</h4><p class="mt-1 text-sm text-slate-600">Mở trang quy trình để xử lý công nợ, tiền cọc và hoàn tất hợp đồng trên cùng một giao diện.</p></div>
+                        <div><h4 class="font-bold text-slate-950">Đang trả phòng</h4></div>
                         <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-bold text-white hover:bg-violet-800"><span>Tiếp tục xử lý</span><i class="bx bx-right-arrow-alt text-xl"></i></a>
                     </div>
                 </div>
@@ -273,7 +266,7 @@
     @endif
 
     <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Danh sách người thuê trong phòng</h3><p class="mt-1 text-xs text-slate-500">Mọi người đều là người thuê; chỉ người thuê đại diện có tài khoản và là đầu mối làm việc với quản lý.</p></div>
+        <div class="border-b border-slate-200 px-5 py-4"><h3 class="font-semibold text-slate-950">Người thuê</h3></div>
         <div class="grid gap-4 p-5 lg:grid-cols-2">
             @forelse($contract->currentMembers as $member)
                 <article class="rounded-lg border border-slate-200 p-4">

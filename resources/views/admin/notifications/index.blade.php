@@ -8,7 +8,6 @@
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
                 <h2 class="text-2xl font-bold text-slate-950">Trung tâm thông báo</h2>
-                <p class="mt-1 text-sm text-slate-500">Yêu cầu cần duyệt chỉ tự đóng khi nghiệp vụ đã được xử lý; thông báo khách gỡ phương tiện sẽ đóng sau khi admin mở xem.</p>
             </div>
             <a href="{{ route('admin.contracts.index') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 <i class="bx bx-file text-lg"></i> Danh sách hợp đồng
@@ -53,7 +52,6 @@
                     <div class="px-6 py-16 text-center">
                         <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><i class="bx bx-check-shield text-3xl"></i></span>
                         <h3 class="mt-4 font-semibold text-slate-900">Không có thông báo trong nhóm này</h3>
-                        <p class="mt-1 text-sm text-slate-500">Các yêu cầu của khách thuê và cảnh báo vận hành sẽ xuất hiện tại đây.</p>
                     </div>
                 @endforelse
             </div>

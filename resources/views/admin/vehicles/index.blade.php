@@ -27,12 +27,47 @@
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
                 <h2 class="text-2xl font-bold text-slate-950">Danh sách phương tiện</h2>
-                <p class="mt-1 text-sm text-slate-500">Theo dõi xe đang gửi, xử lý yêu cầu và tra cứu theo khách thuê hoặc phòng.</p>
             </div>
-            <span class="w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">
-                {{ number_format((int) ($counts['approved'] ?? 0)) }} xe đang gửi
-            </span>
+            <div class="flex flex-wrap items-center gap-2"><span class="w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">{{ number_format((int) ($counts['approved'] ?? 0)) }} xe đang gửi</span><button type="button" data-open-admin-vehicle-form class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700"><i class="bx bx-plus-circle text-lg"></i>Thêm hộ khách thuê</button></div>
         </div>
+
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-xl border border-rose-200 bg-rose-50 p-4"><div class="flex items-center justify-between"><span class="text-sm font-semibold text-rose-700">Chưa khai báo</span><i class="bx bx-error-circle text-xl text-rose-500"></i></div><p class="mt-2 text-2xl font-bold text-rose-900">{{ $declarationCounts['undeclared'] }}</p></div>
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4"><div class="flex items-center justify-between"><span class="text-sm font-semibold text-amber-700">Sẽ bổ sung sau</span><i class="bx bx-time-five text-xl text-amber-500"></i></div><p class="mt-2 text-2xl font-bold text-amber-900">{{ $declarationCounts['later'] }}</p></div>
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div class="flex items-center justify-between"><span class="text-sm font-semibold text-emerald-700">Xác nhận không có xe</span><i class="bx bx-check-circle text-xl text-emerald-500"></i></div><p class="mt-2 text-2xl font-bold text-emerald-900">{{ $declarationCounts['no_vehicle'] }}</p></div>
+            <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-4"><div class="flex items-center justify-between"><span class="text-sm font-semibold text-indigo-700">Đã khai báo có xe</span><i class="bx bx-cycling text-xl text-indigo-500"></i></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ $declarationCounts['has_vehicle'] }}</p></div>
+        </div>
+
+        <details id="them-xe-ho" class="group overflow-hidden rounded-xl border border-indigo-200 bg-white shadow-sm" @if($errors->any()) open @endif>
+            <summary class="flex cursor-pointer list-none items-center justify-between bg-indigo-50/60 px-5 py-4"><div class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white"><i class="bx bx-cycling text-xl"></i></span><div><h3 class="font-bold text-slate-950">Thêm phương tiện hộ khách thuê</h3><p class="text-sm text-slate-500">Phương tiện do quản lý nhập sẽ được duyệt ngay và có lưu người thực hiện.</p></div></div><i class="bx bx-chevron-down text-2xl text-slate-500 transition group-open:rotate-180"></i></summary>
+            <form method="POST" action="{{ route('admin.vehicles.store') }}" enctype="multipart/form-data" class="grid gap-4 border-t border-indigo-100 p-5 md:grid-cols-2 xl:grid-cols-3">
+                @csrf
+                <label class="text-sm font-semibold text-slate-700">Người thuê và phòng <span class="text-rose-600">*</span><select id="admin-vehicle-member" name="contract_tenant_id" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 font-normal outline-none focus:border-indigo-500">@foreach($declarationMembers as $member)<option value="{{ $member->id }}" @selected((string) old('contract_tenant_id') === (string) $member->id)>{{ $member->full_name }} · Phòng {{ $member->active_room_codes->join(', ') }}</option>@endforeach</select></label>
+                <label class="text-sm font-semibold text-slate-700">Loại phương tiện <span class="text-rose-600">*</span><select name="vehicle_type" required class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 font-normal"><option value="motorcycle">Xe máy</option><option value="electric_motorcycle">Xe máy điện</option><option value="bicycle">Xe đạp</option></select></label>
+                <label class="text-sm font-semibold text-slate-700">Biển số <span class="text-rose-600">*</span><input name="license_plate" value="{{ old('license_plate') }}" placeholder="Ví dụ: 29A1-123.45" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 font-normal uppercase"></label>
+                <label class="text-sm font-semibold text-slate-700">Tên xe<input name="vehicle_name" value="{{ old('vehicle_name') }}" placeholder="Ví dụ: Honda Vision" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 font-normal"></label>
+                <label class="text-sm font-semibold text-slate-700">Màu xe<input name="color" value="{{ old('color') }}" placeholder="Ví dụ: Đen" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 font-normal"></label>
+                <label class="text-sm font-semibold text-slate-700">Ảnh phương tiện<input type="file" name="vehicle_image" accept="image/jpeg,image/png,image/webp" class="mt-1.5 block w-full rounded-lg border border-slate-200 p-2 text-sm font-normal file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:font-semibold file:text-indigo-700"></label>
+                @if($errors->any())<div class="rounded-lg bg-rose-50 p-3 text-sm text-rose-700 md:col-span-2 xl:col-span-3">{{ $errors->first() }}</div>@endif
+                <div class="flex justify-end md:col-span-2 xl:col-span-3"><button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"><i class="bx bx-check-circle text-lg"></i>Thêm và duyệt phương tiện</button></div>
+            </form>
+        </details>
+
+        @if($declarationCounts['undeclared'] || $declarationCounts['later'])
+            <section class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+                <div class="flex items-center justify-between border-b border-amber-100 bg-amber-50 px-5 py-4"><div><h3 class="font-bold text-slate-950">Người thuê cần hoàn tất khai báo</h3><p class="mt-1 text-sm text-slate-600">Danh sách này giúp quản lý không bỏ sót người có xe nhưng chưa đăng ký.</p></div><span class="rounded-full bg-white px-3 py-1 text-xs font-bold text-amber-700">{{ $declarationCounts['undeclared'] + $declarationCounts['later'] }} người</span></div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th class="px-5 py-3">Người thuê</th><th class="px-5 py-3">Phòng / Hợp đồng</th><th class="px-5 py-3">Tình trạng</th><th class="px-5 py-3 text-right">Thao tác</th></tr></thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @foreach($declarationMembers->whereIn('vehicle_declaration_status', [\App\Models\ContractTenant::VEHICLE_UNDECLARED, \App\Models\ContractTenant::VEHICLE_LATER]) as $member)
+                                <tr><td class="px-5 py-3"><p class="font-semibold text-slate-950">{{ $member->full_name }}</p><p class="text-xs text-slate-500">{{ $member->phone ?: 'Chưa có số điện thoại' }}</p></td><td class="px-5 py-3"><p class="font-semibold text-slate-800">Phòng {{ $member->active_room_codes->join(', ') }}</p><p class="text-xs text-indigo-600">{{ $member->active_contract_codes->join(' · ') }}</p></td><td class="px-5 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $member->vehicle_declaration_status === 'later' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700' }}">{{ $member->vehicle_declaration_label }}</span></td><td class="px-5 py-3 text-right"><button type="button" data-open-admin-vehicle-form data-member-id="{{ $member->id }}" class="app-icon-action inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700" aria-label="Thêm phương tiện hộ khách" title="Thêm phương tiện hộ khách"><i class="bx bx-plus text-lg"></i><span class="sr-only">Thêm phương tiện hộ khách</span></button></td></tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
 
         <div class="flex flex-wrap gap-2">
             @foreach($tabs as $key => $label)
@@ -84,8 +119,9 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse($vehicles as $vehicle)
                             @php
-                                $currentContract = $vehicle->tenant?->memberContracts?->first()
-                                    ?? $vehicle->tenant?->contracts?->first();
+                                $currentContracts = collect($vehicle->tenant?->memberContracts ?? [])
+                                    ->concat($vehicle->tenant?->contracts ?? [])
+                                    ->unique('id')->values();
                             @endphp
                             <tr id="vehicle-{{ $vehicle->id }}" class="align-top hover:bg-slate-50">
                                 <td class="px-5 py-4">
@@ -110,9 +146,8 @@
                                     <span class="mt-1 block text-slate-500">{{ $vehicle->tenant?->phone ?: 'Chưa có SĐT' }}</span>
                                 </td>
                                 <td class="px-5 py-4 text-sm">
-                                    @if($currentContract?->room)
-                                        <a href="{{ route('admin.rooms.show', $currentContract->room) }}" class="font-semibold text-slate-950 hover:text-indigo-700 hover:underline">Phòng {{ $currentContract->room->room_code }}</a>
-                                        <a href="{{ route('admin.contracts.show', $currentContract) }}" class="mt-1 block text-indigo-700 hover:underline">{{ $currentContract->contract_code }}</a>
+                                    @if($currentContracts->isNotEmpty())
+                                        <div class="space-y-1.5">@foreach($currentContracts as $currentContract)<div><a href="{{ route('admin.rooms.show', $currentContract->room) }}" class="font-semibold text-slate-950 hover:text-indigo-700 hover:underline">Phòng {{ $currentContract->room->room_code }}</a><a href="{{ route('admin.contracts.show', $currentContract) }}" class="ml-2 text-xs text-indigo-700 hover:underline">{{ $currentContract->contract_code }}</a></div>@endforeach</div>
                                     @else
                                         <span class="font-semibold text-amber-700">Không có phòng đang ở</span>
                                         <span class="mt-1 block text-xs text-slate-500">Dữ liệu xe được giữ để tra cứu lịch sử.</span>
@@ -144,7 +179,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="px-5 py-16 text-center"><i class="bx bx-cycling text-4xl text-slate-300"></i><p class="mt-2 font-semibold text-slate-700">Không tìm thấy phương tiện</p><p class="mt-1 text-sm text-slate-500">Thử thay đổi trạng thái hoặc điều kiện tìm kiếm.</p></td></tr>
+                            <tr><td colspan="5" class="px-5 py-16 text-center"><i class="bx bx-cycling text-4xl text-slate-300"></i><p class="mt-2 font-semibold text-slate-700">Không tìm thấy phương tiện</p></td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -154,3 +189,17 @@
         {{ $vehicles->links() }}
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.querySelectorAll('[data-open-admin-vehicle-form]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const panel = document.getElementById('them-xe-ho');
+            const memberSelect = document.getElementById('admin-vehicle-member');
+            panel.open = true;
+            if (button.dataset.memberId && memberSelect) memberSelect.value = button.dataset.memberId;
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+</script>
+@endpush

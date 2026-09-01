@@ -15,7 +15,7 @@
 @section('content')
     <div class="space-y-5">
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div><p class="text-sm font-medium text-slate-500">Quản lý công nợ</p><h2 class="mt-1 text-2xl font-bold text-slate-950">Xác nhận thanh toán</h2><p class="mt-2 text-sm text-slate-500">Kiểm tra mã giao dịch và biên lai trước khi ghi nhận tiền.</p></div>
+        <div><h2 class="text-2xl font-bold text-slate-950">Xác nhận thanh toán</h2></div>
             <div class="flex gap-2"><a href="{{ route('admin.invoices.payments.export', request()->query()) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Xuất CSV</a><a href="{{ route('admin.invoices.index') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Hóa đơn</a></div>
         </div>
 

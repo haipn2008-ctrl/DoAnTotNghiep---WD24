@@ -1,6 +1,6 @@
 @if($contract->appendices->where('status', '!=', \App\Models\ContractAppendix::STATUS_DRAFT)->isNotEmpty())
 <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-    <div class="border-b border-slate-200 p-5"><h3 class="font-semibold text-slate-950">Phụ lục hợp đồng</h3><p class="mt-1 text-sm text-slate-500">Kiểm tra các nội dung bổ sung và phản hồi phụ lục đang chờ.</p></div>
+    <div class="border-b border-slate-200 p-5"><h3 class="font-semibold text-slate-950">Phụ lục hợp đồng</h3></div>
     <div class="divide-y divide-slate-100">
         @foreach($contract->appendices->where('status', '!=', \App\Models\ContractAppendix::STATUS_DRAFT) as $appendix)
             <article class="flex flex-col justify-between gap-3 p-5 sm:flex-row sm:items-center">

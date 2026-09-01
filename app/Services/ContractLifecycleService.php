@@ -102,6 +102,10 @@ class ContractLifecycleService
                 return $contract;
             }
             $this->requireStatus($contract, [Contract::STATUS_DRAFT], 'Chỉ bản nháp mới được gửi chờ ký.');
+            $representative = $contract->members()->where('role', ContractTenant::ROLE_REPRESENTATIVE)->latest('id')->first();
+            if (! $representative?->identity_front_path || ! $representative?->identity_back_path) {
+                $this->fail('representative_identity', 'Người đại diện chưa có đủ ảnh CCCD mặt trước và mặt sau. Vui lòng bổ sung trước khi gửi hợp đồng chờ ký.');
+            }
             $room = $this->lockRoom($contract);
             if (in_array($room->status, [Room::STATUS_MAINTENANCE, Room::STATUS_RETIRED], true)) {
                 $this->fail('room_id', 'Phòng đang bảo trì hoặc đã ngừng khai thác. Không thể gửi hợp đồng chờ ký.');
@@ -1474,7 +1478,7 @@ class ContractLifecycleService
         }
 
         $fields = [
-            'full_name', 'date_of_birth', 'gender', 'cccd', 'phone', 'address',
+            'full_name', 'date_of_birth', 'gender', 'cccd', 'cccd_issue_date', 'cccd_issue_place', 'phone', 'address',
         ];
         $profile = collect($profile)->only($fields)
             ->map(fn ($value) => is_string($value) && trim($value) === '' ? null : $value)

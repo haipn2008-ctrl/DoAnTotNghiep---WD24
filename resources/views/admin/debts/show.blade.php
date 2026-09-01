@@ -46,7 +46,7 @@
         @if($rejectedDelayRequest)
             <section class="rounded-lg border border-rose-300 bg-rose-50 p-5 shadow-sm">
                 <h3 class="font-bold text-rose-900">Cảnh báo thanh toán cuối cùng</h3>
-                <p class="mt-2 text-sm leading-6 text-rose-800">Lý do chậm thanh toán đã bị từ chối. Nếu khách vẫn không thanh toán, quản trị viên có thể mở quy trình chấm dứt/trả phòng. Hệ thống không tự giải phóng phòng.</p>
+                <p class="mt-2 text-sm font-semibold text-rose-800">Đề nghị chậm thanh toán bị từ chối.</p>
                 <p class="mt-3 rounded-lg bg-white p-3 text-sm text-slate-700">{{ $rejectedDelayRequest->review_note }}</p>
                 <a href="{{ route('admin.contracts.check-out.form', $invoice->contract) }}" class="mt-4 inline-flex h-11 items-center rounded-lg bg-rose-700 px-5 text-sm font-semibold text-white">Mở quy trình chấm dứt/trả phòng</a>
             </section>
@@ -73,7 +73,6 @@
 
             <aside class="h-fit rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="font-semibold text-slate-950">Gửi nhắc thanh toán</h3>
-                <p class="mt-2 text-sm leading-6 text-slate-500">Thông báo sẽ được gửi trực tiếp đến tài khoản của khách thuê trong hệ thống.</p>
 
                 @if($canRemind)
                     <form method="POST" action="{{ route('admin.debts.reminders.store', $invoice) }}" class="mt-5 space-y-4">
@@ -84,7 +83,7 @@
                 @elseif($remindedToday)
                     <div class="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Hóa đơn này đã được ghi nhận nhắc hôm nay. Có thể ghi nhận lần tiếp theo từ ngày mai.</div>
                 @else
-                    <div class="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Hóa đơn không còn công nợ cần nhắc. Lịch sử vẫn được giữ để đối soát.</div>
+                <div class="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Hóa đơn không còn công nợ cần nhắc.</div>
                 @endif
             </aside>
         </div>

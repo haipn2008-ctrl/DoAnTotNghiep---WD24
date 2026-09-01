@@ -80,13 +80,19 @@
                 <div>
                     <label for="initial_water" class="mb-1.5 block text-sm font-semibold text-slate-700">Chỉ số nước ban đầu (m³)</label>
                     <input id="initial_water" type="number" min="0" name="initial_water" value="{{ old('initial_water') }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
-                    <p class="mt-1 text-xs text-slate-500">Chỉ số này là mốc đối chiếu khi bàn giao hợp đồng đầu tiên.</p>
                     @error('initial_water') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="md:col-span-2">
                     <label class="mb-1 block text-sm font-semibold text-slate-700">Tài sản bàn giao</label>
                     @include('admin.rooms.partials.inventory-fields')
+                </div>
+
+                <div class="md:col-span-2">
+                    <label for="thumbnail_image" class="mb-1.5 block text-sm font-semibold text-slate-700">Ảnh đại diện phòng</label>
+                    <p class="mb-2 text-xs text-slate-500">Ảnh này dùng ở danh sách và phần đầu trang chi tiết, hoàn toàn tách biệt với nhật ký hiện trạng.</p>
+                    <input id="thumbnail_image" type="file" name="thumbnail_image" accept="image/jpeg,image/png,image/webp" class="block w-full rounded-lg border border-slate-200 text-sm text-slate-600 file:mr-4 file:border-0 file:bg-indigo-50 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100">
+                    @error('thumbnail_image') <p class="mt-1 text-sm text-rose-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="md:col-span-2">

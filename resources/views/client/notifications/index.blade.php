@@ -9,7 +9,6 @@
             <div>
                 <p class="text-xs font-bold uppercase tracking-[.16em] text-indigo-600">Trung tâm cập nhật</p>
                 <h2 class="mt-2 text-3xl font-bold tracking-tight text-slate-950">Thông báo của tôi</h2>
-                <p class="mt-2 text-sm leading-6 text-slate-500">Mọi nhắc nhở quan trọng từ ban quản lý được lưu tại đây để bạn dễ theo dõi.</p>
             </div>
             @if(auth()->user()->unreadNotifications()->exists())
                 <form method="POST" action="{{ route('client.notifications.read-all') }}">
@@ -45,7 +44,6 @@
                     <div class="p-12 text-center">
                         <x-bell-icon class="mx-auto h-10 w-10 text-slate-300" />
                         <h3 class="mt-3 font-semibold text-slate-900">Chưa có thông báo</h3>
-                        <p class="mt-1 text-sm text-slate-500">Thông báo mới từ ban quản lý sẽ xuất hiện tại đây.</p>
                     </div>
                 @endforelse
             </div>

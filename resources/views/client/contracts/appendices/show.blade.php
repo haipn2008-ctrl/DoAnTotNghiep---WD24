@@ -16,7 +16,7 @@
     </div>
 
     @if($pending)
-        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Phụ lục đang chờ bạn xác nhận.</strong> Hãy đọc toàn bộ nội dung trước khi chấp nhận hoặc nêu rõ lý do nếu từ chối.</div>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-950">Chờ xác nhận phụ lục</div>
     @elseif($appendix->rejection_reason)
         <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950"><strong>Lý do bạn đã từ chối:</strong><p class="mt-1 whitespace-pre-line">{{ $appendix->rejection_reason }}</p></div>
     @endif
@@ -31,7 +31,7 @@
 
     @if(filled($appendix->signed_evidence_paths))
         <section class="rounded-xl border border-emerald-200 bg-white p-5 shadow-sm">
-            <div class="flex flex-wrap items-center justify-between gap-2"><div><h3 class="font-bold text-slate-950">Ảnh bản cứng đã ký</h3><p class="mt-1 text-sm text-slate-500">Minh chứng phụ lục được hai bên ký và ban quản lý lưu trên hệ thống.</p></div><span class="text-xs font-semibold text-emerald-700">Tải lên {{ $appendix->signed_evidence_uploaded_at?->format('H:i d/m/Y') }}</span></div>
+            <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-bold text-slate-950">Ảnh bản cứng đã ký</h3><span class="text-xs font-semibold text-emerald-700">{{ $appendix->signed_evidence_uploaded_at?->format('H:i d/m/Y') }}</span></div>
             <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 @foreach($appendix->signed_evidence_paths as $index => $path)
                     <a href="{{ route('client.contract-appendices.signed-evidence', [$appendix, $index]) }}" data-image-modal data-image-title="Bản cứng phụ lục {{ $appendix->code }} - Trang {{ $index + 1 }}" class="overflow-hidden rounded-lg border border-slate-200 bg-slate-50 hover:border-indigo-300">
@@ -45,7 +45,7 @@
 
     @if($pending)
         <section class="grid gap-4 lg:grid-cols-2">
-            <form method="POST" action="{{ route('client.contract-appendices.accept', $appendix) }}" onsubmit="return confirm('Bạn xác nhận đã đọc và đồng ý toàn bộ nội dung phụ lục?')" class="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+            <form method="POST" action="{{ route('client.contract-appendices.accept', $appendix) }}" data-confirm="Bạn xác nhận đã đọc và đồng ý toàn bộ nội dung phụ lục." data-confirm-label="Đồng ý phụ lục" class="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
                 @csrf
                 <h3 class="font-bold text-emerald-950">Chấp nhận phụ lục</h3>
                 <label class="mt-4 flex items-start gap-3 text-sm leading-6 text-emerald-950"><input type="checkbox" name="confirmation" value="1" required class="mt-1 rounded border-emerald-300 text-emerald-700"><span>Tôi là người thuê đại diện, đã đọc và đồng ý toàn bộ nội dung phụ lục.</span></label>

@@ -195,7 +195,6 @@
                 <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <div>
                         <h3 class="font-semibold text-slate-950">Hóa đơn gần đây</h3>
-                        <p class="text-sm text-slate-500">Theo dõi nhanh công nợ mới phát sinh</p>
                     </div>
                     <a href="{{ route('admin.invoices.index') }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Xem tất cả</a>
                 </div>
@@ -235,7 +234,6 @@
                 <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <div>
                         <h3 class="font-semibold text-slate-950">Hợp đồng mới</h3>
-                        <p class="text-sm text-slate-500">Các hợp đồng được cập nhật gần nhất</p>
                     </div>
                     <a href="{{ route('admin.contracts.index') }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">Xem tất cả</a>
                 </div>

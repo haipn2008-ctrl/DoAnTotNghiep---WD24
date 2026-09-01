@@ -331,10 +331,6 @@
                                 Chưa có yêu cầu hoàn cọc
                             </h3>
 
-                            <p class="mt-1 text-sm text-slate-500">
-                                Khi khách thuê gửi yêu cầu hoàn cọc, yêu cầu sẽ xuất hiện tại đây.
-                            </p>
-
                         </td>
                     </tr>
 

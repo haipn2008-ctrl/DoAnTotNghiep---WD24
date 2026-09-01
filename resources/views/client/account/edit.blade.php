@@ -10,13 +10,11 @@
         <div>
             <p class="text-sm font-medium text-slate-500">Hồ sơ khách thuê</p>
             <h2 class="mt-1 text-2xl font-bold text-slate-950">Thông tin cá nhân của tôi</h2>
-            <p class="mt-2 text-sm text-slate-500">Bạn có thể chủ động cập nhật thông tin. Các thay đổi sẽ được dùng cho hồ sơ và hợp đồng lập sau thời điểm cập nhật.</p>
         </div>
 
         <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
                 <h3 class="font-semibold text-slate-950">Giấy tạm trú của tôi</h3>
-                <p class="mt-1 text-sm text-slate-500">Các hồ sơ do quản trị viên cập nhật được lưu tại đây để bạn theo dõi.</p>
             </div>
 
             @if($tenant?->temporaryResidences->isNotEmpty())
@@ -86,7 +84,6 @@
                         <div class="md:col-span-2">
                             <div class="mb-3">
                                 <p class="text-sm font-semibold text-slate-700">Ảnh căn cước công dân</p>
-                                <p class="mt-1 text-xs text-slate-500">Ảnh đã lưu sẽ được tự động sử dụng khi quản trị viên lập hợp đồng mới.</p>
                             </div>
                             <div class="grid gap-4 sm:grid-cols-2">
                                 @php($frontImageUrl = ($identityDocument?->hasImage('front') ?? false) ? route('client.account.identity-document', 'front') : null)

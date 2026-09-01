@@ -40,8 +40,47 @@ class VehicleController extends Controller
         $archivedVehicles = $owners->flatMap(fn (Tenant $owner) => $owner->vehicles)
             ->whereIn('status', [Vehicle::STATUS_CANCELLED, Vehicle::STATUS_REMOVED])
             ->sortByDesc('removed_at')->values();
+        $declarations = $contract
+            ? $contract->members()->with('tenant')->where('status', ContractTenant::STATUS_CHECKED_IN)
+                ->whereNotNull('tenant_id')->get()->keyBy('tenant_id')
+            : collect();
 
-        return view('client.vehicles.index', compact('tenant', 'contract', 'owners', 'vehicles', 'archivedVehicles'));
+        return view('client.vehicles.index', compact('tenant', 'contract', 'owners', 'vehicles', 'archivedVehicles', 'declarations'));
+    }
+
+    public function declare(Request $request): RedirectResponse
+    {
+        $tenant = $request->user()->tenant()->firstOrFail();
+        $owner = $this->vehicleOwner($request, $tenant);
+        $data = $request->validate([
+            'declaration_status' => ['required', Rule::in([
+                ContractTenant::VEHICLE_NONE,
+                ContractTenant::VEHICLE_HAS,
+                ContractTenant::VEHICLE_LATER,
+            ])],
+        ]);
+        $contract = $this->capacity->currentContract($owner);
+        $membership = $contract?->members()->where('tenant_id', $owner->id)
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)->firstOrFail();
+
+        if ($data['declaration_status'] === ContractTenant::VEHICLE_NONE
+            && $owner->vehicles()->whereIn('status', [Vehicle::STATUS_PENDING, Vehicle::STATUS_APPROVED])->exists()) {
+            throw ValidationException::withMessages([
+                'declaration_status' => 'Người thuê đang có phương tiện chờ duyệt hoặc đã duyệt. Hãy gỡ phương tiện trước khi xác nhận không có xe.',
+            ]);
+        }
+
+        ContractTenant::query()
+            ->where('tenant_id', $owner->id)
+            ->where('status', ContractTenant::STATUS_CHECKED_IN)
+            ->whereHas('contract', fn ($query) => $query->whereIn('status', \App\Models\Contract::OPEN_OCCUPANCY_STATUSES))
+            ->update([
+            'vehicle_declaration_status' => $data['declaration_status'],
+            'vehicle_declared_at' => now(),
+            'vehicle_declared_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Đã cập nhật tình trạng phương tiện.');
     }
 
     public function store(Request $request): RedirectResponse
@@ -54,6 +93,15 @@ class VehicleController extends Controller
         try {
             $vehicle = DB::transaction(function () use ($owner, $data, $imagePath, $request): Vehicle {
                 $this->capacity->ensureCanSubmit($owner);
+
+                $contract = $this->capacity->currentContract($owner);
+                ContractTenant::query()->where('tenant_id', $owner->id)
+                    ->where('status', ContractTenant::STATUS_CHECKED_IN)
+                    ->whereHas('contract', fn ($query) => $query->whereIn('status', \App\Models\Contract::OPEN_OCCUPANCY_STATUSES))->update([
+                        'vehicle_declaration_status' => ContractTenant::VEHICLE_HAS,
+                        'vehicle_declared_at' => now(),
+                        'vehicle_declared_by' => $request->user()->id,
+                    ]);
 
                 return $owner->vehicles()->create($data + [
                     'vehicle_image' => $imagePath,

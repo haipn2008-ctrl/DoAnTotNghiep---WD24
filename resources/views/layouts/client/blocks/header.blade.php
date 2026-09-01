@@ -43,7 +43,6 @@
                             <div class="px-5 py-10 text-center">
                                 <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><x-bell-icon class="h-6 w-6" /></span>
                                 <p class="mt-3 text-sm font-semibold text-slate-900">Chưa có thông báo</p>
-                                <p class="mt-1 text-xs text-slate-500">Thông tin cần biết sẽ xuất hiện tại đây.</p>
                             </div>
                         @endforelse
                     </div>

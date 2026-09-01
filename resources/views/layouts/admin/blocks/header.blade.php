@@ -45,7 +45,6 @@
                             <div class="px-5 py-10 text-center">
                                 <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><i class="bx bx-check text-2xl"></i></span>
                                 <p class="mt-3 text-sm font-semibold text-slate-900">Không có việc tồn đọng</p>
-                                <p class="mt-1 text-xs text-slate-500">Các cảnh báo mới sẽ xuất hiện tại đây.</p>
                             </div>
                         @endforelse
                     </div>

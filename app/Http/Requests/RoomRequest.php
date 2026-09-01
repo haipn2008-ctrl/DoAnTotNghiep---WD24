@@ -39,6 +39,7 @@ class RoomRequest extends FormRequest
                 ? ['prohibited']
                 : ['required', Rule::in([Room::STATUS_AVAILABLE, Room::STATUS_OCCUPIED, Room::STATUS_MAINTENANCE])],
             'description' => ['nullable', 'string'],
+            'thumbnail_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             // Giữ tương thích request cũ; ảnh này cũng được lưu như một bằng chứng mới, không xóa ảnh trước.
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'images' => ['nullable', 'array', 'max:15'],
@@ -51,6 +52,7 @@ class RoomRequest extends FormRequest
             'inventory.*.quantity' => ['nullable', 'integer', 'between:1,100'],
             'inventory.*.condition' => ['nullable', Rule::in(['normal', 'damaged'])],
             'inventory.*.note' => ['nullable', 'string', 'max:500'],
+            'inventory.*.image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
         ];
     }
 
@@ -120,6 +122,9 @@ class RoomRequest extends FormRequest
             'image.image' => 'File phải là ảnh.',
             'image.mimes' => 'Ảnh chỉ hỗ trợ JPG, JPEG, PNG hoặc WebP.',
             'image.max' => 'Mỗi ảnh tối đa 8 MB.',
+            'thumbnail_image.image' => 'Ảnh đại diện phòng phải là file ảnh.',
+            'thumbnail_image.mimes' => 'Ảnh đại diện chỉ hỗ trợ JPG, JPEG, PNG hoặc WebP.',
+            'thumbnail_image.max' => 'Ảnh đại diện tối đa 8 MB.',
             'images.max' => 'Mỗi lần chỉ được tải tối đa 15 ảnh.',
             'images.*.image' => 'Mỗi file tải lên phải là ảnh.',
             'images.*.mimes' => 'Ảnh chỉ hỗ trợ JPG, JPEG, PNG hoặc WebP.',
@@ -127,6 +132,9 @@ class RoomRequest extends FormRequest
             'inventory.*.quantity.between' => 'Số lượng tài sản phải từ 1 đến 100.',
             'inventory.*.condition.in' => 'Tình trạng tài sản không hợp lệ.',
             'inventory.*.note.max' => 'Ghi chú tài sản không được vượt quá 500 ký tự.',
+            'inventory.*.image.image' => 'Ảnh tài sản phải là file ảnh.',
+            'inventory.*.image.mimes' => 'Ảnh tài sản chỉ hỗ trợ JPG, JPEG, PNG hoặc WebP.',
+            'inventory.*.image.max' => 'Mỗi ảnh tài sản tối đa 8 MB.',
         ];
     }
 }

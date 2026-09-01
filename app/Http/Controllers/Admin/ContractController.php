@@ -881,6 +881,8 @@ class ContractController extends Controller
                 'date_of_birth' => $representativeTenant?->date_of_birth?->toDateString(),
                 'gender' => $representativeTenant?->gender,
                 'cccd' => $representativeTenant?->cccd,
+                'cccd_issue_date' => $representativeTenant?->cccd_issue_date?->toDateString(),
+                'cccd_issue_place' => $representativeTenant?->cccd_issue_place,
                 'phone' => $representativeTenant?->phone,
                 'address' => $representativeTenant?->address,
             ], (array) $request->input('representative', [])),
@@ -901,12 +903,14 @@ class ContractController extends Controller
                 'required', 'digits:12',
                 Rule::unique('tenants', 'cccd')->ignore($representativeTenant?->id),
             ],
+            'representative.cccd_issue_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'representative.cccd_issue_place' => ['nullable', 'string', 'max:255'],
             'representative.identity_front' => [
-                Rule::requiredIf(! $hasAvailableIdentityPair || $request->hasFile('representative.identity_back')),
+                'nullable',
                 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120',
             ],
             'representative.identity_back' => [
-                Rule::requiredIf(! $hasAvailableIdentityPair || $request->hasFile('representative.identity_front')),
+                'nullable',
                 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120',
             ],
             'representative.phone' => [
@@ -987,6 +991,7 @@ class ContractController extends Controller
             'representative.cccd.required' => 'Vui lòng bổ sung CCCD của người đại diện trước khi tạo hợp đồng.',
             'representative.cccd.digits' => 'CCCD người đại diện phải gồm đúng 12 chữ số.',
             'representative.cccd.unique' => 'CCCD người đại diện đã thuộc hồ sơ khách thuê khác.',
+            'representative.cccd_issue_date.before_or_equal' => 'Ngày cấp CCCD người đại diện không được ở tương lai.',
             'representative.identity_front.required' => 'Vui lòng tải ảnh mặt trước CCCD.',
             'representative.identity_front.image' => 'Mặt trước CCCD người đại diện phải là một tệp ảnh.',
             'representative.identity_front.mimes' => 'Ảnh mặt trước CCCD người đại diện chỉ chấp nhận JPG, PNG hoặc WEBP.',
@@ -996,6 +1001,15 @@ class ContractController extends Controller
             'representative.identity_back.mimes' => 'Ảnh mặt sau CCCD người đại diện chỉ chấp nhận JPG, PNG hoặc WEBP.',
             'representative.identity_back.max' => 'Ảnh mặt sau CCCD người đại diện không được lớn hơn 5 MB.',
         ]);
+
+        $hasRepresentativeFront = isset($data['representative']['identity_front']);
+        $hasRepresentativeBack = isset($data['representative']['identity_back']);
+        if ($hasRepresentativeFront xor $hasRepresentativeBack) {
+            throw ValidationException::withMessages([
+                $hasRepresentativeFront ? 'representative.identity_back' : 'representative.identity_front'
+                    => 'Nếu bổ sung ảnh CCCD, vui lòng tải đủ cả mặt trước và mặt sau.',
+            ]);
+        }
 
         $start = Carbon::parse($data['start_date'])->startOfDay();
         $end = Carbon::parse($data['end_date'])->startOfDay();

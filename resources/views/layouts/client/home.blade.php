@@ -21,7 +21,7 @@
             <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                 <div>
                     <p class="text-sm font-medium text-slate-500">Xin chào, {{ Auth::user()->name ?? 'khách thuê' }}</p>
-                    <h2 class="mt-1 text-2xl font-bold text-slate-950">Theo dõi thông tin thuê phòng của bạn</h2>
+                    <h2 class="mt-1 text-2xl font-bold text-slate-950">Thông tin thuê phòng</h2>
                     <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                         Cổng khách thuê giúp bạn xem nhanh hợp đồng, hóa đơn, chỉ số điện nước và thông báo từ ban quản lý.
                     </p>
@@ -84,7 +84,6 @@
                 <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                     <div>
                         <h3 class="font-semibold text-slate-950">Hóa đơn và thanh toán</h3>
-                        <p class="mt-1 text-sm text-slate-500">Các khoản cần thanh toán gần đây.</p>
                     </div>
                     <a href="{{ route('client.invoices.index') }}" class="text-sm font-semibold text-indigo-700 hover:text-indigo-800">Xem tất cả</a>
                 </div>
@@ -118,7 +117,6 @@
                     <div class="p-5">
                         <div class="rounded-lg border border-dashed border-slate-300 p-8 text-center">
                             <p class="font-semibold text-slate-950">Chưa có dữ liệu hóa đơn</p>
-                            <p class="mt-2 text-sm text-slate-500">Sau khi ban quản lý phát hành hóa đơn, bạn có thể xem chi tiết và trạng thái thanh toán tại mục này.</p>
                         </div>
                     </div>
                 @endif
@@ -127,7 +125,6 @@
             <div id="support" class="rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-5 py-4">
                     <h3 class="font-semibold text-slate-950">Kênh hỗ trợ</h3>
-                    <p class="mt-1 text-sm text-slate-500">Liên hệ ban quản lý khi cần xử lý vấn đề phát sinh.</p>
                 </div>
                 <div class="space-y-3 p-5 text-sm">
                     <a href="{{ auth()->user()->isActive() ? route('client.support.index') : route('client.invoices.index') }}" class="block rounded-lg bg-indigo-50 p-4 font-semibold text-indigo-700">{{ auth()->user()->isActive() ? 'Gửi và theo dõi yêu cầu hỗ trợ →' : 'Xem hóa đơn cần quyết toán →' }}</a>
