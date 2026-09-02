@@ -152,6 +152,9 @@ class InvoiceManagementTest extends TestCase
             'Phí internet tháng 5/2026',
             'Phí dịch vụ tháng 5/2026',
         ], collect($preview['lines'])->pluck('name')->all());
+
+        $this->assertSame(1, collect($preview['lines'])->firstWhere('type', 'internet')['quantity']);
+        $this->assertSame(1, collect($preview['lines'])->firstWhere('type', 'service')['quantity']);
     }
 
     public function test_first_month_rent_is_deferred_prorated_and_due_on_next_month_fifth(): void
@@ -168,6 +171,22 @@ class InvoiceManagementTest extends TestCase
         $this->assertSame('Tiền phòng tháng 5/2026', $preview['lines'][0]['name']);
         $this->assertSame(7, $preview['lines'][0]['quantity']);
         $this->assertSame('ngày', $preview['lines'][0]['unit']);
+    }
+
+    public function test_internet_and_service_fees_are_charged_per_occupant(): void
+    {
+        [$contract] = $this->fixture('PER-OCCUPANT', 6);
+        $contract->forceFill(['number_of_people' => 3])->save();
+
+        $preview = app(InvoiceGenerator::class)->preview($contract->fresh(), 6, 2026);
+        $internet = collect($preview['lines'])->firstWhere('type', 'internet');
+        $service = collect($preview['lines'])->firstWhere('type', 'service');
+
+        $this->assertSame(3, $internet['quantity']);
+        $this->assertSame(3, $service['quantity']);
+        $this->assertSame('người', $internet['unit']);
+        $this->assertSame(300000.0, $internet['amount']);
+        $this->assertSame(150000.0, $service['amount']);
     }
 
     public function test_legacy_first_month_payment_is_credited_instead_of_charged_twice(): void

@@ -72,33 +72,27 @@
                     <h3 class="font-semibold text-slate-950">Chi tiết các phòng đã nhập</h3>
                     <p class="text-sm text-slate-500">Tháng {{ $month }}/{{ $year }}</p>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year, 'mode' => 'checkpoint']) }}" class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-100">
-                        <i class="bx bx-map-pin text-lg"></i>Ghi mốc giữa kỳ
+                <div class="grid w-full gap-2 sm:w-auto sm:grid-cols-2">
+                    <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year, 'mode' => 'checkpoint']) }}" class="group inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
+                        <span class="flex h-7 w-7 items-center justify-center rounded-md bg-sky-100 transition group-hover:bg-sky-200"><i class="bx bx-map-pin text-lg"></i></span>
+                        Ghi mốc giữa kỳ
                     </a>
-                    <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year]) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-                        <i class="bx bx-plus text-lg"></i>Nhập chỉ số
+                    <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year]) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md">
+                        <i class="bx bx-plus-circle text-xl"></i>Nhập chỉ số
                     </a>
                 </div>
             </div>
 
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <table class="w-full min-w-[860px] table-fixed divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                         <tr>
-                            <th class="px-5 py-3">Phòng</th>
-                            <th class="px-5 py-3 text-center">Điện cũ</th>
-                            <th class="px-5 py-3 text-center">Điện mới</th>
-                            <th class="px-5 py-3 text-center">Ảnh điện</th>
-                            <th class="px-5 py-3 text-center">Dùng điện</th>
-                            <th class="px-5 py-3 text-right">Tiền điện</th>
-                            <th class="px-5 py-3 text-center">Nước cũ</th>
-                            <th class="px-5 py-3 text-center">Nước mới</th>
-                            <th class="px-5 py-3 text-center">Ảnh nước</th>
-                            <th class="px-5 py-3 text-center">Dùng nước</th>
-                            <th class="px-5 py-3 text-right">Tiền nước</th>
-                            <th class="px-5 py-3 text-right">Tổng</th>
-                            <th class="px-5 py-3 text-center">Trạng thái</th>
+                            <th class="w-[14%] px-4 py-3">Phòng</th>
+                            <th class="w-[23%] px-3 py-3">Điện</th>
+                            <th class="w-[23%] px-3 py-3">Nước</th>
+                            <th class="w-[14%] px-3 py-3 text-right">Tổng tiền</th>
+                            <th class="w-[15%] px-3 py-3 text-center">Trạng thái</th>
+                            <th class="w-[11%] px-3 py-3 text-center">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -115,47 +109,72 @@
                                     : 'Không có';
                             @endphp
                             <tr class="hover:bg-slate-50/70">
-                                <td class="px-5 py-4">
+                                <td class="px-4 py-4 align-top">
                                     <p class="font-semibold text-slate-950">{{ $item->room->room_code ?? 'Phòng trống' }}</p>
                                     <p class="mt-1 text-xs text-slate-500">Ngày thuê: {{ $startDate }}</p>
                                 </td>
-                                <td class="px-5 py-4 text-center text-slate-600">{{ $item->electricity_old }}</td>
-                                <td class="px-5 py-4 text-center font-semibold text-indigo-700">{{ $item->electricity_new }}</td>
-                                <td class="px-5 py-4 text-center">
-                                    @if ($item->meterImageExists('electricity'))
-                                        <a href="{{ route('admin.utilities.image', [$item, 'electricity']) }}" data-image-modal data-image-title="Ảnh đồng hồ điện">
-                                            <img src="{{ route('admin.utilities.image', [$item, 'electricity']) }}" alt="Ảnh đồng hồ điện" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
-                                        </a>
-                                    @else
-                                        <span class="text-xs text-slate-400">Chưa có</span>
-                                    @endif
+                                <td class="px-3 py-4 align-top">
+                                    <div class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-3">
+                                        <div class="flex items-center justify-between gap-2 text-xs text-slate-500">
+                                            <span>{{ $item->electricity_old }}</span><i class="bx bx-right-arrow-alt text-base text-slate-400"></i>
+                                            <span class="font-bold text-indigo-700">{{ $item->electricity_new }}</span>
+                                        </div>
+                                        <div class="mt-2 flex items-end justify-between gap-2">
+                                            <span class="font-semibold text-emerald-700">{{ $dienDung }} kWh</span>
+                                            <span class="text-xs font-semibold text-indigo-700">{{ number_format($tienDien, 0, ',', '.') }}đ</span>
+                                        </div>
+                                        @if ($item->meterImageExists('electricity'))
+                                            <a href="{{ route('admin.utilities.image', [$item, 'electricity']) }}" data-image-modal data-image-title="Ảnh đồng hồ điện" class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"><i class="bx bx-image-alt"></i>Xem ảnh điện</a>
+                                        @else
+                                            <span class="mt-2 inline-flex items-center gap-1 text-xs text-slate-400"><i class="bx bx-image"></i>Chưa có ảnh</span>
+                                        @endif
+                                    </div>
                                 </td>
-                                <td class="px-5 py-4 text-center font-semibold text-emerald-700">{{ $dienDung }} kWh</td>
-                                <td class="px-5 py-4 text-right font-semibold text-indigo-700">{{ number_format($tienDien, 0, ',', '.') }}đ</td>
-                                <td class="px-5 py-4 text-center text-slate-600">{{ $item->water_old }}</td>
-                                <td class="px-5 py-4 text-center font-semibold text-sky-700">{{ $item->water_new }}</td>
-                                <td class="px-5 py-4 text-center">
-                                    @if ($item->meterImageExists('water'))
-                                        <a href="{{ route('admin.utilities.image', [$item, 'water']) }}" data-image-modal data-image-title="Ảnh đồng hồ nước">
-                                            <img src="{{ route('admin.utilities.image', [$item, 'water']) }}" alt="Ảnh đồng hồ nước" class="mx-auto h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200">
-                                        </a>
-                                    @else
-                                        <span class="text-xs text-slate-400">Chưa có</span>
-                                    @endif
+                                <td class="px-3 py-4 align-top">
+                                    <div class="rounded-lg border border-sky-100 bg-sky-50/40 p-3">
+                                        <div class="flex items-center justify-between gap-2 text-xs text-slate-500">
+                                            <span>{{ $item->water_old }}</span><i class="bx bx-right-arrow-alt text-base text-slate-400"></i>
+                                            <span class="font-bold text-sky-700">{{ $item->water_new }}</span>
+                                        </div>
+                                        <div class="mt-2 flex items-end justify-between gap-2">
+                                            <span class="font-semibold text-emerald-700">{{ $nuocDung }} khối</span>
+                                            <span class="text-xs font-semibold text-sky-700">{{ number_format($tienNuoc, 0, ',', '.') }}đ</span>
+                                        </div>
+                                        @if ($item->meterImageExists('water'))
+                                            <a href="{{ route('admin.utilities.image', [$item, 'water']) }}" data-image-modal data-image-title="Ảnh đồng hồ nước" class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800"><i class="bx bx-image-alt"></i>Xem ảnh nước</a>
+                                        @else
+                                            <span class="mt-2 inline-flex items-center gap-1 text-xs text-slate-400"><i class="bx bx-image"></i>Chưa có ảnh</span>
+                                        @endif
+                                    </div>
                                 </td>
-                                <td class="px-5 py-4 text-center font-semibold text-emerald-700">{{ $nuocDung }} khối</td>
-                                <td class="px-5 py-4 text-right font-semibold text-sky-700">{{ number_format($tienNuoc, 0, ',', '.') }}đ</td>
-                                <td class="px-5 py-4 text-right font-bold text-emerald-700">{{ number_format($tongDienNuoc, 0, ',', '.') }}đ</td>
-                                <td class="px-5 py-4 text-center">
+                                <td class="px-3 py-4 text-right align-top">
+                                    <p class="font-bold text-emerald-700">{{ number_format($tongDienNuoc, 0, ',', '.') }}đ</p>
+                                    <p class="mt-1 text-[11px] leading-4 text-slate-400">Điện + nước</p>
+                                </td>
+                                <td class="px-3 py-4 text-center align-top">
                                     @if($item->isLocked())
-                                        <span class="inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Đã khóa</span>
+                                        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>Đã khóa</span>
                                     @elseif($item->isConfirmed())
-                                        <span class="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">Đã xác nhận</span>
-                                        <form action="{{ route('admin.utilities.reopen', $item) }}" method="POST" class="mt-2">@csrf<button class="text-xs font-semibold text-amber-700 hover:underline">Mở lại để sửa</button></form>
+                                        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Đã xác nhận</span>
                                     @else
-                                        <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Bản nháp</span>
-                                        <form action="{{ route('admin.utilities.confirm', $item) }}" method="POST" class="mt-2">@csrf<button class="text-xs font-semibold text-indigo-700 hover:underline">Xác nhận chỉ số</button></form>
+                                        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>Bản nháp</span>
                                     @endif
+                                </td>
+                                <td class="px-3 py-4 align-top">
+                                    <div class="relative flex items-center justify-center gap-2">
+                                        @if($item->isConfirmed())
+                                            <form action="{{ route('admin.utilities.reopen', $item) }}" method="POST">@csrf
+                                                <button data-keep-action-label aria-label="Mở lại để sửa" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 p-0 text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 hover:text-amber-900" title="Mở lại để sửa">
+                                                    <i class="bx bx-edit-alt text-lg"></i>
+                                                </button>
+                                            </form>
+                                        @elseif(!$item->isLocked())
+                                            <form action="{{ route('admin.utilities.confirm', $item) }}" method="POST">@csrf
+                                                <button data-keep-action-label aria-label="Xác nhận chỉ số" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-600 p-0 text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md" title="Xác nhận chỉ số">
+                                                    <i class="bx bx-check-circle text-lg"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                     @if($item->histories->isNotEmpty())
                                         @php
                                             $historyLabels = [
@@ -167,23 +186,40 @@
                                                 'checkpoint_recorded' => 'Ghi mốc giữa kỳ',
                                             ];
                                         @endphp
-                                        <details class="mt-3 text-left">
-                                            <summary class="cursor-pointer text-xs font-semibold text-slate-600 hover:text-indigo-700">Lịch sử thao tác ({{ $item->histories->count() }})</summary>
-                                            <ol class="mt-2 space-y-2 border-l border-slate-200 pl-3">
-                                                @foreach($item->histories->sortByDesc('performed_at') as $history)
-                                                    <li class="text-xs leading-5 text-slate-600">
-                                                        <span class="font-semibold text-slate-800">{{ $historyLabels[$history->action] ?? $history->action }}</span>
-                                                        <span class="block">{{ $history->actor?->name ?? 'Hệ thống' }} · {{ $history->performed_at?->format('H:i d/m/Y') }}</span>
-                                                    </li>
-                                                @endforeach
-                                            </ol>
-                                        </details>
+                                        <button type="button" data-keep-action-label data-utility-history-open="utility-history-{{ $item->id }}" title="Lịch sử thao tác" aria-label="Lịch sử thao tác ({{ $item->histories->count() }})" class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white p-0 text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                                                <i class="bx bx-history text-lg"></i>
+                                                <span class="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white">{{ $item->histories->count() }}</span>
+                                        </button>
+                                        <div id="utility-history-{{ $item->id }}" data-utility-history-modal class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+                                            <button type="button" data-utility-history-close class="absolute inset-0 bg-slate-950/45 backdrop-blur-[1px]" aria-label="Đóng lịch sử"></button>
+                                            <div class="relative z-10 w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-2xl">
+                                                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                                                    <div>
+                                                        <h4 class="font-bold text-slate-950">Lịch sử thao tác</h4>
+                                                        <p class="mt-0.5 text-xs text-slate-500">Phòng {{ $item->room->room_code ?? 'trống' }} · Tháng {{ $month }}/{{ $year }}</p>
+                                                    </div>
+                                                    <button type="button" data-utility-history-close class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800" aria-label="Đóng"><i class="bx bx-x text-2xl"></i></button>
+                                                </div>
+                                                <ol class="max-h-80 divide-y divide-slate-100 overflow-y-auto px-5">
+                                                    @foreach($item->histories->sortByDesc('performed_at') as $history)
+                                                        <li class="flex gap-3 py-3.5 text-sm">
+                                                            <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><i class="bx bx-history"></i></span>
+                                                            <div class="min-w-0">
+                                                                <p class="font-semibold text-slate-800">{{ $historyLabels[$history->action] ?? $history->action }}</p>
+                                                                <p class="mt-1 text-xs text-slate-500">{{ $history->actor?->name ?? 'Hệ thống' }} · {{ $history->performed_at?->format('H:i d/m/Y') }}</p>
+                                                            </div>
+                                                        </li>
+                                                    @endforeach
+                                                </ol>
+                                            </div>
+                                        </div>
                                     @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="13" class="px-5 py-12 text-center text-slate-500">
+                                <td colspan="6" class="px-5 py-12 text-center text-slate-500">
                                     Chưa có dữ liệu chốt số cho tháng {{ $month }}/{{ $year }}.
                                     <div class="mt-3">
                                         <a href="{{ route('admin.utilities.create', ['month' => $month, 'year' => $year]) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">

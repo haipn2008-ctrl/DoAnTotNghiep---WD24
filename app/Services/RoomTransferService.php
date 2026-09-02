@@ -283,9 +283,10 @@ class RoomTransferService
         if ($water > 0) {
             $items[] = $this->invoiceItem('water', 'Nước phòng cũ đến lúc chuyển phòng', $water, 'm³', (float) $rates->water_price, $sort++, "Chỉ số {$checkout->water_old} → {$checkout->water_new}");
         }
+        $occupantCount = max(1, (int) $contract->number_of_people);
         foreach ([['internet', 'Internet phòng cũ', (float) ($rates->internet_fee ?? 0)], ['service', 'Dịch vụ phòng cũ', (float) ($rates->service_fee ?? 0)]] as [$type, $name, $monthlyFee]) {
             if ($days > 0 && $monthlyFee > 0) {
-                $items[] = $this->invoiceItem($type, $name, $days, 'ngày', $monthlyFee / $date->daysInMonth, $sort++, 'Tính theo số ngày sử dụng phòng cũ.');
+                $items[] = $this->invoiceItem($type, $name, $days * $occupantCount, 'người-ngày', $monthlyFee / $date->daysInMonth, $sort++, "Tính theo {$occupantCount} người và số ngày sử dụng phòng cũ.");
             }
         }
         $charges = round((float) collect($items)->sum('amount'));

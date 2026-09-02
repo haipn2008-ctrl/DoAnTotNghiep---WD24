@@ -8,7 +8,8 @@
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
                 <p class="text-sm font-medium text-slate-500">Quản lý hợp đồng</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Danh sách gia hạn hợp đồng</h2>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Hợp đồng cần gia hạn</h2>
+                <p class="mt-1 text-sm text-slate-500">Hiển thị hợp đồng đã quá hạn hoặc sẽ hết hạn trong 30 ngày tới.</p>
             </div>
 
             <span class="inline-flex w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200">
@@ -78,7 +79,7 @@
                                 </td>
                                 <td class="px-5 py-4">
                                     <div class="flex justify-end">
-                                        <a href="{{ route('admin.contracts.extend.form', $contract->id) }}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                                        <a data-keep-action-label href="{{ route('admin.contracts.extend.form', $contract->id) }}" class="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md">
                                             <i class="bx bx-calendar-plus text-lg"></i>
                                             Gia hạn
                                         </a>
@@ -87,7 +88,11 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-5 py-12 text-center text-slate-500">Không có hợp đồng nào cần gia hạn.</td>
+                                <td colspan="6" class="px-5 py-12 text-center">
+                                    <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-2xl text-emerald-600"><i class="bx bx-check"></i></span>
+                                    <p class="mt-3 font-semibold text-slate-800">Chưa có hợp đồng cần gia hạn</p>
+                                    <p class="mt-1 text-sm text-slate-500">Các hợp đồng còn trên 30 ngày sẽ chưa xuất hiện tại đây.</p>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>

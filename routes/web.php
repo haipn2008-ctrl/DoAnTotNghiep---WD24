@@ -813,7 +813,7 @@ Route::middleware('auth')->group(function () {
                 Route::get('expenses/{expense}/receipt', [ExpenseController::class, 'receipt'])
                     ->name('expenses.receipt');
 
-                Route::resource('expenses', ExpenseController::class);
+                Route::resource('expenses', ExpenseController::class)->except('show');
 
                 // =================================================
                 // CÀI ĐẶT

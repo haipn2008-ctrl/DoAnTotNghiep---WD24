@@ -151,8 +151,8 @@ class ContractManagementTest extends TestCase
             ->assertDontSee('Trước khi nhận phòng: đóng cọc một tháng.')
             ->assertDontSee('Trẻ dưới 14 tuổi')
             ->assertDontSee('name="internet_enabled"', false)
-            ->assertDontSee('Internet: 100.000đ/phòng/tháng')
-            ->assertDontSee('Dịch vụ chung: 50.000đ/tháng')
+            ->assertDontSee('Internet: 100.000đ/người/tháng')
+            ->assertDontSee('Dịch vụ chung: 50.000đ/người/tháng')
             ->assertSee('data-contract-services', false)
             ->assertSee('data-room-inventory="'.$room->id.'"', false)
             ->assertSee('Tài sản bàn giao của phòng')
@@ -695,11 +695,11 @@ class ContractManagementTest extends TestCase
             ->assertSee('Thông tin nhận phòng')
             ->assertSee('Internet')
             ->assertDontSee('Internet bắt buộc')
-            ->assertSee('100.000đ/phòng/tháng')
+            ->assertSee('100.000đ/người/tháng')
             ->assertDontSee('Đã bao gồm, không tính phí riêng')
             ->assertSee('Dịch vụ chung')
             ->assertDontSee('Dịch vụ chung bắt buộc')
-            ->assertSee('50.000đ/tháng')
+            ->assertSee('50.000đ/người/tháng')
             ->assertDontSee('Máy lạnh')
             ->assertSee('59A1-12345')
             ->assertSee('Quản lý phương tiện')
@@ -2530,7 +2530,7 @@ class ContractManagementTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.contracts.template.print'))
             ->assertOk()
             ->assertSee('HỢP ĐỒNG THUÊ PHÒNG TRỌ')
-            ->assertSee('100.000đ/phòng/tháng')
+            ->assertSee('100.000đ/người/tháng')
             ->assertSee('VI. Cam kết, hiệu lực và giải quyết tranh chấp');
 
         $contract = $this->draft();
@@ -2547,7 +2547,7 @@ class ContractManagementTest extends TestCase
             ->assertSee('IV. Chỉ số điện nước và tài sản bàn giao')
             ->assertSee('3.500đ/kWh')
             ->assertSee('15.000đ/m³')
-            ->assertSee('100.000đ/phòng/tháng')
+            ->assertSee('100.000đ/người/tháng')
             ->assertDontSee('CCCD mặt trước')
             ->assertDontSee('CCCD mặt sau');
         $this->sign($contract);

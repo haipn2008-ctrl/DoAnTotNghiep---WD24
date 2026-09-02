@@ -116,8 +116,8 @@
         </div>
         <div class="p-6">
             <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm leading-6 text-slate-700">
-                <span>Internet: <strong>{{ number_format((float) $setting->internet_fee, 0, ',', '.') }}đ/phòng/tháng</strong></span>
-                <span>Dịch vụ chung: <strong>{{ number_format((float) $setting->service_fee, 0, ',', '.') }}đ/tháng</strong></span>
+                <span>Internet: <strong>{{ number_format((float) $setting->internet_fee, 0, ',', '.') }}đ/người/tháng</strong></span>
+                <span>Dịch vụ chung: <strong>{{ number_format((float) $setting->service_fee, 0, ',', '.') }}đ/người/tháng</strong></span>
             </div>
             <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">

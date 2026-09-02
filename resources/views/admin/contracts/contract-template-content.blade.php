@@ -103,8 +103,8 @@
         <tr><td class="label">Tiền cọc</td><td>{{ $hasContract ? number_format((float) $contract->deposit_amount, 0, ',', '.').'đ' : $blank }}</td></tr>
         <tr><td class="label">Tiền điện</td><td>{{ number_format((float) $contractRates->electric_price, 0, ',', '.') }}đ/kWh, tính theo chỉ số công tơ</td></tr>
         <tr><td class="label">Tiền nước</td><td>{{ number_format((float) $contractRates->water_price, 0, ',', '.') }}đ/m³, tính theo chỉ số đồng hồ</td></tr>
-        <tr><td class="label">Internet</td><td>{{ number_format((float) $contractRates->internet_fee, 0, ',', '.') }}đ/phòng/tháng</td></tr>
-        <tr><td class="label">Dịch vụ chung</td><td>{{ number_format((float) $contractRates->service_fee, 0, ',', '.') }}đ/phòng/tháng</td></tr>
+        <tr><td class="label">Internet</td><td>{{ number_format((float) $contractRates->internet_fee, 0, ',', '.') }}đ/người/tháng</td></tr>
+        <tr><td class="label">Dịch vụ chung</td><td>{{ number_format((float) $contractRates->service_fee, 0, ',', '.') }}đ/người/tháng</td></tr>
     </table>
 
     <p><strong>Thanh toán:</strong> {{ $clause('deposit_payment') }}</p>

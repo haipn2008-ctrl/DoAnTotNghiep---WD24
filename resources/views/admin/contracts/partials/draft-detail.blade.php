@@ -156,10 +156,10 @@
             </div>
             <div class="p-5">
                 <div class="mb-4 flex flex-wrap gap-2">
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200"><i class="bx bx-wifi"></i>Internet · {{ number_format((float) $setting->internet_fee, 0, ',', '.') }}đ/tháng</span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200"><i class="bx bx-wifi"></i>Internet · {{ number_format((float) $setting->internet_fee, 0, ',', '.') }}đ/người/tháng</span>
                     <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"><i class="bx bx-wind"></i>Máy lạnh · đã bao gồm</span>
                 </div>
-                <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200"><i class="bx bx-check"></i>Dịch vụ chung bắt buộc · {{ number_format((float) $setting->service_fee, 0, ',', '.') }}đ/tháng</span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200"><i class="bx bx-check"></i>Dịch vụ chung bắt buộc · {{ number_format((float) $setting->service_fee, 0, ',', '.') }}đ/người/tháng</span>
                 @if($contract->note)
                     <div class="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700"><strong>Ghi chú:</strong> {{ $contract->note }}</div>
                 @endif

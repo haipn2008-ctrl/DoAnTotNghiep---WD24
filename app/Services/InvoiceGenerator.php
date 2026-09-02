@@ -153,10 +153,12 @@ class InvoiceGenerator
             ];
         }
 
+        // number_of_people được đồng bộ từ danh sách thành viên đang ở của hợp đồng.
+        // Dữ liệu hợp đồng cũ có thể để 0/null nên vẫn tính tối thiểu một người.
+        $occupantCount = $this->occupantCountForPeriod($contract, $servicePeriod);
         $serviceLines = [
-            // Internet là phí cố định theo phòng, thu một lần mỗi tháng và không phụ thuộc số người.
-            ['internet', "Phí internet tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->internet_fee ?? 0), 1, 4],
-            ['service', "Phí vệ sinh tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->service_fee ?? 0), 1, 5],
+            ['internet', "Phí internet tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->internet_fee ?? 0), $occupantCount, 4],
+            ['service', "Phí dịch vụ tháng {$servicePeriod->month}/{$servicePeriod->year}", (float) ($rates->service_fee ?? 0), $occupantCount, 5],
         ];
 
         foreach ($serviceLines as [$type, $name, $unitPrice, $quantity, $sortOrder]) {
@@ -170,7 +172,7 @@ class InvoiceGenerator
                 'type' => $type,
                 'name' => $name,
                 'quantity' => $quantity,
-                'unit' => 'thang',
+                'unit' => 'người',
                 'unit_price' => $unitPrice,
                 'amount' => $amount,
                 'old_index' => null,
@@ -318,6 +320,23 @@ class InvoiceGenerator
 
             return $invoice->load(['contract.tenant', 'room', 'details']);
         });
+    }
+
+    private function occupantCountForPeriod(Contract $contract, Carbon $period): int
+    {
+        $periodStart = $period->copy()->startOfMonth();
+        $periodEnd = $period->copy()->endOfMonth();
+        $historicalCount = $contract->members()
+            ->whereNotNull('actual_move_in_at')
+            ->where('actual_move_in_at', '<=', $periodEnd)
+            ->where(fn ($query) => $query
+                ->whereNull('actual_move_out_at')
+                ->orWhere('actual_move_out_at', '>=', $periodStart))
+            ->count();
+
+        return $historicalCount > 0
+            ? $historicalCount
+            : max(1, (int) $contract->number_of_people);
     }
 
     private function ensureContractCanBeBilled(Contract $contract, int $month, int $year): void

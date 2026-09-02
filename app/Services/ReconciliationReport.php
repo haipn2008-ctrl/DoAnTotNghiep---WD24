@@ -24,9 +24,8 @@ class ReconciliationReport
             ->select('invoices.*')
             ->selectSub($paidSubquery, 'paid_amount')
             ->selectSub($pendingSubquery, 'pending_amount')
-            ->whereMonth('invoice_date', $month)
-            ->whereYear('invoice_date', $year)
-            ->where('status', '!=', Invoice::STATUS_CANCELLED);
+            ->forBillingPeriod($month, $year)
+            ->notCancelled();
     }
 
     public function summary(int $month, int $year): array

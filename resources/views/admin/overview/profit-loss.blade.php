@@ -219,7 +219,8 @@
             </div>
 
             <p class="mt-3 text-xs text-slate-500">
-                Kỳ đối soát sản lượng: tháng {{ $selectedUtilityMonth }}/{{ $selectedUtilityYear }}.
+                Kỳ sử dụng điện nước: tháng {{ $selectedUtilityMonth }}/{{ $selectedUtilityYear }}
+                (được thu và ghi nhận chi phí trong kỳ hóa đơn tháng {{ $selectedMonth ?: now()->month }}/{{ $selectedYear }}).
                 Gợi ý đơn giá theo dữ liệu đã đóng: điện {{ number_format($suggestedGovElectricityUnitPrice, 2, ',', '.') }} đ/kWh,
                 nước {{ number_format($suggestedGovWaterUnitPrice, 2, ',', '.') }} đ/m3.
             </p>
@@ -481,4 +482,3 @@
         @endif
     </script>
 @endpush
-

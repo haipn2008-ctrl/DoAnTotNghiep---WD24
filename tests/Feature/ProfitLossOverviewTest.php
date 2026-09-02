@@ -68,6 +68,9 @@ class ProfitLossOverviewTest extends TestCase
             ->get('/admin/profit-loss?month=8&year=2026');
 
         $response->assertSuccessful()
+            ->assertViewHas('selectedUtilityMonth', 7)
+            ->assertViewHas('selectedUtilityYear', 2026)
+            ->assertViewHas('elecPaidGov', 900000.0)
             ->assertSee('kpiRevenueDetail', false)
             ->assertSee('kpiExpenseDetail', false)
             ->assertSee('toggleKpiDetail', false)

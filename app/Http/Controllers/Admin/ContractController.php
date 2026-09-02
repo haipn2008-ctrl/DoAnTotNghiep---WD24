@@ -853,7 +853,13 @@ class ContractController extends Controller
 
     public function extendList(Request $request)
     {
-        $contracts = $this->contractQuery($request)->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)->orderBy('end_date')->get();
+        $contracts = $this->contractQuery($request)
+            ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
+            ->whereNotNull('end_date')
+            ->whereDate('end_date', '<=', today()->addDays(30))
+            ->whereNull('scheduled_move_out_at')
+            ->orderBy('end_date')
+            ->get();
 
         return view('admin.contracts.extend', compact('contracts'));
     }
@@ -1026,7 +1032,7 @@ class ContractController extends Controller
             ]);
         }
         $data['reservation_expires_at'] = $deadline;
-        // Internet là phí bắt buộc theo phòng, không phụ thuộc số người và không có lựa chọn tắt trên hợp đồng.
+        // Internet là phí bắt buộc, tính theo số người đang ở và không có lựa chọn tắt trên hợp đồng.
         $data['internet_enabled'] = true;
         $data['service_enabled'] = true;
         $data['parking_vehicle_type'] = null;

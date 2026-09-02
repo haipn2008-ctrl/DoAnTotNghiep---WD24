@@ -40,14 +40,14 @@ class SettingController extends Controller
         'internet' => [
             'field' => 'internet_fee',
             'label' => 'Phí internet',
-            'unit' => 'VNĐ/tháng',
+            'unit' => 'VNĐ/người/tháng',
             'description' => 'Phí cố định internet mỗi tháng.',
         ],
         'service' => [
             'field' => 'service_fee',
             'label' => 'Phí dịch vụ',
-            'unit' => 'VNĐ/tháng',
-            'description' => 'Phí dịch vụ chung tính vào hóa đơn.',
+            'unit' => 'VNĐ/người/tháng',
+            'description' => 'Đơn giá dịch vụ chung cho mỗi người trong một tháng.',
         ],
         'bank' => [
             'field' => null,

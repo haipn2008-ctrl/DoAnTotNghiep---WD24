@@ -27,8 +27,8 @@ class ContractAppendix extends Model
     public const PRICE_FIELD_UNITS = [
         'electric_price' => 'đ/kWh',
         'water_price' => 'đ/m³',
-        'internet_fee' => 'đ/phòng/tháng',
-        'service_fee' => 'đ/phòng/tháng',
+        'internet_fee' => 'đ/người/tháng',
+        'service_fee' => 'đ/người/tháng',
     ];
 
     protected $table = 'contract_appendices';

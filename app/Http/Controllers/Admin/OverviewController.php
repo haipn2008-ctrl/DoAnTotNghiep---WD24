@@ -66,10 +66,13 @@ class OverviewController extends Controller
             ->get(['id', 'contract_code', 'end_date', 'room_id']);
 
         // Hóa đơn quá hạn chưa thanh toán
-        $overdueInvoices = Invoice::whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+        $overdueInvoices = Invoice::outstanding()
             ->where('due_date', '<', today())
-            ->selectRaw('COUNT(*) as count, SUM(total_amount + adjustment_amount) as total_amount')
-            ->first();
+            ->get();
+        $overdueInvoices = (object) [
+            'count' => $overdueInvoices->count(),
+            'total_amount' => $overdueInvoices->sum(fn (Invoice $invoice) => $invoice->remaining_amount),
+        ];
 
         // Yêu cầu hỗ trợ chờ xử lý
         $pendingSupportCount = SupportRequest::where('status', SupportRequest::STATUS_NEW)->count();
@@ -118,9 +121,8 @@ class OverviewController extends Controller
         $currentYear = $reportDate->year;
 
         // Last month invoice breakdown
-        $monthSummary = Invoice::whereYear('invoice_date', $reportYear)
-            ->whereMonth('invoice_date', $reportMonth)
-            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+        $monthSummary = Invoice::forBillingPeriod($reportMonth, $reportYear)
+            ->notCancelled()
             ->selectRaw('
                 COALESCE(SUM(room_fee),0)        as room_fee,
                 COALESCE(SUM(electricity_fee),0) as electricity_fee,
@@ -136,8 +138,7 @@ class OverviewController extends Controller
         // Đã thu thực tế: chỉ tính payments thuộc hóa đơn tháng trước
         $actualRevenue = (float) Payment::success()
             ->whereHas('invoice', fn ($q) => $q
-                ->whereYear('invoice_date', $reportYear)
-                ->whereMonth('invoice_date', $reportMonth)
+                ->forBillingPeriod($reportMonth, $reportYear)
             )
             ->sum('amount_paid');
 
@@ -145,10 +146,8 @@ class OverviewController extends Controller
         $totalRevenue = (float) Payment::success()->sum('amount_paid');
 
         $totalReceivable = $this->totalReceivable();
-        $monthlyReceivable = (float) Invoice::query()
-            ->whereYear('invoice_date', $reportYear)
-            ->whereMonth('invoice_date', $reportMonth)
-            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+        $monthlyReceivable = (float) Invoice::forBillingPeriod($reportMonth, $reportYear)
+            ->outstanding()
             ->get()
             ->sum(fn (Invoice $invoice) => (float) $invoice->remaining_amount);
 
@@ -161,9 +160,8 @@ class OverviewController extends Controller
         $catRoom = $catElec = $catWater = $catInternet = $catService = [];
 
         for ($m = 1; $m <= 12; $m++) {
-            $row = Invoice::whereYear('invoice_date', $currentYear)
-                ->whereMonth('invoice_date', $m)
-                ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            $row = Invoice::forBillingPeriod($m, $currentYear)
+                ->notCancelled()
                 ->selectRaw('
                     COALESCE(SUM(room_fee),0)        as room,
                     COALESCE(SUM(electricity_fee),0) as elec,
@@ -190,8 +188,7 @@ class OverviewController extends Controller
         ];
         $remaining = $monthlyReceivable;
 
-        $years = Invoice::query()->pluck('invoice_date')
-            ->map(fn ($d) => \Carbon\Carbon::parse($d)->year)
+        $years = Invoice::query()->pluck('year')
             ->merge(Payment::query()->pluck('payment_date')->map(fn ($d) => \Carbon\Carbon::parse($d)->year))
             ->push(now()->year)
             ->unique()
@@ -242,14 +239,14 @@ class OverviewController extends Controller
     private function totalBilled(): float
     {
         return (float) Invoice::query()
-            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->notCancelled()
             ->sum(DB::raw('total_amount + adjustment_amount'));
     }
 
     private function totalReceivable(): float
     {
         return (float) Invoice::query()
-            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PARTIAL])
+            ->outstanding()
             ->get()
             ->sum(fn (Invoice $invoice) => (float) $invoice->remaining_amount);
     }

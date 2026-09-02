@@ -3,8 +3,8 @@
     $feeFields = [
         'electric_price' => ['Đơn giá điện', 'VNĐ/kWh'],
         'water_price' => ['Đơn giá nước', 'VNĐ/m³'],
-        'internet_fee' => ['Phí Internet', 'VNĐ/tháng'],
-        'service_fee' => ['Phí dịch vụ chung', 'VNĐ/tháng'],
+        'internet_fee' => ['Phí Internet', 'VNĐ/người/tháng'],
+        'service_fee' => ['Phí dịch vụ chung', 'VNĐ/người/tháng'],
     ];
 @endphp
 <div class="grid gap-4 md:grid-cols-2">

@@ -5,17 +5,23 @@
 
 @section('content')
     <div class="space-y-6">
-        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-            <div>
+        @php($servicePeriod = \Carbon\Carbon::createFromDate($year, $month, 1)->subMonthNoOverflow())
+
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div class="grid w-full grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div class="min-w-0">
                 <p class="text-sm font-medium text-slate-500">Quản lý hóa đơn</p>
                 <h2 class="mt-1 text-2xl font-bold text-slate-950">Sinh hóa đơn từ hợp đồng</h2>
-                <p class="mt-2 max-w-2xl text-sm text-slate-500">Hóa đơn ngày 5 gồm tiền phòng trả trước của tháng đang chọn và điện, nước, dịch vụ đã sử dụng trong tháng liền trước.</p>
+                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    Hóa đơn kỳ {{ $month }}/{{ $year }} thu tiền phòng, điện, nước, Internet và dịch vụ đã sử dụng trong
+                    tháng {{ $servicePeriod->month }}/{{ $servicePeriod->year }}. Internet và dịch vụ được tính theo số người của hợp đồng.
+                </p>
             </div>
 
-            <form action="{{ route('admin.invoices.generate') }}" method="GET" class="flex flex-wrap items-end gap-2">
+            <form action="{{ route('admin.invoices.generate') }}" method="GET" class="grid w-full grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 lg:w-auto lg:self-start">
                 <div>
                     <label for="month" class="mb-1.5 block text-sm font-semibold text-slate-700">Tháng</label>
-                    <select id="month" name="month" onchange="this.form.submit()" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <select id="month" name="month" onchange="this.form.submit()" class="h-11 w-full min-w-32 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         @for ($m = 1; $m <= 12; $m++)
                             <option value="{{ $m }}" @selected($month == $m)>Tháng {{ $m }}</option>
                         @endfor
@@ -24,28 +30,38 @@
 
                 <div>
                     <label for="year" class="mb-1.5 block text-sm font-semibold text-slate-700">Năm</label>
-                    <select id="year" name="year" onchange="this.form.submit()" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+                    <select id="year" name="year" onchange="this.form.submit()" class="h-11 w-full min-w-32 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
                         @for ($y = date('Y') + 1; $y >= date('Y') - 2; $y--)
                             <option value="{{ $y }}" @selected($year == $y)>Năm {{ $y }}</option>
                         @endfor
                     </select>
                 </div>
             </form>
+          </div>
+
+          <div class="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-3">
+              <div class="rounded-lg bg-indigo-50 px-4 py-3">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-indigo-500">Kỳ hóa đơn</p>
+                  <p class="mt-1 font-bold text-indigo-950">Tháng {{ $month }}/{{ $year }}</p>
+              </div>
+              <div class="rounded-lg bg-amber-50 px-4 py-3">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-amber-600">Kỳ sử dụng</p>
+                  <p class="mt-1 font-bold text-amber-950">Tháng {{ $servicePeriod->month }}/{{ $servicePeriod->year }}</p>
+              </div>
+              <div class="rounded-lg bg-emerald-50 px-4 py-3">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Ngày phát hành theo lịch</p>
+                  <p class="mt-1 font-bold text-emerald-950">{{ $scheduledInvoiceDate->format('d/m/Y') }}</p>
+              </div>
+          </div>
         </div>
 
         <div id="invoiceAlert" class="hidden rounded-lg border px-4 py-3 text-sm font-medium"></div>
 
-        <div class="flex items-center gap-2 text-sm text-slate-500">
-            <span>Ngày hóa đơn</span>
-            <strong class="text-slate-800">{{ $scheduledInvoiceDate->format('d/m/Y') }}</strong>
-        </div>
-
-        <section class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
                 <div>
                     <h3 class="font-semibold text-slate-950">Hợp đồng đang hiệu lực</h3>
-                    @php($servicePeriod = \Carbon\Carbon::createFromDate($year, $month, 1)->subMonthNoOverflow())
-                    <p class="text-sm text-slate-500">Thu ngày 05/{{ $month }}/{{ $year }}: tiền phòng và tiện ích tháng {{ $servicePeriod->month }}/{{ $servicePeriod->year }}</p>
+                    <p class="mt-1 text-sm text-slate-500">Các hợp đồng đủ điều kiện lập hóa đơn kỳ {{ $month }}/{{ $year }}</p>
                 </div>
                 <span class="inline-flex w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200">
                     {{ $contracts->count() }} hợp đồng
@@ -53,12 +69,13 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <table class="min-w-[1080px] w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
                         <tr>
                             <th class="px-5 py-3">Phòng</th>
                             <th class="px-5 py-3">Khách thuê</th>
                             <th class="px-5 py-3">Hợp đồng</th>
+                            <th class="px-5 py-3 text-center">Số người</th>
                             <th class="px-5 py-3 text-right">Tiền phòng</th>
                             <th class="px-5 py-3">Trạng thái</th>
                             <th class="px-5 py-3 text-right">Thao tác</th>
@@ -70,7 +87,6 @@
                             <tr id="contract-row-{{ $contract->id }}" class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">
                                     <p class="font-semibold text-slate-950">{{ $contract->room->room_code ?? 'Không có' }}</p>
-                                    <p class="mt-1 text-xs text-slate-500">Số người: {{ $contract->number_of_people }}</p>
                                 </td>
                                 <td class="px-5 py-4">
                                     <p class="font-medium text-slate-900">{{ $contract->tenant->full_name ?? 'Không có' }}</p>
@@ -84,6 +100,11 @@
                                         {{ \Carbon\Carbon::parse($contract->end_date)->format('d/m/Y') }}
                                     </p>
                                 </td>
+                                <td class="px-5 py-4 text-center">
+                                    <span class="inline-flex min-w-10 justify-center rounded-full bg-sky-50 px-2.5 py-1 text-sm font-bold text-sky-700 ring-1 ring-sky-200">
+                                        {{ max(1, (int) $contract->number_of_people) }}
+                                    </span>
+                                </td>
                                 <td class="px-5 py-4 text-right font-semibold text-slate-950">
                                     {{ number_format($contract->monthly_rent, 0, ',', '.') }}đ
                                 </td>
@@ -94,23 +115,23 @@
                                         <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">Chờ phát hành</span>
                                     @endif
                                 </td>
-                                <td class="px-5 py-4">
+                                <td class="w-64 px-5 py-4">
                                     <div class="flex justify-end">
                                         <button type="button"
-                                            class="preview-invoice-btn inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                            class="preview-invoice-btn inline-flex min-w-52 whitespace-nowrap items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                                             data-contract-id="{{ $contract->id }}"
                                             data-preview-url="{{ route('admin.invoices.preview', $contract) }}"
                                             data-issue-url="{{ route('admin.invoices.issue', $contract) }}"
                                             {{ $hasInvoice ? 'disabled' : '' }}>
                                             <i class="bx bx-file-find text-lg"></i>
-                                            Xem trước hóa đơn tháng {{ $month }}
+                                            Xem trước hóa đơn
                                         </button>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-5 py-12 text-center text-slate-500">
+                                <td colspan="7" class="px-5 py-12 text-center text-slate-500">
                                     Không có hợp đồng đang hiệu lực trong kỳ {{ $month }}/{{ $year }}.
                                 </td>
                             </tr>

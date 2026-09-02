@@ -26,8 +26,8 @@
                         @foreach([
                             'Điện (VNĐ/kWh)' => $setting->electric_price,
                             'Nước (VNĐ/m³)' => $setting->water_price,
-                            'Internet/tháng' => $setting->internet_fee,
-                            'Dịch vụ chung/tháng' => $setting->service_fee,
+                            'Internet/người/tháng' => $setting->internet_fee,
+                            'Dịch vụ chung/người/tháng' => $setting->service_fee,
                         ] as $label => $value)
                             <div class="flex items-center justify-between gap-3 py-2.5"><dt class="text-slate-500">{{ $label }}</dt><dd class="font-semibold text-slate-900">{{ number_format($value, 0, ',', '.') }}đ</dd></div>
                         @endforeach

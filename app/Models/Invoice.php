@@ -272,6 +272,21 @@ class Invoice extends Model
         );
     }
 
+    public function scopeForBillingPeriod($query, int $month, int $year)
+    {
+        return $query->where('month', $month)->where('year', $year);
+    }
+
+    public function scopeNotCancelled($query)
+    {
+        return $query->where('status', '!=', self::STATUS_CANCELLED);
+    }
+
+    public function scopeOutstanding($query)
+    {
+        return $query->whereIn('status', [self::STATUS_UNPAID, self::STATUS_PARTIAL]);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Accessor

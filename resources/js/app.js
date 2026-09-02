@@ -118,6 +118,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     }).observe(document.body, { childList: true, subtree: true });
 
+    document.addEventListener('click', (event) => {
+        const openButton = event.target.closest?.('[data-utility-history-open]');
+        if (openButton) {
+            const modal = document.getElementById(openButton.dataset.utilityHistoryOpen);
+            if (modal) document.body.appendChild(modal);
+            modal?.classList.remove('hidden');
+            modal?.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+            return;
+        }
+
+        const closeButton = event.target.closest?.('[data-utility-history-close]');
+        if (!closeButton) return;
+        const modal = closeButton.closest('[data-utility-history-modal]');
+        modal?.classList.add('hidden');
+        modal?.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        const modal = document.querySelector('[data-utility-history-modal].flex');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+    });
+
     document.querySelectorAll('[data-room-evidence-toggle]').forEach((toggle) => {
         const section = toggle.closest('section');
         const form = section?.querySelector('[data-room-evidence-form]');

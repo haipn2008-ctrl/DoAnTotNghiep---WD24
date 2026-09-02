@@ -25,8 +25,11 @@ class ProfitLossController extends Controller
 
         $selectedYear = (int) ($filters['year'] ?? $currentYear);
         $selectedMonth = isset($filters['month']) ? (int) $filters['month'] : null;
-        $selectedUtilityMonth = $selectedMonth ?: (int) now()->month;
-        $selectedUtilityYear = $selectedYear;
+        $selectedBillingMonth = $selectedMonth ?: (int) now()->month;
+        $selectedBillingPeriod = Carbon::create($selectedYear, $selectedBillingMonth, 1);
+        $selectedUtilityPeriod = $selectedBillingPeriod->copy()->subMonthNoOverflow();
+        $selectedUtilityMonth = $selectedUtilityPeriod->month;
+        $selectedUtilityYear = $selectedUtilityPeriod->year;
 
         // 1. Tổng quan Doanh thu (Thu) vs Chi phí (Chi)
         $revenueQuery = Payment::success()->whereYear('payment_date', $selectedYear);
@@ -61,12 +64,8 @@ class ProfitLossController extends Controller
 
         // 2. Đối soát Điện - Nước (Thu từ khách vs Đơn giá NN dự kiến vs Đã đóng thực tế)
         $invoiceUtilityQuery = Invoice::query()
-            ->whereYear('invoice_date', $selectedYear)
-            ->where('status', '!=', Invoice::STATUS_CANCELLED);
-
-        if ($selectedMonth) {
-            $invoiceUtilityQuery->whereMonth('invoice_date', $selectedMonth);
-        }
+            ->forBillingPeriod($selectedBillingMonth, $selectedYear)
+            ->notCancelled();
 
         $utilityInvoiced = $invoiceUtilityQuery->selectRaw('
             COALESCE(SUM(electricity_fee), 0) as elec_invoiced,
@@ -78,8 +77,8 @@ class ProfitLossController extends Controller
 
         $utilityUsageSummary = Invoice::query()
             ->join('utility_readings', 'utility_readings.id', '=', 'invoices.utility_reading_id')
-            ->whereYear('invoices.invoice_date', $selectedUtilityYear)
-            ->whereMonth('invoices.invoice_date', $selectedUtilityMonth)
+            ->where('invoices.year', $selectedYear)
+            ->where('invoices.month', $selectedBillingMonth)
             ->where('invoices.status', '!=', Invoice::STATUS_CANCELLED)
             ->selectRaw('COALESCE(SUM(utility_readings.electricity_new - utility_readings.electricity_old), 0) as electricity_usage, COALESCE(SUM(utility_readings.water_new - utility_readings.water_old), 0) as water_usage')
             ->first();
@@ -87,8 +86,11 @@ class ProfitLossController extends Controller
         $totalElectricityUsage = max(0, (float) ($utilityUsageSummary->electricity_usage ?? 0));
         $totalWaterUsage = max(0, (float) ($utilityUsageSummary->water_usage ?? 0));
 
-        $elecPaidGov = (float) (clone $expenseQuery)->where('category', Expense::CATEGORY_ELECTRICITY)->sum('amount');
-        $waterPaidGov = (float) (clone $expenseQuery)->where('category', Expense::CATEGORY_WATER)->sum('amount');
+        $utilityExpenseQuery = Expense::query()
+            ->whereYear('expense_date', $selectedYear)
+            ->whereMonth('expense_date', $selectedBillingMonth);
+        $elecPaidGov = (float) (clone $utilityExpenseQuery)->where('category', Expense::CATEGORY_ELECTRICITY)->sum('amount');
+        $waterPaidGov = (float) (clone $utilityExpenseQuery)->where('category', Expense::CATEGORY_WATER)->sum('amount');
 
         $suggestedGovElectricityUnitPrice = $totalElectricityUsage > 0
             ? round($elecPaidGov / $totalElectricityUsage, 2)

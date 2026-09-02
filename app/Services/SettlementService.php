@@ -74,9 +74,16 @@ class SettlementService
                 $ratio = $days / $moveOutDate->daysInMonth;
                 $dailyRent = (float) $contract->monthly_rent / $moveOutDate->daysInMonth;
                 $items[] = $this->item('room', 'Tiền phòng lẻ kỳ đến ngày trả phòng', $days, 'ngày', $dailyRent, $sort++, "Từ {$periodStart->format('d/m/Y')} đến {$moveOutDate->format('d/m/Y')}");
+                $occupantCount = max(1, $contract->members()
+                    ->whereNotNull('actual_move_in_at')
+                    ->where('actual_move_in_at', '<=', $moveOutDate->copy()->endOfDay())
+                    ->where(fn ($query) => $query
+                        ->whereNull('actual_move_out_at')
+                        ->orWhere('actual_move_out_at', '>=', $periodStart))
+                    ->count());
                 foreach ([['internet', 'Phí internet lẻ kỳ', (float) ($rates->internet_fee ?? 0)], ['service', 'Phí dịch vụ lẻ kỳ', (float) ($rates->service_fee ?? 0)]] as [$type, $name, $monthlyFee]) {
                     if ($monthlyFee > 0) {
-                        $items[] = $this->item($type, $name, $days, 'ngày', $monthlyFee / $moveOutDate->daysInMonth, $sort++, 'Tính theo số ngày sử dụng thực tế.');
+                        $items[] = $this->item($type, $name, $days * $occupantCount, 'người-ngày', $monthlyFee / $moveOutDate->daysInMonth, $sort++, "Tính theo {$occupantCount} người và số ngày sử dụng thực tế.");
                     }
                 }
             }
