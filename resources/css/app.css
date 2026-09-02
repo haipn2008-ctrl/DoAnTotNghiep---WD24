@@ -50,3 +50,48 @@
 .app-dialog-open { overflow: hidden; }
 @keyframes app-dialog-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 @media (max-width: 520px) { .app-dialog__panel { padding: 1.1rem; } .app-dialog__icon { display: none; } }
+
+/* Nền tảng hiển thị thống nhất cho toàn bộ cổng khách thuê. */
+.client-portal main input:not([type='checkbox']):not([type='radio']),
+.client-portal main select,
+.client-portal main textarea {
+    transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+
+.client-portal main input:not([type='checkbox']):not([type='radio']):focus,
+.client-portal main select:focus,
+.client-portal main textarea:focus {
+    border-color: rgb(99 102 241);
+    box-shadow: 0 0 0 4px rgb(224 231 255 / .8);
+    outline: none;
+}
+
+.client-portal main button,
+.client-portal main a {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: .18s;
+    transition-timing-function: ease;
+}
+
+.client-portal main button:focus-visible,
+.client-portal main a:focus-visible {
+    outline: 3px solid rgb(165 180 252 / .75);
+    outline-offset: 2px;
+}
+
+.client-portal main button:disabled {
+    cursor: not-allowed;
+}
+
+.client-portal main table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+@media (max-width: 640px) {
+    .client-portal main input,
+    .client-portal main select,
+    .client-portal main textarea {
+        font-size: 16px;
+    }
+}

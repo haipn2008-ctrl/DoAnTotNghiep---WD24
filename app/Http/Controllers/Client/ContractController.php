@@ -20,12 +20,23 @@ class ContractController extends Controller
 
     public function index(Request $request): View
     {
-        $contracts = Contract::with('room')
-            ->managedBy($request->user())
-            ->latest('start_date')
-            ->paginate(10);
+        $contracts = Contract::with('room')->managedBy($request->user());
+        $terminalStatuses = [Contract::STATUS_COMPLETED, Contract::STATUS_CANCELLED];
 
-        return view('client.contracts.index', compact('contracts'));
+        $currentContracts = (clone $contracts)
+            ->whereNotIn('status', $terminalStatuses)
+            ->latest('start_date')
+            ->latest('id')
+            ->get();
+
+        $historicalContracts = (clone $contracts)
+            ->whereIn('status', $terminalStatuses)
+            ->latest('end_date')
+            ->latest('id')
+            ->paginate(8, ['*'], 'history_page')
+            ->withQueryString();
+
+        return view('client.contracts.index', compact('currentContracts', 'historicalContracts'));
     }
 
     public function show(Request $request, int $contract): View

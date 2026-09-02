@@ -586,6 +586,11 @@ Route::middleware('auth')->group(function () {
                     [AdminContractTerminationRequestController::class, 'reject']
                 )->name('termination-requests.reject');
 
+                Route::post(
+                    'termination-requests/{terminationRequest}/cancel',
+                    [AdminContractTerminationRequestController::class, 'cancel']
+                )->name('termination-requests.cancel');
+
                 // =================================================
                 // ĐIỆN NƯỚC
                 // =================================================

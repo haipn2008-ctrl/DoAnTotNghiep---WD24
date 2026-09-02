@@ -4,18 +4,22 @@
 @section('page_title', 'Quyết toán')
 
 @section('content')
-    <div class="space-y-6">
-        <section class="rounded-xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
+    <div class="mx-auto max-w-7xl space-y-6">
+        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 p-6 text-white shadow-lg shadow-violet-200/60 sm:p-8">
+            <div class="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10"></div>
             <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                <div>
-                    <p class="text-sm font-semibold text-violet-700">Cổng quyết toán sau trả phòng</p>
-                    <h2 class="mt-1 text-2xl font-bold text-violet-950">Quyết toán</h2>
-                    <p class="mt-2 max-w-3xl text-sm leading-6 text-violet-800">
+                <div class="flex items-center gap-4">
+                    <span class="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 sm:flex"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 7.5h15v11h-15v-11Zm3-3h9v3h-9v-3ZM8 12h8M8 15h5" /></svg></span>
+                    <div>
+                    <p class="text-sm font-semibold text-violet-100">Cổng quyết toán sau trả phòng</p>
+                    <h2 class="mt-1 text-2xl font-bold sm:text-3xl">Quyết toán</h2>
+                    <p class="mt-2 max-w-3xl text-sm leading-6 text-violet-100">
                         Xem bảng quyết toán, thanh toán khoản còn thiếu, cung cấp thông tin nhận tiền hoàn và tải chứng từ của từng hợp đồng.
                     </p>
+                    </div>
                 </div>
                 <a href="{{ route('client.support.index') }}"
-                   class="inline-flex h-11 items-center justify-center rounded-lg bg-violet-700 px-4 text-sm font-semibold text-white hover:bg-violet-800">
+                   class="relative inline-flex h-11 items-center justify-center rounded-xl border border-white/20 bg-white px-4 text-sm font-bold text-violet-700 shadow-sm hover:bg-violet-50">
                     Yêu cầu hỗ trợ quyết toán
                 </a>
             </div>
@@ -30,7 +34,7 @@
                 $isCompleted = $contract->status === \App\Models\Contract::STATUS_COMPLETED;
             @endphp
 
-            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <header class="flex flex-col justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
@@ -111,8 +115,9 @@
                 @endif
             </article>
         @empty
-            <section class="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
-                <h3 class="font-semibold text-slate-950">Chưa có hợp đồng cần quyết toán</h3>
+            <section class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+                <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 7.5h15v11h-15v-11Zm3-3h9v3h-9v-3ZM8 12h8M8 15h5" /></svg></span>
+                <h3 class="mt-3 font-semibold text-slate-950">Chưa có hợp đồng cần quyết toán</h3>
                 <a href="{{ route('client.contracts.index') }}" class="mt-4 inline-flex text-sm font-semibold text-indigo-700">Xem lịch sử hợp đồng →</a>
             </section>
         @endforelse

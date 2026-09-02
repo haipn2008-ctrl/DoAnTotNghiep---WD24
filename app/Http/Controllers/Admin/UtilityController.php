@@ -33,6 +33,7 @@ class UtilityController extends Controller
 
         $billingPeriodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $billingPeriodEnd = $billingPeriodStart->copy()->endOfMonth();
+        $canFinalize = ! today()->lt($billingPeriodEnd->copy()->startOfDay());
         $recordDate = $billingPeriodEnd->toDateString();
         $checkpointDate = isset($period['reading_date'])
             ? Carbon::parse($period['reading_date'])->startOfDay()
@@ -128,6 +129,7 @@ class UtilityController extends Controller
             'recordDate',
             'checkpointDate',
             'savedCount',
+            'canFinalize',
         ));
     }
 
@@ -172,6 +174,12 @@ class UtilityController extends Controller
             ]);
         }
         $data['record_date'] = $recordDate->toDateString();
+
+        if (! $isCheckpoint && $targetStatus === UtilityReading::STATUS_CONFIRMED && today()->lt($periodEnd->copy()->startOfDay())) {
+            throw ValidationException::withMessages([
+                'readings' => "Chưa đến ngày chốt điện nước. Kỳ {$data['month']}/{$data['year']} chỉ được xác nhận từ ngày {$periodEnd->format('d/m/Y')}; hiện tại chỉ có thể lưu nháp.",
+            ]);
+        }
 
         $newImages = [];
         $replacedImages = [];
@@ -377,6 +385,13 @@ class UtilityController extends Controller
     public function confirm(UtilityReading $reading)
     {
         $actorId = request()->user()?->id;
+
+        $closingDate = Carbon::createFromDate($reading->year, $reading->month, 1)->endOfMonth()->startOfDay();
+        if (today()->lt($closingDate)) {
+            throw ValidationException::withMessages([
+                'reading' => 'Chưa đến ngày chốt điện nước. Kỳ này chỉ được xác nhận từ ngày '.$closingDate->format('d/m/Y').'.',
+            ]);
+        }
 
         DB::transaction(function () use ($reading, $actorId): void {
             $reading = UtilityReading::query()->lockForUpdate()->findOrFail($reading->id);

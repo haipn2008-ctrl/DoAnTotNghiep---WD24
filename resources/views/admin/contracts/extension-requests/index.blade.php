@@ -16,12 +16,14 @@
         <a href="{{ route('admin.contracts.index') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">← Quản lý hợp đồng</a>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         @foreach([
             ['Tổng yêu cầu', $extensionRequests->count(), 'border-slate-200 bg-white text-slate-900', 'bg-indigo-50 text-indigo-600', '#'],
-            ['Chờ admin xem', $extensionRequests->where('status', 'pending')->count(), 'border-amber-200 bg-amber-50/60 text-amber-700', 'bg-amber-100 text-amber-700', '◷'],
+            ['Chờ duyệt', $extensionRequests->where('status', 'pending')->count(), 'border-amber-200 bg-amber-50/60 text-amber-700', 'bg-amber-100 text-amber-700', '◷'],
             ['Chờ ký phụ lục', $extensionRequests->where('status', 'awaiting_confirmation')->count(), 'border-sky-200 bg-sky-50/60 text-sky-700', 'bg-sky-100 text-sky-700', '…'],
             ['Đã gia hạn', $extensionRequests->where('status', 'approved')->count(), 'border-emerald-200 bg-emerald-50/60 text-emerald-700', 'bg-emerald-100 text-emerald-700', '✓'],
+            ['Từ chối', $extensionRequests->where('status', 'rejected')->count(), 'border-rose-200 bg-rose-50/60 text-rose-700', 'bg-rose-100 text-rose-700', '×'],
+            ['Khách từ chối', $extensionRequests->where('status', 'declined_by_tenant')->count(), 'border-violet-200 bg-violet-50/60 text-violet-700', 'bg-violet-100 text-violet-700', '↩'],
         ] as [$label, $count, $cardClass, $iconClass, $icon])
             <div class="rounded-2xl border p-5 shadow-sm {{ $cardClass }}"><div class="flex items-center justify-between"><div><p class="text-sm font-medium opacity-80">{{ $label }}</p><p class="mt-2 text-3xl font-bold">{{ $count }}</p></div><div class="flex h-11 w-11 items-center justify-center rounded-xl text-xl font-bold {{ $iconClass }}">{{ $icon }}</div></div></div>
         @endforeach
@@ -37,13 +39,13 @@
                         'approved' => ['Đã gia hạn', 'border-emerald-200 bg-emerald-50 text-emerald-700', 'bg-emerald-500'],
                         'rejected' => ['Admin từ chối', 'border-rose-200 bg-rose-50 text-rose-700', 'bg-rose-500'],
                         'declined_by_tenant' => ['Khách không đồng ý', 'border-violet-200 bg-violet-50 text-violet-700', 'bg-violet-500'],
-                        default => ['Chờ admin xem', 'border-amber-200 bg-amber-50 text-amber-700', 'bg-amber-500'],
+                        default => ['Chờ duyệt', 'border-amber-200 bg-amber-50 text-amber-700', 'bg-amber-500'],
                     };
                     $outstanding = $request->contract->invoices
                         ->whereIn('status', ['unpaid', 'partial'])
                         ->sum(fn ($invoice) => (float) $invoice->remaining_amount);
                 @endphp
-                <article id="request-{{ $request->id }}" class="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm target:ring-2 target:ring-indigo-300">
+                <article id="request-{{ $request->id }}" class="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md target:ring-2 target:ring-indigo-300">
                     <div class="flex items-start justify-between gap-4">
                         <div class="flex min-w-0 items-center gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-sm font-bold text-indigo-700">HĐ</span><div><p class="font-bold text-slate-950">{{ $request->contract->contract_code ?? '-' }}</p><p class="mt-1 text-xs text-slate-500">Phòng {{ $request->contract->room->room_code ?? '-' }}</p></div></div>
                         <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold {{ $statusMeta[1] }}"><span class="h-1.5 w-1.5 rounded-full {{ $statusMeta[2] }}"></span>{{ $statusMeta[0] }}</span>
@@ -77,7 +79,19 @@
                             <form method="POST" action="{{ route('admin.extension-requests.reject', $request) }}" class="flex gap-2">@csrf<input name="reject_reason" required minlength="3" maxlength="1000" placeholder="Nhập lý do từ chối" class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm"><button class="h-11 shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700">Từ chối</button></form>
                         </div>
                     @elseif($request->status === 'awaiting_confirmation')
-                        <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800"><p class="font-semibold">Đang chờ in, ký và tải minh chứng</p><p class="mt-1">Giá phòng đề nghị: <strong>{{ number_format((float) $request->proposed_monthly_rent, 0, ',', '.') }}đ/tháng</strong></p>@if($request->appendix)<a href="{{ route('admin.contract-appendices.show', $request->appendix) }}" class="mt-3 inline-flex h-10 items-center rounded-lg bg-sky-700 px-4 font-semibold text-white">Mở phụ lục {{ $request->appendix->code }}</a>@endif</div>
+                        <div class="mt-4 space-y-3">
+                            <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800"><p class="font-semibold">Đang chờ in, ký và tải minh chứng</p><p class="mt-1">Giá phòng đề nghị: <strong>{{ number_format((float) $request->proposed_monthly_rent, 0, ',', '.') }}đ/tháng</strong></p>@if($request->appendix)<a href="{{ route('admin.contract-appendices.show', $request->appendix) }}" class="mt-3 inline-flex h-10 items-center rounded-lg bg-sky-700 px-4 font-semibold text-white">Mở phụ lục {{ $request->appendix->code }}</a>@endif</div>
+                            <form method="POST" action="{{ route('admin.extension-requests.reject', $request) }}" data-confirm="Đề nghị gia hạn và phụ lục chưa ký sẽ bị hủy." data-confirm-label="Hủy đề nghị gia hạn" class="flex gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">@csrf
+                                <input name="reject_reason" required minlength="3" maxlength="1000" placeholder="Lý do hủy đề nghị gia hạn" class="h-11 min-w-0 flex-1 rounded-xl border border-amber-200 bg-white px-3 text-sm">
+                                <button data-keep-action-label class="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700"><i class="bx bx-undo text-lg"></i>Hủy đề nghị</button>
+                            </form>
+                        </div>
+                    @elseif($request->status === 'approved' && in_array($request->contract->status, \App\Models\Contract::OPEN_OCCUPANCY_STATUSES, true))
+                        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                            <p class="font-semibold">Gia hạn đã có hiệu lực</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500">Không thể xóa phụ lục đã ký. Nếu khách không thuê tiếp, hãy lập lịch kết thúc hợp đồng theo thỏa thuận mới.</p>
+                            <a data-keep-action-label href="{{ route('admin.contracts.check-out.form', $request->contract) }}" class="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 font-semibold text-white hover:bg-rose-700"><i class="bx bx-log-out-circle text-lg"></i>Lập lịch kết thúc</a>
+                        </div>
                     @else
                         <div class="mt-4 border-t border-slate-100 pt-4 text-right text-sm font-medium text-slate-400">Yêu cầu đã được xử lý</div>
                     @endif
@@ -85,6 +99,9 @@
             @empty
                 <div class="py-14 text-center lg:col-span-2"><div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-400">□</div><h3 class="mt-4 font-semibold text-slate-900">Chưa có yêu cầu gia hạn</h3></div>
             @endforelse
+        </div>
+        <div class="border-t border-slate-200 bg-slate-50/60 px-5 py-3 text-sm text-slate-500 sm:px-6">
+            Hiển thị <span class="font-semibold text-slate-700">{{ $extensionRequests->count() }}</span> yêu cầu
         </div>
     </section>
 </div>

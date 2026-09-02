@@ -169,7 +169,7 @@ class UtilityReadingEntryTest extends TestCase
         ]);
     }
 
-    public function test_current_period_can_be_confirmed_before_month_end_and_records_history(): void
+    public function test_current_period_can_only_be_saved_as_draft_before_month_end(): void
     {
         Carbon::setTestNow('2026-08-27 10:00:00');
         $room = $this->createOccupiedRoom('P-CLOSING-DATE');
@@ -190,23 +190,25 @@ class UtilityReadingEntryTest extends TestCase
             ->get('/admin/utilities/create?month=8&year=2026&record_date=2026-08-27')
             ->assertOk()
             ->assertSee('31/08/2026')
-            ->assertSee('Lưu và xác nhận')
-            ->assertDontSee('Chưa đến ngày chốt');
+            ->assertSee('Lưu và xác nhận');
 
         $this->post('/admin/utilities/store', $payload)
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors('readings');
+
+        $payload['intent'] = 'draft';
+        $this->post('/admin/utilities/store', $payload)->assertSessionHasNoErrors();
         $reading = UtilityReading::query()
             ->where('contract_id', $contract->id)
             ->where('reading_type', 'periodic')
             ->firstOrFail();
-        $this->assertTrue($reading->isConfirmed());
+        $this->assertTrue($reading->isDraft());
         $this->assertSame('2026-08-31', $reading->record_date->toDateString());
         $this->assertDatabaseHas('utility_reading_histories', [
             'utility_reading_id' => $reading->id,
             'actor_id' => $this->admin->id,
-            'action' => 'created_and_confirmed',
+            'action' => 'draft_created',
             'from_status' => null,
-            'to_status' => UtilityReading::STATUS_CONFIRMED,
+            'to_status' => UtilityReading::STATUS_DRAFT,
             'performed_at' => '2026-08-27 10:00:00',
         ]);
         $this->get('/admin/utilities?month=8&year=2026')
@@ -271,6 +273,7 @@ class UtilityReadingEntryTest extends TestCase
             'water_new' => 28,
         ]);
 
+        Carbon::setTestNow('2026-08-31 09:30:00');
         $this->post('/admin/utilities/store', [
             'month' => 8,
             'year' => 2026,
@@ -308,6 +311,7 @@ class UtilityReadingEntryTest extends TestCase
             ->assertSessionHasErrors('reading_date');
         $this->assertSame(2, UtilityReading::query()->where('reading_type', 'interim')->count());
 
+        Carbon::setTestNow('2026-09-05 09:30:00');
         app(InvoiceGenerator::class)->issue($contract, 9, 2026, $this->admin->id);
         $afterInvoice = $secondCheckpoint;
         $afterInvoice['reading_date'] = '2026-08-25';

@@ -6,12 +6,16 @@
         'internet_fee' => ['Phí Internet', 'VNĐ/người/tháng'],
         'service_fee' => ['Phí dịch vụ chung', 'VNĐ/người/tháng'],
     ];
+    $feeScheduleRates = $feeSchedules->mapWithKeys(fn ($schedule) => [
+        $schedule->effective_from->format('Y-m') => $schedule->only(array_keys($feeFields)),
+    ]);
+    $defaultFeeRates = $currentFeeRates->only(array_keys($feeFields));
 @endphp
 <div class="grid gap-4 md:grid-cols-2">
     @foreach($feeFields as $field => [$label, $unit])
         <div>
             <label for="{{ $field }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $label }} <span class="font-normal text-slate-400">({{ $unit }})</span></label>
-            <input id="{{ $field }}" type="number" step="0.01" min="0" name="{{ $field }}" value="{{ old($field, $setting->{$field}) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+            <input id="{{ $field }}" type="number" step="0.01" min="0" name="{{ $field }}" value="{{ old($field, $feeFormRates->{$field}) }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
             @error($field)<p class="mt-1 text-sm text-rose-600">{{ $message }}</p>@enderror
         </div>
     @endforeach
@@ -61,7 +65,11 @@
                 <tbody class="divide-y divide-slate-100 bg-white">
                     @foreach($feeSchedules as $schedule)
                         <tr>
-                            <td class="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-900">{{ $schedule->effective_from->format('m/Y') }}</td>
+                            <td class="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-900">
+                                {{ $schedule->effective_from->year === 2000 && $schedule->effective_from->month === 1
+                                    ? 'Bảng giá ban đầu'
+                                    : $schedule->effective_from->format('m/Y') }}
+                            </td>
                             <td class="whitespace-nowrap px-3 py-2.5 text-right">{{ number_format($schedule->electric_price, 0, ',', '.') }}đ</td>
                             <td class="whitespace-nowrap px-3 py-2.5 text-right">{{ number_format($schedule->water_price, 0, ',', '.') }}đ</td>
                             <td class="whitespace-nowrap px-3 py-2.5 text-right">{{ number_format($schedule->internet_fee, 0, ',', '.') }}đ</td>
@@ -73,3 +81,24 @@
         </div>
     </section>
 @endif
+
+@push('scripts')
+    <script>
+        (() => {
+            const monthInput = document.getElementById('fee_effective_from');
+            const scheduleRates = @json($feeScheduleRates);
+            const defaultRates = @json($defaultFeeRates);
+            const fields = @json(array_keys($feeFields));
+
+            monthInput?.addEventListener('change', () => {
+                const rates = scheduleRates[monthInput.value] ?? defaultRates;
+                fields.forEach((field) => {
+                    const input = document.getElementById(field);
+                    if (input && rates[field] !== undefined) {
+                        input.value = rates[field];
+                    }
+                });
+            });
+        })();
+    </script>
+@endpush

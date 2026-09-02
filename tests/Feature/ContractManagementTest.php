@@ -2246,6 +2246,29 @@ class ContractManagementTest extends TestCase
             'deposit_damage_proof' => 'contracts/testing/damage-proof.jpg',
             'deposit_resolved_at' => now(),
         ])->save();
+
+        $this->get(route('admin.contracts.check-out.form', $contract))
+            ->assertOk()
+            ->assertSee('Xóa công nợ còn lại')
+            ->assertSee('name="write_off_outstanding" value="1"', false)
+            ->assertSee('name="write_off_reason"', false);
+
+        $pendingPayment = Payment::create([
+            'invoice_id' => $invoice->id,
+            'amount_paid' => 50000,
+            'payment_date' => today(),
+            'payment_method' => Payment::METHOD_BANK_TRANSFER,
+            'transaction_code' => 'PENDING-WRITE-OFF-1',
+            'status' => Payment::STATUS_PENDING,
+            'submitted_by' => $contract->tenant->user_id,
+        ]);
+        $this->post(route('admin.contracts.complete-settlement', $contract), [
+            'write_off_outstanding' => 1,
+            'write_off_reason' => 'Quản lý phê duyệt miễn khoản nhỏ.',
+            'confirm_complete' => 1,
+        ])->assertSessionHasErrors('payments');
+        $pendingPayment->update(['status' => Payment::STATUS_FAILED]);
+
         $this->post(route('admin.contracts.complete-settlement', $contract), [
             'settlement_note' => 'Biên bản BT-01',
             'write_off_outstanding' => 1, 'write_off_reason' => 'Quản lý phê duyệt miễn khoản nhỏ.',
@@ -2550,6 +2573,14 @@ class ContractManagementTest extends TestCase
             ->assertSee('100.000đ/người/tháng')
             ->assertDontSee('CCCD mặt trước')
             ->assertDontSee('CCCD mặt sau');
+        $contract->forceFill([
+            'status' => Contract::STATUS_PENDING_SIGNATURE,
+            'signature_due_at' => Carbon::parse('2026-08-14 09:00:00'),
+        ])->save();
+        $this->get(route('admin.contracts.print', $contract))->assertOk()
+            ->assertSee('BẢN CHỜ KÝ – CHƯA CÓ HIỆU LỰC')
+            ->assertDontSee('BẢN DỰ THẢO – CHƯA CÓ HIỆU LỰC')
+            ->assertSee('Ngày lập bản chờ ký: 11/08/2026 09:00 · Chưa ký');
         $this->sign($contract);
         $this->get(route('admin.contracts.print', $contract))->assertOk()
             ->assertDontSee('BẢN DỰ THẢO – CHƯA CÓ HIỆU LỰC')->assertSee('11/08/2026');

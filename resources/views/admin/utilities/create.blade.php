@@ -184,7 +184,7 @@
                             <button id="draftButton" type="submit" name="intent" value="draft" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400" disabled>
                                 <i class="bx bx-save text-lg"></i>Lưu nháp
                             </button>
-                            <button id="confirmButton" type="submit" name="intent" value="confirm" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled>
+                            <button id="confirmButton" type="submit" name="intent" value="confirm" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300" disabled title="{{ $canFinalize ? 'Xác nhận chốt kỳ' : 'Chỉ được xác nhận vào ngày cuối tháng' }}">
                                 <i class="bx bx-check-circle text-lg"></i>Lưu và xác nhận
                             </button>
                         @endif
@@ -208,6 +208,7 @@
             const monthInput = document.getElementById('month');
             const yearInput = document.getElementById('year');
             const readingDateInput = document.getElementById('reading_date');
+            const canSubmitConfirmation = @json($mode === 'checkpoint' || $canFinalize);
 
             const syncCheckpointDate = () => {
                 if (!readingDateInput) return;
@@ -262,7 +263,7 @@
                 const checked = document.querySelectorAll('.row-selector:checked').length;
                 selectedCount.textContent = checked;
                 if (draftButton) draftButton.disabled = checked === 0;
-                confirmButton.disabled = checked === 0;
+                confirmButton.disabled = checked === 0 || !canSubmitConfirmation;
             };
 
             const applyFilter = () => {

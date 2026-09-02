@@ -40,6 +40,8 @@ class ContractHistoryService
 
     public const TERMINATION_REJECTED = 'termination_rejected';
 
+    public const TERMINATION_CANCELLED = 'termination_cancelled';
+
     public const TERMINATED = 'terminated';
 
     public const ROOM_TRANSFER_REQUESTED = 'room_transfer_requested';

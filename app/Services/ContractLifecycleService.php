@@ -848,6 +848,13 @@ class ContractLifecycleService
                 if (! ($data['write_off_outstanding'] ?? false)) {
                     $this->fail('invoices', 'Hợp đồng vẫn còn hóa đơn chưa thanh toán.');
                 }
+                $hasPendingPayments = Invoice::query()
+                    ->whereKey($openInvoices->modelKeys())
+                    ->whereHas('payments', fn (Builder $query) => $query->where('status', 'pending'))
+                    ->exists();
+                if ($hasPendingPayments) {
+                    $this->fail('payments', 'Phải duyệt hoặc từ chối toàn bộ thanh toán đang chờ trước khi xóa công nợ.');
+                }
                 if (blank($data['write_off_reason'] ?? null)) {
                     $this->fail('write_off_reason', 'Xóa nợ bắt buộc có lý do phê duyệt.');
                 }

@@ -245,6 +245,7 @@ class InvoiceController extends Controller
         $scheduledInvoiceDate = $periodStart->copy()->day(
             max(1, min((int) $setting->invoice_day, $periodStart->daysInMonth))
         );
+        $canIssue = ! today()->lt($scheduledInvoiceDate);
 
         return view(
             'admin.invoices.generate',
@@ -254,7 +255,8 @@ class InvoiceController extends Controller
                 'year',
                 'years',
                 'issuedContractIds',
-                'scheduledInvoiceDate'
+                'scheduledInvoiceDate',
+                'canIssue'
             )
         );
     }

@@ -6,13 +6,10 @@
 @section('content')
     @php($tenant = $user->tenant)
     @php($identityDocument = $tenant?->document)
-    <div class="space-y-5">
-        <div>
-            <p class="text-sm font-medium text-slate-500">Hồ sơ khách thuê</p>
-            <h2 class="mt-1 text-2xl font-bold text-slate-950">Thông tin cá nhân của tôi</h2>
-        </div>
+    <div class="mx-auto max-w-7xl space-y-6">
+        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-6 py-7 text-white shadow-lg shadow-indigo-200/60 sm:px-8"><div class="absolute -right-12 -top-16 h-52 w-52 rounded-full bg-white/10"></div><div class="relative flex items-center gap-4"><span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" /></svg></span><div><p class="text-xs font-semibold uppercase tracking-[.18em] text-indigo-100">Hồ sơ khách thuê</p><h2 class="mt-1 text-2xl font-bold sm:text-3xl">Thông tin cá nhân của tôi</h2><p class="mt-2 text-sm text-indigo-100">Quản lý thông tin định danh, liên hệ và bảo mật tài khoản.</p></div></div></section>
 
-        <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
                 <h3 class="font-semibold text-slate-950">Giấy tạm trú của tôi</h3>
             </div>
@@ -71,7 +68,7 @@
         @if($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"><ul class="list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
         <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
-            <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="font-semibold text-slate-950">Thông tin hồ sơ</h3>
                 <form method="POST" action="{{ route('client.account.update') }}" enctype="multipart/form-data" class="mt-5 space-y-5">@csrf @method('PUT')
                     <div class="grid gap-4 md:grid-cols-2">
@@ -114,18 +111,18 @@
                         <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Số điện thoại</label><input name="phone" inputmode="tel" value="{{ old('phone', $user->phone ?: $tenant?->phone) }}" required maxlength="15" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                         <div class="md:col-span-2"><label class="mb-1.5 block text-sm font-semibold text-slate-700">Địa chỉ thường trú</label><textarea name="address" required maxlength="500" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2">{{ old('address', $tenant?->address) }}</textarea></div>
                     </div>
-                    <button class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Lưu hồ sơ</button>
+                    <button class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 4h12l2 2v14H5V4Zm3 0v6h8V4M8 20v-6h8v6" /></svg>Lưu hồ sơ</button>
                 </form>
             </section>
 
-            <section class="h-fit rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="font-semibold text-slate-950">Đổi mật khẩu</h3>
                 <p class="mt-1 text-sm text-slate-500">Mật khẩu mới phải khác mật khẩu hiện tại.</p>
                 <form method="POST" action="{{ route('client.account.password.update') }}" class="mt-5 space-y-4">@csrf @method('PUT')
                     <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Mật khẩu hiện tại</label><input type="password" name="current_password" required autocomplete="current-password" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                     <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Mật khẩu mới</label><input type="password" name="password" required minlength="8" autocomplete="new-password" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
                     <div><label class="mb-1.5 block text-sm font-semibold text-slate-700">Nhập lại mật khẩu mới</label><input type="password" name="password_confirmation" required minlength="8" autocomplete="new-password" class="h-11 w-full rounded-lg border border-slate-200 px-3"></div>
-                    <button class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">Đổi mật khẩu</button>
+                    <button class="h-12 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800">Đổi mật khẩu</button>
                 </form>
             </section>
         </div>

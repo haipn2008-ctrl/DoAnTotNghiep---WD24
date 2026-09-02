@@ -2,7 +2,7 @@
     <div class="flex h-[72px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
         <div class="flex min-w-0 items-center gap-3">
             <button id="clientSidebarOpen" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden" aria-label="Mở menu">
-                <span class="text-xl leading-none">☰</span>
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16" /></svg>
             </button>
             <div class="min-w-0">
                 <p class="text-[11px] font-bold uppercase tracking-[.16em] text-indigo-400">Stay Master · Cổng khách thuê</p>

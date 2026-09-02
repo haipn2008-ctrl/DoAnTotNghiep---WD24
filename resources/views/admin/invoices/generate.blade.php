@@ -57,6 +57,12 @@
 
         <div id="invoiceAlert" class="hidden rounded-lg border px-4 py-3 text-sm font-medium"></div>
 
+        @unless($canIssue)
+            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Chưa đến ngày phát hành. Bạn có thể xem trước, nhưng chỉ được phát hành hóa đơn kỳ này từ ngày {{ $scheduledInvoiceDate->format('d/m/Y') }}.
+            </div>
+        @endunless
+
         <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
                 <div>
@@ -214,6 +220,7 @@
             const month = {{ (int) $month }};
             const year = {{ (int) $year }};
             const csrfToken = '{{ csrf_token() }}';
+            const canIssue = @json($canIssue);
             const modalElement = document.getElementById('invoicePreviewModal');
             const alertBox = document.getElementById('invoiceAlert');
             const issueButton = document.getElementById('issueInvoiceBtn');
@@ -276,7 +283,7 @@
             }
 
             function setIssueLoading(isLoading) {
-                issueButton.disabled = isLoading;
+                issueButton.disabled = isLoading || !canIssue;
                 issueButton.querySelector('.default-label').classList.toggle('hidden', isLoading);
                 issueButton.querySelector('.loading-label').classList.toggle('hidden', !isLoading);
             }

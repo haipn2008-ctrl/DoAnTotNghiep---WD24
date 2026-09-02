@@ -136,9 +136,6 @@
     @if($contract->isSignatureOverdue())<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-900">Quá hạn ký hợp đồng.</div>@endif
     @if($contract->isDepositOverdue())<div class="rounded-lg border border-orange-300 bg-orange-50 p-4 font-semibold text-orange-900">Quá hạn đóng tiền cọc.</div>@endif
     @if($contract->isReservationOverdue())<div class="rounded-lg border border-rose-300 bg-rose-50 p-4 font-semibold text-rose-900">Quá hạn nhận phòng — hệ thống không tự hủy hợp đồng.</div>@endif
-    @if($contract->status===\App\Models\Contract::STATUS_ACTIVE && $contract->end_date->isBetween(today(), today()->addMonthNoOverflow()) && $contract->lifecycleAlerts->isEmpty())<div class="rounded-lg border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-900">Hợp đồng đang ở tháng cuối — cần trao đổi gia hạn hoặc chuẩn bị trả phòng.</div>@endif
-    @if($contract->status===\App\Models\Contract::STATUS_EXPIRED)<div class="rounded-lg border border-rose-300 bg-rose-50 p-4 font-semibold text-rose-900">Hợp đồng đã hết hạn nhưng khách vẫn đang ở; phòng vẫn được ghi nhận là đang có người thuê.</div>@endif
-    @foreach($contract->lifecycleAlerts as $alert)<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{{ $alert->title }}</strong>@if(filled($alert->message))<span>: {{ $alert->message }}</span>@endif</div>@endforeach
 
     @if($needsEndOfTermDecision)
         <section class="overflow-hidden rounded-xl border {{ $contract->status === \App\Models\Contract::STATUS_EXPIRED ? 'border-rose-200' : 'border-amber-200' }} bg-white shadow-sm">
@@ -220,13 +217,34 @@
                 <form class="lifecycle-form rounded-xl border border-amber-200 bg-amber-50/40 p-4" method="POST" action="{{ route('admin.contracts.submit-for-signature',$contract) }}">@csrf<h4 class="font-semibold text-slate-950">Gửi chờ ký</h4><textarea name="reason" rows="2" placeholder="Ghi chú (không bắt buộc)" class="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"></textarea><button class="mt-3 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">Gửi chờ ký</button></form>
             @endif
             @if(in_array($contract->status,\App\Models\Contract::OPEN_OCCUPANCY_STATUSES,true))
-                <div class="rounded-xl border border-violet-200 bg-violet-50/50 p-5 lg:col-span-2">
-                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div><h4 class="font-bold text-slate-950">Bàn giao và quyết toán</h4></div>
-                        <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-bold text-white hover:bg-violet-800">Mở bước bàn giao <i class="bx bx-right-arrow-alt text-xl"></i></a>
+                <div class="flex min-h-48 flex-col rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50/80 to-white p-5 transition hover:border-violet-300 hover:shadow-sm">
+                    <div class="flex items-start gap-3">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
+                            <i class="bx bx-log-out-circle text-xl"></i>
+                        </span>
+                        <div>
+                            <h4 class="font-bold text-slate-950">Bàn giao và quyết toán</h4>
+                            <p class="mt-1 text-sm leading-6 text-slate-600">Ghi nhận chỉ số cuối, tình trạng tài sản và hoàn tất nghĩa vụ khi khách trả phòng.</p>
+                        </div>
                     </div>
+                    <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="mt-auto inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-violet-700 px-4 text-sm font-bold text-white transition hover:bg-violet-800 focus:outline-none focus:ring-4 focus:ring-violet-100 sm:w-fit">
+                        <span>Mở bước bàn giao</span><i class="bx bx-right-arrow-alt text-xl"></i>
+                    </a>
                 </div>
-                <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4"><h4 class="font-semibold text-slate-950">Gia hạn hợp đồng</h4><a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">Lập phụ lục</a></div>
+                <div class="flex min-h-48 flex-col rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50/80 to-white p-5 transition hover:border-sky-300 hover:shadow-sm">
+                    <div class="flex items-start gap-3">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
+                            <i class="bx bx-calendar-plus text-xl"></i>
+                        </span>
+                        <div>
+                            <h4 class="font-bold text-slate-950">Gia hạn hợp đồng</h4>
+                            <p class="mt-1 text-sm leading-6 text-slate-600">Lập phụ lục để cập nhật thời hạn thuê và các điều khoản áp dụng cho kỳ tiếp theo.</p>
+                        </div>
+                    </div>
+                    <a href="{{ route('admin.contracts.extend.form', $contract) }}" class="mt-auto inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-bold text-white transition hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-100 sm:w-fit">
+                        <span>Lập phụ lục</span><i class="bx bx-right-arrow-alt text-xl"></i>
+                    </a>
+                </div>
             @endif
             @if($contract->status===\App\Models\Contract::STATUS_SETTLING)
                 @include('admin.contracts.partials.departure-progress', ['progressClass' => 'lg:col-span-2', 'showCheckoutLink' => true])

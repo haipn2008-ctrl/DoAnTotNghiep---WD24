@@ -4,6 +4,10 @@
     $representativeMember = $hasContract ? $contract->representativeMember : null;
     $representativeTenant = $representativeMember?->tenant ?? ($hasContract ? $contract->tenant : null);
     $signedDate = $hasContract ? $contract->signed_at : null;
+    $isPendingSignature = $hasContract && $contract->status === \App\Models\Contract::STATUS_PENDING_SIGNATURE;
+    $documentDate = $signedDate ?: ($isPendingSignature
+        ? ($contract->signature_due_at?->copy()->subDays(\App\Models\Contract::SIGNATURE_DEADLINE_DAYS) ?: $contract->updated_at)
+        : null);
     $propertyAddress = $hasContract ? ($contract->property_address_snapshot ?: $setting->property_address) : null;
     $landlordName = $hasContract ? ($contract->landlord_name_snapshot ?: $setting->landlord_name) : null;
     $landlordIdentity = $hasContract ? ($contract->landlord_identity_snapshot ?: $setting->landlord_identity_number) : null;
@@ -39,6 +43,7 @@
     .contract-document .line.long{min-width:260px}
     .contract-document .line.short{min-width:60px}
     .contract-document .draft{border:2px solid #b91c1c;color:#b91c1c;font-weight:700;text-align:center;padding:7px;margin:14px 0}
+    .contract-document .pending-signature{border:2px solid #d97706;color:#b45309;background:#fffbeb;font-weight:700;text-align:center;padding:7px;margin:14px 0}
     .contract-document table{width:100%;border-collapse:collapse;margin:10px 0 14px}
     .contract-document th,.contract-document td{border:1px solid #555;padding:6px 7px;text-align:left;vertical-align:top}
     .contract-document th{font-weight:700;text-align:center}
@@ -47,7 +52,7 @@
     .contract-document .signatures td{border:0;text-align:center;width:50%;padding-top:10px}
     .contract-document .signature-space{height:95px;vertical-align:bottom}
     .contract-document .muted{color:#555;font-size:14px}
-    @media print{.contract-document{font-size:14px}.contract-document .section-title{break-after:avoid}.contract-document table{break-inside:auto}.contract-document tr{break-inside:avoid}}
+    @media print{.contract-document{font-size:14px}.contract-document .pending-signature{display:none}.contract-document .section-title{break-after:avoid}.contract-document table{break-inside:auto}.contract-document tr{break-inside:avoid}}
 </style>
 
 <div class="contract-document">
@@ -56,14 +61,16 @@
     <div class="center title">HỢP ĐỒNG THUÊ PHÒNG TRỌ</div>
     <div class="code">Số: <strong>{{ $hasContract ? $contract->contract_code : $blank }}</strong></div>
 
-    @if($hasContract && !$signedDate)
+    @if($hasContract && $isPendingSignature)
+        <div class="pending-signature">BẢN CHỜ KÝ – CHƯA CÓ HIỆU LỰC</div>
+    @elseif($hasContract && !$signedDate)
         <div class="draft">BẢN DỰ THẢO – CHƯA CÓ HIỆU LỰC</div>
     @endif
 
     <p>
-        Hôm nay, ngày <span class="line short">{{ $signedDate?->format('d') ?: '' }}</span>
-        tháng <span class="line short">{{ $signedDate?->format('m') ?: '' }}</span>
-        năm <span class="line short">{{ $signedDate?->format('Y') ?: '' }}</span>,
+        Hôm nay, ngày <span class="line short">{{ $documentDate?->format('d') ?: '' }}</span>
+        tháng <span class="line short">{{ $documentDate?->format('m') ?: '' }}</span>
+        năm <span class="line short">{{ $documentDate?->format('Y') ?: '' }}</span>,
         tại <span class="line long">{{ $propertyAddress ?: '' }}</span>, chúng tôi gồm:
     </p>
 
@@ -178,6 +185,14 @@
     </table>
 
     @if($hasContract)
-        <p class="center muted">Ngày ký: {{ $signedDate?->format('d/m/Y H:i') ?: 'Chưa ký' }}</p>
+        <p class="center muted">
+            @if($signedDate)
+                Ngày ký: {{ $signedDate->format('d/m/Y H:i') }}
+            @elseif($isPendingSignature)
+                Ngày lập bản chờ ký: {{ $documentDate?->format('d/m/Y H:i') }} · Chưa ký
+            @else
+                Ngày ký: Chưa ký
+            @endif
+        </p>
     @endif
 </div>

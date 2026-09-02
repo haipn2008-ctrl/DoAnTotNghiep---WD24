@@ -43,7 +43,23 @@ class ContractController extends Controller
 
     public function index(Request $request)
     {
-        $contracts = $this->contractQuery($request)->latest()->get();
+        $contracts = $this->contractQuery($request)
+            ->orderByRaw(
+                'CASE
+                    WHEN status = ? AND end_date BETWEEN ? AND ? AND scheduled_move_out_at IS NULL THEN 0
+                    WHEN status = ? THEN 1
+                    ELSE 2
+                END',
+                [
+                    Contract::STATUS_ACTIVE,
+                    today()->toDateString(),
+                    today()->addDays(30)->toDateString(),
+                    Contract::STATUS_EXPIRED,
+                ]
+            )
+            ->orderByDesc('contract_code')
+            ->orderByDesc('id')
+            ->get();
 
         if ($request->ajax()) {
             return view('admin.contracts.partials.results', compact('contracts'));
@@ -582,7 +598,7 @@ class ContractController extends Controller
         $data = $request->validate([
             'settlement_note' => ['nullable', 'string', 'max:2000'],
             'write_off_outstanding' => ['nullable', 'boolean'],
-            'write_off_reason' => ['nullable', 'required_if:write_off_outstanding,1', 'string', 'max:2000'],
+            'write_off_reason' => ['nullable', 'required_if:write_off_outstanding,1', 'string', 'min:3', 'max:2000'],
             'confirm_complete' => ['accepted'],
         ]);
         $this->lifecycle->completeSettlement($contract, $request->user(), $data);
@@ -856,8 +872,6 @@ class ContractController extends Controller
         $contracts = $this->contractQuery($request)
             ->whereIn('status', Contract::OPEN_OCCUPANCY_STATUSES)
             ->whereNotNull('end_date')
-            ->whereDate('end_date', '<=', today()->addDays(30))
-            ->whereNull('scheduled_move_out_at')
             ->orderBy('end_date')
             ->get();
 

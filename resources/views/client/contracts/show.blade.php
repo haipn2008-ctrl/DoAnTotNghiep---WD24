@@ -272,18 +272,29 @@
                                 <p class="mt-1 text-xs font-medium {{ $member->role === \App\Models\ContractTenant::ROLE_REPRESENTATIVE ? 'text-indigo-700' : 'text-slate-500' }}">{{ $member->role_label }}</p>
                                 @if($member->review_note)<p class="mt-2 text-sm text-rose-700">Phản hồi: {{ $member->review_note }}</p>@endif
                             </div>
-                            <div class="flex items-center gap-2">
+                            <div>
                                 <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $member->status_label }}</span>
-                                @if($canConfirmMoveInDetails && $member->role !== \App\Models\ContractTenant::ROLE_REPRESENTATIVE && in_array($member->status, [\App\Models\ContractTenant::STATUS_PENDING, \App\Models\ContractTenant::STATUS_APPROVED], true))
-                                    <a href="{{ route('client.contracts.members.edit', [$contract, $member]) }}" class="text-xs font-semibold text-indigo-700">{{ $member->hasCompleteMoveInProfile() ? 'Chỉnh sửa hồ sơ' : 'Bổ sung hồ sơ' }}</a>
-                                @endif
-                                @if($member->role !== \App\Models\ContractTenant::ROLE_REPRESENTATIVE && in_array($member->status, [\App\Models\ContractTenant::STATUS_PENDING, \App\Models\ContractTenant::STATUS_APPROVED], true))
-                                    <form method="POST" action="{{ route('client.contracts.members.withdraw', [$contract, $member]) }}" data-confirm="Người này sẽ được rút khỏi danh sách nhận phòng." data-confirm-label="Xác nhận rút hồ sơ">@csrf<button class="text-xs font-semibold text-rose-700">{{ $member->status === \App\Models\ContractTenant::STATUS_APPROVED ? 'Không nhận phòng' : 'Rút hồ sơ' }}</button></form>
-                                @endif
                             </div>
                         </div>
                         @if($canConfirmMoveInDetails && ! $member->hasCompleteMoveInProfile())
                             <p class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Còn thiếu: {{ implode(', ', $member->missingMoveInProfileFields()) }}</p>
+                        @endif
+                        @if($member->role !== \App\Models\ContractTenant::ROLE_REPRESENTATIVE && in_array($member->status, [\App\Models\ContractTenant::STATUS_PENDING, \App\Models\ContractTenant::STATUS_APPROVED], true))
+                            <div class="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+                                @if($canConfirmMoveInDetails)
+                                    <a href="{{ route('client.contracts.members.edit', [$contract, $member]) }}" class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-xs font-bold text-indigo-700 shadow-sm hover:border-indigo-300 hover:bg-indigo-100">
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.5 5.5 4 4M5 19l1-4 9.5-9.5a2 2 0 0 1 3 3L9 18l-4 1Z" /></svg>
+                                        {{ $member->hasCompleteMoveInProfile() ? 'Chỉnh sửa hồ sơ' : 'Bổ sung hồ sơ' }}
+                                    </a>
+                                @endif
+                                <form method="POST" action="{{ route('client.contracts.members.withdraw', [$contract, $member]) }}" data-confirm="Người này sẽ được rút khỏi danh sách nhận phòng." data-confirm-label="Xác nhận rút hồ sơ">
+                                    @csrf
+                                    <button type="submit" class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 text-xs font-bold text-rose-700 hover:border-rose-300 hover:bg-rose-50 sm:w-auto">
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7 8 14m0-7 7 7M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" /></svg>
+                                        {{ $member->status === \App\Models\ContractTenant::STATUS_APPROVED ? 'Không nhận phòng' : 'Rút hồ sơ' }}
+                                    </button>
+                                </form>
+                            </div>
                         @endif
                     </div>
                 @empty

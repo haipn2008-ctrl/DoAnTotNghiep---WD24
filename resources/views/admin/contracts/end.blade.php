@@ -8,7 +8,8 @@
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
             <div>
                 <p class="text-sm font-medium text-slate-500">Quản lý hợp đồng</p>
-                <h2 class="mt-1 text-2xl font-bold text-slate-950">Danh sách kết thúc hợp đồng</h2>
+                <h2 class="mt-1 text-2xl font-bold text-slate-950">Hợp đồng đang có người ở</h2>
+                <p class="mt-1 text-sm text-slate-500">Chọn hợp đồng để lập lịch bàn giao, chốt điện nước và thực hiện quyết toán.</p>
             </div>
 
             <span class="inline-flex w-fit rounded-full bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-700 ring-1 ring-rose-200">
@@ -68,8 +69,10 @@
                                     {{ $endDate->format('d/m/Y') }}
                                 </td>
                                 <td class="px-5 py-4">
-                                    @if ($days > 0)
-                                        <span class="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">Còn {{ $days }} ngày</span>
+                                    @if ($days > 30)
+                                        <span class="inline-flex rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">Còn {{ $days }} ngày</span>
+                                    @elseif ($days > 0)
+                                        <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">Còn {{ $days }} ngày</span>
                                     @elseif ($days == 0)
                                         <span class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">Hôm nay</span>
                                     @else
@@ -78,16 +81,20 @@
                                 </td>
                                 <td class="px-5 py-4">
                                     <div class="flex justify-end">
-                                        <a href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+                                        <a data-keep-action-label href="{{ route('admin.contracts.check-out.form', $contract) }}" class="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 hover:shadow-md">
                                             <i class="bx bx-list-check text-lg"></i>
-                                            Mở quy trình
+                                            Kết thúc
                                         </a>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-5 py-12 text-center text-slate-500">Không có hợp đồng nào đang hoạt động.</td>
+                                <td colspan="6" class="px-5 py-12 text-center">
+                                    <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-400"><i class="bx bx-home-circle"></i></span>
+                                    <p class="mt-3 font-semibold text-slate-800">Không có hợp đồng cần xử lý</p>
+                                    <p class="mt-1 text-sm text-slate-500">Hiện không có hợp đồng đang thuê hoặc đã quá hạn nhưng chưa trả phòng.</p>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>

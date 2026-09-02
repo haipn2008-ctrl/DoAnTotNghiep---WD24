@@ -21,6 +21,7 @@ class DemoSeeder extends Seeder
             AmenitySeeder::class,
             RoomSeeder::class,
             SettingSeeder::class,
+            DemoScenarioSeeder::class,
         ]);
     }
 }

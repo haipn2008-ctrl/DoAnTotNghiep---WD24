@@ -27,12 +27,14 @@ class RoomTransferController extends Controller
         return view('admin.contracts.room-transfers.index', compact('roomTransfers'));
     }
 
-    public function create(Contract $contract)
+    public function create(Request $request, Contract $contract)
     {
         Gate::authorize('manageLifecycle', $contract);
         abort_unless(in_array($contract->status, Contract::OPEN_OCCUPANCY_STATUSES, true), 409);
 
-        return view('admin.contracts.room-transfers.form', $this->formData($contract));
+        $selectedRoomId = $request->integer('room_id') ?: null;
+
+        return view('admin.contracts.room-transfers.form', $this->formData($contract, $selectedRoomId));
     }
 
     public function review(RoomTransfer $roomTransfer)
@@ -132,7 +134,7 @@ class RoomTransferController extends Controller
         $contract->load(['room', 'tenant', 'currentMembers', 'handoverItems']);
         $rooms = Room::query()->with('amenities')
             ->where(fn ($query) => $query->where('status', Room::STATUS_AVAILABLE)
-                ->when($selectedRoomId, fn ($query) => $query->orWhereKey($selectedRoomId)))
+                ->when($selectedRoomId, fn ($query) => $query->orWhere('id', $selectedRoomId)))
             ->whereKeyNot($contract->room_id)->orderBy('room_code')->get();
         $lastOldReading = $contract->utilityReadings()->where('room_id', $contract->room_id)
             ->latest('record_date')->latest('id')->first();

@@ -10,7 +10,7 @@
     <link href="{{ asset('assets/css/icons.min.css') }}" rel="stylesheet" type="text/css">
     @stack('styles')
 </head>
-<body class="min-h-screen bg-[#f6f8ff] font-sans text-slate-900 antialiased">
+<body class="client-portal min-h-screen bg-[#f6f8ff] font-sans text-slate-900 antialiased">
     <div class="flex min-h-screen">
         @include('layouts.client.blocks.sidebar')
 
@@ -19,7 +19,7 @@
         <div class="flex min-w-0 flex-1 flex-col lg:pl-80">
             @include('layouts.client.blocks.header')
 
-            <main class="flex-1 bg-[radial-gradient(circle_at_top_right,_rgba(224,231,255,.75),_transparent_35%),linear-gradient(180deg,#f8faff_0%,#f3f6fc_100%)] px-4 py-7 sm:px-6 lg:px-10">
+            <main class="flex-1 bg-[radial-gradient(circle_at_top_right,_rgba(224,231,255,.75),_transparent_35%),linear-gradient(180deg,#f8faff_0%,#f3f6fc_100%)] px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
                 <div class="mx-auto max-w-7xl">
                     @if (auth()->user()?->status === \App\Models\User::STATUS_SETTLING)
                         <div class="mb-6 flex flex-col justify-between gap-3 rounded-2xl border border-violet-200 bg-violet-50/90 px-5 py-4 text-sm text-violet-900 shadow-sm sm:flex-row sm:items-center">

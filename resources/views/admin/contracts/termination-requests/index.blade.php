@@ -18,7 +18,7 @@
         </a>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div class="flex items-center justify-between">
                 <div>
@@ -58,6 +58,26 @@
                 <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-100 text-xl font-bold text-rose-700">×</div>
             </div>
         </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-slate-600">Đã hủy lịch</p>
+                    <p class="mt-2 text-3xl font-bold text-slate-700">{{ $terminationRequests->where('status', 'cancelled')->count() }}</p>
+                </div>
+                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-200 text-xl text-slate-600"><i class="bx bx-undo"></i></div>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-sky-200 bg-sky-50/60 p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-sky-700">Đã trả phòng</p>
+                    <p class="mt-2 text-3xl font-bold text-sky-700">{{ $terminationRequests->where('status', 'completed')->count() }}</p>
+                </div>
+                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-100 text-xl text-sky-700"><i class="bx bx-log-out-circle"></i></div>
+            </div>
+        </div>
     </div>
 
     <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -76,6 +96,8 @@
                     $statusMeta = match ($request->status) {
                         'approved' => ['Đã duyệt', 'border-emerald-200 bg-emerald-50 text-emerald-700', 'bg-emerald-500'],
                         'rejected' => ['Đã từ chối', 'border-rose-200 bg-rose-50 text-rose-700', 'bg-rose-500'],
+                        'cancelled' => ['Đã hủy lịch', 'border-slate-200 bg-slate-100 text-slate-700', 'bg-slate-500'],
+                        'completed' => ['Đã trả phòng', 'border-sky-200 bg-sky-50 text-sky-700', 'bg-sky-500'],
                         default => ['Chờ duyệt', 'border-amber-200 bg-amber-50 text-amber-700', 'bg-amber-500'],
                     };
                     $isEarlyDeparture = $request->requested_end_date
@@ -172,6 +194,21 @@
                                 @csrf
                                 <input name="reject_reason" required minlength="3" maxlength="1000" placeholder="Nhập lý do từ chối" class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100">
                                 <button type="submit" class="h-11 shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">Từ chối</button>
+                            </form>
+                        </div>
+                    @elseif($request->status === 'approved')
+                        <div class="mt-4 border-t border-slate-100 pt-4">
+                            @if ($errors->has('cancel_reason'))
+                                <div class="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ $errors->first('cancel_reason') }}</div>
+                            @endif
+                            <form method="POST" action="{{ route('admin.termination-requests.cancel', $request) }}" data-confirm="Lịch trả phòng đã duyệt sẽ bị hủy và hợp đồng được phép tiếp tục hoặc gia hạn." data-confirm-label="Hủy lịch trả phòng" class="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                                @csrf
+                                <p class="text-sm font-semibold text-amber-900">Khách đổi ý và tiếp tục thuê?</p>
+                                <p class="mt-1 text-xs leading-5 text-amber-700">Chỉ hủy khi khách chưa bàn giao phòng thực tế. Toàn bộ thao tác sẽ được lưu vào lịch sử hợp đồng.</p>
+                                <div class="mt-3 flex min-w-0 gap-2">
+                                    <input name="cancel_reason" required minlength="3" maxlength="1000" placeholder="Nhập lý do hủy lịch trả phòng" class="h-11 min-w-0 flex-1 rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100">
+                                    <button data-keep-action-label type="submit" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white transition hover:bg-amber-700"><i class="bx bx-undo text-lg"></i>Hủy lịch</button>
+                                </div>
                             </form>
                         </div>
                     @else

@@ -1,54 +1,55 @@
 @extends('layouts.client.index')
 
 @section('title', 'Lịch sử yêu cầu')
+@section('page_title', 'Lịch sử yêu cầu')
 
 @section('content')
 
-<div class="max-w-6xl mx-auto px-4 py-6">
+<div class="mx-auto max-w-6xl space-y-6">
 
     {{-- HEADER --}}
-    <div class="mb-6">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-6 py-7 text-white shadow-lg shadow-indigo-200/60 sm:px-8">
+        <div class="absolute -right-12 -top-16 h-52 w-52 rounded-full bg-white/10"></div>
+        <div class="relative flex items-center gap-4"><span class="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 sm:flex"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></span><div><p class="text-xs font-semibold uppercase tracking-[.18em] text-indigo-100">
             HỢP ĐỒNG
         </p>
 
-        <h1 class="mt-1 text-2xl font-bold text-slate-900">
+        <h1 class="mt-1 text-2xl font-bold sm:text-3xl">
             Lịch sử yêu cầu
         </h1>
-
+        </div>
+        </div>
     </div>
 
     {{-- FILTER --}}
-    <div class="mb-5 flex flex-wrap gap-2">
+    <div class="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <button type="button"
-                class="request-filter rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
+                class="request-filter rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
                 data-filter="all">
             Tất cả
         </button>
 
         <button type="button"
-                class="request-filter rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600"
+                class="request-filter rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600"
                 data-filter="extension">
             Gia hạn
         </button>
 
         <button type="button"
-                class="request-filter rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600"
+                class="request-filter rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600"
                 data-filter="termination">
             Trả phòng
         </button>
     </div>
 
     {{-- DANH SÁCH --}}
-    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
         @if($requests->isEmpty())
 
             <div class="px-6 py-16 text-center">
 
-                <div class="text-4xl">
-                    🕘
-                </div>
+                <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400"><svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></span>
 
                 <h3 class="mt-4 font-semibold text-slate-900">
                     Chưa có yêu cầu
@@ -75,9 +76,9 @@
                                     : 'bg-orange-50 text-orange-600' }}">
 
                                 @if($request['type'] === 'extension')
-                                    ↗
+                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 5v4h4M7.5 16.5A7 7 0 0 0 19 11" /></svg>
                                 @else
-                                    ↩
+                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7 4 12l5 5M4 12h11a5 5 0 0 1 5 5" /></svg>
                                 @endif
 
                             </div>

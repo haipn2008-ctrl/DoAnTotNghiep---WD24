@@ -5,15 +5,21 @@
 
 @section('content')
 <div class="mx-auto max-w-6xl space-y-6">
-    <h1 class="text-2xl font-bold text-slate-950">Yêu cầu gia hạn hợp đồng</h1>
+    <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-6 py-7 text-white shadow-lg shadow-indigo-200/60 sm:px-8">
+        <div class="absolute -right-12 -top-16 h-52 w-52 rounded-full bg-white/10"></div>
+        <div class="relative flex items-center gap-4">
+            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 5v4h4M18 19v-4h-4M7.5 16.5A7 7 0 0 0 19 11M16.5 7.5A7 7 0 0 0 5 13" /></svg></span>
+            <div><p class="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-100">Hợp đồng</p><h1 class="mt-1 text-2xl font-bold sm:text-3xl">Yêu cầu gia hạn hợp đồng</h1><p class="mt-2 text-sm text-indigo-100">Gửi đề nghị và theo dõi quá trình lập phụ lục gia hạn.</p></div>
+        </div>
+    </section>
 
     @if($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"><p class="font-bold">Không thể xử lý yêu cầu</p><ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
-    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-6 py-4"><h2 class="font-bold text-slate-900">Yêu cầu gia hạn</h2></div>
         <div class="p-6">
             @if($contracts->isEmpty())
-                <div class="py-10 text-center text-sm text-slate-500">Không có hợp đồng đủ điều kiện gửi yêu cầu.</div>
+                <div class="px-6 py-12 text-center"><span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5L18 7.5v12.75H6.75V3.75Z" /><path stroke-linecap="round" d="M9.5 12h5M9.5 15.5h3" /></svg></span><p class="mt-3 text-sm font-semibold text-slate-700">Không có hợp đồng đủ điều kiện gửi yêu cầu</p></div>
             @else
                 <form method="POST" action="{{ route('client.extension-requests.store') }}" class="space-y-5">@csrf
                     <div><label for="contract_id" class="mb-2 block text-sm font-semibold text-slate-900">Hợp đồng <span class="text-rose-500">*</span></label><select name="contract_id" id="contract_id" required class="h-11 w-full rounded-lg border border-slate-300 bg-white px-4 text-sm"><option value="">-- Chọn hợp đồng --</option>@foreach($contracts as $contract)<option value="{{ $contract->id }}" data-end-date="{{ $contract->end_date?->format('Y-m-d') }}" @selected(old('contract_id') == $contract->id)>{{ $contract->contract_code }} — Phòng {{ $contract->room->room_code ?? '-' }}</option>@endforeach</select></div>
@@ -25,7 +31,7 @@
         </div>
     </section>
 
-    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-6 py-4"><h2 class="font-bold text-slate-900">Yêu cầu và phụ lục gia hạn</h2></div>
         <div class="grid gap-4 bg-slate-50/60 p-4 lg:grid-cols-2 sm:p-6">
             @forelse($extensionRequests as $extension)
@@ -56,7 +62,7 @@
                     @endif
                 </article>
             @empty
-                <div class="py-12 text-center text-sm text-slate-500 lg:col-span-2">Chưa có yêu cầu gia hạn.</div>
+                <div class="px-6 py-12 text-center lg:col-span-2"><span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 5v4h4M18 19v-4h-4M7.5 16.5A7 7 0 0 0 19 11M16.5 7.5A7 7 0 0 0 5 13" /></svg></span><p class="mt-3 text-sm font-semibold text-slate-700">Chưa có yêu cầu gia hạn</p></div>
             @endforelse
         </div>
     </section>

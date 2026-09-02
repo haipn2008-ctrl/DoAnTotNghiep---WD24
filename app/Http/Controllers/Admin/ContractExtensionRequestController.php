@@ -158,10 +158,24 @@ class ContractExtensionRequestController extends Controller
                 'processed_at' => now(),
             ])->save();
 
+            if ($oldStatus === ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION) {
+                $lockedRequest->appendix()
+                    ->where('status', \App\Models\ContractAppendix::STATUS_PENDING_SIGNATURE)
+                    ->update([
+                        'status' => \App\Models\ContractAppendix::STATUS_REJECTED,
+                        'rejected_at' => now(),
+                        'rejection_reason' => $data['reject_reason'],
+                        'responded_at' => now(),
+                        'responded_by' => $request->user()->id,
+                    ]);
+            }
+
             ContractHistoryService::log(
                 $contract,
                 ContractHistoryService::EXTENSION_REJECTED,
-                'Admin đã từ chối yêu cầu gia hạn hợp đồng.',
+                $oldStatus === ContractExtensionRequest::STATUS_AWAITING_CONFIRMATION
+                    ? 'Quản lý đã hủy đề nghị gia hạn trước khi ký phụ lục.'
+                    : 'Admin đã từ chối yêu cầu gia hạn hợp đồng.',
                 $data['reject_reason'],
                 ['request_status' => $oldStatus],
                 ['request_status' => ContractExtensionRequest::STATUS_REJECTED]

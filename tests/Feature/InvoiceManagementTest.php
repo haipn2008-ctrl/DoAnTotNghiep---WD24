@@ -91,7 +91,7 @@ class InvoiceManagementTest extends TestCase
         $this->assertDatabaseCount('invoice_details', 0);
     }
 
-    public function test_invoice_can_be_issued_before_scheduled_date_and_records_actual_issuer(): void
+    public function test_invoice_cannot_be_issued_before_scheduled_date(): void
     {
         Carbon::setTestNow('2026-08-31 12:00:00');
 
@@ -102,8 +102,7 @@ class InvoiceManagementTest extends TestCase
                 ->get('/admin/invoices/generate?month=9&year=2026')
                 ->assertOk()
                 ->assertSee('05/09/2026')
-                ->assertSee('Xác nhận và phát hành')
-                ->assertDontSee('Chưa đến ngày phát hành');
+                ->assertSee('Chưa đến ngày phát hành');
 
             $this->getJson("/admin/invoices/contracts/{$contract->id}/preview?month=9&year=2026")
                 ->assertOk()
@@ -112,24 +111,24 @@ class InvoiceManagementTest extends TestCase
             $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", [
                 'month' => 9,
                 'year' => 2026,
+            ])->assertUnprocessable()
+                ->assertJsonPath('success', false);
+
+            $this->assertDatabaseCount('invoices', 0);
+            $this->assertTrue($reading->fresh()->isConfirmed());
+
+            Carbon::setTestNow('2026-09-05 08:00:00');
+            $this->postJson("/admin/invoices/contracts/{$contract->id}/issue", [
+                'month' => 9,
+                'year' => 2026,
             ])->assertOk();
 
             $this->assertDatabaseHas('invoices', [
                 'contract_id' => $contract->id,
-                'month' => 9,
-                'year' => 2026,
                 'invoice_date' => '2026-09-05 00:00:00',
-                'issued_at' => '2026-08-31 12:00:00',
-                'issued_by' => $this->admin->id,
+                'due_date' => '2026-09-10 00:00:00',
+                'issued_at' => '2026-09-05 08:00:00',
             ]);
-            $this->assertTrue($reading->fresh()->isLocked());
-
-            $invoice = Invoice::query()->where('contract_id', $contract->id)->firstOrFail();
-            $this->get(route('admin.invoices.show', $invoice))
-                ->assertOk()
-                ->assertSee('Phát hành thực tế')
-                ->assertSee('12:00 31/08/2026')
-                ->assertSee($this->admin->name);
         } finally {
             Carbon::setTestNow();
         }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $contract->signed_at ? 'Hợp đồng' : 'Bản dự thảo' }} {{ $contract->contract_code }}</title>
+    <title>{{ $contract->signed_at ? 'Hợp đồng' : ($contract->status === \App\Models\Contract::STATUS_PENDING_SIGNATURE ? 'Bản chờ ký' : 'Bản dự thảo') }} {{ $contract->contract_code }}</title>
     <style>
         @page{size:A4;margin:16mm}
         *{box-sizing:border-box}

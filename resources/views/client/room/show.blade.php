@@ -4,19 +4,39 @@
 @section('page_title', 'Phòng của tôi')
 
 @section('content')
-    <div class="space-y-6">
-        <div class="flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end">
-            <div>
-                <p class="text-sm font-semibold text-indigo-600">Thông tin nơi ở hiện tại</p>
-                <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-950">Phòng của tôi</h2>
+    <div class="mx-auto max-w-7xl space-y-6">
+        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-6 text-white shadow-lg shadow-indigo-200/60 sm:p-8">
+            <div class="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10"></div>
+            <div class="relative flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div class="flex items-center gap-4">
+                    <span class="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 sm:flex"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 11.25 12 4.5l8.25 6.75M6.5 9.5v10h11v-10M9.5 19.5v-6h5v6" /></svg></span>
+                    <div><p class="text-xs font-semibold uppercase tracking-[.18em] text-indigo-100">Thông tin nơi ở hiện tại</p><h2 class="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Phòng của tôi</h2><p class="mt-2 text-sm text-indigo-100">Xem thông tin phòng, tài sản và hiện trạng đang được bàn giao.</p></div>
+                </div>
+                @if($contracts->isNotEmpty())
+                    <span class="inline-flex w-fit items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-bold text-white backdrop-blur-sm"><span class="h-2 w-2 rounded-full bg-emerald-300"></span>{{ $contracts->count() }} phòng đang thuê</span>
+                @endif
             </div>
-            @if($contracts->isNotEmpty())
-                <span class="inline-flex w-fit items-center gap-2 rounded-xl border border-indigo-100 bg-white px-3.5 py-2 text-xs font-bold text-indigo-700 shadow-sm"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>{{ $contracts->count() }} phòng đang thuê</span>
-            @endif
-        </div>
+        </section>
 
         @if($contracts->isNotEmpty())
-            <div @class(['grid gap-6', 'max-w-5xl' => $contracts->count() === 1, 'xl:grid-cols-2' => $contracts->count() > 1])>
+            @if($contracts->count() > 1)
+                <nav class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-label="Chọn nhanh phòng đang thuê">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div><h3 class="font-bold text-slate-900">Danh sách phòng đang thuê</h3><p class="mt-0.5 text-sm text-slate-500">Chọn phòng để chuyển nhanh đến thông tin chi tiết.</p></div>
+                        <span class="w-fit rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ $contracts->count() }} phòng</span>
+                    </div>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        @foreach($contracts as $roomContract)
+                            <a href="#room-{{ $roomContract->id }}" class="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 hover:border-indigo-300 hover:bg-indigo-50">
+                                <span class="flex min-w-0 items-center gap-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 11.25 12 4.5l8.25 6.75M6.5 9.5v10h11v-10" /></svg></span><span class="min-w-0"><strong class="block truncate text-sm text-slate-900">Phòng {{ $roomContract->room?->room_code ?? '—' }}</strong><small class="mt-0.5 block truncate text-xs text-slate-500">{{ $roomContract->contract_code }}</small></span></span>
+                                <svg class="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
+                            </a>
+                        @endforeach
+                    </div>
+                </nav>
+            @endif
+
+            <div @class(['space-y-6', 'mx-auto max-w-5xl' => $contracts->count() === 1, 'max-w-6xl' => $contracts->count() > 1])>
                 @foreach($contracts as $contract)
                     @php
                         $room = $contract->room;
@@ -25,7 +45,7 @@
                         $hasThumbnail = $room?->thumbnail && ! str_starts_with($room->thumbnail, 'room-evidence/');
                     @endphp
                     <article id="room-{{ $contract->id }}" class="flex scroll-mt-24 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-200/70">
-                        <div class="relative h-48 overflow-hidden bg-gradient-to-br from-indigo-50 via-slate-100 to-violet-100 {{ $contracts->count() === 1 ? 'sm:h-64' : '' }}">
+                        <div class="relative h-48 overflow-hidden bg-gradient-to-br from-indigo-50 via-slate-100 to-violet-100 sm:h-64">
                             @if($hasThumbnail)
                                 <img src="{{ route('client.room.thumbnail', $room) }}" alt="Ảnh đại diện phòng {{ $room?->room_code }}" class="h-full w-full object-cover">
                             @else
@@ -52,7 +72,7 @@
 
                             <section class="mt-5 border-t border-slate-100 pt-5">
                                 <div class="flex items-center justify-between gap-3"><div><h4 class="font-bold text-slate-900">Tài sản trong phòng</h4><p class="mt-0.5 text-xs text-slate-500">Thiết bị và vật dụng đang được bàn giao cho bạn.</p></div><span class="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700">{{ $assets->count() }} loại</span></div>
-                                <div class="mt-3 grid gap-3 {{ $contracts->count() === 1 ? 'sm:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2' }}">
+                                <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                     @forelse($assets as $asset)
                                         <article class="flex min-h-20 min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-2.5 transition hover:border-indigo-200 hover:bg-indigo-50/30">
                                             @if($asset->pivot->image_path)
@@ -72,7 +92,7 @@
                                 <details class="group mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                                     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-slate-700"><span class="inline-flex items-center gap-2"><i class="bx bx-images text-lg text-indigo-600"></i>Nhật ký ảnh hiện trạng <span class="font-medium text-slate-400">({{ $roomImages->count() }} ảnh)</span></span><i class="bx bx-chevron-down text-xl transition group-open:rotate-180"></i></summary>
                                     <p class="mt-1 text-xs text-slate-500">Ảnh được lưu theo thời gian để đối chiếu tình trạng bàn giao và sử dụng phòng.</p>
-                                    <div class="mt-3 grid gap-3 {{ $contracts->count() === 1 ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }}">
+                                    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                         @foreach($roomImages as $image)
                                             <a href="{{ route('client.room.evidence.image', [$room, $image]) }}" data-image-modal data-image-title="{{ $image->caption ?: 'Ảnh hiện trạng phòng '.$room?->room_code }}" class="group overflow-hidden rounded-lg border border-slate-200 bg-white">
                                                 <img src="{{ route('client.room.evidence.image', [$room, $image]) }}" alt="{{ $image->caption ?: 'Ảnh hiện trạng phòng' }}" loading="lazy" class="h-28 w-full object-cover transition group-hover:scale-[1.02]">
@@ -97,7 +117,7 @@
                 @endforeach
             </div>
         @else
-            <div class="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center"><p class="font-semibold text-slate-950">Chưa có phòng</p></div>
+            <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center shadow-sm"><span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400"><svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 11.25 12 4.5l8.25 6.75M6.5 9.5v10h11v-10M9.5 19.5v-6h5v6" /></svg></span><p class="mt-4 font-semibold text-slate-950">Chưa có phòng đang thuê</p><p class="mt-1 text-sm text-slate-500">Thông tin phòng sẽ xuất hiện khi hợp đồng bắt đầu có hiệu lực.</p></div>
         @endif
     </div>
 @endsection

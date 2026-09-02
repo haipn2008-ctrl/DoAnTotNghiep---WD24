@@ -152,4 +152,73 @@ class ContractTerminationRequestController extends Controller
             'Đã từ chối yêu cầu trả phòng.'
         );
     }
+
+    public function cancel(Request $request, ContractTerminationRequest $terminationRequest)
+    {
+        $data = $request->validate([
+            'cancel_reason' => ['required', 'string', 'min:3', 'max:1000'],
+        ]);
+
+        $contract = DB::transaction(function () use ($request, $terminationRequest, $data) {
+            $terminationRequest = ContractTerminationRequest::query()
+                ->with('contract')
+                ->lockForUpdate()
+                ->findOrFail($terminationRequest->id);
+
+            if ($terminationRequest->status !== ContractTerminationRequest::STATUS_APPROVED) {
+                throw ValidationException::withMessages([
+                    'cancel_reason' => 'Chỉ có thể hủy lịch trả phòng đã duyệt nhưng chưa hoàn tất bàn giao.',
+                ]);
+            }
+
+            $contract = $terminationRequest->contract;
+            if ($contract->actual_move_out_at || $terminationRequest->fulfilled_at) {
+                throw ValidationException::withMessages([
+                    'cancel_reason' => 'Khách đã bàn giao phòng thực tế nên không thể hủy lịch trả phòng.',
+                ]);
+            }
+
+            if ((int) $contract->approved_termination_request_id !== (int) $terminationRequest->id) {
+                throw ValidationException::withMessages([
+                    'cancel_reason' => 'Lịch trả phòng này không còn là lịch đang áp dụng cho hợp đồng.',
+                ]);
+            }
+
+            $oldSchedule = $contract->scheduled_move_out_at?->toIso8601String();
+            $terminationRequest->forceFill([
+                'status' => ContractTerminationRequest::STATUS_CANCELLED,
+                'admin_note' => $data['cancel_reason'],
+                'processed_by' => $request->user()->id,
+                'processed_at' => now(),
+                'approved_end_date' => null,
+                'scheduled_checkout_at' => null,
+            ])->save();
+
+            $contract->forceFill([
+                'approved_termination_request_id' => null,
+                'scheduled_move_out_at' => null,
+            ])->save();
+
+            ContractHistoryService::log(
+                $contract,
+                ContractHistoryService::TERMINATION_CANCELLED,
+                'Quản lý đã hủy lịch trả phòng đã duyệt.',
+                $data['cancel_reason'],
+                ['request_status' => ContractTerminationRequest::STATUS_APPROVED, 'scheduled_move_out_at' => $oldSchedule],
+                ['request_status' => ContractTerminationRequest::STATUS_CANCELLED, 'scheduled_move_out_at' => null],
+                $request->user()->id,
+            );
+
+            return $contract->fresh();
+        }, 3);
+
+        app(ClientNotificationService::class)->contract(
+            $contract,
+            'termination_schedule_cancelled',
+            'Lịch trả phòng đã được hủy',
+            'Lịch trả phòng của hợp đồng '.$contract->contract_code.' đã được hủy. Lý do: '.$data['cancel_reason']
+        );
+
+        return back()->with('success', 'Đã hủy lịch trả phòng. Hợp đồng có thể tiếp tục hoặc thực hiện gia hạn.');
+    }
 }

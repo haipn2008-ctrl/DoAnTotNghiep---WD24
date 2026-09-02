@@ -4,22 +4,28 @@
 @section('page_title', 'Lịch rời phòng')
 
 @section('content')
-<div class="mx-auto max-w-6xl">
+<div class="mx-auto max-w-6xl space-y-6">
 
     {{-- HEADER --}}
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-slate-950">
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 px-6 py-7 text-white shadow-lg shadow-indigo-200/60 sm:px-8">
+        <div class="absolute -right-12 -top-16 h-52 w-52 rounded-full bg-white/10"></div>
+        <div class="relative flex items-center gap-4">
+        <span class="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 sm:flex"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3.5h10v17H7v-17Zm3 4h4m-2 9.5h.01" /></svg></span>
+        <div>
+        <p class="text-xs font-semibold uppercase tracking-[.18em] text-indigo-100">Hợp đồng</p>
+        <h1 class="mt-1 text-2xl font-bold sm:text-3xl">
             Đăng ký lịch rời phòng
         </h1>
 
-        <p class="mt-2 text-sm text-slate-500">Chọn ngày hết hạn nếu bạn rời đi đúng hạn, hoặc một ngày sớm hơn nếu muốn chấm dứt hợp đồng trước hạn.</p>
-
+        <p class="mt-2 max-w-3xl text-sm leading-6 text-indigo-100">Chọn ngày hết hạn nếu bạn rời đi đúng hạn, hoặc một ngày sớm hơn nếu muốn chấm dứt hợp đồng trước hạn.</p>
+        </div>
+        </div>
     </div>
 
 
     {{-- VALIDATION --}}
     @if($errors->any())
-        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-700">
+        <div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-700">
 
             <p class="text-sm font-bold">
                 Không thể gửi yêu cầu
@@ -36,7 +42,7 @@
 
 
     {{-- FORM --}}
-    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
         <div class="border-b border-slate-200 px-6 py-4">
 
@@ -260,7 +266,7 @@
     {{-- LỊCH SỬ YÊU CẦU --}}
     {{-- ============================= --}}
 
-    <div class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
         <div class="border-b border-slate-200 px-6 py-4">
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\FeeSchedule;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
@@ -148,6 +149,43 @@ class SettingManagementTest extends TestCase
         }
 
         $this->assertDatabaseCount('fee_schedules', 0);
+    }
+
+    public function test_fee_form_loads_an_existing_future_schedule_instead_of_stale_current_rates(): void
+    {
+        $this->createSetting();
+        $effectiveMonth = now()->addMonthNoOverflow()->startOfMonth();
+        FeeSchedule::create([
+            'effective_from' => $effectiveMonth,
+            'electric_price' => 4100,
+            'water_price' => 22000,
+            'internet_fee' => 120000,
+            'service_fee' => 65000,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get('/admin/settings/fees')
+            ->assertOk()
+            ->assertSee('name="electric_price" value="4100.00"', false)
+            ->assertSee('name="water_price" value="22000.00"', false);
+    }
+
+    public function test_baseline_fee_schedule_is_described_without_exposing_the_technical_date(): void
+    {
+        $this->createSetting();
+        FeeSchedule::create([
+            'effective_from' => '2000-01-01',
+            'electric_price' => 3500,
+            'water_price' => 15000,
+            'internet_fee' => 100000,
+            'service_fee' => 50000,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get('/admin/settings/fees')
+            ->assertOk()
+            ->assertSee('Bảng giá ban đầu')
+            ->assertDontSee('01/2000');
     }
 
     public function test_property_and_payment_form_updates_both_sections_together(): void

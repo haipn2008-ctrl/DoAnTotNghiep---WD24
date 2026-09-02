@@ -14,14 +14,18 @@
 @endphp
 
 @section('content')
-    <div class="space-y-6">
-        <div class="flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end">
-            <div>
-                <p class="text-sm font-semibold text-indigo-600">Quản lý thanh toán</p>
-                <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Hóa đơn của tôi</h2>
-                <p class="mt-2 text-sm text-slate-500">Theo dõi các khoản tiền, hạn thanh toán và lịch sử giao dịch của bạn.</p>
+    <div class="mx-auto max-w-7xl space-y-6">
+        <div class="relative flex flex-col justify-between gap-4 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-6 text-white shadow-lg shadow-indigo-200/60 sm:flex-row sm:items-end sm:p-8">
+            <div class="absolute -right-12 -top-16 h-52 w-52 rounded-full bg-white/10"></div>
+            <div class="relative flex items-center gap-4">
+                <span class="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 sm:flex"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3.5h10v17l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5v-15Zm3 5h4m-4 4h4" /></svg></span>
+                <div>
+                <p class="text-sm font-semibold text-indigo-100">Quản lý thanh toán</p>
+                <h2 class="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Hóa đơn của tôi</h2>
+                <p class="mt-2 text-sm text-indigo-100">Theo dõi các khoản tiền, hạn thanh toán và lịch sử giao dịch của bạn.</p>
+                </div>
             </div>
-            <span class="inline-flex w-fit items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 shadow-sm"><i class="bx bx-receipt text-lg text-indigo-600"></i>{{ $invoices->total() }} hóa đơn</span>
+            <span class="relative inline-flex w-fit items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-sm font-semibold text-white backdrop-blur-sm"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3.5h10v17l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5v-15Zm3 5h4m-4 4h4" /></svg>{{ $invoices->total() }} hóa đơn</span>
         </div>
 
         <form method="GET" action="{{ route('client.invoices.index') }}" class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_auto] lg:items-end">
@@ -97,7 +101,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="px-5 py-14 text-center"><span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><i class="bx bx-receipt text-2xl"></i></span><p class="mt-3 font-semibold text-slate-700">Chưa có hóa đơn phù hợp</p><p class="mt-1 text-xs text-slate-500">Hãy thử thay đổi điều kiện lọc.</p></td></tr>
+                            <tr><td colspan="7" class="px-5 py-14 text-center"><span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3.5h10v17l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5v-15Zm3 5h4m-4 4h4" /></svg></span><p class="mt-3 font-semibold text-slate-700">Chưa có hóa đơn phù hợp</p><p class="mt-1 text-xs text-slate-500">Hãy thử thay đổi điều kiện lọc.</p></td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -126,7 +130,7 @@
                         <div class="flex items-center justify-between border-t border-slate-100 pt-3 text-sm"><span class="text-slate-500">Còn phải trả</span><div class="flex items-center gap-3"><strong class="{{ $remaining > 0 ? 'text-rose-700' : 'text-emerald-700' }}">{{ number_format($remaining, 0, ',', '.') }}đ</strong><a href="{{ route('client.invoices.show', $invoice) }}" aria-label="Xem chi tiết hóa đơn {{ $invoice->invoice_code }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm"><i class="bx bx-show text-lg"></i></a></div></div>
                     </article>
                 @empty
-                    <div class="p-10 text-center text-sm text-slate-500">Chưa có hóa đơn phù hợp.</div>
+                    <div class="p-10 text-center"><span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3.5h10v17l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5v-15Zm3 5h4m-4 4h4" /></svg></span><p class="mt-3 text-sm font-semibold text-slate-700">Chưa có hóa đơn phù hợp</p></div>
                 @endforelse
             </div>
 

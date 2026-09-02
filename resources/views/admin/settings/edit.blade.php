@@ -24,10 +24,10 @@
                     <p class="text-sm font-medium text-slate-500">Mức phí đang áp dụng</p>
                     <dl class="mt-3 divide-y divide-slate-100 text-sm">
                         @foreach([
-                            'Điện (VNĐ/kWh)' => $setting->electric_price,
-                            'Nước (VNĐ/m³)' => $setting->water_price,
-                            'Internet/người/tháng' => $setting->internet_fee,
-                            'Dịch vụ chung/người/tháng' => $setting->service_fee,
+                            'Điện (VNĐ/kWh)' => $currentFeeRates->electric_price,
+                            'Nước (VNĐ/m³)' => $currentFeeRates->water_price,
+                            'Internet/người/tháng' => $currentFeeRates->internet_fee,
+                            'Dịch vụ chung/người/tháng' => $currentFeeRates->service_fee,
                         ] as $label => $value)
                             <div class="flex items-center justify-between gap-3 py-2.5"><dt class="text-slate-500">{{ $label }}</dt><dd class="font-semibold text-slate-900">{{ number_format($value, 0, ',', '.') }}đ</dd></div>
                         @endforeach

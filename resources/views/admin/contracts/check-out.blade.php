@@ -8,6 +8,9 @@
     $completed = $contract->status === \App\Models\Contract::STATUS_COMPLETED;
     $departureScheduled = ! $beforeCheckout || ($contract->approvedTerminationRequest && $contract->scheduled_move_out_at);
     $debtResolved = ! $beforeCheckout && $openInvoices->isEmpty();
+    $pendingPaymentCount = $openInvoices->sum(
+        fn ($invoice) => $invoice->payments->where('status', \App\Models\Payment::STATUS_PENDING)->count()
+    );
     $depositNotRequired = (float) $contract->deposit_amount <= 0
         || $contract->deposit_resolution === \App\Models\Contract::DEPOSIT_NOT_REQUIRED;
     $depositResolved = $depositNotRequired || in_array($contract->deposit_resolution, [
@@ -68,6 +71,47 @@
                 <div><h3 class="text-lg font-bold text-slate-950">Khách còn phải thanh toán {{ number_format((float) $totalOutstanding, 0, ',', '.') }}đ</h3><p class="mt-1 text-sm text-slate-600">Còn {{ $openInvoices->count() }} hóa đơn chưa hoàn tất. Xác nhận thanh toán xong rồi quay lại trang này; bước tiền cọc sẽ tự mở.</p>@if((float) $contract->deposit_deduction_amount > 0)<p class="mt-2 text-sm font-semibold text-indigo-700">Hệ thống đã tự bù {{ number_format((float) $contract->deposit_deduction_amount, 0, ',', '.') }}đ tiền cọc vào công nợ.</p>@endif</div>
                 <a href="{{ route('admin.invoices.index', ['keyword' => $contract->contract_code]) }}" class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 text-sm font-bold text-white hover:bg-amber-700"><i class="bx bx-receipt text-xl"></i>Xử lý hóa đơn</a>
             </div>
+
+            <details class="mt-5 overflow-hidden rounded-xl border border-rose-200 bg-white">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-rose-700 [&::-webkit-details-marker]:hidden">
+                    <span class="inline-flex items-center gap-2"><i class="bx bx-error-circle text-xl"></i>Xóa công nợ còn lại</span>
+                    <i class="bx bx-chevron-down text-xl"></i>
+                </summary>
+                <div class="border-t border-rose-100 p-4">
+                    @if($pendingPaymentCount > 0)
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            Có {{ $pendingPaymentCount }} thanh toán đang chờ xác nhận. Hãy duyệt hoặc từ chối các giao dịch này trước khi xóa công nợ.
+                        </div>
+                    @elseif(!$depositResolved)
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            Tiền cọc chưa được xử lý hoàn tất nên chưa thể xóa công nợ và kết thúc hợp đồng.
+                        </div>
+                    @else
+                        <form class="lifecycle-form" method="POST" action="{{ route('admin.contracts.complete-settlement', $contract) }}" data-confirm="Toàn bộ công nợ còn lại sẽ được xóa và hợp đồng sẽ hoàn tất. Thao tác này không được ghi nhận là khách đã thanh toán." data-confirm-label="Xóa nợ và hoàn tất">
+                            @csrf
+                            <input type="hidden" name="write_off_outstanding" value="1">
+                            <div class="rounded-lg bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-800">
+                                Bạn đang đề nghị xóa <strong>{{ number_format((float) $totalOutstanding, 0, ',', '.') }}đ</strong> trên {{ $openInvoices->count() }} hóa đơn. Khoản này sẽ được ghi nhận là nợ được miễn, không phải doanh thu đã thu.
+                            </div>
+                            <label class="mt-4 block text-sm font-semibold text-slate-700">
+                                Lý do phê duyệt xóa nợ <span class="text-rose-600">*</span>
+                                <textarea name="write_off_reason" rows="3" required minlength="3" maxlength="2000" placeholder="Nhập căn cứ hoặc lý do đồng ý miễn khoản công nợ còn lại" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100">{{ old('write_off_reason') }}</textarea>
+                            </label>
+                            <label class="mt-3 block text-sm font-semibold text-slate-700">
+                                Ghi chú hoàn tất <span class="font-normal text-slate-400">(không bắt buộc)</span>
+                                <textarea name="settlement_note" rows="2" maxlength="2000" placeholder="Ghi chú nội bộ cho lần quyết toán này" class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100">{{ old('settlement_note') }}</textarea>
+                            </label>
+                            <label class="mt-3 flex items-start gap-2 text-sm font-medium text-slate-700">
+                                <input type="checkbox" name="confirm_complete" value="1" required class="mt-0.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500">
+                                <span>Tôi xác nhận đã kiểm tra quyết toán, chứng từ tiền cọc và đồng ý xóa công nợ nêu trên.</span>
+                            </label>
+                            <button type="submit" class="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-rose-700 px-5 text-sm font-bold text-white transition hover:bg-rose-800 sm:w-auto">
+                                <i class="bx bx-shield-quarter text-xl"></i>Xóa nợ và hoàn tất hợp đồng
+                            </button>
+                        </form>
+                    @endif
+                </div>
+            </details>
         </section>
     @endif
 

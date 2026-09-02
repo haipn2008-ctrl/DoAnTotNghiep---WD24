@@ -88,6 +88,9 @@ class ContractDepartureWorkflowTest extends TestCase
         $this->assertSame(ContractTerminationRequest::STATUS_COMPLETED, $departureRequest->fresh()->status);
         $this->assertNotNull($departureRequest->fresh()->fulfilled_at);
         $this->assertNotNull(ContractLifecycleAlert::query()->where('type', 'departure_due')->sole()->resolved_at);
+        $this->actingAs($admin)->get(route('admin.termination-requests.index'))
+            ->assertSuccessful()
+            ->assertSee('Đã trả phòng');
     }
 
     public function test_request_type_distinguishes_early_and_overdue_departure(): void
@@ -114,6 +117,37 @@ class ContractDepartureWorkflowTest extends TestCase
             ContractTerminationRequest::TYPE_OVERDUE_DEPARTURE,
             ContractTerminationRequest::query()->sole()->request_type
         );
+    }
+
+    public function test_admin_can_cancel_an_approved_departure_before_checkout_so_the_contract_can_be_extended(): void
+    {
+        [$admin, , $contract] = $this->fixture();
+        $departureRequest = ContractTerminationRequest::create([
+            'contract_id' => $contract->id,
+            'tenant_id' => $contract->tenant_id,
+            'requested_end_date' => $contract->end_date->toDateString(),
+            'reason' => 'Khách dự kiến trả phòng khi hết hạn.',
+            'request_type' => ContractTerminationRequest::TYPE_END_OF_TERM,
+            'status' => ContractTerminationRequest::STATUS_PENDING,
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.termination-requests.approve', $departureRequest), [
+            'approved_end_date' => $contract->end_date->toDateString(),
+        ])->assertSessionHas('success');
+
+        $this->post(route('admin.termination-requests.cancel', $departureRequest), [
+            'cancel_reason' => 'Hai bên thống nhất tiếp tục thuê và làm thủ tục gia hạn.',
+        ])->assertSessionHas('success');
+
+        $contract->refresh();
+        $this->assertSame(ContractTerminationRequest::STATUS_CANCELLED, $departureRequest->fresh()->status);
+        $this->assertNull($contract->scheduled_move_out_at);
+        $this->assertNull($contract->approved_termination_request_id);
+        $this->assertDatabaseHas('contract_histories', [
+            'contract_id' => $contract->id,
+            'action' => 'termination_cancelled',
+        ]);
+        $this->assertContains('termination_schedule_cancelled', $contract->tenant->user->notifications()->get()->pluck('data.type')->all());
     }
 
     public function test_admin_can_approve_a_same_day_departure_without_a_specific_time(): void

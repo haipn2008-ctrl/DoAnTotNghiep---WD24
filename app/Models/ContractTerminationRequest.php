@@ -14,6 +14,8 @@ class ContractTerminationRequest extends Model
     public const STATUS_APPROVED = 'approved';
     public const STATUS_REJECTED = 'rejected';
 
+    public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_COMPLETED = 'completed';
 
     public const TYPE_EARLY_TERMINATION = 'early_termination';

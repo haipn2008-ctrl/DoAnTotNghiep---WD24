@@ -76,7 +76,25 @@ class SettingController extends Controller
             ? FeeSchedule::query()->latest('effective_from')->get()
             : collect();
 
-        return view('admin.settings.edit', compact('setting', 'type', 'typeData', 'currentValue', 'feeSchedules'));
+        $currentFeeRates = $setting;
+        $feeFormRates = $setting;
+        if ($type === 'fees') {
+            $minimumFeeMonth = now()->addMonthNoOverflow()->startOfMonth();
+            $currentFeeRates = FeeSchedule::forPeriod(now()) ?? $setting;
+            $feeFormRates = $feeSchedules
+                ->first(fn (FeeSchedule $schedule) => $schedule->effective_from->isSameDay($minimumFeeMonth))
+                ?? $currentFeeRates;
+        }
+
+        return view('admin.settings.edit', compact(
+            'setting',
+            'type',
+            'typeData',
+            'currentValue',
+            'feeSchedules',
+            'currentFeeRates',
+            'feeFormRates',
+        ));
     }
 
     public function update(Request $request, string $type)

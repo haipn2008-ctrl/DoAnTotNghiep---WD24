@@ -16,18 +16,24 @@
 @endphp
 
 @section('content')
-    <div class="space-y-6">
-        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="mx-auto max-w-7xl space-y-6">
+        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-6 text-white shadow-lg shadow-indigo-200/60 sm:p-8">
+            <div class="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10"></div>
+            <div class="absolute -bottom-24 right-40 h-48 w-48 rounded-full bg-white/5"></div>
             <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                <div>
-                    <p class="text-sm font-medium text-slate-500">Xin chào, {{ Auth::user()->name ?? 'khách thuê' }}</p>
-                    <h2 class="mt-1 text-2xl font-bold text-slate-950">Thông tin thuê phòng</h2>
-                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                <div class="relative flex items-center gap-4">
+                    <span class="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 sm:flex"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 11.25 12 4.5l8.25 6.75M6.5 9.5v10h11v-10M9.5 19.5v-6h5v6" /></svg></span>
+                    <div>
+                    <p class="text-sm font-medium text-indigo-100">Xin chào, {{ Auth::user()->name ?? 'khách thuê' }}</p>
+                    <h2 class="mt-1 text-2xl font-bold sm:text-3xl">Thông tin thuê phòng</h2>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-indigo-100">
                         Cổng khách thuê giúp bạn xem nhanh hợp đồng, hóa đơn, chỉ số điện nước và thông báo từ ban quản lý.
                     </p>
+                    </div>
                 </div>
-                <a href="{{ auth()->user()->isActive() ? route('client.support.index') : route('client.invoices.index') }}" class="inline-flex h-11 w-fit items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700">
+                <a href="{{ auth()->user()->isActive() ? route('client.support.index') : route('client.invoices.index') }}" class="relative inline-flex h-11 w-fit items-center justify-center gap-2 rounded-xl border border-white/20 bg-white px-5 text-sm font-bold text-indigo-700 shadow-sm hover:-translate-y-0.5 hover:bg-indigo-50">
                     {{ auth()->user()->isActive() ? 'Gửi yêu cầu hỗ trợ' : 'Xem hóa đơn quyết toán' }}
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-5-5 5 5-5 5" /></svg>
                 </a>
             </div>
         </section>
@@ -40,7 +46,7 @@
         @endunless
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <a href="{{ auth()->user()->isActive() ? route('client.room.show') : route('client.contracts.index') }}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-indigo-200">
+            <a href="{{ auth()->user()->isActive() ? route('client.room.show') : route('client.contracts.index') }}" class="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
                 <p class="text-sm font-medium text-slate-500">Phòng đang thuê</p>
                 <p class="mt-3 text-2xl font-bold text-slate-950">{{ $activeContracts->isNotEmpty() ? $activeContracts->count().' phòng' : 'Chưa có' }}</p>
                 <p class="mt-1 text-xs text-slate-500">
@@ -48,7 +54,7 @@
                 </p>
             </a>
 
-            <a href="{{ route('client.contracts.index') }}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-indigo-200">
+            <a href="{{ route('client.contracts.index') }}" class="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
                 <p class="text-sm font-medium text-slate-500">Hợp đồng</p>
                 <p class="mt-3 text-2xl font-bold {{ $activeContract ? 'text-emerald-600' : 'text-slate-950' }}">
                     {{ $activeContracts->isNotEmpty() ? $activeContracts->count().' hiệu lực' : 'Chưa có' }}
@@ -62,7 +68,7 @@
                 </p>
             </a>
 
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <a href="{{ route('client.invoices.index') }}" class="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
                 <p class="text-sm font-medium text-slate-500">Hóa đơn gần nhất</p>
                 <p class="mt-3 text-2xl font-bold text-slate-950">
                     {{ $recentInvoice ? number_format($recentInvoice->payable_amount, 0, ',', '.') . 'đ' : '--' }}
@@ -70,17 +76,17 @@
                 <p class="mt-1 text-xs text-slate-500">
                     {{ $recentInvoice ? 'Kỳ ' . $recentInvoice->month . '/' . $recentInvoice->year : 'Chưa có hóa đơn.' }}
                 </p>
-            </div>
+            </a>
 
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <a href="{{ route('client.support.index') }}" class="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
                 <p class="text-sm font-medium text-slate-500">Yêu cầu hỗ trợ</p>
                 <p class="mt-3 text-2xl font-bold text-amber-600">{{ $supportRequests }}</p>
                 <p class="mt-1 text-xs text-slate-500">Chưa có yêu cầu đang xử lý.</p>
-            </div>
+            </a>
         </section>
 
         <section class="grid gap-6 xl:grid-cols-3">
-            <div id="invoices" class="rounded-lg border border-slate-200 bg-white shadow-sm xl:col-span-2">
+            <div id="invoices" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-2">
                 <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                     <div>
                         <h3 class="font-semibold text-slate-950">Hóa đơn và thanh toán</h3>
@@ -122,7 +128,7 @@
                 @endif
             </div>
 
-            <div id="support" class="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div id="support" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-5 py-4">
                     <h3 class="font-semibold text-slate-950">Kênh hỗ trợ</h3>
                 </div>

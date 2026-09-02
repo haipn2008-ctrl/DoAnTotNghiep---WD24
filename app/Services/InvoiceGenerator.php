@@ -243,6 +243,16 @@ class InvoiceGenerator
 
     public function issue(Contract $contract, int $month, int $year, ?int $actorId = null): Invoice
     {
+        $setting = Setting::currentOrCreate();
+        $scheduledDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+        $scheduledDate->day(max(1, min((int) $setting->invoice_day, $scheduledDate->daysInMonth)));
+
+        if (today()->lt($scheduledDate)) {
+            throw ValidationException::withMessages([
+                'invoice' => 'Chưa đến ngày phát hành hóa đơn. Kỳ này chỉ được phát hành từ ngày '.$scheduledDate->format('d/m/Y').'.',
+            ]);
+        }
+
         return DB::transaction(function () use ($contract, $month, $year, $actorId) {
             $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
             $contract->room()->lockForUpdate()->firstOrFail();
