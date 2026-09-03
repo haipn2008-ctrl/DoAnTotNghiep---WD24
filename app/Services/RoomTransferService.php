@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Contract;
+use App\Models\ContractAppendix;
 use App\Models\Invoice;
 use App\Models\Room;
 use App\Models\RoomTransfer;
@@ -17,7 +18,10 @@ use Illuminate\Validation\ValidationException;
 
 class RoomTransferService
 {
-    public function __construct(private readonly ContractRateResolver $pricing) {}
+    public function __construct(
+        private readonly ContractRateResolver $pricing,
+        private readonly ContractAppendixService $appendices,
+    ) {}
 
     public function requestByTenant(Contract $contract, Room $targetRoom, User $tenantUser, array $data): RoomTransfer
     {
@@ -27,6 +31,7 @@ class RoomTransferService
             $targetRoom = Room::query()->lockForUpdate()->findOrFail($targetRoom->id);
             $this->ensureContractCanTransfer($contract);
             $this->ensureNoPendingTransfer($contract);
+            $this->ensureNoTransferInMonth($contract, Carbon::parse($data['requested_transfer_date']));
             $this->ensureTargetCanReceive($contract, $targetRoom);
 
             return RoomTransfer::query()->create([
@@ -42,11 +47,12 @@ class RoomTransferService
         }, 3);
     }
 
-    public function createAndExecute(Contract $contract, Room $targetRoom, User $admin, array $data): RoomTransfer
+    public function createWithAppendix(Contract $contract, Room $targetRoom, User $admin, array $data): RoomTransfer
     {
         return DB::transaction(function () use ($contract, $targetRoom, $admin, $data): RoomTransfer {
             $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
             $this->ensureNoPendingTransfer($contract);
+            $this->ensureNoTransferInMonth($contract, today());
             $transfer = RoomTransfer::query()->create([
                 'contract_id' => $contract->id,
                 'old_room_id' => $contract->room_id,
@@ -58,13 +64,82 @@ class RoomTransferService
                 'status' => RoomTransfer::STATUS_PENDING,
             ]);
 
-            return $this->perform($transfer, $admin, $data);
+            return $this->prepareAppendix($transfer, $admin, $data);
         }, 3);
     }
 
-    public function approveAndExecute(RoomTransfer $transfer, User $admin, array $data): RoomTransfer
+    public function approveWithAppendix(RoomTransfer $transfer, User $admin, array $data): RoomTransfer
     {
-        return DB::transaction(fn (): RoomTransfer => $this->perform($transfer, $admin, $data), 3);
+        return DB::transaction(fn (): RoomTransfer => $this->prepareAppendix($transfer, $admin, $data), 3);
+    }
+
+    public function finalizeAppendix(ContractAppendix $appendix, User $admin, array $evidencePaths): RoomTransfer
+    {
+        return DB::transaction(function () use ($appendix, $admin, $evidencePaths): RoomTransfer {
+            $appendix = ContractAppendix::query()->with('roomTransfer')->lockForUpdate()->findOrFail($appendix->id);
+            if (! $appendix->isRoomTransfer() || $appendix->status !== ContractAppendix::STATUS_PENDING_SIGNATURE) {
+                $this->fail('appendix', 'Phụ lục chuyển phòng chưa được khách xác nhận hoặc đã được xử lý.');
+            }
+            if (! $appendix->hasValidContentHash()) {
+                $this->fail('appendix', 'Nội dung phụ lục không vượt qua kiểm tra toàn vẹn.');
+            }
+            if (! $appendix->effective_from?->isToday()) {
+                $this->fail('effective_date', 'Chỉ hoàn tất bàn giao đúng ngày hiệu lực ghi trên phụ lục.');
+            }
+
+            $payload = $appendix->roomTransfer?->execution_payload ?? [];
+            $payload['effective_date'] = today()->toDateString();
+            $transfer = $this->perform($appendix->roomTransfer, $admin, $payload);
+            $appendix->forceFill([
+                'status' => ContractAppendix::STATUS_ACCEPTED,
+                'signed_evidence_paths' => $evidencePaths,
+                'signed_evidence_uploaded_at' => now(),
+                'signed_evidence_uploaded_by' => $admin->id,
+            ])->save();
+
+            return $transfer;
+        }, 3);
+    }
+
+    private function prepareAppendix(RoomTransfer $transfer, User $admin, array $data): RoomTransfer
+    {
+        $transfer = RoomTransfer::query()->with(['contract', 'oldRoom', 'newRoom'])->lockForUpdate()->findOrFail($transfer->id);
+        if ($transfer->status !== RoomTransfer::STATUS_PENDING) {
+            $this->fail('transfer', 'Yêu cầu đổi phòng này đã được xử lý.');
+        }
+        if (RoomTransfer::query()->where('new_room_id', $transfer->new_room_id)
+            ->where('status', RoomTransfer::STATUS_PENDING_APPENDIX)
+            ->whereKeyNot($transfer->id)->exists()) {
+            $this->fail('new_room_id', 'Phòng này đang được giữ cho một hồ sơ chuyển phòng khác.');
+        }
+
+        $contract = $transfer->contract;
+        $appendix = $this->appendices->createDraft($contract, [
+            'title' => 'Phụ lục thay đổi phòng thuê',
+            'legal_basis' => 'Căn cứ hợp đồng '.$contract->contract_code.' và thỏa thuận đổi phòng giữa hai bên.',
+            'content' => "Hai bên thống nhất chuyển phòng thuê từ {$transfer->oldRoom->room_code} sang {$transfer->newRoom->room_code}.\n"
+                .'Giá thuê phòng mới: '.number_format((float) $transfer->newRoom->price, 0, ',', '.')."đ/tháng.\n"
+                .'Tiền cọc mới: '.number_format((float) $transfer->newRoom->price, 0, ',', '.')."đ.\n"
+                .'Việc chuyển phòng, chốt chỉ số điện nước, bàn giao tài sản và điều chỉnh tiền cọc chỉ được thực hiện sau khi phụ lục được hai bên xác nhận và ký đầy đủ.',
+            'effective_from' => $data['effective_date'],
+            'price_adjustments' => [],
+        ], $admin);
+        $appendix->forceFill([
+            'appendix_type' => ContractAppendix::TYPE_ROOM_TRANSFER,
+            'room_transfer_id' => $transfer->id,
+        ])->save();
+        $appendix = $this->appendices->send($appendix, $admin);
+
+        $transfer->forceFill([
+            'status' => RoomTransfer::STATUS_PENDING_APPENDIX,
+            'effective_date' => $data['effective_date'],
+            'admin_reason' => $data['admin_reason'],
+            'processed_by' => $admin->id,
+            'processed_at' => now(),
+            'execution_payload' => $data,
+        ])->save();
+
+        return $transfer->fresh(['contract.tenant.user', 'oldRoom', 'newRoom', 'appendix']);
     }
 
     public function reject(RoomTransfer $transfer, User $admin, string $reason): RoomTransfer
@@ -88,7 +163,7 @@ class RoomTransferService
     private function perform(RoomTransfer $transfer, User $admin, array $data): RoomTransfer
     {
         $transfer = RoomTransfer::query()->lockForUpdate()->findOrFail($transfer->id);
-        if ($transfer->status !== RoomTransfer::STATUS_PENDING) {
+        if (! in_array($transfer->status, [RoomTransfer::STATUS_PENDING, RoomTransfer::STATUS_PENDING_APPENDIX], true)) {
             $this->fail('transfer', 'Yêu cầu đổi phòng này đã được xử lý.');
         }
 
@@ -444,8 +519,19 @@ class RoomTransferService
 
     private function ensureNoPendingTransfer(Contract $contract): void
     {
-        if ($contract->roomTransfers()->where('status', RoomTransfer::STATUS_PENDING)->exists()) {
+        if ($contract->roomTransfers()->whereIn('status', [RoomTransfer::STATUS_PENDING, RoomTransfer::STATUS_PENDING_APPENDIX])->exists()) {
             $this->fail('contract', 'Hợp đồng đang có một yêu cầu đổi phòng chờ xử lý.');
+        }
+    }
+
+    private function ensureNoTransferInMonth(Contract $contract, Carbon $date): void
+    {
+        if ($contract->roomTransfers()
+            ->where('status', RoomTransfer::STATUS_COMPLETED)
+            ->whereYear('effective_date', $date->year)
+            ->whereMonth('effective_date', $date->month)
+            ->exists()) {
+            $this->fail('contract', 'Hợp đồng đã đổi phòng trong tháng này. Chỉ được thực hiện tối đa một lần mỗi tháng.');
         }
     }
 

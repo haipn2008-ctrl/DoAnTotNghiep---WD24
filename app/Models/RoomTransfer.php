@@ -12,6 +12,8 @@ class RoomTransfer extends Model
 
     public const STATUS_PENDING = 'pending';
 
+    public const STATUS_PENDING_APPENDIX = 'pending_appendix';
+
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_REJECTED = 'rejected';
@@ -23,7 +25,7 @@ class RoomTransfer extends Model
         'new_handover_reading_id', 'transfer_invoice_id', 'deposit_invoice_id', 'outstanding_amount',
         'old_monthly_rent', 'new_monthly_rent', 'old_deposit_amount',
         'new_deposit_amount', 'deposit_difference', 'remaining_deposit_credit',
-        'financial_snapshot',
+        'financial_snapshot', 'execution_payload',
     ];
 
     protected function casts(): array
@@ -41,6 +43,7 @@ class RoomTransfer extends Model
             'deposit_difference' => 'decimal:2',
             'remaining_deposit_credit' => 'decimal:2',
             'financial_snapshot' => 'array',
+            'execution_payload' => 'array',
         ];
     }
 
@@ -92,5 +95,10 @@ class RoomTransfer extends Model
     public function items()
     {
         return $this->hasMany(RoomTransferItem::class);
+    }
+
+    public function appendix()
+    {
+        return $this->hasOne(ContractAppendix::class);
     }
 }

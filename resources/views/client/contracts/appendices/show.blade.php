@@ -22,7 +22,7 @@
     @endif
 
     @if($appendix->status === \App\Models\ContractAppendix::STATUS_PENDING_SIGNATURE)
-        <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950"><strong>Phụ lục gia hạn đang chờ ký trực tiếp.</strong> Ban quản lý sẽ in phụ lục để hai bên ký. Thời hạn hợp đồng chỉ thay đổi sau khi minh chứng bản ký được tải lên hệ thống.</div>
+        <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950"><strong>{{ $appendix->isRoomTransfer() ? 'Phụ lục chuyển phòng đang chờ ký trực tiếp.' : 'Phụ lục gia hạn đang chờ ký trực tiếp.' }}</strong> Ban quản lý sẽ in phụ lục để hai bên ký. {{ $appendix->isRoomTransfer() ? 'Phòng thuê chỉ thay đổi sau khi hoàn tất ký và bàn giao.' : 'Thời hạn hợp đồng chỉ thay đổi sau khi minh chứng bản ký được tải lên hệ thống.' }}</div>
     @endif
 
     <article class="mx-auto max-w-3xl bg-white px-8 py-10 shadow-lg ring-1 ring-slate-200 sm:px-14 sm:py-14">

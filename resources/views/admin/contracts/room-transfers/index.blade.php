@@ -5,7 +5,7 @@
 
 @section('content')
 @php
-    $pendingCount = $roomTransfers->where('status', 'pending')->count();
+    $pendingCount = $roomTransfers->whereIn('status', ['pending', 'pending_appendix'])->count();
     $completedCount = $roomTransfers->where('status', 'completed')->count();
     $rejectedCount = $roomTransfers->where('status', 'rejected')->count();
 @endphp
@@ -32,6 +32,7 @@
                 @php
                     $status = match($transfer->status) {
                         'pending' => ['Chờ xử lý', 'bg-amber-50 text-amber-700', 'bg-amber-500'],
+                        'pending_appendix' => ['Chờ hoàn tất phụ lục', 'bg-violet-50 text-violet-700', 'bg-violet-500'],
                         'completed' => ['Đã chuyển', 'bg-emerald-50 text-emerald-700', 'bg-emerald-500'],
                         default => ['Đã từ chối', 'bg-rose-50 text-rose-700', 'bg-rose-500'],
                     };
@@ -50,10 +51,10 @@
 
                         <div class="flex shrink-0 flex-col gap-2 sm:flex-row">
                             @if($transfer->status === 'pending')
-                                <a href="{{ route('admin.room-transfers.review', $transfer) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-indigo-700"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>Kiểm tra và thực hiện</a>
+                                <a href="{{ route('admin.room-transfers.review', $transfer) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-indigo-700"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>Kiểm tra và lập phụ lục</a>
                                 <form method="POST" action="{{ route('admin.room-transfers.reject', $transfer) }}" class="flex gap-2">@csrf<input name="admin_reason" required minlength="3" placeholder="Lý do từ chối" class="h-11 min-w-0 flex-1 rounded-xl border border-slate-300 px-3 text-sm sm:w-44"><button class="h-11 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-700 hover:bg-rose-100">Từ chối</button></form>
-                            @elseif($transfer->status === 'completed' && in_array($transfer->contract?->status, \App\Models\Contract::OPEN_OCCUPANCY_STATUSES, true) && $transfer->oldRoom?->status === \App\Models\Room::STATUS_AVAILABLE)
-                                <a data-keep-action-label href="{{ route('admin.room-transfers.create', ['contract' => $transfer->contract, 'room_id' => $transfer->old_room_id]) }}" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-bold text-indigo-700 hover:bg-indigo-100">Chuyển lại phòng cũ</a>
+                            @elseif($transfer->status === 'pending_appendix' && $transfer->appendix)
+                                <a href="{{ route('admin.contract-appendices.show', $transfer->appendix) }}" class="inline-flex h-11 items-center justify-center rounded-xl bg-violet-600 px-4 text-sm font-bold text-white hover:bg-violet-700">Mở phụ lục</a>
                             @endif
                         </div>
                     </div>

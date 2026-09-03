@@ -55,11 +55,11 @@ class DemoScenarioSeeder extends Seeder
                 ['active-paid', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(5)->startOfDay(), now()->addMonthsNoOverflow(7)->startOfDay(), Contract::DEPOSIT_PAID],
                 ['active-partial', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(3)->startOfDay(), now()->addMonthsNoOverflow(9)->startOfDay(), Contract::DEPOSIT_PAID],
                 ['active-overdue', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(2)->startOfDay(), now()->addMonthsNoOverflow(10)->startOfDay(), Contract::DEPOSIT_PAID],
-                ['awaiting-move-in', Contract::STATUS_AWAITING_MOVE_IN, now()->addDays(7)->startOfDay(), now()->addMonthsNoOverflow(12)->startOfDay(), Contract::DEPOSIT_PAID],
-                ['pending-deposit', Contract::STATUS_PENDING_DEPOSIT, now()->addDays(10)->startOfDay(), now()->addMonthsNoOverflow(12)->startOfDay(), Contract::DEPOSIT_PENDING],
-                ['pending-signature', Contract::STATUS_PENDING_SIGNATURE, now()->addDays(14)->startOfDay(), now()->addMonthsNoOverflow(12)->startOfDay(), Contract::DEPOSIT_PENDING],
-                ['draft', Contract::STATUS_DRAFT, now()->addMonthNoOverflow()->startOfDay(), now()->addMonthsNoOverflow(13)->startOfDay(), Contract::DEPOSIT_PENDING],
-                ['expiring-soon', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(11)->startOfDay(), now()->addDays(25)->startOfDay(), Contract::DEPOSIT_PAID],
+                ['awaiting-move-in', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(4)->startOfDay(), now()->addMonthsNoOverflow(8)->startOfDay(), Contract::DEPOSIT_PAID],
+                ['pending-deposit', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(11)->startOfDay(), now()->addDays(18)->startOfDay(), Contract::DEPOSIT_PAID],
+                ['pending-signature', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(2)->startOfDay(), now()->addMonthsNoOverflow(10)->startOfDay(), Contract::DEPOSIT_PAID],
+                ['draft', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(11)->startOfDay(), now()->addDays(27)->startOfDay(), Contract::DEPOSIT_PAID],
+                ['expiring-soon', Contract::STATUS_ACTIVE, now()->subMonthsNoOverflow(8)->startOfDay(), now()->addMonthsNoOverflow(4)->startOfDay(), Contract::DEPOSIT_PAID],
                 ['expired-10-days', Contract::STATUS_EXPIRED, now()->subYear()->startOfDay(), now()->subDays(10)->startOfDay(), Contract::DEPOSIT_PAID],
             ];
 
@@ -79,6 +79,19 @@ class DemoScenarioSeeder extends Seeder
             }
 
             $this->billingScenarios($contracts, $feeSchedule, $admin);
+            $paidBillingSeeder = new RecentPaidContractsSeeder();
+            foreach (['active-paid', 'active-partial', 'active-overdue', 'awaiting-move-in', 'pending-deposit', 'pending-signature', 'draft', 'expiring-soon', 'expired-10-days'] as $offset => $key) {
+                $contract = $contracts[$key]->loadMissing(['room', 'tenant.user']);
+                $paidBillingSeeder->seedPaidBilling(
+                    $contract,
+                    $contract->room,
+                    $contract->tenant->user,
+                    $admin,
+                    $feeSchedule,
+                    $contract->start_date->copy()->startOfMonth(),
+                    10 + $offset,
+                );
+            }
             $this->supportScenarios($contracts, $admin);
             $this->residentScenarios($contracts, $admin);
             $this->expenseScenarios($rooms, $admin);
@@ -89,12 +102,12 @@ class DemoScenarioSeeder extends Seeder
     {
         $demoNote = 'Tình huống demo: '.str_replace('-', ' ', $key);
         $legacyCode = 'HD-DEMO-'.strtoupper($key);
+        $content = '<h1>HỢP ĐỒNG THUÊ PHÒNG</h1><p>Hợp đồng thuê phòng của '.$tenant->full_name.'.</p>';
         $contract = Contract::query()
             ->where('contract_code', $legacyCode)
             ->orWhere('note', $demoNote)
             ->first();
         if (! $contract) {
-            $content = '<h1>HỢP ĐỒNG THUÊ PHÒNG</h1><p>Dữ liệu trình diễn cho '.$tenant->full_name.'.</p>';
             $signed = in_array($status, [
                 Contract::STATUS_PENDING_DEPOSIT,
                 Contract::STATUS_AWAITING_MOVE_IN,
@@ -139,6 +152,12 @@ class DemoScenarioSeeder extends Seeder
         }
 
         $standardCode = 'HD'.str_pad((string) $contract->id, 6, '0', STR_PAD_LEFT);
+        $signed = in_array($status, [
+            Contract::STATUS_PENDING_DEPOSIT,
+            Contract::STATUS_AWAITING_MOVE_IN,
+            ...Contract::OPEN_OCCUPANCY_STATUSES,
+        ], true);
+        $occupied = in_array($status, Contract::OPEN_OCCUPANCY_STATUSES, true);
         $contract->forceFill([
             'contract_code' => $standardCode,
             'room_id' => $room->id,
@@ -147,10 +166,26 @@ class DemoScenarioSeeder extends Seeder
             'start_date' => $start->toDateString(),
             'end_date' => $end->toDateString(),
             'status' => $status,
+            'deposit_status' => $depositStatus,
+            'deposit_paid_at' => $depositStatus === Contract::DEPOSIT_PAID ? $start : null,
+            'signed_at' => $signed ? $start->copy()->subDays(3) : null,
+            'signed_confirmed_by' => $signed ? $admin->id : null,
+            'signature_due_at' => $status === Contract::STATUS_PENDING_SIGNATURE ? now()->addDays(2) : null,
+            'deposit_due_at' => $status === Contract::STATUS_PENDING_DEPOSIT ? now()->addDays(2) : null,
+            'scheduled_move_in_date' => $status === Contract::STATUS_AWAITING_MOVE_IN ? now()->addDays(3)->toDateString() : null,
+            'actual_move_in_at' => $occupied ? $start->copy()->setTime(9, 0) : null,
+            'checked_in_by' => $occupied ? $admin->id : null,
+            'monthly_rent' => $room->price,
+            'deposit_amount' => $room->price,
+            'contract_content' => $signed ? $content : null,
+            'contract_content_snapshotted_at' => $signed ? $start->copy()->subDays(3) : null,
+            'contract_content_sha256' => $signed ? hash('sha256', $content) : null,
             'note' => $demoNote,
-        ])->save();
+        ]);
+        // Chỉ seeder mới được phép đồng bộ lại kịch bản mẫu đã ký.
+        // Luồng ứng dụng vẫn giữ nguyên cơ chế đóng băng nội dung hợp đồng.
+        $contract->saveQuietly();
 
-        $occupied = in_array($contract->status, Contract::OPEN_OCCUPANCY_STATUSES, true);
         $room->update(['status' => $occupied ? Room::STATUS_OCCUPIED : ($contract->status === Contract::STATUS_DRAFT ? Room::STATUS_AVAILABLE : Room::STATUS_OCCUPIED), 'current_people' => $occupied ? 1 : 0]);
 
         ContractTenant::query()->updateOrCreate(
@@ -193,8 +228,8 @@ class DemoScenarioSeeder extends Seeder
             $electricity = ($reading->electricity_new - $reading->electricity_old) * (float) $feeSchedule->electric_price;
             $water = ($reading->water_new - $reading->water_old) * (float) $feeSchedule->water_price;
             $total = (float) $contract->monthly_rent + $electricity + $water + (float) $feeSchedule->internet_fee + (float) $feeSchedule->service_fee;
-            $status = $key === 'active-paid' ? Invoice::STATUS_PAID : ($key === 'active-partial' ? Invoice::STATUS_PARTIAL : Invoice::STATUS_UNPAID);
-            $dueDate = $key === 'active-overdue' ? now()->subDays(12) : now()->addDays(5);
+            $status = Invoice::STATUS_PAID;
+            $dueDate = now()->addDays(5);
 
             $invoice = Invoice::query()->updateOrCreate(
                 ['invoice_code' => 'HDON-DEMO-'.strtoupper($key)],
@@ -236,8 +271,8 @@ class DemoScenarioSeeder extends Seeder
                 );
             }
 
-            if ($key !== 'active-overdue') {
-                $amount = $key === 'active-paid' ? $total : round($total * 0.4);
+            if (in_array($key, ['active-paid', 'active-partial', 'active-overdue'], true)) {
+                $amount = $total;
                 Payment::query()->updateOrCreate(
                     ['transaction_code' => 'GD-DEMO-'.strtoupper($key)],
                     ['invoice_id' => $invoice->id, 'amount_paid' => $amount, 'payment_date' => now()->toDateString(), 'payment_method' => Payment::METHOD_BANK_TRANSFER, 'status' => Payment::STATUS_SUCCESS, 'submitted_by' => $contract->tenant->user_id, 'confirmed_by' => $admin->id, 'reviewed_at' => now(), 'note' => 'Thanh toán minh họa.']
@@ -252,6 +287,17 @@ class DemoScenarioSeeder extends Seeder
                     ['invoice_id' => $invoice->id, 'amount_paid' => 100000, 'payment_date' => now()->subDays(3)->toDateString(), 'payment_method' => Payment::METHOD_BANK_TRANSFER, 'status' => Payment::STATUS_FAILED, 'submitted_by' => $contract->tenant->user_id, 'confirmed_by' => $admin->id, 'reviewed_at' => now()->subDays(2), 'review_note' => 'Không khớp nội dung chuyển khoản.', 'note' => 'Giao dịch demo đã bị từ chối.']
                 );
             }
+
+            // Khép lại các giao dịch chờ từ kịch bản cũ để dữ liệu demo không còn công nợ treo.
+            Payment::query()
+                ->where('invoice_id', $invoice->id)
+                ->where('status', Payment::STATUS_PENDING)
+                ->update([
+                    'status' => Payment::STATUS_FAILED,
+                    'confirmed_by' => $admin->id,
+                    'reviewed_at' => now(),
+                    'review_note' => 'Đã đóng kịch bản công nợ cũ.',
+                ]);
         }
     }
 
@@ -287,9 +333,11 @@ class DemoScenarioSeeder extends Seeder
 
     private function expenseScenarios($rooms, User $admin): void
     {
+        // Hai khoản tiện ích cũ dùng số tiền minh họa cố định, không còn phù hợp với
+        // dữ liệu chỉ số theo tháng. GovernmentUtilityExpenseSeeder sẽ tạo lại theo sản lượng.
+        Expense::query()->whereIn('expense_code', ['EXP-DEMO-001', 'EXP-DEMO-002'])->delete();
+
         $items = [
-            ['EXP-DEMO-001', Expense::CATEGORY_ELECTRICITY, 'Thanh toán tiền điện toàn nhà', 4850000, null],
-            ['EXP-DEMO-002', Expense::CATEGORY_WATER, 'Thanh toán tiền nước toàn nhà', 1720000, null],
             ['EXP-DEMO-003', Expense::CATEGORY_MAINTENANCE, 'Bảo dưỡng điều hòa phòng P101', 450000, $rooms->first()->id],
             ['EXP-DEMO-004', Expense::CATEGORY_CLEANING, 'Vệ sinh khu vực chung', 900000, null],
         ];

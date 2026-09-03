@@ -21,7 +21,7 @@ class RoomTransferController extends Controller
     public function index()
     {
         $roomTransfers = RoomTransfer::query()->with([
-            'contract.tenant', 'oldRoom', 'newRoom', 'requester', 'processor', 'transferInvoice', 'depositInvoice',
+            'contract.tenant', 'oldRoom', 'newRoom', 'requester', 'processor', 'transferInvoice', 'depositInvoice', 'appendix',
         ])->latest()->get();
 
         return view('admin.contracts.room-transfers.index', compact('roomTransfers'));
@@ -54,11 +54,15 @@ class RoomTransferController extends Controller
         $data = $this->validatedExecution($request);
         $targetRoom = Room::query()->findOrFail($data['new_room_id']);
         $data['new_assets'] = $data['new_assets'][$targetRoom->id] ?? [];
-        $transfer = $this->transfers->createAndExecute($contract, $targetRoom, $request->user(), $data);
-        $this->notifyCompleted($transfer, true);
+        $transfer = $this->transfers->createWithAppendix($contract, $targetRoom, $request->user(), $data);
+        app(ClientNotificationService::class)->appendix(
+            $transfer->appendix,
+            'Có phụ lục chuyển phòng cần xác nhận',
+            'Ban quản lý đã lập phụ lục chuyển phòng '.$transfer->appendix->code.'. Vui lòng kiểm tra và phản hồi.'
+        );
 
-        return redirect()->route('admin.room-transfers.index')
-            ->with('success', 'Đã chuyển khách sang phòng '.$transfer->newRoom->room_code.' và gửi thông báo.');
+        return redirect()->route('admin.contract-appendices.show', $transfer->appendix)
+            ->with('success', 'Đã gửi phụ lục chuyển phòng cho khách xác nhận. Hợp đồng chưa thay đổi.');
     }
 
     public function approve(Request $request, RoomTransfer $roomTransfer)
@@ -66,12 +70,15 @@ class RoomTransferController extends Controller
         Gate::authorize('manageLifecycle', $roomTransfer->contract);
         $data = $this->validatedExecution($request, $roomTransfer->new_room_id);
         $data['new_assets'] = $data['new_assets'][$roomTransfer->new_room_id] ?? [];
-        $transfer = $this->transfers->approveAndExecute($roomTransfer, $request->user(), $data);
-        app(AdminNotificationService::class)->resolve('room_transfer_request', $transfer);
-        $this->notifyCompleted($transfer, false);
+        $transfer = $this->transfers->approveWithAppendix($roomTransfer, $request->user(), $data);
+        app(ClientNotificationService::class)->appendix(
+            $transfer->appendix,
+            'Có phụ lục chuyển phòng cần xác nhận',
+            'Yêu cầu đổi phòng đã được duyệt về nguyên tắc. Vui lòng kiểm tra phụ lục '.$transfer->appendix->code.'.'
+        );
 
-        return redirect()->route('admin.room-transfers.index')
-            ->with('success', 'Đã duyệt yêu cầu và hoàn tất đổi phòng.');
+        return redirect()->route('admin.contract-appendices.show', $transfer->appendix)
+            ->with('success', 'Đã duyệt về nguyên tắc và gửi phụ lục cho khách. Chưa thực hiện chuyển phòng.');
     }
 
     public function reject(Request $request, RoomTransfer $roomTransfer)

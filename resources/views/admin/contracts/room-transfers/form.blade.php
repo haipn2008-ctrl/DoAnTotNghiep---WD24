@@ -67,7 +67,8 @@
 
         <section class="rounded-2xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
             <label class="flex items-start gap-3"><input type="checkbox" name="confirm_transfer" value="1" required class="mt-1"><span class="text-sm font-semibold text-amber-950">Tôi đã đối chiếu công nợ, chỉ số và tài sản. Tôi hiểu thao tác sẽ tạo chứng từ phòng cũ, cập nhật tiền thuê/cọc theo phòng mới và gửi thông báo cho khách.</span></label>
-            <button class="mt-5 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-indigo-700 px-5 text-sm font-bold text-white shadow-sm hover:bg-indigo-800"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>{{ $reviewing ? 'Duyệt và chuyển phòng' : 'Xác nhận chuyển phòng' }}</button>
+            <p class="mt-4 text-sm text-amber-900">Bước này chỉ duyệt đề xuất và gửi phụ lục cho khách xác nhận; chưa cập nhật phòng trong hợp đồng.</p>
+            <button class="mt-5 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-indigo-700 px-5 text-sm font-bold text-white shadow-sm hover:bg-indigo-800"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>Duyệt và lập phụ lục</button>
         </section>
     </form>
 </div>

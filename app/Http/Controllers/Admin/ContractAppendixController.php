@@ -11,6 +11,7 @@ use App\Services\ClientNotificationService;
 use App\Services\ContractAppendixService;
 use App\Services\ContractExtensionAppendixService;
 use App\Services\ContractRateResolver;
+use App\Services\RoomTransferService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -23,6 +24,7 @@ class ContractAppendixController extends Controller
         private readonly ContractAppendixService $appendices,
         private readonly ContractRateResolver $pricing,
         private readonly ContractExtensionAppendixService $extensionAppendices,
+        private readonly RoomTransferService $roomTransfers,
     ) {}
 
     public function create(Contract $contract)
@@ -98,6 +100,36 @@ class ContractAppendixController extends Controller
 
         return redirect()->route('admin.contract-appendices.show', $appendix)
             ->with('success', 'Đã lưu minh chứng ký và hoàn tất gia hạn hợp đồng.');
+    }
+
+    public function completeRoomTransfer(Request $request, ContractAppendix $appendix)
+    {
+        Gate::authorize('manageLifecycle', $appendix->contract);
+        $data = $request->validate([
+            'signed_evidence' => ['required', 'array', 'min:1', 'max:10'],
+            'signed_evidence.*' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
+        $paths = collect($data['signed_evidence'])
+            ->map(fn ($file) => $file->store('contract-appendices/signed', 'local'))->all();
+
+        try {
+            $transfer = $this->roomTransfers->finalizeAppendix($appendix, $request->user(), $paths);
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($paths);
+            throw $exception;
+        }
+
+        app(\App\Services\AdminNotificationService::class)->resolve('room_transfer_request', $transfer);
+
+        app(ClientNotificationService::class)->contract(
+            $transfer->contract,
+            'room_transfer_completed',
+            'Đã hoàn tất đổi phòng',
+            "Phụ lục {$appendix->code} đã được ký. Hợp đồng đã chuyển từ phòng {$transfer->oldRoom->room_code} sang {$transfer->newRoom->room_code}."
+        );
+
+        return redirect()->route('admin.contract-appendices.show', $appendix)
+            ->with('success', 'Đã lưu minh chứng ký, hoàn tất bàn giao và chuyển phòng.');
     }
 
     public function signedEvidence(ContractAppendix $appendix, int $index)

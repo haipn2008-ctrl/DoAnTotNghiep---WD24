@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Amenity;
 use App\Models\Contract;
+use App\Models\ContractAppendix;
 use App\Models\ContractLifecycleAlert;
 use App\Models\Invoice;
 use App\Models\Role;
@@ -16,6 +17,8 @@ use App\Models\User;
 use App\Models\UtilityReading;
 use App\Services\InvoiceGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class RoomTransferWorkflowTest extends TestCase
@@ -26,6 +29,7 @@ class RoomTransferWorkflowTest extends TestCase
     {
         parent::setUp();
         $this->travelTo('2026-08-15 09:00:00');
+        Storage::fake('local');
     }
 
     public function test_tenant_can_request_and_admin_can_complete_a_room_transfer_safely(): void
@@ -77,7 +81,23 @@ class RoomTransferWorkflowTest extends TestCase
             'old_assets' => [$asset->id => ['quantity' => 1, 'condition' => 'damaged', 'note' => 'Trầy nhẹ']],
             'new_assets' => [$newRoom->id => [$asset->id => ['quantity' => 2, 'condition' => 'normal']]],
             'confirm_transfer' => '1',
-        ])->assertRedirect(route('admin.room-transfers.index'))->assertSessionHasNoErrors();
+        ])->assertSessionHasNoErrors();
+
+        $transfer->refresh();
+        $appendix = $transfer->appendix;
+        $this->assertSame(RoomTransfer::STATUS_PENDING_APPENDIX, $transfer->status);
+        $this->assertSame($oldRoom->id, $contract->fresh()->room_id);
+        $this->assertSame(ContractAppendix::STATUS_PENDING_TENANT, $appendix->status);
+
+        $this->actingAs($client)->post(route('client.contract-appendices.accept', $appendix), [
+            'confirmation' => '1',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(ContractAppendix::STATUS_PENDING_SIGNATURE, $appendix->fresh()->status);
+        $this->assertSame($oldRoom->id, $contract->fresh()->room_id);
+
+        $this->actingAs($admin)->post(route('admin.contract-appendices.complete-room-transfer', $appendix), [
+            'signed_evidence' => [UploadedFile::fake()->image('phu-luc.jpg')],
+        ])->assertSessionHasNoErrors();
 
         $transfer->refresh();
         $contract->refresh();
@@ -135,6 +155,15 @@ class RoomTransferWorkflowTest extends TestCase
             'confirm_transfer' => '1',
         ])->assertSessionHasNoErrors();
 
+        $transfer = RoomTransfer::query()->latest('id')->firstOrFail();
+        $appendix = $transfer->appendix;
+        $this->actingAs($contract->tenant->user)->post(route('client.contract-appendices.accept', $appendix), [
+            'confirmation' => '1',
+        ])->assertSessionHasNoErrors();
+        $this->actingAs($admin)->post(route('admin.contract-appendices.complete-room-transfer', $appendix), [
+            'signed_evidence' => [UploadedFile::fake()->image('phu-luc.jpg')],
+        ])->assertSessionHasNoErrors();
+
         UtilityReading::query()->create([
             'room_id' => $newRoom->id, 'contract_id' => $contract->id,
             'month' => 8, 'year' => 2026, 'record_date' => '2026-08-31', 'reading_type' => 'periodic',
@@ -174,8 +203,17 @@ class RoomTransferWorkflowTest extends TestCase
             'new_electricity' => 500, 'new_water' => 60,
             'confirm_transfer' => '1',
         ])->assertSessionHasNoErrors();
+        $transfer = RoomTransfer::query()->latest('id')->firstOrFail();
+        $appendix = $transfer->appendix;
+        $this->assertSame($contract->room_id, $contract->fresh()->room_id);
+        $this->actingAs($client)->post(route('client.contract-appendices.accept', $appendix), [
+            'confirmation' => '1',
+        ])->assertSessionHasNoErrors();
+        $this->actingAs($admin)->post(route('admin.contract-appendices.complete-room-transfer', $appendix), [
+            'signed_evidence' => [UploadedFile::fake()->image('phu-luc.jpg')],
+        ])->assertSessionHasNoErrors();
         $this->assertSame($newRoom->id, $contract->fresh()->room_id);
-        $this->assertSame('room_transfer_completed', $client->notifications()->sole()->data['type']);
+        $this->assertContains('room_transfer_completed', $client->notifications()->get()->pluck('data.type')->all());
     }
 
     private function fixture(): array

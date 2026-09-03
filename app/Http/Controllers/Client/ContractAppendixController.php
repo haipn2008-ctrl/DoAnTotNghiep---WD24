@@ -26,8 +26,11 @@ class ContractAppendixController extends Controller
         $appendix = $this->appendices->accept($this->owned($request, $appendix), $request->user());
         app(AdminNotificationService::class)->appendixResponded($appendix, true);
 
-        return redirect()->route('client.contract-appendices.show', $appendix)
-            ->with('success', 'Bạn đã chấp nhận phụ lục. Nội dung phụ lục đã được ghi nhận.');
+        $message = $appendix->isRoomTransfer()
+            ? 'Bạn đã đồng ý phụ lục. Phòng thuê chưa thay đổi; phụ lục đang chờ hai bên ký và hoàn tất bàn giao.'
+            : 'Bạn đã chấp nhận phụ lục. Nội dung phụ lục đã được ghi nhận.';
+
+        return redirect()->route('client.contract-appendices.show', $appendix)->with('success', $message);
     }
 
     public function reject(Request $request, ContractAppendix $appendix)

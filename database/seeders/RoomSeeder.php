@@ -12,7 +12,11 @@ class RoomSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function (): void {
-            $assets = Amenity::query()->active()->assets()->orderBy('id')->take(4)->get();
+            $assets = Amenity::query()
+                ->active()
+                ->assets()
+                ->whereIn('name', DefaultRoomAssetsSeeder::DEFAULT_ASSETS)
+                ->get();
 
             foreach (range(1, 3) as $floor) {
                 foreach (range(1, 4) as $number) {

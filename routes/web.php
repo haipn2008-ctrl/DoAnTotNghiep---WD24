@@ -355,6 +355,8 @@ Route::middleware('auth')->group(function () {
                     ->name('contract-appendices.print');
                 Route::post('contract-appendices/{appendix}/complete-extension', [AdminContractAppendixController::class, 'completeExtension'])
                     ->name('contract-appendices.complete-extension');
+                Route::post('contract-appendices/{appendix}/complete-room-transfer', [AdminContractAppendixController::class, 'completeRoomTransfer'])
+                    ->name('contract-appendices.complete-room-transfer');
                 Route::get('contract-appendices/{appendix}/signed-evidence/{index}', [AdminContractAppendixController::class, 'signedEvidence'])
                     ->whereNumber('index')->name('contract-appendices.signed-evidence');
                 Route::get('contract-appendices/{appendix}/edit', [AdminContractAppendixController::class, 'edit'])

@@ -59,7 +59,8 @@ class ContractController extends Controller
             )
             ->orderByDesc('contract_code')
             ->orderByDesc('id')
-            ->get();
+            ->paginate(10)
+            ->withQueryString();
 
         if ($request->ajax()) {
             return view('admin.contracts.partials.results', compact('contracts'));

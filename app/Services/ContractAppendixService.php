@@ -110,6 +110,9 @@ class ContractAppendixService
     {
         return DB::transaction(function () use ($appendix, $actor): ContractAppendix {
             $appendix = ContractAppendix::query()->with('contract')->lockForUpdate()->findOrFail($appendix->id);
+            if ($appendix->isRoomTransfer()) {
+                $this->fail('appendix', 'Phụ lục chuyển phòng bị từ chối không thể sửa trực tiếp. Hãy tạo yêu cầu đổi phòng mới.');
+            }
             if ($appendix->status !== ContractAppendix::STATUS_REJECTED) {
                 $this->fail('appendix', 'Chỉ phụ lục bị khách từ chối mới có thể tạo bản sửa đổi.');
             }
@@ -123,10 +126,12 @@ class ContractAppendixService
 
             $revised = ContractAppendix::query()->create([
                 'contract_id' => $contract->id,
+                'room_transfer_id' => $appendix->room_transfer_id,
                 'parent_appendix_id' => $appendix->id,
                 'appendix_number' => $appendix->appendix_number,
                 'revision' => $revision,
                 'code' => $this->code($contract, $appendix->appendix_number, $revision),
+                'appendix_type' => $appendix->appendix_type,
                 'title' => $appendix->title,
                 'legal_basis' => $appendix->legal_basis,
                 'content' => $appendix->content,
@@ -152,7 +157,9 @@ class ContractAppendixService
                 $this->fail('appendix', 'Nội dung phụ lục không vượt qua kiểm tra toàn vẹn.');
             }
             $appendix->forceFill([
-                'status' => ContractAppendix::STATUS_ACCEPTED,
+                'status' => $appendix->isRoomTransfer()
+                    ? ContractAppendix::STATUS_PENDING_SIGNATURE
+                    : ContractAppendix::STATUS_ACCEPTED,
                 'responded_at' => now(),
                 'responded_by' => $actor->id,
                 'accepted_at' => now(),
@@ -179,6 +186,10 @@ class ContractAppendixService
                 'rejected_at' => now(),
                 'rejection_reason' => $reason,
             ])->save();
+
+            if ($appendix->isRoomTransfer() && $appendix->roomTransfer) {
+                $appendix->roomTransfer->forceFill(['status' => \App\Models\RoomTransfer::STATUS_REJECTED])->save();
+            }
 
             return $appendix->fresh('contract');
         }, 3);

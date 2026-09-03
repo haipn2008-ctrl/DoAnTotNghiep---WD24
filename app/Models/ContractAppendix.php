@@ -49,8 +49,10 @@ class ContractAppendix extends Model
 
     public const TYPE_EXTENSION = 'extension';
 
+    public const TYPE_ROOM_TRANSFER = 'room_transfer';
+
     protected $fillable = [
-        'contract_id', 'extension_request_id', 'parent_appendix_id', 'appendix_number', 'revision', 'code', 'appendix_type',
+        'contract_id', 'extension_request_id', 'room_transfer_id', 'parent_appendix_id', 'appendix_number', 'revision', 'code', 'appendix_type',
         'title', 'legal_basis', 'content', 'price_adjustments', 'effective_from', 'status', 'created_by',
         'sent_at', 'sent_by', 'responded_at', 'responded_by', 'accepted_at',
         'rejected_at', 'rejection_reason', 'content_sha256',
@@ -72,7 +74,8 @@ class ContractAppendix extends Model
     {
         static::updating(function (ContractAppendix $appendix): void {
             if ($appendix->getOriginal('sent_at') && $appendix->isDirty([
-                'contract_id', 'parent_appendix_id', 'appendix_number', 'revision',
+                'contract_id', 'extension_request_id', 'room_transfer_id', 'appendix_type',
+                'parent_appendix_id', 'appendix_number', 'revision',
                 'code', 'title', 'legal_basis', 'content', 'price_adjustments', 'effective_from',
                 'sent_at', 'sent_by', 'content_sha256',
             ])) {
@@ -100,6 +103,11 @@ class ContractAppendix extends Model
     public function extensionRequest()
     {
         return $this->belongsTo(ContractExtensionRequest::class, 'extension_request_id');
+    }
+
+    public function roomTransfer()
+    {
+        return $this->belongsTo(RoomTransfer::class);
     }
 
     public function evidenceUploader()
@@ -176,5 +184,10 @@ class ContractAppendix extends Model
     public function isExtension(): bool
     {
         return $this->appendix_type === self::TYPE_EXTENSION;
+    }
+
+    public function isRoomTransfer(): bool
+    {
+        return $this->appendix_type === self::TYPE_ROOM_TRANSFER;
     }
 }

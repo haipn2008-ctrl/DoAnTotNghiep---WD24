@@ -33,7 +33,7 @@
             @if($appendix->status === \App\Models\ContractAppendix::STATUS_DRAFT)
                 <a href="{{ route('admin.contract-appendices.edit', $appendix) }}" class="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 text-sm font-bold text-indigo-700 hover:bg-indigo-50"><i class="bx bx-edit text-lg"></i>Sửa</a>
                 <form method="POST" action="{{ route('admin.contract-appendices.send', $appendix) }}" data-confirm="Phụ lục sẽ được gửi cho khách xác nhận và không thể sửa trực tiếp sau khi gửi." data-confirm-label="Gửi phụ lục">@csrf<button class="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700"><i class="bx bx-send text-lg"></i>Gửi khách</button></form>
-            @elseif($appendix->status === \App\Models\ContractAppendix::STATUS_REJECTED)
+            @elseif($appendix->status === \App\Models\ContractAppendix::STATUS_REJECTED && ! $appendix->isRoomTransfer())
                 <form method="POST" action="{{ route('admin.contract-appendices.revise', $appendix) }}">@csrf<button class="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700"><i class="bx bx-refresh text-lg"></i>Tạo bản sửa đổi</button></form>
             @endif
             </div>
@@ -54,6 +54,43 @@
                 @error('signed_evidence.*')<p class="mt-2 text-sm font-semibold text-rose-700">{{ $message }}</p>@enderror
                 <button class="h-11 rounded-lg bg-sky-700 px-5 text-sm font-bold text-white hover:bg-sky-800">Tải lên và hoàn tất</button>
             </form>
+        </section>
+    @endif
+
+    @if($appendix->status === \App\Models\ContractAppendix::STATUS_PENDING_SIGNATURE && $appendix->isRoomTransfer())
+        <section class="rounded-xl border border-violet-200 bg-violet-50 p-4">
+            <div class="flex items-center gap-2"><i class="bx bx-transfer-alt text-xl text-violet-700"></i><div><h3 class="font-bold text-violet-950">Xác nhận bàn giao và chuyển phòng</h3><p class="mt-1 text-sm text-violet-800">Khách đã đồng ý nội dung. Hợp đồng chỉ được cập nhật sau khi tải minh chứng phụ lục đã ký.</p></div></div>
+            <form method="POST" enctype="multipart/form-data" action="{{ route('admin.contract-appendices.complete-room-transfer', $appendix) }}" class="mt-3 grid gap-3 rounded-lg border border-violet-200 bg-white p-4 lg:grid-cols-[1fr_auto] lg:items-end" data-room-transfer-completion-form>
+                @csrf
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700">Ảnh phụ lục đã ký <span class="font-normal text-slate-400">· Tối đa 10 ảnh, 5 MB/ảnh</span><input type="file" name="signed_evidence[]" accept="image/jpeg,image/png,image/webp" multiple required class="mt-2 block w-full rounded-lg border border-slate-200 bg-white p-2 text-sm" data-room-transfer-evidence></label>
+                    <p class="mt-2 text-xs font-semibold text-slate-500" data-room-transfer-file-status>Chưa chọn ảnh minh chứng.</p>
+                    @error('signed_evidence')<p class="mt-2 text-sm font-semibold text-rose-700">{{ $message }}</p>@enderror
+                    @error('signed_evidence.*')<p class="mt-2 text-sm font-semibold text-rose-700">{{ $message }}</p>@enderror
+                    @error('effective_date')<p class="mt-2 text-sm font-semibold text-rose-700">{{ $message }}</p>@enderror
+                    @error('appendix')<p class="mt-2 text-sm font-semibold text-rose-700">{{ $message }}</p>@enderror
+                    @error('transfer')<p class="mt-2 text-sm font-semibold text-rose-700">{{ $message }}</p>@enderror
+                    @error('new_room_id')<p class="mt-2 text-sm font-semibold text-rose-700">{{ $message }}</p>@enderror
+                </div>
+                <button type="submit" disabled class="h-11 cursor-not-allowed rounded-lg bg-violet-700 px-5 text-sm font-bold text-white opacity-50 transition hover:bg-violet-800" data-room-transfer-complete>Xác nhận bàn giao và chuyển phòng</button>
+            </form>
+            <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    const form = document.querySelector('[data-room-transfer-completion-form]');
+                    const input = form?.querySelector('[data-room-transfer-evidence]');
+                    const button = form?.querySelector('[data-room-transfer-complete]');
+                    const status = form?.querySelector('[data-room-transfer-file-status]');
+                    if (!input || !button || !status) return;
+                    input.addEventListener('change', () => {
+                        const count = input.files?.length || 0;
+                        status.textContent = count ? `Đã chọn ${count} ảnh minh chứng.` : 'Chưa chọn ảnh minh chứng.';
+                        status.classList.toggle('text-emerald-700', count > 0);
+                        button.disabled = count === 0;
+                        button.classList.toggle('cursor-not-allowed', count === 0);
+                        button.classList.toggle('opacity-50', count === 0);
+                    });
+                });
+            </script>
         </section>
     @endif
 

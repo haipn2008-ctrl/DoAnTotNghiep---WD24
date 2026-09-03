@@ -16,7 +16,7 @@
     <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
         <div>
             <h3 class="font-semibold text-slate-950">Hợp đồng phù hợp</h3>
-            <p class="text-sm text-slate-500">Tìm thấy {{ $contracts->count() }} hợp đồng</p>
+            <p class="text-sm text-slate-500">Tìm thấy {{ $contracts->total() }} hợp đồng, hiển thị {{ $contracts->count() }} hợp đồng trên trang này</p>
         </div>
         <span data-contract-loading class="hidden text-sm font-semibold text-indigo-600"><i class="bx bx-loader-alt mr-1 animate-spin"></i>Đang lọc</span>
     </div>
@@ -78,3 +78,7 @@
         </table>
     </div>
 </section>
+
+@if ($contracts->hasPages())
+    <div class="mt-6 flex justify-end" data-contract-pagination>{{ $contracts->links() }}</div>
+@endif

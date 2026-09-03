@@ -22,6 +22,9 @@ class DemoSeeder extends Seeder
             RoomSeeder::class,
             SettingSeeder::class,
             DemoScenarioSeeder::class,
+            RecentPaidContractsSeeder::class,
+            DefaultRoomAssetsSeeder::class,
+            GovernmentUtilityExpenseSeeder::class,
         ]);
     }
 }

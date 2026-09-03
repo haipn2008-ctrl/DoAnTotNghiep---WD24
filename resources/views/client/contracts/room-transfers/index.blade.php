@@ -97,6 +97,7 @@
                 @php
                     $transferStatus = match($transfer->status) {
                         'pending' => ['Chờ duyệt', 'bg-amber-50 text-amber-700', 'bg-amber-500'],
+                        'pending_appendix' => ['Đang hoàn tất phụ lục', 'bg-violet-50 text-violet-700', 'bg-violet-500'],
                         'completed' => ['Đã chuyển', 'bg-emerald-50 text-emerald-700', 'bg-emerald-500'],
                         default => ['Bị từ chối', 'bg-rose-50 text-rose-700', 'bg-rose-500'],
                     };
